@@ -1,16 +1,15 @@
 /**
  * attendance.js - 5 Vakit Namaz Yoklaması & 5 Durum (Var, Yok, Geç, Takkesiz, İzinli)
- * (Kelimeli Butonlar, Hızlı Filtresiz ve Mazeret Kutusuz Sade Arayüz)
+ * (Gün Adı Gösterimi, Çoklu Sınıf Seçimi, Kaldırılan Otomatik Kayıt & Tümünü Var Yap Butonları)
  */
 
 window.AttendanceModule = {
   currentDate: new Date().toISOString().split('T')[0],
   currentPrayer: 'Sabah',
-  currentClass: 'ALL',
+  selectedClasses: [], // Boş ise 'Tüm Sınıflar', içinde 1 veya birden fazla sınıf adı barındırabilir
   currentHoca: 'ALL',
   searchQuery: '',
   draftAttendance: {},
-  _saveTimeout: null,
 
   prayerTimes: [
     { name: 'Sabah', icon: '🌅', label: 'Sabah Namazı' },
@@ -41,6 +40,16 @@ window.AttendanceModule = {
     this.renderView();
   },
 
+  // Tarih Stringinden Türkçe Gün Adını Döndürür
+  getDayName(dateStr) {
+    if (!dateStr) return '';
+    const days = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+    const parts = dateStr.split('-').map(Number);
+    if (parts.length !== 3) return '';
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    return days[d.getDay()] || '';
+  },
+
   setPrayer(prayerName) {
     this.currentPrayer = prayerName;
     this.loadDailyDraft();
@@ -54,8 +63,19 @@ window.AttendanceModule = {
     this.renderView();
   },
 
-  setClassFilter(className) {
-    this.currentClass = className;
+  // Çoklu Sınıf Seçimi / Kaldırma (Birden fazla sınıf seçilebilir)
+  toggleClass(className) {
+    if (this.selectedClasses.includes(className)) {
+      this.selectedClasses = this.selectedClasses.filter(c => c !== className);
+    } else {
+      this.selectedClasses.push(className);
+    }
+    this.renderView();
+  },
+
+  // Tüm Sınıfları Seç / Sıfırla
+  toggleAllClasses() {
+    this.selectedClasses = [];
     this.renderView();
   },
 
@@ -82,14 +102,14 @@ window.AttendanceModule = {
     });
   },
 
-  // Butona dokunulduğunda ANINDA OTOMATİK KAYIT
+  // Butona dokunulduğunda ANINDA ARKA PLANDA OTOMATİK KAYIT
   setStatus(studentId, statusCode) {
     if (!this.draftAttendance[studentId]) {
       this.draftAttendance[studentId] = { status: 'VAR' };
     }
     this.draftAttendance[studentId].status = statusCode;
 
-    // Otomatik Kayıt
+    // Otomatik Anında Kayıt
     window.Store.saveSingleAttendance(
       studentId,
       this.currentDate,
@@ -98,62 +118,22 @@ window.AttendanceModule = {
       ''
     );
 
-    this.showAutoSaveIndicator();
     this.renderStudentRows();
     this.renderSummary();
-  },
-
-  // Tüm Listeyi Tek Tıkla Var Yap ve Kaydet
-  setAllStatus(statusCode = 'VAR') {
-    const students = this.getFilteredStudents();
-    const records = [];
-
-    students.forEach(s => {
-      this.draftAttendance[s.id] = { status: statusCode };
-      records.push({
-        studentId: s.id,
-        date: this.currentDate,
-        prayerTime: this.currentPrayer,
-        status: statusCode,
-        note: ''
-      });
-    });
-
-    window.Store.saveAttendanceBatch(records);
-    this.showAutoSaveIndicator();
-    this.renderStudentRows();
-    this.renderSummary();
-    window.App.showToast(`${students.length} öğrenci "Var" olarak otomatik kaydedildi.`, 'success');
-  },
-
-  showAutoSaveIndicator() {
-    const badge = document.getElementById('auto-save-badge');
-    const text = document.getElementById('auto-save-text');
-    if (badge && text) {
-      badge.classList.remove('bg-slate-50', 'text-slate-600', 'border-slate-200');
-      badge.classList.add('bg-emerald-100', 'text-emerald-800', 'border-emerald-300');
-      text.innerHTML = '✓ Kaydedildi';
-
-      clearTimeout(this._saveTimeout);
-      this._saveTimeout = setTimeout(() => {
-        if (badge && text) {
-          badge.classList.remove('bg-emerald-100', 'text-emerald-800', 'border-emerald-300');
-          badge.classList.add('bg-slate-50', 'text-slate-600', 'border-slate-200');
-          text.innerHTML = 'Otomatik Kayıt';
-        }
-      }, 1300);
-    }
   },
 
   getFilteredStudents() {
     let students = window.Store.getStudents();
 
-    if (this.currentClass !== 'ALL') {
-      students = students.filter(s => s.className === this.currentClass);
+    // Çoklu Sınıf Filtresi (1'den fazla sınıf seçilebilir)
+    if (this.selectedClasses && this.selectedClasses.length > 0) {
+      students = students.filter(s => this.selectedClasses.includes(s.className));
     }
+
     if (this.currentHoca !== 'ALL') {
       students = students.filter(s => s.etutHocasi === this.currentHoca || s.dahiliHoca === this.currentHoca);
     }
+
     if (this.searchQuery) {
       students = students.filter(s => 
         s.firstName.toLowerCase().includes(this.searchQuery) ||
@@ -171,13 +151,14 @@ window.AttendanceModule = {
 
     const classes = window.Store.getClasses();
     const allHocalar = window.Store.getAllHocalar ? window.Store.getAllHocalar() : window.Store.getEtutHocalari();
+    const dayName = this.getDayName(this.currentDate);
     this.loadDailyDraft();
 
     container.innerHTML = `
       <div class="space-y-4 animate-fade-in max-w-4xl mx-auto">
         <!-- 1. Üst Filtre & Namaz Vakti Paneli -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
-          <!-- Üst Satır: Tarih & 5 Vakit Namaz Butonları -->
+          <!-- Üst Satır: Tarih, Gün Adı & 5 Vakit Namaz Butonları -->
           <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
             <div class="space-y-1.5">
               <div class="flex items-center gap-2">
@@ -188,9 +169,16 @@ window.AttendanceModule = {
               </div>
 
               <div class="flex flex-wrap items-center gap-2">
+                <!-- Tarih Seçici -->
                 <input type="date" id="att-date-picker" value="${this.currentDate}" 
                   class="px-3 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none transition shadow-2xs"
                   onchange="window.AttendanceModule.setDate(this.value)">
+
+                <!-- GÜN ADI GÖSTERGESİ (Kullanıcı İsteği) -->
+                <div class="px-3 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-2xs">
+                  <span>📅</span>
+                  <span>${dayName}</span>
+                </div>
 
                 <!-- 5 VAKİT NAMAZ BUTONLARI -->
                 <div class="inline-flex flex-wrap p-1 bg-slate-100 rounded-2xl border border-slate-200 gap-1 shadow-inner">
@@ -212,56 +200,77 @@ window.AttendanceModule = {
               </div>
             </div>
 
-            <!-- Sağ Taraf: Tümünü Var Yap & Otomatik Kayıt Rozeti -->
-            <div class="flex items-center gap-2">
-              <button onclick="window.AttendanceModule.setAllStatus('VAR')" 
-                title="Tüm listeyi Var olarak kaydeder"
-                class="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs">
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                <span>Tümünü Var Yap</span>
-              </button>
-
-              <div id="auto-save-badge" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 flex items-center gap-1.5 transition-all shadow-2xs">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span id="auto-save-text">Otomatik Kayıt</span>
-              </div>
-            </div>
+            <!-- "Tümünü Var Yap" ve "Otomatik Kayıt" butonları tamamen kaldırılmıştır -->
           </div>
 
-          <!-- Alt Satır: Sınıf Filtresi, Hoca Filtresi ve Arama -->
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-2.5">
-              <div>
-                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">SINIF</label>
-                <select id="att-class-picker" 
-                  class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 focus:border-emerald-500 focus:outline-none shadow-2xs"
-                  onchange="window.AttendanceModule.setClassFilter(this.value)">
-                  <option value="ALL" ${this.currentClass === 'ALL' ? 'selected' : ''}>Tüm Sınıflar</option>
-                  ${classes.map(c => `<option value="${c}" ${this.currentClass === c ? 'selected' : ''}>${c}</option>`).join('')}
-                </select>
+          <!-- Alt Satır: ÇOKLU SINIF SEÇİMİ, Hoca Filtresi ve Arama -->
+          <div class="space-y-3">
+            <!-- ÇOKLU SINIF SEÇİM BUTONLARI (1'den fazla sınıf seçilebilir) -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wide">
+                  SINIF SEÇİMİ (Birden Fazla Seçebilirsiniz):
+                </label>
+                ${this.selectedClasses.length > 0 ? `
+                  <span class="text-[11px] font-bold text-emerald-700">
+                    Seçili: ${this.selectedClasses.join(', ')}
+                  </span>
+                ` : ''}
               </div>
 
-              <div>
-                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">HOCA / GRUP</label>
-                <select id="att-hoca-picker" 
-                  class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 focus:border-emerald-500 focus:outline-none shadow-2xs"
-                  onchange="window.AttendanceModule.setHocaFilter(this.value)">
-                  <option value="ALL">Tüm Hocalar</option>
-                  ${allHocalar.map(h => `<option value="${h}" ${this.currentHoca === h ? 'selected' : ''}>${h}</option>`).join('')}
-                </select>
-              </div>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <!-- TÜM SINIFLAR SEÇENEĞİ -->
+                <button type="button" onclick="window.AttendanceModule.toggleAllClasses()"
+                  class="px-3.5 py-1.5 rounded-xl text-xs font-black transition-all ${
+                    this.selectedClasses.length === 0 
+                      ? 'bg-slate-900 text-white shadow-sm ring-1 ring-slate-400' 
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
+                  }">
+                  Tüm Sınıflar
+                </button>
 
-              <div>
-                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">ÖĞRENCİ ARA</label>
-                <input type="text" placeholder="Öğrenci adı ara..." 
-                  value="${this.searchQuery}"
-                  class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:border-emerald-500 focus:outline-none w-36 sm:w-44 shadow-2xs"
-                  oninput="window.AttendanceModule.setSearchQuery(this.value)">
+                <!-- BİRDEN FAZLA SEÇİLEBİLEN SINIF BUTONLARI -->
+                ${classes.map(c => {
+                  const isSelected = this.selectedClasses.includes(c);
+                  return `
+                    <button type="button" onclick="window.AttendanceModule.toggleClass('${c}')"
+                      class="px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                        isSelected 
+                          ? 'bg-emerald-600 text-white shadow-sm scale-105 ring-2 ring-emerald-300' 
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                      }">
+                      <span>${isSelected ? '✓ ' : ''}${c}</span>
+                    </button>
+                  `;
+                }).join('')}
               </div>
             </div>
 
-            <div class="text-xs text-slate-400">
-              💡 <em>Butonlara dokunduğunuz an anında kaydedilir.</em>
+            <!-- Hoca Filtresi & Öğrenci Arama -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+              <div class="flex flex-wrap items-center gap-2.5">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">HOCA / GRUP</label>
+                  <select id="att-hoca-picker" 
+                    class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 focus:border-emerald-500 focus:outline-none shadow-2xs"
+                    onchange="window.AttendanceModule.setHocaFilter(this.value)">
+                    <option value="ALL">Tüm Hocalar</option>
+                    ${allHocalar.map(h => `<option value="${h}" ${this.currentHoca === h ? 'selected' : ''}>${h}</option>`).join('')}
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">ÖĞRENCİ ARA</label>
+                  <input type="text" placeholder="Öğrenci adı ara..." 
+                    value="${this.searchQuery}"
+                    class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:border-emerald-500 focus:outline-none w-36 sm:w-44 shadow-2xs"
+                    oninput="window.AttendanceModule.setSearchQuery(this.value)">
+                </div>
+              </div>
+
+              <div class="text-xs text-slate-400">
+                💡 <em>Dokunulan her yoklama anında hafızaya işlenir.</em>
+              </div>
             </div>
           </div>
 
@@ -269,7 +278,7 @@ window.AttendanceModule = {
           <div id="attendance-summary-bar" class="pt-2 border-t border-slate-100"></div>
         </div>
 
-        <!-- 2. Öğrenci Yoklama Listesi (Hızlı Filtre ve Mazeret Kutusu Kaldırıldı) -->
+        <!-- 2. Öğrenci Yoklama Listesi -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
           <!-- Başlık Satırı -->
           <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
@@ -342,7 +351,7 @@ window.AttendanceModule = {
 
       return `
         <div class="p-3 sm:px-5 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
-          <!-- 1. Öğrenci Bilgisi (Sadece İsim ve Sınıfı - No, hoca, aile kodu, oda no YOKTUR) -->
+          <!-- 1. Öğrenci Bilgisi (Sadece İsim ve Sınıfı) -->
           <div class="flex items-center gap-2 min-w-0">
             <span class="font-black text-slate-900 text-sm sm:text-base leading-tight truncate">
               ${s.firstName} ${s.lastName}
