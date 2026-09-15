@@ -1,5 +1,6 @@
 /**
  * attendance.js - 5 Vakit Namaz Yoklaması, Otomatik Kayıt & Hızlı Durum Filtreleri
+ * (Ekranı sağa sola kaydırmadan tam oturan, sadeleştirilmiş liste)
  */
 
 window.AttendanceModule = {
@@ -36,7 +37,7 @@ window.AttendanceModule = {
     this.currentPrayer = prayerName;
     this.loadDailyDraft();
     this.renderView();
-    window.App.showToast(`${this.currentPrayer} Namazı yoklaması yüklendi.`, 'info');
+    window.App.showToast(`${this.currentPrayer} Namazı yoklaması seçildi.`, 'info');
   },
 
   setDate(date) {
@@ -183,8 +184,7 @@ window.AttendanceModule = {
       students = students.filter(s => 
         s.firstName.toLowerCase().includes(this.searchQuery) ||
         s.lastName.toLowerCase().includes(this.searchQuery) ||
-        s.studentNo.toString().includes(this.searchQuery) ||
-        (s.familyCode && s.familyCode.toLowerCase().includes(this.searchQuery)) ||
+        (s.className && s.className.toLowerCase().includes(this.searchQuery)) ||
         (s.yatakhane && s.yatakhane.toLowerCase().includes(this.searchQuery))
       );
     }
@@ -209,31 +209,31 @@ window.AttendanceModule = {
     this.loadDailyDraft();
 
     container.innerHTML = `
-      <div class="space-y-5 animate-fade-in">
-        <!-- 1. Üst Filtre Paneli: Tarih, 5 Vakit Namaz, Sınıf ve Hoca Filtresi -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-5">
+      <div class="space-y-4 animate-fade-in max-w-5xl mx-auto">
+        <!-- 1. Üst Filtre ve Kontrol Kartı: Tarih, 5 Vakit Namaz, Sınıf ve Hoca Filtresi -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
           <!-- Üst Satır: Tarih & 5 Vakit Namaz Butonları -->
-          <div class="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-slate-100">
-            <div class="space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+            <div class="space-y-1.5">
               <div class="flex items-center gap-2">
-                <span class="text-xs font-black text-slate-800 uppercase tracking-wide">YOKLAMA TARİHİ & NAMAZ VAKTİ</span>
+                <span class="text-xs font-black text-slate-800 uppercase tracking-wide">YOKLAMA TARİHİ & NAMAZ VAKTİ:</span>
                 <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
                   ${this.currentPrayer} Namazı
                 </span>
               </div>
 
-              <div class="flex flex-wrap items-center gap-3">
+              <div class="flex flex-wrap items-center gap-2">
                 <input type="date" id="att-date-picker" value="${this.currentDate}" 
-                  class="px-3.5 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none transition shadow-2xs"
+                  class="px-3 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none transition shadow-2xs"
                   onchange="window.AttendanceModule.setDate(this.value)">
 
                 <!-- 5 VAKİT NAMAZ BUTONLARI -->
-                <div class="inline-flex p-1 bg-slate-100 rounded-2xl border border-slate-200 gap-1 shadow-inner">
+                <div class="inline-flex flex-wrap p-1 bg-slate-100 rounded-2xl border border-slate-200 gap-1 shadow-inner">
                   ${this.prayerTimes.map(p => {
                     const isSelected = this.currentPrayer === p.name;
                     return `
                       <button type="button" onclick="window.AttendanceModule.setPrayer('${p.name}')"
-                        class="px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                        class="px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
                           isSelected 
                             ? 'bg-emerald-600 text-white shadow-md scale-105' 
                             : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
@@ -247,40 +247,39 @@ window.AttendanceModule = {
               </div>
             </div>
 
-            <!-- Sağ Taraf: Hızlı İşlem ve Otomatik Kayıt Durum Göstergesi (Kaydet Butonu KALDIRILDI) -->
-            <div class="flex items-center gap-3">
+            <!-- Sağ Taraf: Hızlı İşlem ve Otomatik Kayıt Durum Göstergesi -->
+            <div class="flex items-center gap-2">
               <button onclick="window.AttendanceModule.setAllStatus('V')" 
-                title="Listelenen tüm öğrencileri Var olarak işaretler ve kaydeder"
-                class="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold flex items-center gap-2 transition shadow-2xs">
+                title="Tüm öğrencileri Var olarak işaretler ve otomatik kaydeder"
+                class="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs">
                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                <span>Tümünü Var (V) Yap</span>
+                <span>Tümünü Var Yap</span>
               </button>
 
-              <!-- Otomatik Kayıt Bildirim Rozeti -->
-              <div id="auto-save-badge" class="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 flex items-center gap-2 transition-all shadow-2xs">
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span id="auto-save-text">Otomatik Kayıt Aktif</span>
+              <div id="auto-save-badge" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 flex items-center gap-1.5 transition-all shadow-2xs">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span id="auto-save-text">Otomatik Kayıt</span>
               </div>
             </div>
           </div>
 
           <!-- Alt Satır: Sınıf Filtresi, Hoca Filtresi ve Arama -->
-          <div class="flex flex-wrap items-center justify-between gap-4">
-            <div class="flex flex-wrap items-center gap-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2.5">
               <div>
-                <label class="block text-[11px] font-bold text-slate-500 mb-1 uppercase">SINIF FİLTRESİ</label>
+                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">SINIF</label>
                 <select id="att-class-picker" 
-                  class="px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 focus:border-emerald-500 focus:outline-none shadow-2xs"
+                  class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 focus:border-emerald-500 focus:outline-none shadow-2xs"
                   onchange="window.AttendanceModule.setClassFilter(this.value)">
-                  <option value="ALL" ${this.currentClass === 'ALL' ? 'selected' : ''}>Tüm Sınıflar (66 Öğrenci)</option>
+                  <option value="ALL" ${this.currentClass === 'ALL' ? 'selected' : ''}>Tüm Sınıflar</option>
                   ${classes.map(c => `<option value="${c}" ${this.currentClass === c ? 'selected' : ''}>${c}</option>`).join('')}
                 </select>
               </div>
 
               <div>
-                <label class="block text-[11px] font-bold text-slate-500 mb-1 uppercase">HOCA / GRUP FİLTRESİ</label>
+                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">HOCA / GRUP</label>
                 <select id="att-hoca-picker" 
-                  class="px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 focus:border-emerald-500 focus:outline-none shadow-2xs"
+                  class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 focus:border-emerald-500 focus:outline-none shadow-2xs"
                   onchange="window.AttendanceModule.setHocaFilter(this.value)">
                   <option value="ALL">Tüm Hocalar</option>
                   ${allHocalar.map(h => `<option value="${h}" ${this.currentHoca === h ? 'selected' : ''}>${h}</option>`).join('')}
@@ -288,16 +287,16 @@ window.AttendanceModule = {
               </div>
 
               <div>
-                <label class="block text-[11px] font-bold text-slate-500 mb-1 uppercase">ÖĞRENCİ ARA</label>
-                <input type="text" placeholder="İsim, No veya Oda..." 
+                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">ÖĞRENCİ ARA</label>
+                <input type="text" placeholder="İsim veya Oda ara..." 
                   value="${this.searchQuery}"
-                  class="px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:border-emerald-500 focus:outline-none w-48 shadow-2xs"
+                  class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:border-emerald-500 focus:outline-none w-36 sm:w-44 shadow-2xs"
                   oninput="window.AttendanceModule.setSearchQuery(this.value)">
               </div>
             </div>
 
-            <div class="text-right text-[11px] text-slate-400">
-              💡 <em>Herhangi bir butona bastığınızda yoklama anında hafızaya kaydedilir.</em>
+            <div class="text-xs text-slate-400">
+              💡 <em>Dokunduğunuz her buton anında kaydedilir.</em>
             </div>
           </div>
 
@@ -305,26 +304,20 @@ window.AttendanceModule = {
           <div id="attendance-summary-bar" class="pt-2 border-t border-slate-100"></div>
         </div>
 
-        <!-- 2. Hızlı Durum Filtreleme Barı ("Tümü", "Takkesiz", "Namazda Yok") & Öğrenci Tablosu -->
+        <!-- 2. Hızlı Durum Filtreleme Barı ("Tümü", "Takkesiz", "Namazda Yok") & Öğrenci Listesi -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
           <!-- Durum Filtre Butonları Barı -->
-          <div id="status-filter-container" class="bg-slate-50 border-b border-slate-200 p-4"></div>
+          <div id="status-filter-container" class="bg-slate-50 border-b border-slate-200 p-3 sm:p-4"></div>
 
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="bg-slate-100/80 border-b border-slate-200 text-[11px] font-black text-slate-600 uppercase tracking-wider">
-                  <th class="py-3 px-4 w-16 text-center">No</th>
-                  <th class="py-3 px-4">Öğrenci Adı</th>
-                  <th class="py-3 px-4">Sınıf & Hocası</th>
-                  <th class="py-3 px-4">Yatakhane</th>
-                  <th class="py-3 px-4 text-center">Yoklama Durumu (V, T, Y, G, E, K, İ)</th>
-                  <th class="py-3 px-4 w-60">Öğretmen Notu</th>
-                </tr>
-              </thead>
-              <tbody id="attendance-students-tbody" class="divide-y divide-slate-100 text-sm"></tbody>
-            </table>
+          <!-- Liste Başlığı (Geniş ekranlar için rehber başlık) -->
+          <div class="hidden md:grid md:grid-cols-12 gap-3 px-5 py-2.5 bg-slate-100/80 border-b border-slate-200 text-[11px] font-black text-slate-600 uppercase tracking-wider">
+            <div class="md:col-span-4">Öğrenci Adı Soyadı & Sınıfı</div>
+            <div class="md:col-span-5 text-center">Yoklama Durumu (V, T, Y, G, E, K, İ)</div>
+            <div class="md:col-span-3">Öğretmen Notu</div>
           </div>
+
+          <!-- Öğrenci Listesi (Yatay kaydırma OLMADAN doğrudan ekrana sığar) -->
+          <div id="attendance-students-container" class="divide-y divide-slate-100 text-sm"></div>
         </div>
       </div>
     `;
@@ -339,8 +332,8 @@ window.AttendanceModule = {
     const container = document.getElementById('status-filter-container');
     if (!container) return;
 
-    const baseStudents = this.getFilteredStudents(false); // Sınıf, hoca ve arama filtreli öğrenciler
-    const displayedStudents = this.getFilteredStudents(true); // Durum filtresi uygulanmış öğrenciler
+    const baseStudents = this.getFilteredStudents(false);
+    const displayedStudents = this.getFilteredStudents(true);
 
     let takkesizCount = 0;
     let namazdaYokCount = 0;
@@ -353,60 +346,60 @@ window.AttendanceModule = {
     });
 
     container.innerHTML = `
-      <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-2.5">
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-xs font-black text-slate-700 uppercase tracking-wide mr-1">HIZLI FİLTRE:</span>
 
           <!-- TÜMÜ BUTONU -->
           <button type="button" onclick="window.AttendanceModule.setStatusFilter('ALL')"
-            class="px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+            class="px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
               this.statusFilter === 'ALL' 
                 ? 'bg-slate-900 text-white shadow-md scale-105 ring-2 ring-slate-400 ring-offset-1' 
                 : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
             }">
             <span>👥 Tümü</span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] ${this.statusFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'}">${baseStudents.length}</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px] ${this.statusFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'}">${baseStudents.length}</span>
           </button>
 
           <!-- TAKKESİZ BUTONU -->
           <button type="button" onclick="window.AttendanceModule.setStatusFilter('T')"
-            class="px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+            class="px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
               this.statusFilter === 'T' 
                 ? 'bg-purple-700 text-white shadow-md scale-105 ring-2 ring-purple-400 ring-offset-1' 
                 : 'bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200'
             }">
-            <span class="w-2.5 h-2.5 rounded-full ${this.statusFilter === 'T' ? 'bg-white' : 'bg-purple-600'}"></span>
+            <span class="w-2 h-2 rounded-full ${this.statusFilter === 'T' ? 'bg-white' : 'bg-purple-600'}"></span>
             <span>Takkesiz (T)</span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] ${this.statusFilter === 'T' ? 'bg-white/20 text-white' : 'bg-purple-200 text-purple-900'}">${takkesizCount}</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px] ${this.statusFilter === 'T' ? 'bg-white/20 text-white' : 'bg-purple-200 text-purple-900'}">${takkesizCount}</span>
           </button>
 
           <!-- NAMAZDA YOK BUTONU -->
           <button type="button" onclick="window.AttendanceModule.setStatusFilter('Y')"
-            class="px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+            class="px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
               this.statusFilter === 'Y' 
                 ? 'bg-rose-900 text-white shadow-md scale-105 ring-2 ring-rose-400 ring-offset-1' 
                 : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200'
             }">
-            <span class="w-2.5 h-2.5 rounded-full ${this.statusFilter === 'Y' ? 'bg-white' : 'bg-rose-700'}"></span>
+            <span class="w-2 h-2 rounded-full ${this.statusFilter === 'Y' ? 'bg-white' : 'bg-rose-700'}"></span>
             <span>Namazda Yok (Y)</span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] ${this.statusFilter === 'Y' ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-900'}">${namazdaYokCount}</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px] ${this.statusFilter === 'Y' ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-900'}">${namazdaYokCount}</span>
           </button>
         </div>
 
         <!-- Aktif Filtre Durumu ve Temizle Butonu -->
         ${this.statusFilter !== 'ALL' ? `
           <div class="flex items-center gap-2 animate-fade-in">
-            <span class="text-xs font-bold text-amber-900 bg-amber-100/90 px-3 py-1.5 rounded-xl border border-amber-300 flex items-center gap-1.5">
-              <span>⚠️ Filtre Aktif: <strong>"${window.STATUS_CONFIG[this.statusFilter].label}"</strong> olanlar (${displayedStudents.length} öğrenci)</span>
+            <span class="text-xs font-bold text-amber-900 bg-amber-100/90 px-3 py-1 rounded-xl border border-amber-300 flex items-center gap-1.5">
+              <span>⚠️ <strong>"${window.STATUS_CONFIG[this.statusFilter].label}"</strong> (${displayedStudents.length} öğrenci)</span>
             </span>
             <button type="button" onclick="window.AttendanceModule.setStatusFilter('ALL')" 
-              class="text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-300 transition shadow-2xs">
-              ✕ Filtreden Çık (Tümü)
+              class="text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-300 transition shadow-2xs">
+              ✕ Tümü
             </button>
           </div>
         ` : `
           <div class="text-xs font-bold text-slate-500">
-            Toplam <strong>${displayedStudents.length}</strong> öğrenci listeleniyor
+            <strong>${displayedStudents.length}</strong> öğrenci
           </div>
         `}
       </div>
@@ -429,24 +422,24 @@ window.AttendanceModule = {
     });
 
     summaryContainer.innerHTML = `
-      <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5 pt-1">
+      <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-1">
         ${Object.keys(window.STATUS_CONFIG).map(code => {
           const cfg = window.STATUS_CONFIG[code];
           const isCurrentActive = this.statusFilter === code;
           return `
             <div onclick="window.AttendanceModule.setStatusFilter('${code}')"
-              class="px-3 py-2 rounded-xl border flex items-center justify-between cursor-pointer transition-all hover:scale-102 ${
+              class="px-2.5 py-1.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all hover:scale-102 ${
                 isCurrentActive ? 'ring-2 ring-slate-800 shadow-md scale-102' : ''
               }" 
               style="background-color: ${cfg.bg}12; border-color: ${cfg.border}40;">
-              <div class="flex items-center gap-2">
-                <span class="w-6 h-6 rounded-lg text-white font-black text-xs flex items-center justify-center" 
+              <div class="flex items-center gap-1.5">
+                <span class="w-5 h-5 rounded-lg text-white font-black text-xs flex items-center justify-center" 
                   style="background-color: ${cfg.bg};">
                   ${cfg.code}
                 </span>
                 <span class="text-xs font-bold text-slate-700">${cfg.short}</span>
               </div>
-              <span class="text-sm font-black text-slate-900">${counts[code]}</span>
+              <span class="text-xs font-black text-slate-900">${counts[code]}</span>
             </div>
           `;
         }).join('')}
@@ -455,69 +448,75 @@ window.AttendanceModule = {
   },
 
   renderStudentRows() {
-    const tbody = document.getElementById('attendance-students-tbody');
-    if (!tbody) return;
+    const container = document.getElementById('attendance-students-container');
+    if (!container) return;
 
     const students = this.getFilteredStudents(true);
 
     if (students.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="6" class="py-12 text-center text-slate-400 text-sm">
-            ${this.statusFilter !== 'ALL' 
-              ? `"${window.STATUS_CONFIG[this.statusFilter].label}" durumunda öğrenci bulunamadı. <button onclick="window.AttendanceModule.setStatusFilter('ALL')" class="text-emerald-700 font-bold underline ml-1">Tümünü Göster</button>` 
-              : 'Filtreye uygun öğrenci bulunamadı.'}
-          </td>
-        </tr>
+      container.innerHTML = `
+        <div class="py-12 text-center text-slate-400 text-sm">
+          ${this.statusFilter !== 'ALL' 
+            ? `"${window.STATUS_CONFIG[this.statusFilter].label}" durumunda öğrenci bulunamadı. <button onclick="window.AttendanceModule.setStatusFilter('ALL')" class="text-emerald-700 font-bold underline ml-1">Tümünü Göster</button>` 
+            : 'Filtreye uygun öğrenci bulunamadı.'}
+        </div>
       `;
       return;
     }
 
-    tbody.innerHTML = students.map(s => {
+    container.innerHTML = students.map(s => {
       const draft = this.draftAttendance[s.id] || { status: 'V', note: '' };
       const currentStatus = draft.status || 'V';
 
       return `
-        <tr class="table-row-hover transition-colors">
-          <td class="py-3.5 px-4 text-center font-bold text-slate-700">${s.studentNo}</td>
-          <td class="py-3.5 px-4">
-            <div class="font-bold text-slate-900">${s.firstName} ${s.lastName}</div>
-            <div class="text-[10px] text-slate-400">Aile Kodu: <strong class="font-mono text-slate-600">${s.familyCode}</strong></div>
-          </td>
-          <td class="py-3.5 px-4">
-            <div class="text-xs font-bold text-slate-800">${s.className}</div>
-            <div class="text-[11px] text-slate-500">Hoca: ${s.etutHocasi || s.dahiliHoca || '-'}</div>
-          </td>
-          <td class="py-3.5 px-4 text-xs font-semibold text-indigo-800">${s.yatakhane || '-'}</td>
-          <td class="py-3.5 px-4">
-            <div class="flex items-center justify-center gap-1.5">
-              ${Object.keys(window.STATUS_CONFIG).map(code => {
-                const cfg = window.STATUS_CONFIG[code];
-                const isSelected = currentStatus === code;
-                return `
-                  <button type="button" 
-                    title="${cfg.label} - ${cfg.desc}"
-                    onclick="window.AttendanceModule.setStatus('${s.id}', '${code}')"
-                    class="w-7 h-7 rounded-lg font-black text-xs flex items-center justify-center transition-all ${
-                      isSelected 
-                        ? 'text-white scale-110 shadow-md ring-2 ring-offset-1 ring-slate-400' 
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 opacity-60 hover:opacity-100'
-                    }"
-                    style="${isSelected ? `background-color: ${cfg.bg}; border-color: ${cfg.border};` : ''}">
-                    ${code}
-                  </button>
-                `;
-              }).join('')}
+        <div class="p-3 sm:px-5 hover:bg-slate-50/90 transition-colors flex flex-col md:grid md:grid-cols-12 md:items-center gap-2 sm:gap-3">
+          <!-- 1. Öğrenci Bilgisi (No yok, Aile kodu yok, Hoca yok - Sade ve Net) -->
+          <div class="md:col-span-4 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-black text-slate-900 text-sm sm:text-base leading-tight truncate">
+                ${s.firstName} ${s.lastName}
+              </span>
+              <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold text-[10px] shrink-0">
+                ${s.className}
+              </span>
             </div>
-          </td>
-          <td class="py-3.5 px-4">
+            ${s.yatakhane ? `
+              <div class="text-[11px] text-indigo-700 font-semibold mt-0.5">
+                ${s.yatakhane}
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- 2. Yoklama Kodları (V, T, Y, G, E, K, İ) - Ekrana %100 sığar, sağa sola kaydırma YOKTUR -->
+          <div class="md:col-span-5 flex items-center justify-between sm:justify-center gap-1 sm:gap-1.5 w-full">
+            ${Object.keys(window.STATUS_CONFIG).map(code => {
+              const cfg = window.STATUS_CONFIG[code];
+              const isSelected = currentStatus === code;
+              return `
+                <button type="button" 
+                  title="${cfg.label} - ${cfg.desc}"
+                  onclick="window.AttendanceModule.setStatus('${s.id}', '${code}')"
+                  class="flex-1 sm:flex-none w-9 h-9 sm:w-8 sm:h-8 rounded-xl font-black text-xs flex items-center justify-center transition-all ${
+                    isSelected 
+                      ? 'text-white scale-110 shadow-md ring-2 ring-offset-1 ring-slate-400 z-10' 
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 opacity-65 hover:opacity-100'
+                  }"
+                  style="${isSelected ? `background-color: ${cfg.bg}; border-color: ${cfg.border};` : ''}">
+                  ${code}
+                </button>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- 3. Öğretmen Notu -->
+          <div class="md:col-span-3">
             <input type="text" 
-              placeholder="Açıklama / Mazeret (yazınca otomatik kaydeder)..." 
+              placeholder="Not / mazeret..." 
               value="${draft.note ? draft.note.replace(/"/g, '&quot;') : ''}"
-              class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 focus:bg-white focus:outline-none"
+              class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:border-emerald-500 focus:bg-white focus:outline-none transition shadow-2xs"
               onchange="window.AttendanceModule.setNote('${s.id}', this.value)">
-          </td>
-        </tr>
+          </div>
+        </div>
       `;
     }).join('');
   }
