@@ -12,11 +12,21 @@ const STORAGE_KEYS = {
 };
 
 const STATUS_CONFIG = {
+  // Namaz Yoklaması
   VAR: { code: 'VAR', label: 'Var', short: 'Var', bg: '#10b981', border: '#059669', desc: 'Kursta mevcut' },
-  YOK: { code: 'YOK', label: 'Yok', short: 'Yok', bg: '#ef4444', border: '#dc2626', desc: 'Kursta/Namazda yok' },
+  YOK: { code: 'YOK', label: 'Yok', short: 'Yok', bg: '#ef4444', border: '#dc2626', desc: 'Katılmadı / Yok' },
   GEC: { code: 'GEC', label: 'Geç', short: 'Geç', bg: '#f59e0b', border: '#d97706', desc: 'Geç kaldı' },
   TAKKESIZ: { code: 'TAKKESIZ', label: 'Takkesiz', short: 'Takkesiz', bg: '#9333ea', border: '#7e22ce', desc: 'Takkesiz katıldı' },
-  IZINLI: { code: 'IZINLI', label: 'İzinli', short: 'İzinli', bg: '#0d9488', border: '#0f766e', desc: 'İzinli / Raporlu' }
+  IZINLI: { code: 'IZINLI', label: 'İzinli', short: 'İzinli', bg: '#0d9488', border: '#0f766e', desc: 'İzinli / Raporlu' },
+
+  // Yatak Yoklaması
+  IYI: { code: 'IYI', label: 'İyi', short: 'İyi', bg: '#10b981', border: '#059669', desc: 'Yatak ve oda temiz/düzenli' },
+  ORTA: { code: 'ORTA', label: 'Orta', short: 'Orta', bg: '#f59e0b', border: '#d97706', desc: 'Kısmen düzensiz' },
+  KOTU: { code: 'KOTU', label: 'Kötü', short: 'Kötü', bg: '#ef4444', border: '#dc2626', desc: 'Düzensiz / Dağınık' },
+
+  // Okul Dönüşü Yoklaması
+  GELDI: { code: 'GELDI', label: 'Geldi', short: 'Geldi', bg: '#10b981', border: '#059669', desc: 'Okuldan vaktinde döndü' },
+  GELMEDI: { code: 'GELMEDI', label: 'Gelmedi', short: 'Gelmedi', bg: '#ef4444', border: '#dc2626', desc: 'Okuldan dönmedi' }
 };
 
 // Eski kodlarla geriye dönük tam uyumluluk
@@ -408,24 +418,45 @@ class DataStore {
   }
 
   getAttendanceByDateAndPrayer(date, prayerTime) {
-    return this.getAttendance().filter(a => a.date === date && (a.prayerTime === prayerTime || (!a.prayerTime && prayerTime === 'Sabah')));
+    return this.getAttendanceByCategory(date, 'namaz', prayerTime);
+  }
+
+  getAttendanceByCategory(date, category = 'namaz', subKey = 'Sabah') {
+    return this.getAttendance().filter(a => {
+      if (a.date !== date) return false;
+      const cat = a.category || 'namaz';
+      if (cat !== category) return false;
+      if (category === 'namaz') {
+        const pTime = a.prayerTime || 'Sabah';
+        return pTime === subKey;
+      }
+      return true;
+    });
   }
 
   getAttendanceForStudent(studentId) {
     return this.getAttendance().filter(a => a.studentId === studentId).sort((a, b) => new Date(b.date) - new Date(a.date));
   }
 
-  saveSingleAttendance(studentId, date, prayerTime, status, note = '') {
+  saveSingleAttendance(studentId, date, subKey, status, category = 'namaz') {
     const all = this.getAttendance();
-    const pTime = prayerTime || 'Sabah';
-    const idx = all.findIndex(a => a.studentId === studentId && a.date === date && (a.prayerTime || 'Sabah') === pTime);
+    const cat = category || 'namaz';
+    const sub = subKey || (cat === 'namaz' ? 'Sabah' : cat);
+    const idx = all.findIndex(a => 
+      a.studentId === studentId && 
+      a.date === date && 
+      (a.category || 'namaz') === cat && 
+      (cat === 'namaz' ? (a.prayerTime || 'Sabah') === sub : true)
+    );
     const rec = {
-      id: `att_${studentId}_${date}_${pTime}`,
+      id: `att_${cat}_${studentId}_${date}_${sub}`,
       studentId,
       date,
-      prayerTime: pTime,
+      category: cat,
+      prayerTime: cat === 'namaz' ? sub : undefined,
+      subType: cat !== 'namaz' ? sub : undefined,
       status,
-      note: note || '',
+      note: '',
       recordedAt: new Date().toISOString()
     };
     if (idx !== -1) {
@@ -440,12 +471,25 @@ class DataStore {
   saveAttendanceBatch(records) {
     const all = this.getAttendance();
     records.forEach(newRec => {
-      const pTime = newRec.prayerTime || 'Sabah';
-      const idx = all.findIndex(a => a.studentId === newRec.studentId && a.date === newRec.date && (a.prayerTime || 'Sabah') === pTime);
+      const cat = newRec.category || 'namaz';
+      const sub = newRec.prayerTime || newRec.subKey || (cat === 'namaz' ? 'Sabah' : cat);
+      const idx = all.findIndex(a => 
+        a.studentId === newRec.studentId && 
+        a.date === newRec.date && 
+        (a.category || 'namaz') === cat && 
+        (cat === 'namaz' ? (a.prayerTime || 'Sabah') === sub : true)
+      );
+      const rec = {
+        id: `att_${cat}_${newRec.studentId}_${newRec.date}_${sub}`,
+        ...newRec,
+        category: cat,
+        prayerTime: cat === 'namaz' ? sub : undefined,
+        recordedAt: new Date().toISOString()
+      };
       if (idx !== -1) {
-        all[idx] = { ...all[idx], ...newRec, prayerTime: pTime, recordedAt: new Date().toISOString() };
+        all[idx] = { ...all[idx], ...rec };
       } else {
-        all.push({ id: `att_${newRec.studentId}_${newRec.date}_${pTime}`, ...newRec, prayerTime: pTime, recordedAt: new Date().toISOString() });
+        all.push(rec);
       }
     });
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(all));

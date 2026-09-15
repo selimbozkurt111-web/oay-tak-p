@@ -192,7 +192,7 @@ window.ParentPortal = {
                         <div class="flex items-center gap-2">
                           <span class="text-xs font-bold text-slate-800">${cfg.label}</span>
                           <span class="text-[10px] text-slate-500 font-mono bg-white px-2 py-0.5 rounded border border-slate-200">
-                            ${r.date}${r.prayerTime ? ` • ${r.prayerTime} Namazı` : ''}
+                            ${r.date}${r.category === 'yatak' ? ' • Yatak Yoklaması' : (r.category === 'okul_donusu' ? ' • Okul Dönüşü' : (r.prayerTime ? ` • ${r.prayerTime} Namazı` : ' • Namaz'))}
                           </span>
                         </div>
                         <div class="text-[11px] text-slate-500 mt-0.5">${cfg.desc}</div>
