@@ -190,73 +190,275 @@ window.App = {
       roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 font-bold text-xs border border-purple-200">👨‍👩‍👧 Veli Portalı (${session.familyCode})</span>`;
     }
 
+    let activeTitle = '📋 Yoklama';
+    if (this.activeTab === 'yoklama') {
+      const cat = (window.AttendanceModule && window.AttendanceModule.currentCategory) || 'namaz';
+      if (cat === 'namaz') activeTitle = '🕌 Namaz Yoklaması';
+      else if (cat === 'yatak') activeTitle = '🛏️ Yatak Yoklaması';
+      else if (cat === 'okul_donusu') activeTitle = '🎒 Okul Dönüşü';
+    } else if (this.activeTab === 'performans') {
+      activeTitle = '★ Performans & Notlar';
+    } else if (this.activeTab === 'ogrenciler') {
+      activeTitle = '👥 Öğrenci Yönetimi';
+    } else if (this.activeTab === 'personel') {
+      activeTitle = '👨‍🏫 Personel Yönetimi';
+    } else if (this.activeTab === 'ayarlar') {
+      activeTitle = '⚙️ Sistem Ayarları';
+    }
+
     header.innerHTML = `
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center shadow-sm">
             ÖT
           </div>
           <div>
             <h1 class="text-sm font-black text-slate-900 leading-none">${settings.institutionName}</h1>
-            <div class="mt-1 flex items-center gap-2">${roleBadge}</div>
+            <div class="mt-1 flex items-center gap-2">
+              ${roleBadge}
+              ${session.role !== 'parent' ? `
+                <span class="text-xs font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
+                  ${activeTitle}
+                </span>
+              ` : ''}
+            </div>
           </div>
         </div>
 
-        <div class="flex items-center gap-3">
-          <button onclick="window.App.logout()" 
-            class="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 transition flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-            </svg>
-            Çıkış Yap
-          </button>
+        <div class="flex items-center gap-2">
+          ${session.role !== 'parent' ? `
+            <!-- SAĞDAN KAYAR MENÜ PENCERESİNİ AÇMA BUTONU -->
+            <button onclick="window.App.openDrawer()" 
+              class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-2">
+              <span class="text-base leading-none">☰</span>
+              <span>Başlıklar / Menü</span>
+            </button>
+          ` : `
+            <button onclick="window.App.logout()" 
+              class="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 transition flex items-center gap-1.5">
+              Çıkış Yap
+            </button>
+          `}
         </div>
       </div>
+    `;
+  },
 
-      ${session.role !== 'parent' ? `
-        <div class="border-t border-slate-200 bg-white shadow-xs">
-          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2 overflow-x-auto py-2">
-            <button onclick="window.App.setTab('yoklama')"
-              class="px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                this.activeTab === 'yoklama' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-slate-600 hover:bg-slate-50'
-              }">
-              📋 Yoklama Al & İncele
-            </button>
+  // --- Sağdan Kayar Pencere (Off-Canvas Drawer) Kontrolleri ---
+  openDrawer() {
+    this.renderDrawer();
+    const container = document.getElementById('side-drawer-container');
+    const backdrop = document.getElementById('side-drawer-backdrop');
+    const panel = document.getElementById('side-drawer-panel');
+    if (!container || !backdrop || !panel) return;
 
-            <button onclick="window.App.setTab('performans')"
-              class="px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                this.activeTab === 'performans' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-slate-600 hover:bg-slate-50'
-              }">
-              ★ Performans & Notlar
-            </button>
+    container.classList.remove('pointer-events-none');
+    backdrop.classList.remove('opacity-0', 'pointer-events-none');
+    backdrop.classList.add('opacity-100', 'pointer-events-auto');
+    panel.classList.remove('translate-x-full');
+    panel.classList.add('translate-x-0');
+  },
 
-            <button onclick="window.App.setTab('ogrenciler')"
-              class="px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                this.activeTab === 'ogrenciler' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-slate-600 hover:bg-slate-50'
-              }">
-              👥 ${session.canEditStudents ? 'Öğrenci & Şifre Yönetimi' : 'Öğrenci Listesi'}
-            </button>
+  closeDrawer() {
+    const container = document.getElementById('side-drawer-container');
+    const backdrop = document.getElementById('side-drawer-backdrop');
+    const panel = document.getElementById('side-drawer-panel');
+    if (!container || !backdrop || !panel) return;
 
-            ${session.canManageStaff ? `
-              <button onclick="window.App.setTab('personel')"
-                class="px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                  this.activeTab === 'personel' ? 'bg-amber-50 text-amber-800 border border-amber-300 font-black' : 'text-slate-600 hover:bg-slate-50'
-                }">
-                👨‍🏫 Personel & Şifre Yönetimi
-              </button>
-            ` : ''}
+    panel.classList.remove('translate-x-0');
+    panel.classList.add('translate-x-full');
+    backdrop.classList.remove('opacity-100', 'pointer-events-auto');
+    backdrop.classList.add('opacity-0', 'pointer-events-none');
 
-            ${session.canEditSettings ? `
-              <button onclick="window.App.setTab('ayarlar')"
-                class="px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                  this.activeTab === 'ayarlar' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-slate-600 hover:bg-slate-50'
-                }">
-                ⚙️ Sistem Ayarları & E-posta
-              </button>
-            ` : ''}
+    setTimeout(() => {
+      container.classList.add('pointer-events-none');
+    }, 300);
+  },
+
+  navigateFromDrawer(tab, category = null) {
+    this.closeDrawer();
+    this.activeTab = tab;
+    if (tab === 'yoklama' && category && window.AttendanceModule) {
+      window.AttendanceModule.currentCategory = category;
+    }
+    this.renderHeader();
+    this.renderMainContent();
+  },
+
+  renderDrawer() {
+    const panel = document.getElementById('side-drawer-panel');
+    if (!panel) return;
+
+    const session = this.currentSession;
+    if (!session) return;
+    const settings = window.Store.getSettings();
+    const currentCat = (window.AttendanceModule && window.AttendanceModule.currentCategory) || 'namaz';
+
+    panel.innerHTML = `
+      <!-- Drawer Üst Başlık -->
+      <div class="p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between shadow-md">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center shadow-sm">
+            ÖT
+          </div>
+          <div>
+            <h3 class="font-black text-sm leading-tight text-white">${settings.institutionName}</h3>
+            <p class="text-[11px] text-slate-300 mt-0.5">${session.name || 'Yetkili Portalı'}</p>
           </div>
         </div>
-      ` : ''}
+        <button onclick="window.App.closeDrawer()" 
+          class="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-lg font-bold transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Menü Listesi -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-5">
+        <!-- 1. YOKLAMA İŞLEMLERİ (3 ALT BAŞLIK) -->
+        <div class="space-y-1.5">
+          <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">YOKLAMA İŞLEMLERİ</div>
+          
+          <!-- Namaz Yoklaması -->
+          <button type="button" onclick="window.App.navigateFromDrawer('yoklama', 'namaz')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'yoklama' && currentCat === 'namaz'
+                ? 'bg-emerald-50 text-emerald-900 font-black border border-emerald-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🕌</span>
+              <div>
+                <div class="text-xs font-black">Namaz Yoklaması</div>
+                <div class="text-[10px] text-slate-400 font-medium">5 Vakit namaz takibi</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+
+          <!-- Yatak Yoklaması -->
+          <button type="button" onclick="window.App.navigateFromDrawer('yoklama', 'yatak')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'yoklama' && currentCat === 'yatak'
+                ? 'bg-indigo-50 text-indigo-900 font-black border border-indigo-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🛏️</span>
+              <div>
+                <div class="text-xs font-black">Yatak Yoklaması</div>
+                <div class="text-[10px] text-slate-400 font-medium">Oda ve yatak düzeni kontrolü</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+
+          <!-- Okul Dönüşü Yoklaması -->
+          <button type="button" onclick="window.App.navigateFromDrawer('yoklama', 'okul_donusu')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'yoklama' && currentCat === 'okul_donusu'
+                ? 'bg-amber-50 text-amber-900 font-black border border-amber-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🎒</span>
+              <div>
+                <div class="text-xs font-black">Okul Dönüşü Yoklaması</div>
+                <div class="text-[10px] text-slate-400 font-medium">Okuldan yurda geliş kontrolü</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+        </div>
+
+        <!-- 2. EĞİTİM & ÖĞRENCİLER -->
+        <div class="space-y-1.5 pt-3 border-t border-slate-100">
+          <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">EĞİTİM & ÖĞRENCİ</div>
+
+          <!-- Performans & Notlar -->
+          <button type="button" onclick="window.App.navigateFromDrawer('performans')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'performans'
+                ? 'bg-emerald-50 text-emerald-900 font-black border border-emerald-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">★</span>
+              <div>
+                <div class="text-xs font-black">Performans & Notlar</div>
+                <div class="text-[10px] text-slate-400 font-medium">Ders puanları ve öğretmen görüşleri</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+
+          <!-- Öğrenci Listesi & Şifreler -->
+          <button type="button" onclick="window.App.navigateFromDrawer('ogrenciler')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'ogrenciler'
+                ? 'bg-emerald-50 text-emerald-900 font-black border border-emerald-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">👥</span>
+              <div>
+                <div class="text-xs font-black">${session.canEditStudents ? 'Öğrenci & Şifre Yönetimi' : 'Öğrenci Listesi'}</div>
+                <div class="text-[10px] text-slate-400 font-medium">Tüm sınıf kütüğü ve veli şifreleri</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+        </div>
+
+        ${session.canManageStaff ? `
+          <!-- 3. YÖNETİCİ İŞLEMLERİ (Sadece Ana Yönetici) -->
+          <div class="space-y-1.5 pt-3 border-t border-slate-100">
+            <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">YÖNETİCİ İŞLEMLERİ</div>
+
+            <!-- Personel & Şifre Yönetimi -->
+            <button type="button" onclick="window.App.navigateFromDrawer('personel')"
+              class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+                this.activeTab === 'personel'
+                  ? 'bg-amber-50 text-amber-900 font-black border border-amber-200 shadow-sm'
+                  : 'text-slate-700 hover:bg-slate-50 font-bold'
+              }">
+              <div class="flex items-center gap-3">
+                <span class="text-xl">👨‍🏫</span>
+                <div>
+                  <div class="text-xs font-black">Personel & Şifre Yönetimi</div>
+                  <div class="text-[10px] text-slate-400 font-medium">Hoca ekleme, silme ve şifreler</div>
+                </div>
+              </div>
+              <span class="text-slate-300">→</span>
+            </button>
+
+            <!-- Sistem Ayarları & E-posta -->
+            <button type="button" onclick="window.App.navigateFromDrawer('ayarlar')"
+              class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+                this.activeTab === 'ayarlar'
+                  ? 'bg-emerald-50 text-emerald-900 font-black border border-emerald-200 shadow-sm'
+                  : 'text-slate-700 hover:bg-slate-50 font-bold'
+              }">
+              <div class="flex items-center gap-3">
+                <span class="text-xl">⚙️</span>
+                <div>
+                  <div class="text-xs font-black">Sistem Ayarları & E-posta</div>
+                  <div class="text-[10px] text-slate-400 font-medium">Yönetici maili ve veri yedekleme</div>
+                </div>
+              </div>
+              <span class="text-slate-300">→</span>
+            </button>
+          </div>
+        ` : ''}
+      </div>
+
+      <!-- Drawer Alt Bar: Güvenli Çıkış -->
+      <div class="p-4 border-t border-slate-100 bg-slate-50">
+        <button type="button" onclick="window.App.closeDrawer(); window.App.logout();"
+          class="w-full py-3 px-4 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-black transition flex items-center justify-center gap-2">
+          <span>🚪</span>
+          <span>Güvenli Çıkış Yap</span>
+        </button>
+      </div>
     `;
   },
 
