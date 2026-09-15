@@ -1,82 +1,120 @@
-﻿/**
- * store.js - Veri Katmanı ve Kalıcı Hafıza (LocalStorage + Firebase Bulut Entegrasyonu)
+/**
+ * store.js - 3 Seviyeli Yetkilendirme (Ana Yönetici, Personel, Veli) ve 66 Öğrencili Veri Katmanı
  */
 
 const STORAGE_KEYS = {
   STUDENTS: 'yoklama_students',
+  STAFF: 'yoklama_staff',
   ATTENDANCE: 'yoklama_attendance',
   PERFORMANCE: 'yoklama_performance',
   SETTINGS: 'yoklama_settings',
-  INITIALIZED: 'yoklama_init_v2'
+  INITIALIZED: 'yoklama_init_v4'
 };
 
-// Özel Yoklama Kodları ve Tanımları
 const STATUS_CONFIG = {
-  V: { code: 'V', label: 'Var / Geldi', short: 'Var', bg: '#10b981', border: '#059669', badgeClass: 'badge-status-V', desc: 'Kursta ve dersinde mevcut' },
-  T: { code: 'T', label: 'Takkesiz', short: 'Takkesiz (t)', bg: '#9333ea', border: '#7e22ce', badgeClass: 'badge-status-T', desc: 'Kursta mevcut fakat takkesi yok' },
-  Y: { code: 'Y', label: 'Namazda Yok', short: 'Namazda Yok (y)', bg: '#881337', border: '#4c0519', badgeClass: 'badge-status-Y', desc: 'Kursta var fakat namaza katılmadı' },
-  G: { code: 'G', label: 'Geç Kaldı', short: 'Geç (g)', bg: '#f59e0b', border: '#d97706', badgeClass: 'badge-status-G', desc: 'Ders veya etüte geç geldi' },
-  E: { code: 'E', label: 'Eşofmanlı', short: 'Eşofmanlı (e)', bg: '#0284c7', border: '#0369a1', badgeClass: 'badge-status-E', desc: 'Kıyafet kuralına uymadı, eşofmanlı geldi' },
-  K: { code: 'K', label: 'Kursta Yok', short: 'Kursta Yok (k)', bg: '#ef4444', border: '#dc2626', badgeClass: 'badge-status-K', desc: 'Kursta yok / Tamamen devamsız' },
-  I: { code: 'I', label: 'İzinli / Raporlu', short: 'İzinli (i)', bg: '#0d9488', border: '#0f766e', badgeClass: 'badge-status-I', desc: 'Mazeretli / İzinli' }
+  V: { code: 'V', label: 'Var / Geldi', short: 'Var', bg: '#10b981', border: '#059669', desc: 'Kursta ve dersinde mevcut' },
+  T: { code: 'T', label: 'Takkesiz', short: 'Takkesiz (t)', bg: '#9333ea', border: '#7e22ce', desc: 'Kursta mevcut fakat takkesiz katıldı' },
+  Y: { code: 'Y', label: 'Namazda Yok', short: 'Namazda Yok (y)', bg: '#881337', border: '#4c0519', desc: 'Kursta var fakat namaza katılmadı' },
+  G: { code: 'G', label: 'Geç Kaldı', short: 'Geç (g)', bg: '#f59e0b', border: '#d97706', desc: 'Ders veya etüte geç geldi' },
+  E: { code: 'E', label: 'Eşofmanlı', short: 'Eşofmanlı (e)', bg: '#0284c7', border: '#0369a1', desc: 'Kıyafet kuralına uymadı, eşofmanlı geldi' },
+  K: { code: 'K', label: 'Kursta Yok', short: 'Kursta Yok (k)', bg: '#ef4444', border: '#dc2626', desc: 'Kursta yok / Devamsız' },
+  I: { code: 'I', label: 'İzinli / Raporlu', short: 'İzinli (i)', bg: '#0d9488', border: '#0f766e', desc: 'Mazeretli / İzinli' }
 };
 
 const DEFAULT_SETTINGS = {
   institutionName: 'Kurs & Etüt Öğrenci Takip Sistemi',
-  personnelPin: '1234',
+  superadminPin: '9999', // Ana Yönetici PIN
+  staffPin: '1234',      // Genel Personel / Hoca PIN
   academicYear: '2026-2027'
 };
 
-const SEED_STUDENTS = [
-  { id: 'std_101', studentNo: '101', firstName: 'Ahmet', lastName: 'Yılmaz', className: '8-A', familyCode: 'YILMAZ2026', fatherName: 'Mehmet Yılmaz', motherName: 'Fatma Yılmaz', parentPhone: '0555 111 22 33', notes: 'Kardeşi Ali ile aynı aile koduna sahip' },
-  { id: 'std_102', studentNo: '102', firstName: 'Ali', lastName: 'Yılmaz', className: '5-B', familyCode: 'YILMAZ2026', fatherName: 'Mehmet Yılmaz', motherName: 'Fatma Yılmaz', parentPhone: '0555 111 22 33', notes: 'Kardeşi Ahmet ile aynı aile koduna sahip' },
-  { id: 'std_103', studentNo: '103', firstName: 'Bilal', lastName: 'Demir', className: '7-A', familyCode: 'DEMIR2026', fatherName: 'Hasan Demir', motherName: 'Zeynep Demir', parentPhone: '0544 222 33 44', notes: 'Kardeşi Ömer Faruk ile aynı kod' },
-  { id: 'std_104', studentNo: '104', firstName: 'Ömer Faruk', lastName: 'Demir', className: '6-A', familyCode: 'DEMIR2026', fatherName: 'Hasan Demir', motherName: 'Zeynep Demir', parentPhone: '0544 222 33 44', notes: 'Kardeşi Bilal ile aynı kod' },
-  { id: 'std_105', studentNo: '105', firstName: 'Yusuf Can', lastName: 'Kaya', className: '8-A', familyCode: 'CAN2026', fatherName: 'İbrahim Kaya', motherName: 'Ayşe Kaya', parentPhone: '0533 333 44 55', notes: 'Tek çocuk' },
-  { id: 'std_106', studentNo: '106', firstName: 'Hamza', lastName: 'Yıldız', className: '5-B', familyCode: 'YILDIZ2026', fatherName: 'Mustafa Yıldız', motherName: 'Emine Yıldız', parentPhone: '0505 444 55 66', notes: 'Tek çocuk' },
-  { id: 'std_107', studentNo: '107', firstName: 'Mustafa', lastName: 'Şahin', className: '7-A', familyCode: 'SAHIN2026', fatherName: 'Osman Şahin', motherName: 'Hatice Şahin', parentPhone: '0532 777 88 99', notes: 'Tek çocuk' }
+// Sistemdeki Eğitmen / Hoca Kadrosu
+const DEFAULT_STAFF = [
+  { id: 'stf_1', fullName: 'SELİM BOZKURT', role: 'Dahili Hocası / Yönetici', phone: '0555 000 00 01', pin: '1234' },
+  { id: 'stf_2', fullName: 'YASİN EKİNCİ', role: '5. Sınıf Etüt & Dahili Hocası', phone: '0555 000 00 02', pin: '1234' },
+  { id: 'stf_3', fullName: 'AHMED MUBARİZ', role: '5. Sınıf Etüt & Dahili Hocası', phone: '0555 000 00 03', pin: '1234' },
+  { id: 'stf_4', fullName: 'ABDUSSAMED TAV', role: '6. Sınıf Etüt & Dahili Hocası', phone: '0555 000 00 04', pin: '1234' },
+  { id: 'stf_5', fullName: 'EMİR TALHA TARIM', role: '7. Sınıf Etüt & Dahili Hocası', phone: '0555 000 00 05', pin: '1234' },
+  { id: 'stf_6', fullName: 'BURAK BODUR', role: '7. & 8. Sınıf Etüt & Dahili Hocası', phone: '0555 000 00 06', pin: '1234' },
+  { id: 'stf_7', fullName: 'TUNAHAN TAŞKIN', role: '7. & 8. Sınıf Etüt & Dahili Hocası', phone: '0555 000 00 07', pin: '1234' },
+  { id: 'stf_8', fullName: 'YAVUZ SELİM SEVEN', role: '8. Sınıf Etüt Hocası', phone: '0555 000 00 08', pin: '1234' }
 ];
 
-function generateSeedAttendance() {
-  const records = [];
-  const today = new Date();
-  const studentIds = SEED_STUDENTS.map(s => s.id);
-  
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    const dateStr = d.toISOString().split('T')[0];
-    if (d.getDay() === 0) continue;
+// 66 Öğrencinin Eksiksiz Veritabanı
+const SEED_STUDENTS = [
+  // 5. SINIF
+  { id: "std_502", studentNo: "502", firstName: "ARDA YUSUF", lastName: "SAYGI", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "YASİN EKİNCİ", dahiliHoca: "YASİN EKİNCİ", yatakhane: "Oda 101", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SAYGI2026" },
+  { id: "std_503", studentNo: "503", firstName: "ASİL MİRAÇ", lastName: "SOYLU", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "YASİN EKİNCİ", dahiliHoca: "YASİN EKİNCİ", yatakhane: "Oda 101", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SOYLU2026" },
+  { id: "std_504", studentNo: "504", firstName: "ÖMER", lastName: "SAAT", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "YASİN EKİNCİ", dahiliHoca: "YASİN EKİNCİ", yatakhane: "Oda 101", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SAAT2026" },
+  { id: "std_505", studentNo: "505", firstName: "TİMUR FERMAN", lastName: "NARLIDERE", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "YASİN EKİNCİ", dahiliHoca: "YASİN EKİNCİ", yatakhane: "Oda 101", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "NARLIDERE2026" },
+  { id: "std_506", studentNo: "506", firstName: "EYMEN ASAF", lastName: "ÖZHÖLÇEK", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "YASİN EKİNCİ", dahiliHoca: "YASİN EKİNCİ", yatakhane: "Oda 101", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZHOLCEK2026" },
+  { id: "std_507", studentNo: "507", firstName: "KADİR YİĞİT", lastName: "KARABULUT", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "YASİN EKİNCİ", dahiliHoca: "YASİN EKİNCİ", yatakhane: "Oda 102", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KARABULUT2026" },
+  { id: "std_508", studentNo: "508", firstName: "MEHMET EMİN", lastName: "KALKAN", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "YASİN EKİNCİ", dahiliHoca: "YASİN EKİNCİ", yatakhane: "Oda 102", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KALKAN2026" },
+  { id: "std_509", studentNo: "509", firstName: "MUSTAFA ENSAR", lastName: "KALKAN", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "YASİN EKİNCİ", dahiliHoca: "YASİN EKİNCİ", yatakhane: "Oda 102", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KALKAN2026" },
+  { id: "std_510", studentNo: "510", firstName: "RÜZGAR SAİT", lastName: "GÖGÜZ", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "AHMED MUBARİZ", dahiliHoca: "AHMED MUBARİZ", yatakhane: "Oda 102", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "GOGUZ2026" },
+  { id: "std_511", studentNo: "511", firstName: "SAİD ABBAS", lastName: "SABİRİ", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "AHMED MUBARİZ", dahiliHoca: "AHMED MUBARİZ", yatakhane: "Oda 103", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SABIRI2026" },
+  { id: "std_512", studentNo: "512", firstName: "SAİD MURTAZA", lastName: "SABİRİ", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "AHMED MUBARİZ", dahiliHoca: "AHMED MUBARİZ", yatakhane: "Oda 103", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SABIRI2026" },
+  { id: "std_513", studentNo: "513", firstName: "HIZIR ALİ", lastName: "DİNÇER", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "AHMED MUBARİZ", dahiliHoca: "AHMED MUBARİZ", yatakhane: "Oda 103", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "DINCER2026" },
+  { id: "std_514", studentNo: "514", firstName: "MEHMET ENSAR", lastName: "AKYOL", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "AHMED MUBARİZ", dahiliHoca: "AHMED MUBARİZ", yatakhane: "Oda 103", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "AKYOL2026" },
+  { id: "std_515", studentNo: "515", firstName: "YASİN KAAN", lastName: "CAN", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "AHMED MUBARİZ", dahiliHoca: "AHMED MUBARİZ", yatakhane: "Oda 104", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CAN2026" },
+  { id: "std_516", studentNo: "516", firstName: "SANAULLAH", lastName: "KAYUMOĞLU", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "AHMED MUBARİZ", dahiliHoca: "AHMED MUBARİZ", yatakhane: "Oda 104", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KAYUMOGLU2026" },
+  { id: "std_517", studentNo: "517", firstName: "MUSTAFA", lastName: "EMİR", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "AHMED MUBARİZ", dahiliHoca: "AHMED MUBARİZ", yatakhane: "Oda 104", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "EMIR52026" },
+  { id: "std_518", studentNo: "518", firstName: "HAMZA", lastName: "TOKSÖZ", className: "5. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "AHMED MUBARİZ", dahiliHoca: "AHMED MUBARİZ", yatakhane: "Oda 104", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "TOKSOZ2026" },
 
-    studentIds.forEach((sid) => {
-      let status = 'V';
-      let note = '';
+  // 6. SINIF
+  { id: "std_601", studentNo: "601", firstName: "MUHAMMED ALİ", lastName: "YILDIRAK", className: "6. Sınıf", school: "-", seviye: "Seviye 1", etutHocasi: "ABDUSSAMED TAV", dahiliHoca: "ABDUSSAMED TAV", yatakhane: "Oda 201", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "YILDIRAK2026" },
+  { id: "std_602", studentNo: "602", firstName: "BABÜR", lastName: "KAYUMOĞLU", className: "6. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 1", etutHocasi: "ABDUSSAMED TAV", dahiliHoca: "ABDUSSAMED TAV", yatakhane: "Oda 201", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KAYUMOGLU2026" },
+  { id: "std_603", studentNo: "603", firstName: "ALİHAN", lastName: "ŞAHİN", className: "6. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 1", etutHocasi: "ABDUSSAMED TAV", dahiliHoca: "ABDUSSAMED TAV", yatakhane: "Oda 201", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SAHIN2026" },
+  { id: "std_604", studentNo: "604", firstName: "SELMAN FARİS", lastName: "ÖZTÜRK", className: "6. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 1", etutHocasi: "ABDUSSAMED TAV", dahiliHoca: "ABDUSSAMED TAV", yatakhane: "Oda 201", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZTURK2026" },
+  { id: "std_605", studentNo: "605", firstName: "YUNUS", lastName: "ÖZTÜRK", className: "6. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 1", etutHocasi: "ABDUSSAMED TAV", dahiliHoca: "ABDUSSAMED TAV", yatakhane: "Oda 201", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZTURK2026" },
+  { id: "std_606", studentNo: "606", firstName: "MELİH", lastName: "ÇARABATIR", className: "6. Sınıf", school: "-", seviye: "Seviye 1", etutHocasi: "ABDUSSAMED TAV", dahiliHoca: "ABDUSSAMED TAV", yatakhane: "Oda 202", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CARABATIR2026" },
+  { id: "std_607", studentNo: "607", firstName: "MUSTAFA", lastName: "ÖZCAN", className: "6. Sınıf", school: "-", seviye: "Seviye 1", etutHocasi: "ABDUSSAMED TAV", dahiliHoca: "ABDUSSAMED TAV", yatakhane: "Oda 202", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZCAN2026" },
+  { id: "std_608", studentNo: "608", firstName: "EBUBEKİR", lastName: "ABDULLAH", className: "6. Sınıf", school: "-", seviye: "Seviye 1", etutHocasi: "ABDUSSAMED TAV", dahiliHoca: "ABDUSSAMED TAV", yatakhane: "Oda 202", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ABDULLAH2026" },
+  { id: "std_609", studentNo: "609", firstName: "MEHMET", lastName: "EMİR", className: "6. Sınıf", school: "-", seviye: "Seviye 1", etutHocasi: "ABDUSSAMED TAV", dahiliHoca: "ABDUSSAMED TAV", yatakhane: "Oda 202", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "EMIR62026" },
+  { id: "std_610", studentNo: "610", firstName: "MAHMUT BERK", lastName: "KARACADAĞ", className: "6. Sınıf", school: "-", seviye: "Seviye 1", etutHocasi: "ABDUSSAMED TAV", dahiliHoca: "ABDUSSAMED TAV", yatakhane: "Oda 202", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KARACADAG2026" },
 
-      if (sid === 'std_101' && i === 2) { status = 'T'; note = 'Takkesini evde unutmuş'; }
-      else if (sid === 'std_102' && i === 3) { status = 'Y'; note = 'İkindi namazına gelmedi'; }
-      else if (sid === 'std_103' && i === 1) { status = 'G'; note = '15 dk geç geldi'; }
-      else if (sid === 'std_104' && i === 4) { status = 'E'; note = 'Sivil/eşofmanla geldi'; }
-      else if (sid === 'std_105' && i === 5) { status = 'K'; note = 'Haber vermeden gelmedi'; }
-      else if (sid === 'std_106' && i === 1) { status = 'I'; note = 'Diş randevusu sebebiyle izinli'; }
+  // 7. SINIF
+  { id: "std_701", studentNo: "701", firstName: "AHMET HİLMİ", lastName: "EKİNCİ", className: "7. Sınıf", school: "KADİR CİHAN KARAGÖZ", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 301", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "EKINCI2026" },
+  { id: "std_702", studentNo: "702", firstName: "EMİRHAN ENES", lastName: "ÖZTÜRK", className: "7. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 301", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZTURK2026" },
+  { id: "std_703", studentNo: "703", firstName: "BİLAL", lastName: "CHULUK", className: "7. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 301", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CHULUK2026" },
+  { id: "std_704", studentNo: "704", firstName: "CİHAN", lastName: "KULAKLI", className: "7. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 301", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KULAKLI2026" },
+  { id: "std_705", studentNo: "705", firstName: "KASIM", lastName: "KULAKLI", className: "7. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 301", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KULAKLI2026" },
+  { id: "std_706", studentNo: "706", firstName: "AYAZ", lastName: "TUTAR", className: "7. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 302", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "TUTAR2026" },
+  { id: "std_707", studentNo: "707", firstName: "EMİRHAN", lastName: "KULUS", className: "7. Sınıf", school: "AYHAN ŞAHENK", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 302", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KULUS2026" },
+  { id: "std_708", studentNo: "708", firstName: "YUSUF KEMAL", lastName: "GENÇOĞLU", className: "7. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 302", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "GENCOGLU2026" },
+  { id: "std_709", studentNo: "709", firstName: "YUSUF", lastName: "GENÇOĞLU", className: "7. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 302", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "GENCOGLU2026" },
+  { id: "std_710", studentNo: "710", firstName: "EFE EMİN", lastName: "SÜRÜCÜ", className: "7. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 303", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SURUCU2026" },
+  { id: "std_711", studentNo: "711", firstName: "HARUN", lastName: "KAYUMOĞLU", className: "7. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 303", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KAYUMOGLU2026" },
+  { id: "std_712", studentNo: "712", firstName: "MAHMUT TARIK", lastName: "BIÇAKÇILAR", className: "7. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 303", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "BICAKCILAR2026" },
+  { id: "std_713", studentNo: "713", firstName: "ALİ ÖMER", lastName: "MENGİ", className: "7. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "BURAK BODUR", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 304", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "MENGI2026" },
+  { id: "std_714", studentNo: "714", firstName: "MUHAMMADDIYOR", lastName: "RAYIMJONOV", className: "7. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "BURAK BODUR", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 304", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "RAYIMJONOV2026" },
+  { id: "std_715", studentNo: "715", firstName: "MUSAB", lastName: "AKDOĞAN", className: "7. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "BURAK BODUR", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 304", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "AKDOGAN2026" },
+  { id: "std_716", studentNo: "716", firstName: "SERKAN", lastName: "İNCEDERE", className: "7. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "BURAK BODUR", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 304", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "INCEDERE2026" },
+  { id: "std_717", studentNo: "717", firstName: "RAMAZAN", lastName: "ATASOY", className: "7. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "BURAK BODUR", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 304", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ATASOY2026" },
 
-      records.push({
-        id: `att_${sid}_${dateStr}`,
-        studentId: sid,
-        date: dateStr,
-        status: status,
-        note: note,
-        recordedAt: new Date().toISOString()
-      });
-    });
-  }
-  return records;
-}
-
-const SEED_PERFORMANCE = [
-  { id: 'perf_1', studentId: 'std_101', date: new Date().toISOString().split('T')[0], subject: 'Kuran-ı Kerim & Ezber', criteria: { participation: 5, homework: 5, behavior: 5, score: 95 }, badges: ['Ezberini Tam Verdi', 'Namazlarını Eksiksiz Kıldı', 'Haftanın Yıldızı'], teacherNote: 'Ahmet bugün 2 sayfa ezberini tek seferde pürüzsüz verdi. Maşallah gayreti takdire şayan.', teacherName: 'Hasan Hoca' },
-  { id: 'perf_2', studentId: 'std_102', date: new Date().toISOString().split('T')[0], subject: 'Ahlak & İlmihal', criteria: { participation: 4, homework: 4, behavior: 4, score: 85 }, badges: ['Derste Çok Aktif', 'Ödevini Yaptı'], teacherNote: 'Ali ders içi sorularda çok hevesliydi. Namaz vakitlerinde daha dikkatli olması tavsiye edildi.', teacherName: 'Hüseyin Hoca' },
-  { id: 'perf_3', studentId: 'std_103', date: new Date().toISOString().split('T')[0], subject: 'Kuran-ı Kerim Tecvid', criteria: { participation: 5, homework: 5, behavior: 5, score: 98 }, badges: ['Kılık Kıyafete Özen Gösterdi', 'Haftanın Yıldızı'], teacherNote: 'Bilal efendiliği ve intizamıyla örnek bir öğrencimiz.', teacherName: 'Hasan Hoca' },
-  { id: 'perf_4', studentId: 'std_104', date: new Date().toISOString().split('T')[0], subject: 'Siyer-i Nebi', criteria: { participation: 4, homework: 3, behavior: 4, score: 80 }, badges: ['Gelişim Gösteriyor'], teacherNote: 'Ömer Faruk dersi iyi dinledi, haftaya ödevini tamamlamasını bekliyoruz.', teacherName: 'Ahmet Hoca' }
+  // 8. SINIF
+  { id: "std_801", studentNo: "801", firstName: "MEHMET YAKUP", lastName: "ÇEDİKÇİ", className: "8. Sınıf", school: "AYHAN ŞAHENK", seviye: "Seviye 1", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CEDIKCI2026" },
+  { id: "std_802", studentNo: "802", firstName: "KERİM TUNA", lastName: "CİHAN", className: "8. Sınıf", school: "AYHAN ŞAHENK", seviye: "Seviye 1", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CIHAN2026" },
+  { id: "std_803", studentNo: "803", firstName: "MUHAMMED", lastName: "CHOLAK", className: "8. Sınıf", school: "KADİR CİHAN", seviye: "Seviye 1", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CHOLAK2026" },
+  { id: "std_804", studentNo: "804", firstName: "İBRAHİM", lastName: "UZTURK", className: "8. Sınıf", school: "KADİR CİHAN", seviye: "Seviye 1", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "UZTURK2026" },
+  { id: "std_805", studentNo: "805", firstName: "AHMET EMRE", lastName: "AKYOL", className: "8. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "AKYOL2026" },
+  { id: "std_806", studentNo: "806", firstName: "MEHMET FATİHHAN", lastName: "POLAT", className: "8. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "POLAT2026" },
+  { id: "std_807", studentNo: "807", firstName: "SAMED ENES", lastName: "ACAR", className: "8. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ACAR2026" },
+  { id: "std_808", studentNo: "808", firstName: "MUHAMMED KERİM", lastName: "BAYBURT", className: "8. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "BAYBURT2026" },
+  { id: "std_809", studentNo: "809", firstName: "ÖMER FARUK", lastName: "YAZICI", className: "8. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "YAZICI2026" },
+  { id: "std_810", studentNo: "810", firstName: "LATFULLAH ABID", lastName: "HUSSAIN", className: "8. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "HUSSAIN2026" },
+  { id: "std_811", studentNo: "811", firstName: "EMİR SALİH", lastName: "DOĞAN", className: "8. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "DOGAN2026" },
+  { id: "std_812", studentNo: "812", firstName: "BİLAL OSMAN", lastName: "ŞENGÜL", className: "8. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SENGUL2026" },
+  { id: "std_813", studentNo: "813", firstName: "ALPEREN", lastName: "UYGUN", className: "8. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "UYGUN2026" },
+  { id: "std_814", studentNo: "814", firstName: "RÜÇHAN ZEKİ", lastName: "YILDIZ", className: "8. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 404", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "YILDIZ2026" },
+  { id: "std_815", studentNo: "815", firstName: "SEMİH CAN", lastName: "DEMİR", className: "8. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 404", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "DEMIR2026" },
+  { id: "std_816", studentNo: "816", firstName: "YUSUF", lastName: "ULUSOY", className: "8. Sınıf", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 404", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ULUSOY2026" },
+  { id: "std_817", studentNo: "817", firstName: "SÜLEYMAN", lastName: "HASTÜRK", className: "8. Sınıf", school: "-", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 404", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "HASTURK2026" },
+  { id: "std_818", studentNo: "818", firstName: "MUHAMMED SONER", lastName: "ERCİVAN", className: "8. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ERCIVAN2026" },
+  { id: "std_819", studentNo: "819", firstName: "ŞABAN", lastName: "ÖZDEMİR", className: "8. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZDEMIR2026" },
+  { id: "std_820", studentNo: "820", firstName: "YİĞİT EMİR", lastName: "KILIÇ", className: "8. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KILIC2026" },
+  { id: "std_821", studentNo: "821", firstName: "İSA MERT", lastName: "KARABULUT", className: "8. Sınıf", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KARABULUT2026" },
+  { id: "std_822", studentNo: "822", firstName: "ÖMER FARUK", lastName: "ÖZTÜRK", className: "8. Sınıf", school: "-", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZTURK2026" }
 ];
 
 class DataStore {
@@ -92,13 +130,14 @@ class DataStore {
 
   resetToDefaults() {
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(SEED_STUDENTS));
-    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(generateSeedAttendance()));
-    localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(SEED_PERFORMANCE));
+    localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(DEFAULT_STAFF));
+    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
     localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
   }
 
-  // --- Ayarlar ---
+  // --- Ayarlar & Şifre Kontrolleri ---
   getSettings() {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
@@ -115,9 +154,107 @@ class DataStore {
     return merged;
   }
 
-  verifyPin(pin) {
+  // Tekli Giriş Kutusu Çözümleyicisi: Girilen Koda Göre Rol ve Kimlik Belirler
+  resolveLoginCode(inputCode) {
+    if (!inputCode) return null;
+    const clean = inputCode.trim().toUpperCase();
     const settings = this.getSettings();
-    return settings.personnelPin.trim() === pin.trim();
+
+    // 1. Ana Yönetici (Müdür) Kontrolü
+    if (clean === settings.superadminPin.toUpperCase()) {
+      return {
+        role: 'superadmin',
+        name: 'Ana Yönetici (Müdür)',
+        canEditStudents: true,
+        canManageStaff: true,
+        canEditSettings: true
+      };
+    }
+
+    // 2. Personel / Hoca Kontrolü (Genel veya Kişisel Hoca PIN)
+    if (clean === settings.staffPin.toUpperCase()) {
+      return {
+        role: 'staff',
+        name: 'Görevli Eğitmen',
+        canEditStudents: false, // Hocalar öğrenci ekleyip silemez
+        canManageStaff: false,  // Hocalar personel ekleyip silemez
+        canEditSettings: false
+      };
+    }
+
+    const staffList = this.getStaff();
+    const matchedStaff = staffList.find(s => (s.pin || '').toUpperCase() === clean);
+    if (matchedStaff) {
+      return {
+        role: 'staff',
+        staffId: matchedStaff.id,
+        name: matchedStaff.fullName,
+        canEditStudents: false,
+        canManageStaff: false,
+        canEditSettings: false
+      };
+    }
+
+    // 3. Veli / Aile Kodu Kontrolü (Tüm Kardeşleri Getirir)
+    const students = this.getStudentsByFamilyCode(clean);
+    if (students.length > 0) {
+      return {
+        role: 'parent',
+        familyCode: clean,
+        students: students,
+        canEditStudents: false,
+        canManageStaff: false,
+        canEditSettings: false
+      };
+    }
+
+    // Öğrenci No kontrolü
+    const singleStudent = this.getStudentByNo(clean);
+    if (singleStudent) {
+      const famCode = singleStudent.familyCode || clean;
+      const famStudents = this.getStudentsByFamilyCode(famCode);
+      return {
+        role: 'parent',
+        familyCode: famCode,
+        students: famStudents.length > 0 ? famStudents : [singleStudent],
+        canEditStudents: false,
+        canManageStaff: false,
+        canEditSettings: false
+      };
+    }
+
+    return null; // Eşleşen rol bulunamadı
+  }
+
+  // --- Personel / Hoca İşlemleri (Sadece Ana Yönetici) ---
+  getStaff() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.STAFF);
+      return data ? JSON.parse(data) : DEFAULT_STAFF;
+    } catch {
+      return DEFAULT_STAFF;
+    }
+  }
+
+  saveStaff(staffList) {
+    localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(staffList));
+  }
+
+  addStaff(member) {
+    const list = this.getStaff();
+    const newMember = {
+      ...member,
+      id: 'stf_' + Date.now(),
+      pin: member.pin || '1234'
+    };
+    list.push(newMember);
+    this.saveStaff(list);
+    return newMember;
+  }
+
+  deleteStaff(id) {
+    let list = this.getStaff().filter(s => s.id !== id);
+    this.saveStaff(list);
   }
 
   // --- Öğrenci İşlemleri ---
@@ -131,20 +268,17 @@ class DataStore {
   }
 
   getStudentById(id) {
-    const students = this.getStudents();
-    return students.find(s => s.id === id) || null;
+    return this.getStudents().find(s => s.id === id) || null;
   }
 
   getStudentByNo(no) {
-    const students = this.getStudents();
-    return students.find(s => s.studentNo.toString().trim() === no.toString().trim()) || null;
+    return this.getStudents().find(s => s.studentNo.toString().trim() === no.toString().trim()) || null;
   }
 
   getStudentsByFamilyCode(code) {
     if (!code) return [];
     const cleanCode = code.trim().toUpperCase();
-    const students = this.getStudents();
-    return students.filter(s => (s.familyCode || '').trim().toUpperCase() === cleanCode);
+    return this.getStudents().filter(s => (s.familyCode || '').trim().toUpperCase() === cleanCode);
   }
 
   saveStudents(students) {
@@ -155,16 +289,11 @@ class DataStore {
     const students = this.getStudents();
     const newStudent = {
       ...student,
-      id: 'std_' + Date.now(),
-      familyCode: (student.familyCode || '').trim().toUpperCase()
+      id: 'std_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+      familyCode: (student.familyCode || (student.lastName ? student.lastName + '2026' : 'AILE2026')).trim().toUpperCase()
     };
     students.push(newStudent);
     this.saveStudents(students);
-
-    if (window.CloudSync && window.CloudSync.isCloudActive) {
-      window.CloudSync.syncStudent(newStudent);
-    }
-
     return newStudent;
   }
 
@@ -178,38 +307,26 @@ class DataStore {
         familyCode: (updatedData.familyCode || students[index].familyCode || '').trim().toUpperCase()
       };
       this.saveStudents(students);
-
-      if (window.CloudSync && window.CloudSync.isCloudActive) {
-        window.CloudSync.syncStudent(students[index]);
-      }
-
       return students[index];
     }
     return null;
   }
 
   deleteStudent(id) {
-    let students = this.getStudents();
-    students = students.filter(s => s.id !== id);
+    let students = this.getStudents().filter(s => s.id !== id);
     this.saveStudents(students);
-
-    let att = this.getAttendance();
-    att = att.filter(a => a.studentId !== id);
-    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(att));
-
-    let perf = this.getPerformances();
-    perf = perf.filter(p => p.studentId !== id);
-    localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(perf));
-
-    if (window.CloudSync && window.CloudSync.isCloudActive) {
-      window.CloudSync.deleteStudent(id);
-    }
   }
 
   getClasses() {
-    const students = this.getStudents();
-    const classes = [...new Set(students.map(s => s.className).filter(Boolean))];
-    return classes.sort();
+    return [...new Set(this.getStudents().map(s => s.className).filter(Boolean))].sort();
+  }
+
+  getEtutHocalari() {
+    return [...new Set(this.getStudents().map(s => s.etutHocasi).filter(Boolean))].sort();
+  }
+
+  getDahiliHocalari() {
+    return [...new Set(this.getStudents().map(s => s.dahiliHoca).filter(Boolean))].sort();
   }
 
   // --- Yoklama İşlemleri ---
@@ -223,34 +340,21 @@ class DataStore {
   }
 
   getAttendanceByDate(date) {
-    const all = this.getAttendance();
-    return all.filter(a => a.date === date);
+    return this.getAttendance().filter(a => a.date === date);
   }
 
   getAttendanceForStudent(studentId) {
-    const all = this.getAttendance();
-    return all.filter(a => a.studentId === studentId).sort((a, b) => new Date(b.date) - new Date(a.date));
+    return this.getAttendance().filter(a => a.studentId === studentId).sort((a, b) => new Date(b.date) - new Date(a.date));
   }
 
   saveAttendanceBatch(records) {
     const all = this.getAttendance();
     records.forEach(newRec => {
       const idx = all.findIndex(a => a.studentId === newRec.studentId && a.date === newRec.date);
-      let recordObj;
       if (idx !== -1) {
         all[idx] = { ...all[idx], ...newRec, recordedAt: new Date().toISOString() };
-        recordObj = all[idx];
       } else {
-        recordObj = {
-          id: `att_${newRec.studentId}_${newRec.date}`,
-          ...newRec,
-          recordedAt: new Date().toISOString()
-        };
-        all.push(recordObj);
-      }
-
-      if (window.CloudSync && window.CloudSync.isCloudActive) {
-        window.CloudSync.syncAttendance(recordObj);
+        all.push({ id: `att_${newRec.studentId}_${newRec.date}`, ...newRec, recordedAt: new Date().toISOString() });
       }
     });
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(all));
@@ -267,75 +371,57 @@ class DataStore {
   }
 
   getPerformanceForStudent(studentId) {
-    const all = this.getPerformances();
-    return all.filter(p => p.studentId === studentId).sort((a, b) => new Date(b.date) - new Date(a.date));
+    return this.getPerformances().filter(p => p.studentId === studentId).sort((a, b) => new Date(b.date) - new Date(a.date));
   }
 
   addPerformance(entry) {
     const all = this.getPerformances();
-    const newEntry = {
-      id: 'perf_' + Date.now(),
-      ...entry,
-      createdAt: new Date().toISOString()
-    };
+    const newEntry = { id: 'perf_' + Date.now(), ...entry, createdAt: new Date().toISOString() };
     all.unshift(newEntry);
     localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(all));
-
-    if (window.CloudSync && window.CloudSync.isCloudActive) {
-      window.CloudSync.syncPerformance(newEntry);
-    }
-
     return newEntry;
   }
 
   deletePerformance(id) {
-    let all = this.getPerformances();
-    all = all.filter(p => p.id !== id);
+    let all = this.getPerformances().filter(p => p.id !== id);
     localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(all));
   }
 
-  // --- İstatistik ve Analiz ---
   getStudentStats(studentId) {
     const records = this.getAttendanceForStudent(studentId);
     const totalDays = records.length;
-    
     const counts = { V: 0, T: 0, Y: 0, G: 0, E: 0, K: 0, I: 0 };
-    records.forEach(r => {
-      if (counts[r.status] !== undefined) counts[r.status]++;
-    });
-
+    records.forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
     const presentCount = counts.V + counts.T + counts.Y + counts.G + counts.E;
     const effectiveTotal = totalDays - counts.I;
     const attendanceRate = effectiveTotal > 0 ? Math.round((presentCount / effectiveTotal) * 100) : 100;
-
     const perfs = this.getPerformanceForStudent(studentId);
     let avgScore = 0;
     if (perfs.length > 0) {
-      const totalScore = perfs.reduce((sum, p) => sum + (p.criteria?.score || 0), 0);
-      avgScore = Math.round(totalScore / perfs.length);
+      avgScore = Math.round(perfs.reduce((sum, p) => sum + (p.criteria?.score || 0), 0) / perfs.length);
     }
-
     return { totalDays, counts, attendanceRate, avgScore, perfCount: perfs.length };
   }
 
   exportBackup() {
-    const backup = {
-      version: '2.0',
+    return JSON.stringify({
+      version: '4.0',
       exportedAt: new Date().toISOString(),
       students: this.getStudents(),
+      staff: this.getStaff(),
       attendance: this.getAttendance(),
       performance: this.getPerformances(),
       settings: this.getSettings()
-    };
-    return JSON.stringify(backup, null, 2);
+    }, null, 2);
   }
 
   importBackup(jsonString) {
     try {
       const parsed = JSON.parse(jsonString);
-      if (!parsed.students || !parsed.attendance) throw new Error('Geçersiz format.');
-      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(parsed.students));
-      localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(parsed.attendance));
+      if (!parsed.students) throw new Error('Geçersiz format.');
+      this.saveStudents(parsed.students);
+      if (parsed.staff) this.saveStaff(parsed.staff);
+      if (parsed.attendance) localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(parsed.attendance));
       if (parsed.performance) localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(parsed.performance));
       if (parsed.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(parsed.settings));
       return { success: true };

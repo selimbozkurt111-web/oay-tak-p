@@ -1,23 +1,17 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Öğrenci Yoklama ve Performans Takip Sistemi</title>
+  <title>Öğrenci Yoklama, Devam ve Performans Takip Sistemi</title>
   
-  <!-- PWA Manifest & Mobil Desteği -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#059669">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="apple-touch-icon" href="icon.svg">
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- Firebase CDN (Bulut Senkronizasyonu için) -->
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-
   <!-- Özel Stiller ve Yazdırma Kuralları -->
   <link rel="stylesheet" href="css/custom.css">
   
@@ -40,24 +34,24 @@
 </head>
 <body class="bg-slate-100 text-slate-900 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
 
-  <!-- Üst Navigasyon & Rol Barı -->
+  <!-- Üst Başlık & Menü -->
   <header id="header-nav" class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
     <!-- app.js renderHeader() ile doldurulacak -->
   </header>
 
   <!-- Ana İçerik Alanı -->
   <main id="main-content" class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-    <!-- Parent Portal veya Personel Modülleri burada render edilecek -->
+    <!-- app.js renderMainContent() ile doldurulacak -->
   </main>
 
   <!-- Alt Bilgi (Footer) -->
   <footer class="no-print bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
     <div class="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-2">
       <div>
-        <strong>Öğrenci Yoklama & Performans Takip Sistemi</strong> • Personel Düzenleme & Veli Salt Okunur Portal
+        <strong>Kurs & Etüt Öğrenci Takip Sistemi</strong> • Ana Yönetici, Personel & Veli Ortak Portalı
       </div>
       <div class="text-[11px] text-slate-400">
-        Özel Durum Kodları: <strong>V</strong> (Var), <strong>T</strong> (Takkesiz), <strong>Y</strong> (Namazda Yok), <strong>G</strong> (Geç), <strong>E</strong> (Eşofmanlı), <strong>K</strong> (Kursta Yok), <strong>İ</strong> (İzinli)
+        Yoklama Kodları: <strong>V</strong> (Var), <strong>T</strong> (Takkesiz), <strong>Y</strong> (Namazda Yok), <strong>G</strong> (Geç), <strong>E</strong> (Eşofmanlı), <strong>K</strong> (Kursta Yok), <strong>İ</strong> (İzinli)
       </div>
     </div>
   </footer>
@@ -65,39 +59,47 @@
   <!-- Toast Bildirim Konteyneri -->
   <div id="toast-container"></div>
 
-  <!-- Personel PIN Giriş Modalı -->
-  <div id="pin-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 modal-backdrop p-4 animate-fade-in">
-    <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 text-center">
-      <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-xl font-bold shadow-inner">
-        🔒
-      </div>
-      <h3 class="text-lg font-black text-slate-900 mb-1">Personel / Yönetici Girişi</h3>
-      <p class="text-xs text-slate-500 mb-5">
-        Öğrenci ve yoklama kayıtlarında değişiklik yapabilmek için personel PIN kodunuzu giriniz.
-      </p>
-
-      <form onsubmit="window.App.verifyAndLoginPersonnel(event)" class="space-y-4">
+  <!-- Excel'den Toplu Öğrenci Ekleme Modalı (Sadece Ana Yönetici) -->
+  <div id="bulk-import-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 modal-backdrop p-4 animate-fade-in">
+    <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
         <div>
-          <input type="password" id="pin-input" maxlength="8" placeholder="••••" required autofocus
-            class="w-full text-center text-2xl tracking-widest font-mono font-bold py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-emerald-600 focus:bg-white focus:outline-none transition">
-          <div class="text-[11px] text-slate-400 mt-1.5">Varsayılan Personel Kodu: <strong class="text-slate-600 font-mono">1234</strong></div>
+          <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+            <span>📋 Excel'den Toplu Öğrenci Ekle</span>
+          </h3>
+          <p class="text-xs text-slate-500">Excel'deki satırları kopyalayıp aşağıdaki kutuya yapıştırın</p>
+        </div>
+        <button onclick="window.App.closeBulkImportModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">×</button>
+      </div>
+
+      <div class="space-y-4">
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
+          <div class="font-bold text-slate-800">Sütun Sırası (Excel'den kopyalanacak alanlar):</div>
+          <div class="font-mono text-[11px] text-emerald-800 bg-white p-2 rounded border border-slate-200">
+            No &nbsp;|&nbsp; Adı Soyadı &nbsp;|&nbsp; Sınıfı &nbsp;|&nbsp; Okulu &nbsp;|&nbsp; Seviye &nbsp;|&nbsp; Etüt Hocası &nbsp;|&nbsp; Dahili Hocası
+          </div>
         </div>
 
-        <div class="flex items-center gap-2 pt-2">
-          <button type="button" onclick="window.App.closePinModal()" 
-            class="w-1/2 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition">
+        <div>
+          <textarea id="bulk-paste-textarea" rows="8" placeholder="Excel tablonuzu kopyalayıp (Ctrl+C) buraya yapıştırın (Ctrl+V)..."
+            class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:bg-white focus:outline-none"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="window.App.closeBulkImportModal()" 
+            class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition">
             İptal
           </button>
-          <button type="submit" 
-            class="w-1/2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow transition">
-            Giriş Yap
+          <button type="button" onclick="window.App.handleBulkPasteImport()" 
+            class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow transition">
+            Öğrencileri Kaydet ve Yükle
           </button>
         </div>
-      </form>
+      </div>
     </div>
   </div>
 
-  <!-- Öğrenci Ekleme & Düzenleme Modalı -->
+  <!-- Tekil Öğrenci Ekleme & Düzenleme Modalı -->
   <div id="student-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 modal-backdrop p-4 animate-fade-in">
     <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -111,12 +113,12 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1">OKUL / KURS NO *</label>
-            <input type="number" id="modal-student-no" required 
+            <input type="text" id="modal-student-no" required 
               class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none">
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1">SINIF / ŞUBE *</label>
-            <input type="text" id="modal-student-class" required placeholder="Örn: 8-A, 5-B" 
+            <input type="text" id="modal-student-class" required placeholder="Örn: 5. Sınıf, 8. Sınıf" 
               class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none">
           </div>
         </div>
@@ -134,39 +136,44 @@
           </div>
         </div>
 
-        <!-- Ortak Veli / Aile Kodu (Kardeşler için kritik) -->
-        <div class="bg-indigo-50/60 p-3 rounded-xl border border-indigo-100">
-          <label class="block text-xs font-bold text-indigo-900 mb-1">ORTAK AİLE / VELİ KODU *</label>
-          <input type="text" id="modal-student-family" placeholder="Örn: YILMAZ2026" 
-            class="w-full px-3 py-2 bg-white border border-indigo-200 rounded-lg text-sm font-mono font-bold text-indigo-900 uppercase focus:outline-none">
-          <p class="text-[11px] text-indigo-600 mt-1">
-            💡 Kardeş olan öğrencilere <strong>aynı Aile Kodunu</strong> veriniz. Anne ve baba bu kod ile giriş yaptığında tüm kardeşleri görebilecektir.
-          </p>
+        <!-- Hoca ve Yatakhane Bilgileri -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">ETÜT HOCASI</label>
+            <input type="text" id="modal-student-etut" placeholder="Örn: Yasin Ekinci" 
+              class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">DAHİLİ (DİNİ) HOCASI</label>
+            <input type="text" id="modal-student-dahili" placeholder="Örn: Selim Bozkurt" 
+              class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none">
+          </div>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">BABA ADI</label>
-            <input type="text" id="modal-student-father" placeholder="Mehmet Yılmaz" 
+            <label class="block text-xs font-semibold text-slate-600 mb-1">YATAKHANE / ODA NO</label>
+            <input type="text" id="modal-student-yatakhane" placeholder="Örn: Oda 101" 
               class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">ANNE ADI</label>
-            <input type="text" id="modal-student-mother" placeholder="Fatma Yılmaz" 
-              class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none">
+            <label class="block text-xs font-bold text-indigo-900 mb-1">ORTAK AİLE / VELİ KODU</label>
+            <input type="text" id="modal-student-family" placeholder="Örn: KALKAN2026" 
+              class="w-full px-3 py-2 bg-indigo-50/70 border border-indigo-200 rounded-lg text-sm font-mono font-bold text-indigo-900 uppercase focus:outline-none">
           </div>
         </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">VELİ TELEFON NUMARASI</label>
-          <input type="tel" id="modal-student-phone" placeholder="0555 123 45 67" 
-            class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none">
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1">ÖZEL NOTLAR</label>
-          <textarea id="modal-student-notes" rows="2" placeholder="Sağlık durumu, servis bilgisi vb..." 
-            class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none"></textarea>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">VELİ ADI SOYADI</label>
+            <input type="text" id="modal-student-father" placeholder="Baba veya Anne Adı" 
+              class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">VELİ İLETİŞİM TELEFONU</label>
+            <input type="tel" id="modal-student-phone" placeholder="0555 123 45 67" 
+              class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none">
+          </div>
         </div>
 
         <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
@@ -184,7 +191,6 @@
   </div>
 
   <!-- JavaScript Modülleri -->
-  <script src="js/cloud-sync.js"></script>
   <script src="js/store.js"></script>
   <script src="js/attendance.js"></script>
   <script src="js/performance.js"></script>
