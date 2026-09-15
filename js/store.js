@@ -12,14 +12,21 @@ const STORAGE_KEYS = {
 };
 
 const STATUS_CONFIG = {
-  V: { code: 'V', label: 'Var / Geldi', short: 'Var', bg: '#10b981', border: '#059669', desc: 'Kursta ve dersinde mevcut' },
-  T: { code: 'T', label: 'Takkesiz', short: 'Takkesiz (t)', bg: '#9333ea', border: '#7e22ce', desc: 'Kursta mevcut fakat takkesiz katıldı' },
-  Y: { code: 'Y', label: 'Namazda Yok', short: 'Namazda Yok (y)', bg: '#881337', border: '#4c0519', desc: 'Kursta var fakat namaza katılmadı' },
-  G: { code: 'G', label: 'Geç Kaldı', short: 'Geç (g)', bg: '#f59e0b', border: '#d97706', desc: 'Ders veya etüte geç geldi' },
-  E: { code: 'E', label: 'Eşofmanlı', short: 'Eşofmanlı (e)', bg: '#0284c7', border: '#0369a1', desc: 'Kıyafet kuralına uymadı, eşofmanlı geldi' },
-  K: { code: 'K', label: 'Kursta Yok', short: 'Kursta Yok (k)', bg: '#ef4444', border: '#dc2626', desc: 'Kursta yok / Devamsız' },
-  I: { code: 'I', label: 'İzinli / Raporlu', short: 'İzinli (i)', bg: '#0d9488', border: '#0f766e', desc: 'Mazeretli / İzinli' }
+  VAR: { code: 'VAR', label: 'Var', short: 'Var', bg: '#10b981', border: '#059669', desc: 'Kursta mevcut' },
+  YOK: { code: 'YOK', label: 'Yok', short: 'Yok', bg: '#ef4444', border: '#dc2626', desc: 'Kursta/Namazda yok' },
+  GEC: { code: 'GEC', label: 'Geç', short: 'Geç', bg: '#f59e0b', border: '#d97706', desc: 'Geç kaldı' },
+  TAKKESIZ: { code: 'TAKKESIZ', label: 'Takkesiz', short: 'Takkesiz', bg: '#9333ea', border: '#7e22ce', desc: 'Takkesiz katıldı' },
+  IZINLI: { code: 'IZINLI', label: 'İzinli', short: 'İzinli', bg: '#0d9488', border: '#0f766e', desc: 'İzinli / Raporlu' }
 };
+
+// Eski kodlarla geriye dönük tam uyumluluk
+STATUS_CONFIG.V = STATUS_CONFIG.VAR;
+STATUS_CONFIG.K = STATUS_CONFIG.YOK;
+STATUS_CONFIG.Y = STATUS_CONFIG.YOK;
+STATUS_CONFIG.G = STATUS_CONFIG.GEC;
+STATUS_CONFIG.T = STATUS_CONFIG.TAKKESIZ;
+STATUS_CONFIG.I = STATUS_CONFIG.IZINLI;
+STATUS_CONFIG.E = STATUS_CONFIG.VAR;
 
 const DEFAULT_SETTINGS = {
   institutionName: 'Kurs & Etüt Öğrenci Takip Sistemi',
@@ -471,13 +478,27 @@ class DataStore {
     localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(all));
   }
 
+  normalizeStatusCode(code) {
+    if (!code) return 'VAR';
+    const c = code.toString().toUpperCase().trim();
+    if (c === 'V' || c === 'VAR') return 'VAR';
+    if (c === 'K' || c === 'Y' || c === 'YOK') return 'YOK';
+    if (c === 'G' || c === 'GEC' || c === 'GEÇ') return 'GEC';
+    if (c === 'T' || c === 'TAKKESIZ' || c === 'TAKKESİZ') return 'TAKKESIZ';
+    if (c === 'I' || c === 'İ' || c === 'IZINLI' || c === 'İZİNLİ') return 'IZINLI';
+    return 'VAR';
+  }
+
   getStudentStats(studentId) {
     const records = this.getAttendanceForStudent(studentId);
     const totalDays = records.length;
-    const counts = { V: 0, T: 0, Y: 0, G: 0, E: 0, K: 0, I: 0 };
-    records.forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
-    const presentCount = counts.V + counts.T + counts.Y + counts.G + counts.E;
-    const effectiveTotal = totalDays - counts.I;
+    const counts = { VAR: 0, YOK: 0, GEC: 0, TAKKESIZ: 0, IZINLI: 0 };
+    records.forEach(r => {
+      const st = this.normalizeStatusCode(r.status);
+      counts[st] = (counts[st] || 0) + 1;
+    });
+    const presentCount = (counts.VAR || 0) + (counts.TAKKESIZ || 0) + (counts.GEC || 0);
+    const effectiveTotal = totalDays - (counts.IZINLI || 0);
     const attendanceRate = effectiveTotal > 0 ? Math.round((presentCount / effectiveTotal) * 100) : 100;
     const perfs = this.getPerformanceForStudent(studentId);
     let avgScore = 0;

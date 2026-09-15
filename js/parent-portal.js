@@ -150,20 +150,19 @@ window.ParentPortal = {
             </div>
           </div>
 
-          <!-- 7 Özel Durum İstatistiği -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5 pt-5">
-            ${Object.keys(window.STATUS_CONFIG).map(code => {
-              const cfg = window.STATUS_CONFIG[code];
+          <!-- 5 Yoklama Durumu İstatistiği -->
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-5">
+            ${['VAR', 'YOK', 'GEC', 'TAKKESIZ', 'IZINLI'].map(code => {
+              const cfg = window.STATUS_CONFIG[code] || window.STATUS_CONFIG['VAR'];
               const count = stats.counts[code] || 0;
               return `
                 <div class="p-3 rounded-xl border flex flex-col items-center justify-center text-center" 
-                  style="background-color: ${cfg.bg}08; border-color: ${cfg.border}30;">
-                  <span class="w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center mb-1.5" 
+                  style="background-color: ${cfg.bg}10; border-color: ${cfg.border}30;">
+                  <span class="px-2.5 py-1 rounded-lg text-white font-black text-xs flex items-center justify-center mb-1.5" 
                     style="background-color: ${cfg.bg};">
-                    ${cfg.code}
+                    ${cfg.label}
                   </span>
-                  <span class="text-[11px] font-semibold text-slate-700">${cfg.short}</span>
-                  <span class="text-base font-black text-slate-900 mt-0.5">${count} Gün</span>
+                  <span class="text-base font-black text-slate-900 mt-0.5">${count} Vakit</span>
                 </div>
               `;
             }).join('')}
@@ -180,13 +179,14 @@ window.ParentPortal = {
               ${attendanceRecords.length === 0 ? `
                 <div class="py-12 text-center text-slate-400 text-sm">Henüz kayıtlı yoklama bulunmuyor.</div>
               ` : attendanceRecords.map(r => {
-                const cfg = window.STATUS_CONFIG[r.status] || window.STATUS_CONFIG['V'];
+                const norm = window.Store.normalizeStatusCode ? window.Store.normalizeStatusCode(r.status) : (r.status || 'VAR');
+                const cfg = window.STATUS_CONFIG[norm] || window.STATUS_CONFIG['VAR'];
                 return `
                   <div class="p-3 rounded-xl border border-slate-100 bg-slate-50/60 transition flex items-start justify-between gap-3">
                     <div class="flex items-start gap-3">
-                      <span class="w-8 h-8 rounded-lg text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5"
+                      <span class="px-2.5 py-1 rounded-lg text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5"
                         style="background-color: ${cfg.bg};">
-                        ${cfg.code}
+                        ${cfg.label}
                       </span>
                       <div>
                         <div class="flex items-center gap-2">
@@ -196,11 +196,6 @@ window.ParentPortal = {
                           </span>
                         </div>
                         <div class="text-[11px] text-slate-500 mt-0.5">${cfg.desc}</div>
-                        ${r.note ? `
-                          <div class="text-xs text-slate-700 bg-white border border-slate-200 p-1.5 rounded-md mt-1.5 font-medium">
-                            📝 <strong>Öğretmen Notu:</strong> ${r.note}
-                          </div>
-                        ` : ''}
                       </div>
                     </div>
                   </div>
