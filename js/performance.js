@@ -1,12 +1,12 @@
 /**
  * performance.js - Akademi & Performans Takip Modülü
- * - Alt Başlık 1: Takviye Ders Performansı (Türkçe, Matematik, Fen Bilimleri, Sosyal Bilgiler, İngilizce - 100 üzerinden değerlendirme)
+ * - Alt Başlık 1: Takviye Ders Performansı (Çizelge / Matris Görünümü: Solda Öğrenciler, Üstte 5 Ders, Sağda Öğrenci Ortalaması, Altta Sınıf Ders Ortalamaları)
+ *   Renk Kuralı: 85 altı kırmızı, 85'ten 100'e doğru yeşile geçiş, 100 tam yeşil.
  * - Alt Başlık 2: Genel Gelişim & Karne (Kriter yıldızları, rozetler ve öğretmen görüşleri)
  */
 
 window.AkademiModule = {
   currentSubCategory: 'takviye', // 'takviye' | 'genel'
-  currentSubject: 'Türkçe',      // 'Türkçe', 'Matematik', 'Fen Bilimleri', 'Sosyal Bilgiler', 'İngilizce'
   currentDate: new Date().toISOString().split('T')[0],
   selectedClasses: [],           // Boş ise Tüm Sınıflar
   searchQuery: '',
@@ -14,17 +14,17 @@ window.AkademiModule = {
   selectedBadges: new Set(),
 
   subCategories: [
-    { id: 'takviye', label: 'Takviye Ders Performansı', icon: '📚', short: 'Takviye Dersler' },
+    { id: 'takviye', label: 'Takviye Ders Performansı', icon: '📚', short: 'Takviye Çizelgesi' },
     { id: 'genel', label: 'Genel Gelişim & Karne', icon: '⭐', short: 'Genel Karne' }
   ],
 
-  // Namaz yoklamasındaki 5 vakit gibi 5 Takviye Dersi Butonu
+  // 5 Ana Takviye Dersi (Tabloda soldan sağa sütunlar)
   subjects: [
-    { name: 'Türkçe', icon: '🇹🇷', label: 'Türkçe Dersi' },
-    { name: 'Matematik', icon: '📐', label: 'Matematik Dersi' },
-    { name: 'Fen Bilimleri', icon: '🔬', label: 'Fen Bilimleri' },
-    { name: 'Sosyal Bilgiler', icon: '🌍', label: 'Sosyal Bilgiler' },
-    { name: 'İngilizce', icon: '🇬🇧', label: 'İngilizce Dersi' }
+    { key: 'Türkçe', name: 'Türkçe', icon: '🇹🇷', short: 'TR' },
+    { key: 'Matematik', name: 'Matematik', icon: '📐', short: 'MAT' },
+    { key: 'Fen Bilimleri', name: 'Fen Bilimleri', icon: '🔬', short: 'FEN' },
+    { key: 'Sosyal Bilgiler', name: 'Sosyal Bilgiler', icon: '🌍', short: 'SOS' },
+    { key: 'İngilizce', name: 'İngilizce', icon: '🇬🇧', short: 'İNG' }
   ],
 
   AVAILABLE_BADGES: [
@@ -48,14 +48,6 @@ window.AkademiModule = {
     this.renderView();
   },
 
-  setSubject(subject) {
-    this.currentSubject = subject;
-    this.renderView();
-    if (window.App && window.App.showToast) {
-      window.App.showToast(`${this.currentSubject} takviye dersi seçildi.`, 'info');
-    }
-  },
-
   setDate(date) {
     this.currentDate = date;
     this.renderView();
@@ -70,92 +62,82 @@ window.AkademiModule = {
     return days[d.getDay()] || '';
   },
 
-  // Çoklu Sınıf Seçimi
   toggleClass(className) {
     if (this.selectedClasses.includes(className)) {
       this.selectedClasses = this.selectedClasses.filter(c => c !== className);
     } else {
       this.selectedClasses.push(className);
     }
-    this.renderStudentRows();
+    this.renderMatrixTableBody();
   },
 
   toggleAllClasses() {
     this.selectedClasses = [];
-    this.renderStudentRows();
+    this.renderMatrixTableBody();
   },
 
   setSearchQuery(query) {
     this.searchQuery = query.toLowerCase().trim();
-    this.renderStudentRows();
+    this.renderMatrixTableBody();
   },
 
-  getScoreBadge(score) {
+  // --- ÖZEL RENK KURALI (85 Altı Kırmızı, 85-100 Arası Yeşile Dönüşüm, 100 Tam Yeşil) ---
+  getColorStyle(score) {
     if (score === null || score === undefined || score === '' || isNaN(score)) {
-      return `<span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-400 font-bold border border-slate-200">- Girilmedi</span>`;
+      return {
+        bg: '#ffffff',
+        text: '#94a3b8',
+        border: '#cbd5e1',
+        badge: 'bg-slate-100 text-slate-400 border-slate-200 font-bold',
+        label: '-'
+      };
     }
     const val = Number(score);
-    if (val >= 85) {
-      return `<span class="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-black border border-emerald-300">Pekiyi 🌟</span>`;
-    } else if (val >= 70) {
-      return `<span class="text-[10px] px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-black border border-blue-300">İyi 👍</span>`;
-    } else if (val >= 55) {
-      return `<span class="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black border border-amber-300">Orta ⚡</span>`;
+    if (val < 85) {
+      // 85 altı: Kırmızı
+      return {
+        bg: '#fee2e2',       // açık kırmızı arka plan
+        text: '#b91c1c',     // koyu kırmızı yazı
+        border: '#f87171',   // kırmızı kenarlık
+        badge: 'bg-rose-100 text-rose-800 border-rose-300 font-black',
+        label: '85 Altı'
+      };
+    } else if (val >= 100) {
+      // 100 tam: Canlı Yeşil
+      return {
+        bg: '#10b981',       // zümrüt yeşili
+        text: '#ffffff',     // beyaz yazı
+        border: '#059669',   // koyu yeşil kenarlık
+        badge: 'bg-emerald-600 text-white border-emerald-700 font-black shadow-xs',
+        label: '100'
+      };
+    } else if (val >= 95) {
+      // 95-99: Zümrüt Yeşili
+      return {
+        bg: '#d1fae5',
+        text: '#065f46',
+        border: '#6ee7b7',
+        badge: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-black',
+        label: '95+'
+      };
+    } else if (val >= 90) {
+      // 90-94: Fıstık Yeşili
+      return {
+        bg: '#ecfccb',
+        text: '#3f6212',
+        border: '#bef264',
+        badge: 'bg-lime-100 text-lime-800 border-lime-300 font-black',
+        label: '90+'
+      };
     } else {
-      return `<span class="text-[10px] px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-black border border-rose-300">Gelişmeli ⚠️</span>`;
-    }
-  },
-
-  // 100 Üzerinden Puan Girişi & ANINDA OTOMATİK KAYIT
-  handleScoreInput(studentId, value) {
-    const cleanVal = value.trim();
-    const num = cleanVal === '' ? null : Math.min(100, Math.max(0, parseInt(cleanVal, 10)));
-    
-    // Rozeti hemen güncelle
-    const badgeEl = document.getElementById(`score-badge-${studentId}`);
-    if (badgeEl) {
-      badgeEl.innerHTML = this.getScoreBadge(num);
-    }
-
-    // Durum uyarısı
-    const statusEl = document.getElementById(`save-status-${studentId}`);
-    if (statusEl) {
-      statusEl.innerHTML = `<span class="text-amber-500 font-bold text-[11px] animate-pulse">Kaydediliyor...</span>`;
-    }
-
-    if (this.saveTimers[studentId]) clearTimeout(this.saveTimers[studentId]);
-
-    this.saveTimers[studentId] = setTimeout(() => {
-      window.Store.saveSingleAcademicScore(
-        studentId,
-        this.currentDate,
-        this.currentSubject,
-        num
-      );
-      if (statusEl) {
-        statusEl.innerHTML = `<span class="text-emerald-600 font-black text-[11px]">✓ Kaydedildi</span>`;
-        setTimeout(() => {
-          if (statusEl) statusEl.innerHTML = '';
-        }, 1500);
-      }
-    }, 350);
-  },
-
-  saveScoreImmediate(studentId, value) {
-    const cleanVal = value.trim();
-    const num = cleanVal === '' ? null : Math.min(100, Math.max(0, parseInt(cleanVal, 10)));
-    window.Store.saveSingleAcademicScore(
-      studentId,
-      this.currentDate,
-      this.currentSubject,
-      num
-    );
-    const statusEl = document.getElementById(`save-status-${studentId}`);
-    if (statusEl) {
-      statusEl.innerHTML = `<span class="text-emerald-600 font-black text-[11px]">✓ Kaydedildi</span>`;
-      setTimeout(() => {
-        if (statusEl) statusEl.innerHTML = '';
-      }, 1500);
+      // 85-89: Sarı/Amberden yeşile geçiş
+      return {
+        bg: '#fef3c7',
+        text: '#92400e',
+        border: '#fcd34d',
+        badge: 'bg-amber-100 text-amber-800 border-amber-300 font-black',
+        label: '85+'
+      };
     }
   },
 
@@ -181,22 +163,20 @@ window.AkademiModule = {
     const container = document.getElementById('performance-container') || document.getElementById('akademi-container');
     if (!container) return;
 
-    // 1. Durum: Takviye Ders Performansı (5 Ders Butonu & 100 Üzerinden Puanlama)
     if (this.currentSubCategory === 'takviye') {
-      this.renderTakviyeView(container);
+      this.renderTakviyeMatrixView(container);
     } else {
-      // 2. Durum: Genel Gelişim & Karne (Yıldızlar, Rozetler, Görüş Notları)
       this.renderGenelKarneView(container);
     }
   },
 
-  // --- 1. TAKVİYE DERS PERFORMANSI GÖRÜNÜMÜ ---
-  renderTakviyeView(container) {
+  // --- 1. TAKVİYE DERS PERFORMANSI (ÇİZELGE / MATRİS TABLO GÖRÜNÜMÜ) ---
+  renderTakviyeMatrixView(container) {
     const classes = window.Store.getClasses();
     const dayName = this.getDayName(this.currentDate);
 
     container.innerHTML = `
-      <div class="space-y-4 animate-fade-in max-w-4xl mx-auto">
+      <div class="space-y-4 animate-fade-in max-w-7xl mx-auto">
         <!-- 1. AKADEMİ ALT BAŞLIKLARI (Hap Butonlar) -->
         <div class="flex items-center gap-2 p-1.5 bg-slate-200/90 rounded-2xl max-w-md mx-auto shadow-inner">
           ${this.subCategories.map(sub => {
@@ -215,203 +195,443 @@ window.AkademiModule = {
           }).join('')}
         </div>
 
-        <!-- 2. Kontrol Kartı: Tarih, Gün Adı ve 5 TAKVİYE DERS BUTONU -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
-          <!-- Tarih ve Gün Adı -->
-          <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-black text-slate-800 uppercase tracking-wide">
-                  DEĞERLENDİRME TARİHİ & TAKVİYE DERSİ:
-                </span>
-                <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 font-bold border border-blue-200">
-                  ${this.currentSubject}
-                </span>
-              </div>
-              <div class="flex flex-wrap items-center gap-2 pt-1">
-                <!-- Tarih Seçici -->
-                <input type="date" value="${this.currentDate}" 
-                  class="px-3 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none transition shadow-2xs"
-                  onchange="window.AkademiModule.setDate(this.value)">
+        <!-- 2. Kontrol Kartı: Tarih, Gün Adı, Çoklu Sınıf Filtresi & Renk Kılavuzu -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <!-- Tarih ve Gün Adı -->
+            <div class="flex flex-wrap items-center gap-2.5">
+              <span class="text-xs font-black text-slate-800 uppercase tracking-wide">
+                DEĞERLENDİRME TARİHİ:
+              </span>
+              <input type="date" value="${this.currentDate}" 
+                class="px-3 py-1.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none transition shadow-2xs"
+                onchange="window.AkademiModule.setDate(this.value)">
 
-                <!-- Gün Adı Rozeti -->
-                <div class="px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-2xs">
-                  <span>📅</span>
-                  <span>${dayName}</span>
-                </div>
+              <div class="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-2xs">
+                <span>📅</span>
+                <span>${dayName}</span>
               </div>
             </div>
 
-            <!-- Bilgilendirme Rozeti -->
-            <div class="text-right">
-              <div class="text-xs font-black text-slate-700">100 Üzerinden Puanlama</div>
-              <div class="text-[11px] text-slate-400">Yazdığınız anda anında kaydedilir</div>
+            <!-- Otomatik Kayıt Durumu & Bilgi -->
+            <div class="flex items-center gap-3">
+              <div id="matrix-save-indicator" class="h-6 flex items-center"></div>
+              <div class="text-right hidden sm:block">
+                <div class="text-[11px] font-black text-slate-700">Canlı Not Çizelgesi</div>
+                <div class="text-[10px] text-slate-400">Yazdığınız anda anında kaydedilir & ortalamalar güncellenir</div>
+              </div>
             </div>
           </div>
 
-          <!-- NAMAZ YOKLAMASI GİBİ 5 TAKVİYE DERSİ BUTONLARI -->
-          <div>
-            <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-              DERS SEÇİNİZ (Puan girişi yapılacak takviye ders):
-            </div>
-            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              ${this.subjects.map(subj => {
-                const isSelected = this.currentSubject === subj.name;
-                return `
-                  <button type="button" onclick="window.AkademiModule.setSubject('${subj.name}')"
-                    class="py-3 px-3 rounded-2xl text-xs font-black transition-all flex flex-col items-center justify-center gap-1 border ${
-                      isSelected 
-                        ? 'bg-gradient-to-b from-blue-600 to-indigo-700 text-white border-blue-700 shadow-md scale-102 ring-2 ring-blue-400' 
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
-                    }">
-                    <span class="text-lg">${subj.icon}</span>
-                    <span class="leading-tight text-center">${subj.name}</span>
-                    ${isSelected ? '<span class="w-1.5 h-1.5 rounded-full bg-white mt-0.5"></span>' : ''}
-                  </button>
-                `;
-              }).join('')}
+          <!-- Renk Skalası Kılavuzu (Legend) -->
+          <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
+            <span class="font-black text-slate-700 text-[11px] uppercase tracking-wide flex items-center gap-1.5">
+              <span>🎨</span> Renk Kuralı:
+            </span>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="px-2 py-0.5 rounded-lg bg-rose-100 text-rose-800 border border-rose-300 font-black text-[11px]">
+                &lt; 85 : Kırmızı
+              </span>
+              <span class="text-slate-300 font-bold">→</span>
+              <span class="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-300 font-bold text-[11px]">
+                85 - 89 : Sarı/Geçiş
+              </span>
+              <span class="text-slate-300 font-bold">→</span>
+              <span class="px-2 py-0.5 rounded-lg bg-lime-100 text-lime-800 border border-lime-300 font-bold text-[11px]">
+                90 - 94 : Fıstık Yeşili
+              </span>
+              <span class="text-slate-300 font-bold">→</span>
+              <span class="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px]">
+                95 - 99 : Zümrüt Yeşili
+              </span>
+              <span class="text-slate-300 font-bold">→</span>
+              <span class="px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white border border-emerald-700 font-black text-[11px] shadow-2xs">
+                100 : Canlı Yeşil
+              </span>
             </div>
           </div>
 
           <!-- Çoklu Sınıf Filtresi & Öğrenci Arama -->
-          <div class="pt-3 border-t border-slate-100 space-y-3">
-            <div>
-              <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
-                <span>SINIF FİLTRESİ (1'den Fazla Seçebilirsiniz):</span>
-                ${this.selectedClasses.length > 0 ? `
-                  <span class="text-blue-600 font-semibold cursor-pointer hover:underline" onclick="window.AkademiModule.toggleAllClasses()">
-                    Filtreyi Temizle
-                  </span>
-                ` : ''}
-              </div>
-              <div class="flex flex-wrap items-center gap-1.5">
-                <button type="button" onclick="window.AkademiModule.toggleAllClasses()"
-                  class="px-3 py-1.5 rounded-xl text-xs font-black transition ${
-                    this.selectedClasses.length === 0 
-                      ? 'bg-slate-900 text-white shadow-sm' 
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }">
-                  Tüm Sınıflar
-                </button>
-                ${classes.map(c => {
-                  const isChecked = this.selectedClasses.includes(c);
-                  return `
-                    <button type="button" onclick="window.AkademiModule.toggleClass('${c}')"
-                      class="px-3 py-1.5 rounded-xl text-xs font-black transition border flex items-center gap-1.5 ${
-                        isChecked 
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                      }">
-                      <span>${isChecked ? '✓' : '+'}</span>
-                      <span>${c}</span>
-                    </button>
-                  `;
-                }).join('')}
-              </div>
+          <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span class="text-[11px] font-black text-slate-500 uppercase mr-1">SINIF:</span>
+              <button type="button" onclick="window.AkademiModule.toggleAllClasses()"
+                class="px-3 py-1 rounded-xl text-xs font-black transition ${
+                  this.selectedClasses.length === 0 
+                    ? 'bg-slate-900 text-white shadow-sm' 
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }">
+                Tümü
+              </button>
+              ${classes.map(c => {
+                const isChecked = this.selectedClasses.includes(c);
+                return `
+                  <button type="button" onclick="window.AkademiModule.toggleClass('${c}')"
+                    class="px-2.5 py-1 rounded-xl text-xs font-black transition border flex items-center gap-1 ${
+                      isChecked 
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }">
+                    <span>${isChecked ? '✓' : '+'}</span>
+                    <span>${c}</span>
+                  </button>
+                `;
+              }).join('')}
             </div>
 
-            <!-- Öğrenci Arama -->
-            <div>
-              <div class="relative">
-                <input type="text" placeholder="İsme göre öğrenci ara..." 
-                  class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                  oninput="window.AkademiModule.setSearchQuery(this.value)">
-                <span class="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
-              </div>
+            <!-- Arama -->
+            <div class="w-full sm:w-60 relative">
+              <input type="text" placeholder="İsme göre öğrenci ara..." 
+                class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                oninput="window.AkademiModule.setSearchQuery(this.value)">
+              <span class="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
             </div>
           </div>
         </div>
 
-        <!-- 3. Öğrenci Listesi & 100 Üzerinden Not Giriş Alanları -->
+        <!-- 3. MATRİS TABLO: SOLDA ÖĞRENCİLER, ÜSTTE 5 DERS, SAĞDA ÖĞRENCİ ORTALAMASI, ALTTA DERS ORTALAMALARI -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-          <div class="p-4 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-black text-slate-800">
-                ${this.currentSubject} Dersi Performans Listesi
-              </span>
-              <span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-black">
-                100 Üzerinden
-              </span>
-            </div>
-            <div class="text-[11px] text-slate-500 font-medium">
-              Notu yazıp başka bir yere tıklamanız veya yazmanız yeterlidir.
-            </div>
-          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[700px]">
+              <!-- Üst Başlıklar (Soldan Sağa: Öğrenci, 5 Ders, Öğrenci Ortalaması) -->
+              <thead>
+                <tr class="bg-slate-900 text-white text-xs border-b border-slate-800">
+                  <th class="p-3.5 sm:p-4 font-black tracking-wide w-48 sm:w-56 sticky left-0 bg-slate-900 z-10 shadow-r">
+                    ÖĞRENCİ BİLGİSİ
+                  </th>
+                  ${this.subjects.map(s => `
+                    <th class="p-3 text-center font-black tracking-wide w-24 sm:w-28 border-l border-slate-800">
+                      <div class="flex items-center justify-center gap-1">
+                        <span>${s.icon}</span>
+                        <span>${s.name}</span>
+                      </div>
+                      <div class="text-[10px] text-slate-400 font-normal">0 - 100</div>
+                    </th>
+                  `).join('')}
+                  <th class="p-3.5 sm:p-4 text-center font-black tracking-wide w-32 border-l border-slate-800 bg-slate-950 text-amber-300">
+                    <div>ÖĞRENCİ ORT.</div>
+                    <div class="text-[10px] text-slate-400 font-normal">Dersler Ortalaması</div>
+                  </th>
+                </tr>
+              </thead>
 
-          <div id="takviye-student-list" class="divide-y divide-slate-100">
-            <!-- renderStudentRows ile doldurulacaktır -->
+              <!-- Tablo Gövdesi: Her Satırda Bir Öğrenci -->
+              <tbody id="takviye-matrix-tbody" class="divide-y divide-slate-100 text-xs">
+                <!-- renderMatrixTableBody ile doldurulacak -->
+              </tbody>
+
+              <!-- En Alt Satır: DERS SINIF ORTALAMALARI VE GENEL ORTALAMA -->
+              <tfoot class="bg-slate-100 text-slate-900 font-black text-xs border-t-2 border-slate-300">
+                <tr>
+                  <td class="p-3.5 sm:p-4 font-black sticky left-0 bg-slate-100 z-10 shadow-r flex items-center gap-2">
+                    <span class="text-base">📈</span>
+                    <div>
+                      <div>DERS SINIF ORTALAMASI</div>
+                      <div class="text-[10px] text-slate-500 font-normal">Seçilen sınıfların ders puan ortalamaları</div>
+                    </div>
+                  </td>
+                  ${this.subjects.map(s => `
+                    <td class="p-3 text-center border-l border-slate-200">
+                      <div id="col-avg-${s.key}">
+                        <span class="text-slate-400 font-bold">-</span>
+                      </div>
+                    </td>
+                  `).join('')}
+                  <td class="p-3.5 sm:p-4 text-center border-l border-slate-200 bg-amber-50/70 text-slate-900">
+                    <div class="text-[10px] text-slate-500 font-bold mb-0.5 uppercase">GENEL ORTALAMA</div>
+                    <div id="overall-avg">
+                      <span class="text-slate-400 font-bold">-</span>
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
       </div>
     `;
 
-    this.renderStudentRows();
+    this.renderMatrixTableBody();
   },
 
-  renderStudentRows() {
-    const listEl = document.getElementById('takviye-student-list');
-    if (!listEl) return;
+  renderMatrixTableBody() {
+    const tbody = document.getElementById('takviye-matrix-tbody');
+    if (!tbody) return;
 
     const students = this.getFilteredStudents();
-    const scores = window.Store.getAcademicScoresByDateAndSubject(this.currentDate, this.currentSubject);
+    const scores = window.Store.getAcademicScores();
+    // Hizli erisim icin map: { `${studentId}_${subject}`: score }
     const scoreMap = {};
     scores.forEach(s => {
-      scoreMap[s.studentId] = s.score;
+      if (s.date === this.currentDate) {
+        scoreMap[`${s.studentId}_${s.subject}`] = s.score;
+      }
     });
 
     if (students.length === 0) {
-      listEl.innerHTML = `
-        <div class="p-10 text-center text-slate-400 text-xs">
-          Seçilen kriterlere uygun öğrenci bulunamadı.
-        </div>
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="${this.subjects.length + 2}" class="p-12 text-center text-slate-400 text-xs">
+            Seçilen kriterlere uygun öğrenci bulunamadı.
+          </td>
+        </tr>
       `;
+      // Ortalamaları sıfırla
+      this.subjects.forEach(s => {
+        const el = document.getElementById(`col-avg-${s.key}`);
+        if (el) el.innerHTML = `<span class="text-slate-400 font-bold">-</span>`;
+      });
+      const overall = document.getElementById('overall-avg');
+      if (overall) overall.innerHTML = `<span class="text-slate-400 font-bold">-</span>`;
       return;
     }
 
-    listEl.innerHTML = students.map((student, idx) => {
-      const currentScore = scoreMap[student.id] !== undefined ? scoreMap[student.id] : '';
+    tbody.innerHTML = students.map((st, idx) => {
+      // Öğrencinin girilmiş ders notlarının ortalamasını hesapla
+      const studentScores = [];
+      this.subjects.forEach(subj => {
+        const val = scoreMap[`${st.id}_${subj.name}`];
+        if (val !== undefined && val !== null && !isNaN(val)) {
+          studentScores.push(Number(val));
+        }
+      });
+
+      const rowAvg = studentScores.length > 0 
+        ? Math.round((studentScores.reduce((a, b) => a + b, 0) / studentScores.length) * 10) / 10 
+        : null;
+
+      const avgStyle = this.getColorStyle(rowAvg);
+
       return `
-        <div class="p-3.5 sm:p-4 hover:bg-slate-50/60 transition flex items-center justify-between gap-3">
-          <!-- Öğrenci Bilgisi -->
-          <div class="flex items-center gap-3 min-w-0">
-            <div class="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 font-black text-xs flex items-center justify-center shrink-0">
-              ${idx + 1}
-            </div>
-            <div class="truncate">
-              <div class="font-black text-slate-900 text-xs sm:text-sm truncate">
-                ${student.firstName} ${student.lastName}
+        <tr class="hover:bg-slate-50/80 transition-colors">
+          <!-- Soldaki Öğrenci Sütunu (Sticky Left) -->
+          <td class="p-3 sm:p-3.5 sticky left-0 bg-white hover:bg-slate-50 z-10 shadow-r">
+            <div class="flex items-center gap-2.5">
+              <span class="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 font-black text-[10px] flex items-center justify-center shrink-0">
+                ${idx + 1}
+              </span>
+              <div class="truncate">
+                <div class="font-black text-slate-900 text-xs sm:text-sm truncate">
+                  ${st.firstName} ${st.lastName}
+                </div>
+                <div class="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
+                  <span class="font-bold text-slate-500">${st.className || '-'}</span>
+                  <span>•</span>
+                  <span class="font-mono">No: ${st.studentNo}</span>
+                </div>
               </div>
-              <div class="flex items-center gap-1.5 mt-0.5">
-                <span class="text-[11px] text-slate-500 font-medium">${student.className || '-'}</span>
-                <span class="text-slate-300">•</span>
-                <span class="text-[10px] text-slate-400 font-mono">No: ${student.studentNo}</span>
-              </div>
             </div>
-          </div>
+          </td>
 
-          <!-- 100 Üzerinden Değerlendirme Giriş Alanı & Rozet -->
-          <div class="flex items-center gap-2.5 shrink-0">
-            <!-- Otomatik Kayıt Durum İndikatörü -->
-            <div id="save-status-${student.id}" class="w-20 text-right"></div>
+          <!-- 5 Takviye Dersi Giriş Hücreleri -->
+          ${this.subjects.map(subj => {
+            const rawScore = scoreMap[`${st.id}_${subj.name}`];
+            const currentScore = (rawScore !== undefined && rawScore !== null) ? rawScore : '';
+            const color = this.getColorStyle(currentScore);
 
-            <!-- Puan Seviye Rozeti (Pekiyi, İyi, vb.) -->
-            <div id="score-badge-${student.id}">
-              ${this.getScoreBadge(currentScore)}
+            return `
+              <td class="p-2 text-center border-l border-slate-100">
+                <input type="number" min="0" max="100" 
+                  id="cell-${st.id}-${subj.key}"
+                  placeholder="-"
+                  value="${currentScore}"
+                  style="background-color: ${color.bg}; color: ${color.text}; border-color: ${color.border};"
+                  class="w-18 sm:w-20 text-center py-2 px-1 text-sm font-black rounded-xl border-2 transition-all shadow-2xs focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                  oninput="window.AkademiModule.handleMatrixInput('${st.id}', '${subj.key}', this.value)"
+                  onblur="window.AkademiModule.handleMatrixBlur('${st.id}', '${subj.key}', this.value)">
+              </td>
+            `;
+          }).join('')}
+
+          <!-- En Sağdaki Öğrenci Ortalaması Rozeti -->
+          <td class="p-3 text-center border-l border-slate-100 bg-slate-50/50">
+            <div id="row-avg-${st.id}">
+              ${rowAvg === null ? `
+                <span class="text-slate-300 font-bold text-xs">-</span>
+              ` : `
+                <span class="px-2.5 py-1 rounded-xl text-xs font-black border transition-all inline-block shadow-2xs ${avgStyle.badge}"
+                  style="background-color: ${avgStyle.bg}; color: ${avgStyle.text}; border-color: ${avgStyle.border};">
+                  ${rowAvg.toFixed(1)}
+                </span>
+              `}
             </div>
-
-            <!-- 100 Üzerinden Not Giriş Kutusu -->
-            <div class="relative flex items-center">
-              <input type="number" min="0" max="100" placeholder="Not (0-100)"
-                value="${currentScore}"
-                class="w-24 px-3 py-2 text-center text-sm font-black bg-slate-50 border-2 border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-none transition shadow-2xs"
-                oninput="window.AkademiModule.handleScoreInput('${student.id}', this.value)"
-                onblur="window.AkademiModule.saveScoreImmediate('${student.id}', this.value)">
-              <span class="absolute right-2.5 text-[10px] text-slate-400 font-bold pointer-events-none">/100</span>
-            </div>
-          </div>
-        </div>
+          </td>
+        </tr>
       `;
     }).join('');
+
+    // Alt satırdaki ders sınıf ortalamalarını ve genel ortalamayı hesapla
+    this.recalculateAllColumnAverages(students);
+  },
+
+  // --- HÜCREYE NOT YAZILDIĞINDA ANINDA CANLI HESAPLAMA & KAYIT ---
+  handleMatrixInput(studentId, subjectKey, value) {
+    const cleanVal = value.trim();
+    const num = (cleanVal === '' || isNaN(cleanVal)) ? null : Math.min(100, Math.max(0, parseInt(cleanVal, 10)));
+
+    // 1. Hücrenin renk ve stilini anında güncelle (85 altı kırmızı, 85-100 yeşile geçiş, 100 tam yeşil)
+    const cell = document.getElementById(`cell-${studentId}-${subjectKey}`);
+    const colorStyle = this.getColorStyle(num);
+    if (cell) {
+      cell.style.backgroundColor = colorStyle.bg;
+      cell.style.color = colorStyle.text;
+      cell.style.borderColor = colorStyle.border;
+    }
+
+    // 2. Öğrencinin satır ortalamasını anında güncelle
+    this.updateStudentRowAverage(studentId);
+
+    // 3. İlgili dersin sınıf ortalamasını anında güncelle
+    this.updateSubjectColumnAverage(subjectKey);
+
+    // 4. Genel sınıf ortalamasını anında güncelle
+    this.updateOverallAverage();
+
+    // 5. Veritabanına Anında Otomatik Kayıt
+    const key = `${studentId}_${subjectKey}`;
+    if (this.saveTimers[key]) clearTimeout(this.saveTimers[key]);
+
+    const indicator = document.getElementById('matrix-save-indicator');
+    if (indicator) {
+      indicator.innerHTML = `<span class="text-amber-500 font-bold text-xs animate-pulse">💾 Kaydediliyor...</span>`;
+    }
+
+    this.saveTimers[key] = setTimeout(() => {
+      window.Store.saveSingleAcademicScore(
+        studentId,
+        this.currentDate,
+        subjectKey,
+        num
+      );
+      if (indicator) {
+        indicator.innerHTML = `<span class="text-emerald-600 font-black text-xs">✓ Otomatik Kaydedildi</span>`;
+        setTimeout(() => {
+          if (indicator) indicator.innerHTML = '';
+        }, 1800);
+      }
+    }, 350);
+  },
+
+  handleMatrixBlur(studentId, subjectKey, value) {
+    const cleanVal = value.trim();
+    const num = (cleanVal === '' || isNaN(cleanVal)) ? null : Math.min(100, Math.max(0, parseInt(cleanVal, 10)));
+    window.Store.saveSingleAcademicScore(
+      studentId,
+      this.currentDate,
+      subjectKey,
+      num
+    );
+    const cell = document.getElementById(`cell-${studentId}-${subjectKey}`);
+    if (cell && num !== null) {
+      cell.value = num;
+    }
+  },
+
+  // --- CANLI ORTALAMA HESAPLAMA METODLARI ---
+  calculateStudentAverage(studentId) {
+    const scores = [];
+    this.subjects.forEach(subj => {
+      const inputEl = document.getElementById(`cell-${studentId}-${subj.key}`);
+      if (inputEl && inputEl.value !== '') {
+        const v = parseFloat(inputEl.value);
+        if (!isNaN(v)) scores.push(v);
+      }
+    });
+    if (scores.length === 0) return null;
+    return scores.reduce((sum, s) => sum + s, 0) / scores.length;
+  },
+
+  updateStudentRowAverage(studentId) {
+    const avg = this.calculateStudentAverage(studentId);
+    const container = document.getElementById(`row-avg-${studentId}`);
+    if (!container) return;
+
+    if (avg === null) {
+      container.innerHTML = `<span class="text-slate-300 font-bold text-xs">-</span>`;
+      return;
+    }
+
+    const rounded = Math.round(avg * 10) / 10;
+    const st = this.getColorStyle(rounded);
+    container.innerHTML = `
+      <span class="px-2.5 py-1 rounded-xl text-xs font-black border transition-all inline-block shadow-2xs ${st.badge}"
+        style="background-color: ${st.bg}; color: ${st.text}; border-color: ${st.border};">
+        ${rounded.toFixed(1)}
+      </span>
+    `;
+  },
+
+  calculateSubjectAverage(subjectKey, students) {
+    const scores = [];
+    students.forEach(st => {
+      const inputEl = document.getElementById(`cell-${st.id}-${subjectKey}`);
+      if (inputEl && inputEl.value !== '') {
+        const v = parseFloat(inputEl.value);
+        if (!isNaN(v)) scores.push(v);
+      }
+    });
+    if (scores.length === 0) return null;
+    return scores.reduce((sum, s) => sum + s, 0) / scores.length;
+  },
+
+  updateSubjectColumnAverage(subjectKey) {
+    const students = this.getFilteredStudents();
+    const avg = this.calculateSubjectAverage(subjectKey, students);
+    const container = document.getElementById(`col-avg-${subjectKey}`);
+    if (!container) return;
+
+    if (avg === null) {
+      container.innerHTML = `<span class="text-slate-400 font-bold text-xs">-</span>`;
+      return;
+    }
+
+    const rounded = Math.round(avg * 10) / 10;
+    const st = this.getColorStyle(rounded);
+    container.innerHTML = `
+      <div class="px-2.5 py-1 rounded-xl text-xs font-black border inline-block shadow-2xs ${st.badge}"
+        style="background-color: ${st.bg}; color: ${st.text}; border-color: ${st.border};">
+        ${rounded.toFixed(1)}
+      </div>
+    `;
+  },
+
+  updateOverallAverage() {
+    const students = this.getFilteredStudents();
+    const allScores = [];
+    students.forEach(st => {
+      this.subjects.forEach(subj => {
+        const inputEl = document.getElementById(`cell-${st.id}-${subj.key}`);
+        if (inputEl && inputEl.value !== '') {
+          const v = parseFloat(inputEl.value);
+          if (!isNaN(v)) allScores.push(v);
+        }
+      });
+    });
+
+    const container = document.getElementById('overall-avg');
+    if (!container) return;
+
+    if (allScores.length === 0) {
+      container.innerHTML = `<span class="text-slate-400 font-bold text-xs">-</span>`;
+      return;
+    }
+
+    const overall = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+    const rounded = Math.round(overall * 10) / 10;
+    const st = this.getColorStyle(rounded);
+    container.innerHTML = `
+      <div class="px-3 py-1.5 rounded-xl text-sm font-black border inline-block shadow-sm ${st.badge}"
+        style="background-color: ${st.bg}; color: ${st.text}; border-color: ${st.border};">
+        ${rounded.toFixed(1)}
+      </div>
+    `;
+  },
+
+  recalculateAllColumnAverages(students) {
+    this.subjects.forEach(s => {
+      this.updateSubjectColumnAverage(s.key);
+    });
+    this.updateOverallAverage();
   },
 
   // --- 2. GENEL GELİŞİM & KARNE GÖRÜNÜMÜ ---

@@ -224,11 +224,24 @@ window.ParentPortal = {
               ` : `
                 <div class="space-y-2 max-h-[260px] overflow-y-auto pr-1">
                   ${academicScores.map(a => {
-                    let badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                    let badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold';
                     let label = 'Pekiyi 🌟';
-                    if (a.score < 55) { badgeClass = 'bg-rose-100 text-rose-800 border-rose-300'; label = 'Gelişmeli ⚠️'; }
-                    else if (a.score < 70) { badgeClass = 'bg-amber-100 text-amber-800 border-amber-300'; label = 'Orta ⚡'; }
-                    else if (a.score < 85) { badgeClass = 'bg-blue-100 text-blue-800 border-blue-300'; label = 'İyi 👍'; }
+                    if (a.score < 85) { 
+                      badgeClass = 'bg-rose-100 text-rose-800 border-rose-300 font-black'; 
+                      label = '85 Altı ⚠️'; 
+                    } else if (a.score >= 100) { 
+                      badgeClass = 'bg-emerald-600 text-white border-emerald-700 font-black shadow-xs'; 
+                      label = '100 Tam 🌟'; 
+                    } else if (a.score >= 95) { 
+                      badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'; 
+                      label = 'Pekiyi 🌟'; 
+                    } else if (a.score >= 90) { 
+                      badgeClass = 'bg-lime-100 text-lime-800 border-lime-300 font-bold'; 
+                      label = 'Çok İyi 👍'; 
+                    } else { 
+                      badgeClass = 'bg-amber-100 text-amber-800 border-amber-300 font-bold'; 
+                      label = 'İyi ⚡'; 
+                    }
                     return `
                       <div class="p-3 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3">
                         <div class="flex items-center gap-2.5">
