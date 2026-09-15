@@ -196,8 +196,14 @@ window.App = {
       if (cat === 'namaz') activeTitle = '🕌 Namaz Yoklaması';
       else if (cat === 'yatak') activeTitle = '🛏️ Yatak Yoklaması';
       else if (cat === 'okul_donusu') activeTitle = '🎒 Okul Dönüşü';
-    } else if (this.activeTab === 'performans') {
-      activeTitle = '★ Performans & Notlar';
+    } else if (this.activeTab === 'akademi' || this.activeTab === 'performans') {
+      const sub = (window.AkademiModule && window.AkademiModule.currentSubCategory) || 'takviye';
+      if (sub === 'takviye') {
+        const subj = (window.AkademiModule && window.AkademiModule.currentSubject) || 'Türkçe';
+        activeTitle = `🎓 Akademi • ${subj}`;
+      } else {
+        activeTitle = '🎓 Akademi • Genel Karne';
+      }
     } else if (this.activeTab === 'ogrenciler') {
       activeTitle = '👥 Öğrenci Yönetimi';
     } else if (this.activeTab === 'personel') {
@@ -281,6 +287,9 @@ window.App = {
     if (tab === 'yoklama' && category && window.AttendanceModule) {
       window.AttendanceModule.currentCategory = category;
     }
+    if ((tab === 'akademi' || tab === 'performans') && category && window.AkademiModule) {
+      window.AkademiModule.currentSubCategory = category;
+    }
     this.renderHeader();
     this.renderMainContent();
   },
@@ -293,6 +302,7 @@ window.App = {
     if (!session) return;
     const settings = window.Store.getSettings();
     const currentCat = (window.AttendanceModule && window.AttendanceModule.currentCategory) || 'namaz';
+    const currentAkademiSub = (window.AkademiModule && window.AkademiModule.currentSubCategory) || 'takviye';
 
     panel.innerHTML = `
       <!-- Drawer Üst Başlık -->
@@ -370,26 +380,48 @@ window.App = {
           </button>
         </div>
 
-        <!-- 2. EĞİTİM & ÖĞRENCİLER -->
+        <!-- 2. AKADEMİ (2 ALT BAŞLIK: Takviye Ders Performansı & Genel Gelişim) -->
         <div class="space-y-1.5 pt-3 border-t border-slate-100">
-          <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">EĞİTİM & ÖĞRENCİ</div>
+          <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">AKADEMİ & DERSLER</div>
 
-          <!-- Performans & Notlar -->
-          <button type="button" onclick="window.App.navigateFromDrawer('performans')"
+          <!-- Takviye Ders Performansı -->
+          <button type="button" onclick="window.App.navigateFromDrawer('akademi', 'takviye')"
             class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
-              this.activeTab === 'performans'
-                ? 'bg-emerald-50 text-emerald-900 font-black border border-emerald-200 shadow-sm'
+              (this.activeTab === 'akademi' || this.activeTab === 'performans') && currentAkademiSub === 'takviye'
+                ? 'bg-blue-50 text-blue-900 font-black border border-blue-200 shadow-sm'
                 : 'text-slate-700 hover:bg-slate-50 font-bold'
             }">
             <div class="flex items-center gap-3">
-              <span class="text-xl">★</span>
+              <span class="text-xl">📚</span>
               <div>
-                <div class="text-xs font-black">Performans & Notlar</div>
-                <div class="text-[10px] text-slate-400 font-medium">Ders puanları ve öğretmen görüşleri</div>
+                <div class="text-xs font-black">Takviye Ders Performansı</div>
+                <div class="text-[10px] text-slate-400 font-medium">Türkçe, Mat, Fen, Sosyal, İngilizce 100 puan</div>
               </div>
             </div>
             <span class="text-slate-300">→</span>
           </button>
+
+          <!-- Genel Gelişim & Karne -->
+          <button type="button" onclick="window.App.navigateFromDrawer('akademi', 'genel')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              (this.activeTab === 'akademi' || this.activeTab === 'performans') && currentAkademiSub === 'genel'
+                ? 'bg-amber-50 text-amber-900 font-black border border-amber-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">⭐</span>
+              <div>
+                <div class="text-xs font-black">Genel Gelişim & Karne</div>
+                <div class="text-[10px] text-slate-400 font-medium">Kriter yıldızları ve öğretmen görüşleri</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+        </div>
+
+        <!-- 3. ÖĞRENCİ YÖNETİMİ -->
+        <div class="space-y-1.5 pt-3 border-t border-slate-100">
+          <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">ÖĞRENCİ & SINIF</div>
 
           <!-- Öğrenci Listesi & Şifreler -->
           <button type="button" onclick="window.App.navigateFromDrawer('ogrenciler')"
@@ -612,9 +644,13 @@ window.App = {
     if (this.activeTab === 'yoklama') {
       main.innerHTML = `<div id="attendance-container"></div>`;
       window.AttendanceModule.init();
-    } else if (this.activeTab === 'performans') {
+    } else if (this.activeTab === 'akademi' || this.activeTab === 'performans') {
       main.innerHTML = `<div id="performance-container"></div>`;
-      window.PerformanceModule.init();
+      if (window.AkademiModule) {
+        window.AkademiModule.init();
+      } else if (window.PerformanceModule) {
+        window.PerformanceModule.init();
+      }
     } else if (this.activeTab === 'ogrenciler') {
       main.innerHTML = `<div id="students-container"></div>`;
       this.renderStudentsView();

@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
   STAFF: 'yoklama_staff',
   ATTENDANCE: 'yoklama_attendance',
   PERFORMANCE: 'yoklama_performance',
+  ACADEMIC_SCORES: 'yoklama_academic_scores',
   SETTINGS: 'yoklama_settings',
   INITIALIZED: 'yoklama_init_v5'
 };
@@ -143,6 +144,16 @@ class DataStore {
     if (!localStorage.getItem(STORAGE_KEYS.INITIALIZED)) {
       this.resetToDefaults();
     }
+    if (!localStorage.getItem(STORAGE_KEYS.ACADEMIC_SCORES)) {
+      const today = new Date().toISOString().split('T')[0];
+      const sampleScores = [
+        { id: 'acad_std_502_t', studentId: 'std_502', date: today, subject: 'Türkçe', score: 95, note: 'Paragraf ve okuma anlama çok iyi.', updatedAt: new Date().toISOString() },
+        { id: 'acad_std_502_m', studentId: 'std_502', date: today, subject: 'Matematik', score: 90, note: 'Problem çözme becerisi yüksek.', updatedAt: new Date().toISOString() },
+        { id: 'acad_std_503_m', studentId: 'std_503', date: today, subject: 'Matematik', score: 85, note: 'Gayretli ve dikkatli.', updatedAt: new Date().toISOString() },
+        { id: 'acad_std_504_f', studentId: 'std_504', date: today, subject: 'Fen Bilimleri', score: 100, note: 'Mükemmel katılım.', updatedAt: new Date().toISOString() }
+      ];
+      localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(sampleScores));
+    }
   }
 
   resetToDefaults() {
@@ -150,6 +161,7 @@ class DataStore {
     localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(DEFAULT_STAFF));
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
     localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
   }
@@ -522,6 +534,62 @@ class DataStore {
     localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(all));
   }
 
+  // --- Takviye Ders Performansı (100 Üzerinden Değerlendirme Puanları) ---
+  getAcademicScores() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.ACADEMIC_SCORES);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  getAcademicScoresByDateAndSubject(date, subject) {
+    const all = this.getAcademicScores();
+    return all.filter(s => s.date === date && s.subject === subject);
+  }
+
+  getAcademicScoresForStudent(studentId) {
+    const all = this.getAcademicScores();
+    return all.filter(s => s.studentId === studentId).sort((a, b) => new Date(b.date) - new Date(a.date));
+  }
+
+  saveSingleAcademicScore(studentId, date, subject, score, note = '') {
+    const all = this.getAcademicScores();
+    const cleanScore = (score === '' || score === null || isNaN(score)) 
+      ? null 
+      : Math.min(100, Math.max(0, parseInt(score, 10)));
+
+    const idx = all.findIndex(s => s.studentId === studentId && s.date === date && s.subject === subject);
+
+    if (cleanScore === null) {
+      if (idx !== -1) {
+        all.splice(idx, 1);
+        localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(all));
+      }
+      return null;
+    }
+
+    const rec = {
+      id: `acad_${studentId}_${date}_${subject}`,
+      studentId,
+      date,
+      subject,
+      score: cleanScore,
+      note: note || '',
+      updatedAt: new Date().toISOString()
+    };
+
+    if (idx !== -1) {
+      all[idx] = { ...all[idx], ...rec };
+    } else {
+      all.push(rec);
+    }
+
+    localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(all));
+    return rec;
+  }
+
   normalizeStatusCode(code) {
     if (!code) return 'VAR';
     const c = code.toString().toUpperCase().trim();
@@ -560,6 +628,7 @@ class DataStore {
       staff: this.getStaff(),
       attendance: this.getAttendance(),
       performance: this.getPerformances(),
+      academicScores: this.getAcademicScores(),
       settings: this.getSettings()
     }, null, 2);
   }
@@ -572,6 +641,7 @@ class DataStore {
       if (parsed.staff) this.saveStaff(parsed.staff);
       if (parsed.attendance) localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(parsed.attendance));
       if (parsed.performance) localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(parsed.performance));
+      if (parsed.academicScores) localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(parsed.academicScores));
       if (parsed.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(parsed.settings));
       return { success: true };
     } catch (err) {

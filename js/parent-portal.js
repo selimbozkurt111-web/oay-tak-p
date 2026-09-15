@@ -56,6 +56,7 @@ window.ParentPortal = {
     const stats = window.Store.getStudentStats(currentStudent.id);
     const attendanceRecords = window.Store.getAttendanceForStudent(currentStudent.id);
     const performances = window.Store.getPerformanceForStudent(currentStudent.id);
+    const academicScores = window.Store.getAcademicScoresForStudent ? window.Store.getAcademicScoresForStudent(currentStudent.id) : [];
 
     container.innerHTML = `
       <div class="max-w-6xl mx-auto space-y-6 animate-fade-in">
@@ -204,36 +205,86 @@ window.ParentPortal = {
             </div>
           </div>
 
-          <div class="lg:col-span-6 bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-            <h4 class="font-bold text-slate-800 text-sm mb-3 pb-2 border-b border-slate-100 flex items-center gap-2">
-              <span>🎓</span> Ders & Performans Karnesi
-            </h4>
-            <div class="space-y-3.5 max-h-[500px] overflow-y-auto pr-1">
-              ${performances.length === 0 ? `
-                <div class="py-12 text-center text-slate-400 text-sm">Henüz öğretmen değerlendirmesi girilmemiştir.</div>
-              ` : performances.map(p => `
-                <div class="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
-                  <div class="flex items-start justify-between gap-3 mb-2">
-                    <div>
-                      <div class="font-bold text-slate-900 text-sm">${p.subject}</div>
-                      <div class="text-[10px] text-slate-400 font-medium">Tarih: ${p.date}</div>
-                    </div>
-                    <span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 font-black text-xs">
-                      ${p.criteria?.score || 100} / 100
-                    </span>
-                  </div>
-                  <div class="grid grid-cols-3 gap-2 text-[11px] bg-slate-50 p-2 rounded-lg text-slate-700 mb-2">
-                    <div>Katılım: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.participation || 5)}</span></div>
-                    <div>Ödev: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.homework || 5)}</span></div>
-                    <div>Uyum & Namaz: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.behavior || 5)}</span></div>
-                  </div>
-                  ${p.teacherNote ? `
-                    <div class="text-xs text-slate-700 bg-emerald-50 border-l-2 border-emerald-500 p-2 rounded-r">
-                      <strong>Eğitmen Görüşü:</strong> ${p.teacherNote}
-                    </div>
-                  ` : ''}
+          <div class="lg:col-span-6 space-y-5">
+            <!-- 1. Takviye Ders Performansı (100 Üzerinden) -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+              <h4 class="font-bold text-slate-800 text-sm mb-3 pb-2 border-b border-slate-100 flex items-center justify-between">
+                <span class="flex items-center gap-2">
+                  <span>📚</span> Takviye Ders Notları (100 Üzerinden)
+                </span>
+                <span class="text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full">
+                  Akademi
+                </span>
+              </h4>
+              
+              ${academicScores.length === 0 ? `
+                <div class="py-6 text-center text-slate-400 text-xs">
+                  Henüz takviye ders puanı girilmemiştir.
                 </div>
-              `).join('')}
+              ` : `
+                <div class="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                  ${academicScores.map(a => {
+                    let badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                    let label = 'Pekiyi 🌟';
+                    if (a.score < 55) { badgeClass = 'bg-rose-100 text-rose-800 border-rose-300'; label = 'Gelişmeli ⚠️'; }
+                    else if (a.score < 70) { badgeClass = 'bg-amber-100 text-amber-800 border-amber-300'; label = 'Orta ⚡'; }
+                    else if (a.score < 85) { badgeClass = 'bg-blue-100 text-blue-800 border-blue-300'; label = 'İyi 👍'; }
+                    return `
+                      <div class="p-3 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-2.5">
+                          <span class="w-8 h-8 rounded-lg bg-blue-100 text-blue-800 font-bold text-xs flex items-center justify-center">
+                            ${a.subject === 'Türkçe' ? '🇹🇷' : (a.subject === 'Matematik' ? '📐' : (a.subject === 'Fen Bilimleri' ? '🔬' : (a.subject === 'Sosyal Bilgiler' ? '🌍' : '🇬🇧')))}
+                          </span>
+                          <div>
+                            <div class="font-bold text-xs text-slate-800">${a.subject}</div>
+                            <div class="text-[10px] text-slate-400">${a.date}</div>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <span class="text-[10px] px-2 py-0.5 rounded-full font-bold border ${badgeClass}">${label}</span>
+                          <span class="px-2.5 py-1 rounded-lg bg-slate-900 text-white font-black text-xs">
+                            ${a.score} / 100
+                          </span>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              `}
+            </div>
+
+            <!-- 2. Genel Gelişim & Öğretmen Görüşleri -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+              <h4 class="font-bold text-slate-800 text-sm mb-3 pb-2 border-b border-slate-100 flex items-center gap-2">
+                <span>🎓</span> Genel Gelişim & Öğretmen Görüşleri
+              </h4>
+              <div class="space-y-3 max-h-[320px] overflow-y-auto pr-1">
+                ${performances.length === 0 ? `
+                  <div class="py-6 text-center text-slate-400 text-xs">Henüz genel gelişim kaydı girilmemiştir.</div>
+                ` : performances.map(p => `
+                  <div class="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+                    <div class="flex items-start justify-between gap-3 mb-1.5">
+                      <div>
+                        <div class="font-bold text-slate-900 text-xs">${p.subject}</div>
+                        <div class="text-[10px] text-slate-400 font-medium">Tarih: ${p.date}</div>
+                      </div>
+                      <span class="px-2 py-0.5 rounded-lg bg-purple-100 text-purple-900 font-black text-xs">
+                        ${p.criteria?.score || 100} / 100
+                      </span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1.5 text-[10px] bg-slate-50 p-1.5 rounded-lg text-slate-700 mb-1.5">
+                      <div>Katılım: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.participation || 5)}</span></div>
+                      <div>Ödev: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.homework || 5)}</span></div>
+                      <div>Uyum: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.behavior || 5)}</span></div>
+                    </div>
+                    ${p.teacherNote ? `
+                      <div class="text-[11px] text-slate-700 bg-emerald-50 border-l-2 border-emerald-500 p-2 rounded-r">
+                        <strong>Eğitmen Görüşü:</strong> ${p.teacherNote}
+                      </div>
+                    ` : ''}
+                  </div>
+                `).join('')}
+              </div>
             </div>
           </div>
         </div>
