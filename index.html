@@ -65,9 +65,9 @@
     <div id="side-drawer-backdrop" onclick="window.App.closeDrawer()" 
       class="absolute inset-0 bg-slate-900/60 opacity-0 transition-opacity duration-300 pointer-events-none"></div>
 
-    <!-- Sağdan Kayarak Açılan Menü Paneli -->
+    <!-- Soldan Kayarak Açılan Menü Paneli -->
     <div id="side-drawer-panel" 
-      class="absolute top-0 right-0 bottom-0 w-80 sm:w-96 max-w-[85vw] bg-white shadow-2xl border-l border-slate-200 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col pointer-events-auto">
+      class="absolute top-0 left-0 bottom-0 w-80 sm:w-96 max-w-[85vw] bg-white shadow-2xl border-r border-slate-200 transform -translate-x-full transition-transform duration-300 ease-in-out flex flex-col pointer-events-auto">
       <!-- İçerik app.js renderDrawer() ile dinamik doldurulacaktır -->
     </div>
   </div>

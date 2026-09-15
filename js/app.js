@@ -215,6 +215,15 @@ window.App = {
     header.innerHTML = `
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
         <div class="flex items-center gap-3">
+          ${session.role !== 'parent' ? `
+            <!-- SOLDAN KAYAR MENÜ PENCERESİNİ AÇMA BUTONU -->
+            <button onclick="window.App.openDrawer()" 
+              class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-2">
+              <span class="text-base leading-none">☰</span>
+              <span class="font-bold">Menü</span>
+            </button>
+          ` : ''}
+
           <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center shadow-sm">
             ÖT
           </div>
@@ -232,17 +241,15 @@ window.App = {
         </div>
 
         <div class="flex items-center gap-2">
-          ${session.role !== 'parent' ? `
-            <!-- SAĞDAN KAYAR MENÜ PENCERESİNİ AÇMA BUTONU -->
-            <button onclick="window.App.openDrawer()" 
-              class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-2">
-              <span class="text-base leading-none">☰</span>
-              <span>Başlıklar / Menü</span>
-            </button>
-          ` : `
+          ${session.role === 'parent' ? `
             <button onclick="window.App.logout()" 
               class="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 transition flex items-center gap-1.5">
               Çıkış Yap
+            </button>
+          ` : `
+            <button onclick="window.App.logout()" 
+              class="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 transition hidden sm:flex items-center gap-1.5">
+              Çıkış
             </button>
           `}
         </div>
@@ -250,7 +257,7 @@ window.App = {
     `;
   },
 
-  // --- Sağdan Kayar Pencere (Off-Canvas Drawer) Kontrolleri ---
+  // --- Soldan Kayar Pencere (Left Off-Canvas Drawer) Kontrolleri ---
   openDrawer() {
     this.renderDrawer();
     const container = document.getElementById('side-drawer-container');
@@ -261,7 +268,7 @@ window.App = {
     container.classList.remove('pointer-events-none');
     backdrop.classList.remove('opacity-0', 'pointer-events-none');
     backdrop.classList.add('opacity-100', 'pointer-events-auto');
-    panel.classList.remove('translate-x-full');
+    panel.classList.remove('-translate-x-full');
     panel.classList.add('translate-x-0');
   },
 
@@ -272,7 +279,7 @@ window.App = {
     if (!container || !backdrop || !panel) return;
 
     panel.classList.remove('translate-x-0');
-    panel.classList.add('translate-x-full');
+    panel.classList.add('-translate-x-full');
     backdrop.classList.remove('opacity-100', 'pointer-events-auto');
     backdrop.classList.add('opacity-0', 'pointer-events-none');
 
