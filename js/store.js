@@ -249,31 +249,42 @@ class DataStore {
     return { success: false, message: 'Girdiğiniz doğrulama kodu hatalıdır!' };
   }
 
-  // --- Türkçe Metin ve Karakter Normalizasyonu (Giriş & Arama İçin) ---
+  // --- Türkçe ve İngilizce Karakter/Büyük-Küçük Harf Normalizasyonu ---
   normalizeSearchKey(str) {
     if (!str) return '';
     return str
       .toString()
       .trim()
-      .toLowerCase()
-      .replace(/ğ/g, 'g')
-      .replace(/ü/g, 'u')
-      .replace(/ş/g, 's')
+      // Türkçe özel harfleri evrensel İngilizce karşılıklarına dönüştür
+      .replace(/İ/g, 'i')
+      .replace(/I/g, 'i')
       .replace(/ı/g, 'i')
       .replace(/i/g, 'i')
+      .replace(/Ğ/g, 'g')
+      .replace(/ğ/g, 'g')
+      .replace(/Ü/g, 'u')
+      .replace(/ü/g, 'u')
+      .replace(/Ş/g, 's')
+      .replace(/ş/g, 's')
+      .replace(/Ö/g, 'o')
       .replace(/ö/g, 'o')
+      .replace(/Ç/g, 'c')
       .replace(/ç/g, 'c')
+      .toLowerCase()
+      // Alfanümerik haricindeki tüm karakterleri (boşluk, tire, vs.) kaldır
       .replace(/[^a-z0-9]/g, '');
   }
 
   // --- Ad Soyad, Öğrenci No veya Aile Kodu ile Kullanıcı Doğrulama (Personel ve Veliler) ---
   authenticateUser(usernameInput, passwordInput) {
-    if (!usernameInput) return null;
+    if (!usernameInput || !passwordInput) return null;
 
     const rawInput = usernameInput.toString().trim();
     const normInput = this.normalizeSearchKey(rawInput);
-    const rawPass = (passwordInput !== undefined && passwordInput !== null) ? passwordInput.toString().trim() : '';
+    const rawPass = passwordInput.toString().trim();
     const normPass = this.normalizeSearchKey(rawPass);
+
+    if (!normInput || !normPass) return null;
 
     // 1. Personel / Hoca Kontrolü (Ad Soyad ve Şifre)
     const staffList = this.getStaff();
@@ -282,11 +293,11 @@ class DataStore {
       const isNameMatch = sNorm === normInput;
       if (!isNameMatch) return false;
 
-      const currentPass = (s.password || '123').trim();
+      const currentPass = (s.password || '123').toString().trim();
       const isPassMatch = 
         rawPass === currentPass || 
         normPass === this.normalizeSearchKey(currentPass) ||
-        (currentPass === '123' && (rawPass === '' || rawPass === '123' || normPass === '123'));
+        (currentPass === '123' && (rawPass === '123' || normPass === '123'));
       return isPassMatch;
     });
 
@@ -328,13 +339,11 @@ class DataStore {
       if (!isIdentified) return false;
 
       // Şifre kontrolü:
-      // Eğer veli kendi şifresini belirlediyse (s.password !== '123'), yeni şifresiyle giriş yapar.
-      // Eğer şifre varsayılan '123' ise, '123', boş şifre, öğrenci no veya aile kodu ile kolayca girebilir.
-      const currentPass = (s.password || '123').trim();
+      const currentPass = (s.password || '123').toString().trim();
       const isPassMatch = 
         rawPass === currentPass ||
         normPass === this.normalizeSearchKey(currentPass) ||
-        (currentPass === '123' && (rawPass === '' || rawPass === '123' || normPass === '123' || normPass === stdFamNorm || rawPass === stdNo));
+        (currentPass === '123' && (rawPass === '123' || normPass === '123' || normPass === stdFamNorm || rawPass === stdNo));
 
       return isPassMatch;
     });
