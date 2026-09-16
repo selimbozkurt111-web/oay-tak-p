@@ -24,6 +24,34 @@ window.App = {
 
     this.renderHeader();
     this.renderMainContent();
+
+    // Bulut senkronizasyonu tamamlandığında ekranı sessizce tazele
+    window.addEventListener('cloud-sync-done', () => {
+      this.renderHeader();
+      if (this.currentSession) {
+        this.renderMainContent();
+      }
+    });
+
+    // Eğer Firebase URL tanımlıysa sayfa açıldığında buluttan en güncel veriyi çek
+    if (window.Store && window.Store.isCloudEnabled()) {
+      window.Store.syncFromCloud().then(res => {
+        if (res && res.success) {
+          console.log('[CloudSync] İlk senkronizasyon başarılı:', res.message);
+        }
+      });
+
+      // Kullanıcı sayfaya geri döndüğünde (sekme değişiminde) ve her 60 saniyede bir eşitle
+      window.addEventListener('focus', () => {
+        window.Store.syncFromCloud();
+      });
+
+      setInterval(() => {
+        if (window.Store.isCloudEnabled()) {
+          window.Store.syncFromCloud();
+        }
+      }, 60000);
+    }
   },
 
   // --- Kurs Logosu / Fotoğrafı Otomatik Aday Bulma ve Hata Yönetimi ---
@@ -343,8 +371,24 @@ window.App = {
           </div>
         </div>
 
-        <!-- SAĞ: ÇIKIŞ BUTONU -->
+        <!-- SAĞ: BULUT DURUMU & ÇIKIŞ BUTONU -->
         <div class="flex items-center gap-2 flex-shrink-0">
+          ${window.Store && window.Store.isCloudEnabled() ? `
+            <button type="button" onclick="window.App.handleSyncFromCloud(true)"
+              title="Canlı Bulut Veritabanı Aktif. Tıklayarak verileri şimdi eşitleyebilirsiniz."
+              class="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300 shadow-2xs transition flex items-center gap-1.5 cursor-pointer">
+              <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span class="hidden md:inline">Canlı Bulut</span>
+              <span class="text-[11px] opacity-75">☁️</span>
+            </button>
+          ` : `
+            <span title="Bulut bağlantısı tanımlı değil, veriler bu cihazın yerel hafızasında saklanıyor."
+              class="px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-600 font-bold text-xs border border-slate-300 flex items-center gap-1.5">
+              <span class="inline-block w-2 h-2 rounded-full bg-slate-400"></span>
+              <span class="hidden md:inline">Yerel Mod</span>
+              <span class="text-[11px] opacity-75">💾</span>
+            </span>
+          `}
           <button onclick="window.App.logout()" 
             class="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 transition flex items-center gap-1">
             <span>🚪</span>
@@ -1234,16 +1278,111 @@ window.App = {
               <span class="text-[11px] text-slate-400">Giriş yaparken doğrulama kodunuz bu e-postaya gönderilir.</span>
             </div>
 
+            <!-- Canlı Bulut Veritabanı Ayarı -->
+            <div class="pt-3 border-t border-slate-100">
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-black text-slate-800 uppercase">
+                  ☁️ CANLI BULUT VERİTABANI (TÜM CİHAZLARI ANLIK EŞİTLEME)
+                </label>
+                ${settings.firebaseUrl ? `
+                  <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Aktif</span>
+                  </span>
+                ` : `
+                  <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold border border-slate-300">
+                    Yerel Mod
+                  </span>
+                `}
+              </div>
+              <p class="text-[11px] text-slate-500 mb-2">
+                Hocaların telefonlarından aldıkları yoklamaların ve veli girişlerinin tüm telefonlarda ve bilgisayarınızda anında canlı görünmesini sağlar.
+              </p>
+              <input type="url" id="set-firebase-url" value="${settings.firebaseUrl || ''}" 
+                placeholder="Örn: https://oay-takip-default-rtdb.firebaseio.com"
+                class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 transition">
+              <span class="text-[10px] text-slate-400 block mt-1">
+                Google Firebase Realtime Database URL adresinizi buraya yapıştırıp "Ayarları Kaydet"e basınız.
+              </span>
+            </div>
+
             <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-2">
               <span>💾</span>
-              <span>Ayarları & Logoyu Kaydet</span>
+              <span>Ayarları Kaydet</span>
             </button>
           </form>
         </div>
 
+        <!-- Canlı Bulut Veritabanı Yönetimi & Eşitleme Paneli -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 text-lg flex items-center justify-center shadow-inner">
+                ☁️
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-800 text-base leading-tight">Canlı Bulut Senkronizasyonu</h3>
+                <p class="text-xs text-slate-500">Tüm hocaların telefonlarını ve bilgisayarınızı tek bir canlı merkeze bağlayın</p>
+              </div>
+            </div>
+            <div>
+              ${settings.firebaseUrl ? `
+                <span class="px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-300 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Canlı Bağlantı Hazır</span>
+                </span>
+              ` : `
+                <span class="px-3 py-1 rounded-xl bg-amber-50 text-amber-800 text-xs font-bold border border-amber-300 flex items-center gap-1.5">
+                  <span>⚠️</span>
+                  <span>URL Tanımlanmadı</span>
+                </span>
+              `}
+            </div>
+          </div>
+
+          <!-- Aksiyon Butonları -->
+          <div class="flex flex-wrap items-center gap-3 mb-5">
+            <button type="button" onclick="window.App.handlePushAllToCloud()"
+              class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-2">
+              <span>🚀</span>
+              <span>Tüm Verileri Buluta İlk Yükle</span>
+            </button>
+
+            <button type="button" onclick="window.App.handleSyncFromCloud(true)"
+              class="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-2">
+              <span>🔄</span>
+              <span>Buluttan Şimdi Eşitle (Verileri Çek)</span>
+            </button>
+          </div>
+
+          <!-- 2 Dakikalık Kolay Firebase Kurulum Kılavuzu -->
+          <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-700 space-y-2.5">
+            <div class="font-bold text-slate-900 flex items-center gap-2">
+              <span>📋</span>
+              <span>2 Dakikada Tamamen Ücretsiz Canlı Veritabanı Kurulumu:</span>
+            </div>
+            <ol class="list-decimal list-inside space-y-1.5 text-[11px] text-slate-600 leading-relaxed">
+              <li>
+                <a href="https://console.firebase.google.com" target="_blank" class="text-emerald-700 underline font-bold hover:text-emerald-800">
+                  console.firebase.google.com ↗
+                </a> 
+                adresine Google hesabınızla giriş yapın.
+              </li>
+              <li><strong>"Proje Ekle"</strong> butonuna basın, proje adını <code>oay-takip</code> yapıp adımları onaylayın.</li>
+              <li>Sol menüden <strong>"Build (Derle)" ➔ "Realtime Database"</strong> seçeneğine tıklayın.</li>
+              <li><strong>"Veritabanı Oluştur"</strong> deyin, kurallar ekranında <strong>"Test Modunda Başlat"</strong> (read: true, write: true) seçeneğini işaretleyin.</li>
+              <li>Sayfanın üstünde beliren veritabanı bağlantı adresini (Örn: <code>https://oay-takip-default-rtdb.firebaseio.com/</code>) kopyalayın.</li>
+              <li>Bu adresi yukarıdaki <strong>"Canlı Bulut Veritabanı"</strong> kutucuğuna yapıştırıp <strong>"Ayarları Kaydet"</strong>e ve ardından <strong>"Tüm Verileri Buluta İlk Yükle"</strong> butonuna basın.</li>
+            </ol>
+            <p class="text-[10px] text-emerald-800 bg-emerald-50/80 p-2 rounded-xl border border-emerald-200 mt-2">
+              ✨ Tebrikler! Artık hocalar kendi telefonlarından yoklama aldığında veya veliler sisteme baktığında tüm veriler otomatik olarak canlı eşitlenecektir.
+            </p>
+          </div>
+        </div>
+
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h3 class="font-bold text-slate-800 text-base mb-2 flex items-center gap-2">
-            <span>💾</span> Veri Yedekleme
+            <span>💾</span> Yerel Dosya Yedekleme
           </h3>
           <p class="text-xs text-slate-500 mb-4">Tüm verilerinizi tek dosya olarak bilgisayarınıza indirebilirsiniz.</p>
 
@@ -1268,16 +1407,70 @@ window.App = {
     const instName = document.getElementById('set-inst-name').value.trim();
     const adminEmail = document.getElementById('set-admin-email').value.trim();
     const logoUrl = document.getElementById('set-inst-logo-url') ? document.getElementById('set-inst-logo-url').value.trim() : '';
+    const firebaseUrl = document.getElementById('set-firebase-url') ? document.getElementById('set-firebase-url').value.trim() : '';
 
     window.Store.saveSettings({
       institutionName: instName,
       adminEmail: adminEmail,
-      institutionLogo: logoUrl
+      institutionLogo: logoUrl,
+      firebaseUrl: firebaseUrl
     });
 
-    this.showToast('Ayarlar ve kurs logosu kaydedildi!', 'success');
+    this.showToast('Ayarlar, kurs logosu ve canlı bulut bağlantısı kaydedildi!', 'success');
     this.renderHeader();
     this.renderSettingsView();
+  },
+
+  async handlePushAllToCloud() {
+    const url = window.Store.getFirebaseUrl();
+    if (!url) {
+      this.showToast('Lütfen önce yukarıdaki kutucuğa Firebase Veritabanı URL adresinizi yapıştırıp "Ayarları Kaydet"e basınız.', 'warning');
+      const input = document.getElementById('set-firebase-url');
+      if (input) input.focus();
+      return;
+    }
+
+    if (!confirm('Bilgisayarınızdaki tüm öğrenci listesi (66 talebe), hoca kadrosu, yoklamalar ve sistem ayarları canlı bulut veritabanına aktarılacak. Onaylıyor musunuz?')) {
+      return;
+    }
+
+    this.showToast('Veriler canlı buluta aktarılıyor, lütfen bekleyiniz...', 'info');
+    const res = await window.Store.pushAllToCloud();
+    if (res.success) {
+      this.showToast(res.message, 'success');
+      this.renderHeader();
+      this.renderSettingsView();
+    } else {
+      this.showToast(res.message, 'error');
+    }
+  },
+
+  async handleSyncFromCloud(showToastNotice = true) {
+    if (!window.Store.isCloudEnabled()) {
+      if (showToastNotice) {
+        this.showToast('Canlı bulut bağlantısı henüz tanımlanmamış. Ayarlar ekranından Firebase URL ekleyiniz.', 'warning');
+      }
+      return;
+    }
+
+    if (showToastNotice) {
+      this.showToast('Buluttaki en güncel kayıtlar kontrol ediliyor...', 'info');
+    }
+
+    const res = await window.Store.syncFromCloud();
+    if (res.success) {
+      if (showToastNotice) {
+        this.showToast(res.message, 'success');
+      }
+      this.renderHeader();
+      if (this.currentSession) {
+        this.renderMainContent();
+      }
+    } else {
+      if (showToastNotice) {
+        this.showToast(`Eşitleme uyarısı: ${res.message}`, 'error');
+      }
+    }
   },
 
   handleLogoFileUpload(event) {
