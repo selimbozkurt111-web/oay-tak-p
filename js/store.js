@@ -248,19 +248,45 @@ class DataStore {
     return { success: false, message: 'Girdiğiniz doğrulama kodu hatalıdır!' };
   }
 
-  // --- Ad Soyad ve Şifre ile Kullanıcı Doğrulama (Personel ve Veliler İçin) ---
-  authenticateUser(fullNameInput, passwordInput) {
-    if (!fullNameInput || !passwordInput) return null;
+  // --- Türkçe Metin ve Karakter Normalizasyonu (Giriş & Arama İçin) ---
+  normalizeSearchKey(str) {
+    if (!str) return '';
+    return str
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/ğ/g, 'g')
+      .replace(/ü/g, 'u')
+      .replace(/ş/g, 's')
+      .replace(/ı/g, 'i')
+      .replace(/i/g, 'i')
+      .replace(/ö/g, 'o')
+      .replace(/ç/g, 'c')
+      .replace(/[^a-z0-9]/g, '');
+  }
 
-    const cleanName = fullNameInput.trim().toUpperCase();
-    const cleanPass = passwordInput.trim();
+  // --- Ad Soyad, Öğrenci No veya Aile Kodu ile Kullanıcı Doğrulama (Personel ve Veliler) ---
+  authenticateUser(usernameInput, passwordInput) {
+    if (!usernameInput) return null;
+
+    const rawInput = usernameInput.toString().trim();
+    const normInput = this.normalizeSearchKey(rawInput);
+    const rawPass = (passwordInput !== undefined && passwordInput !== null) ? passwordInput.toString().trim() : '';
+    const normPass = this.normalizeSearchKey(rawPass);
 
     // 1. Personel / Hoca Kontrolü (Ad Soyad ve Şifre)
     const staffList = this.getStaff();
     const matchedStaff = staffList.find(s => {
-      const sName = (s.fullName || '').trim().toUpperCase();
-      const sPass = (s.password || '123').trim();
-      return sName === cleanName && sPass === cleanPass;
+      const sNorm = this.normalizeSearchKey(s.fullName);
+      const isNameMatch = sNorm === normInput;
+      if (!isNameMatch) return false;
+
+      const currentPass = (s.password || '123').trim();
+      const isPassMatch = 
+        rawPass === currentPass || 
+        normPass === this.normalizeSearchKey(currentPass) ||
+        (currentPass === '123' && (rawPass === '' || rawPass === '123' || normPass === '123'));
+      return isPassMatch;
     });
 
     if (matchedStaff) {
@@ -268,18 +294,48 @@ class DataStore {
         role: 'staff',
         staffId: matchedStaff.id,
         name: matchedStaff.fullName,
+        password: matchedStaff.password || '123',
         canEditStudents: false,
         canManageStaff: false,
         canEditSettings: false
       };
     }
 
-    // 2. Öğrenci / Veli Kontrolü (Öğrenci Adı Soyadı ve Şifre / Aile Kodu)
+    // 2. Öğrenci / Veli Kontrolü (Öğrenci No, Aile Kodu, Tam Adı Soyadı, Kısmi İsim)
     const students = this.getStudents();
     const matchedStudent = students.find(s => {
-      const stdFullName = `${s.firstName} ${s.lastName}`.trim().toUpperCase();
-      const stdPass = (s.password || s.familyCode || '123').trim().toUpperCase();
-      return stdFullName === cleanName && (stdPass === cleanPass.toUpperCase() || cleanPass === '123' || cleanPass.toUpperCase() === (s.familyCode || '').toUpperCase());
+      const stdNo = (s.studentNo || '').toString().trim();
+      const stdFamNorm = this.normalizeSearchKey(s.familyCode);
+      const stdFullNorm = this.normalizeSearchKey(`${s.firstName} ${s.lastName}`);
+
+      // İlk isim + Soyadı (Örn: "Arda Saygı" -> Veritabanındaki "ARDA YUSUF SAYGI" ile eşleşir)
+      const firstParts = (s.firstName || '').trim().split(/\s+/);
+      const stdFirstLastNorm = this.normalizeSearchKey(`${firstParts[0]} ${s.lastName}`);
+
+      // Kimlik eşleşmesi
+      const isNoMatch = stdNo === rawInput || normInput === stdNo.toLowerCase();
+      const isFamMatch = stdFamNorm === normInput;
+      const isFullNameMatch = stdFullNorm === normInput;
+      const isFirstLastMatch = stdFirstLastNorm === normInput;
+
+      // Kısmi eşleşme: Kullanıcı adı ve soyadını içeren serbest metin
+      const lastNameNorm = this.normalizeSearchKey(s.lastName);
+      const firstNameNorm = this.normalizeSearchKey(firstParts[0]);
+      const isLooseMatch = normInput.length >= 4 && normInput.includes(lastNameNorm) && normInput.includes(firstNameNorm);
+
+      const isIdentified = isNoMatch || isFamMatch || isFullNameMatch || isFirstLastMatch || isLooseMatch;
+      if (!isIdentified) return false;
+
+      // Şifre kontrolü:
+      // Eğer veli kendi şifresini belirlediyse (s.password !== '123'), yeni şifresiyle giriş yapar.
+      // Eğer şifre varsayılan '123' ise, '123', boş şifre, öğrenci no veya aile kodu ile kolayca girebilir.
+      const currentPass = (s.password || '123').trim();
+      const isPassMatch = 
+        rawPass === currentPass ||
+        normPass === this.normalizeSearchKey(currentPass) ||
+        (currentPass === '123' && (rawPass === '' || rawPass === '123' || normPass === '123' || normPass === stdFamNorm || rawPass === stdNo));
+
+      return isPassMatch;
     });
 
     if (matchedStudent) {
@@ -302,7 +358,14 @@ class DataStore {
   getStaff() {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.STAFF);
-      return data ? JSON.parse(data) : DEFAULT_STAFF;
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+      localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(DEFAULT_STAFF));
+      return DEFAULT_STAFF;
     } catch {
       return DEFAULT_STAFF;
     }
@@ -340,13 +403,29 @@ class DataStore {
     this.saveStaff(list);
   }
 
+  updateStaffPassword(id, newPassword) {
+    const list = this.getStaff();
+    const stf = list.find(s => s.id === id);
+    if (!stf) return { success: false, message: 'Personel bulunamadı.' };
+    stf.password = (newPassword || '123').toString().trim();
+    this.saveStaff(list);
+    return { success: true };
+  }
+
   // --- Öğrenci İşlemleri ---
   getStudents() {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      return data ? JSON.parse(data) : [];
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(SEED_STUDENTS));
+      return SEED_STUDENTS;
     } catch {
-      return [];
+      return SEED_STUDENTS;
     }
   }
 
@@ -399,6 +478,23 @@ class DataStore {
   deleteStudent(id) {
     let students = this.getStudents().filter(s => s.id !== id);
     this.saveStudents(students);
+  }
+
+  updateStudentPassword(id, newPassword) {
+    const list = this.getStudents();
+    const std = list.find(s => s.id === id);
+    if (!std) return { success: false, message: 'Öğrenci bulunamadı.' };
+    const cleanPass = (newPassword || '123').toString().trim();
+    const famCode = std.familyCode;
+    let count = 0;
+    list.forEach(s => {
+      if (s.id === id || (famCode && s.familyCode === famCode)) {
+        s.password = cleanPass;
+        count++;
+      }
+    });
+    this.saveStudents(list);
+    return { success: true, count };
   }
 
   getClasses() {

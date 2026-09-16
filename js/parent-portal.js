@@ -46,6 +46,68 @@ window.ParentPortal = {
     this.renderPortalDashboard();
   },
 
+  isPasswordModalOpen: false,
+
+  openPasswordModal() {
+    this.isPasswordModalOpen = true;
+    this.renderPortalDashboard();
+  },
+
+  closePasswordModal() {
+    this.isPasswordModalOpen = false;
+    this.renderPortalDashboard();
+  },
+
+  handlePasswordChange(event) {
+    if (event) event.preventDefault();
+    const newPassInput = document.getElementById('parent-new-password');
+    const newPassConfirm = document.getElementById('parent-confirm-password');
+    if (!newPassInput || !newPassConfirm) return;
+
+    const p1 = newPassInput.value.trim();
+    const p2 = newPassConfirm.value.trim();
+
+    if (!p1 || p1.length < 3) {
+      if (window.App && window.App.showToast) {
+        window.App.showToast('Yeni şifre en az 3 karakter olmalıdır.', 'warning');
+      }
+      return;
+    }
+
+    if (p1 !== p2) {
+      if (window.App && window.App.showToast) {
+        window.App.showToast('Girdiğiniz şifreler birbiriyle uyuşmuyor!', 'error');
+      }
+      return;
+    }
+
+    const session = window.App.currentSession;
+    const currentStudent = (session.students || []).find(s => s.id === this.activeStudentId) || (session.students && session.students[0]);
+
+    if (!currentStudent) return;
+
+    const res = window.Store.updateStudentPassword(currentStudent.id, p1);
+
+    if (res.success) {
+      currentStudent.password = p1;
+      if (session.students) {
+        session.students.forEach(s => {
+          if (s.id === currentStudent.id || s.familyCode === currentStudent.familyCode) {
+            s.password = p1;
+          }
+        });
+        sessionStorage.setItem('yoklama_active_session', JSON.stringify(session));
+      }
+
+      this.isPasswordModalOpen = false;
+      this.renderPortalDashboard();
+
+      if (window.App && window.App.showToast) {
+        window.App.showToast(`Şifreniz başarıyla değiştirildi! Yeni şifreniz: ${p1}`, 'success');
+      }
+    }
+  },
+
   setPrayerReportPeriod(period) {
     this.prayerReportPeriod = period;
     this.renderPortalDashboard();
@@ -130,6 +192,10 @@ window.ParentPortal = {
             </div>
 
             <div class="flex items-center gap-2 no-print">
+              <button onclick="window.ParentPortal.openPasswordModal()" 
+                class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5">
+                <span>🔑 Şifremi Değiştir</span>
+              </button>
               <button onclick="window.print()" 
                 class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold border border-white/20 flex items-center gap-2 transition">
                 <span>🖨️ Karne / Rapor Yazdır</span>
@@ -515,6 +581,63 @@ window.ParentPortal = {
             </div>
           </div>
         </div>
+
+        <!-- VELİ ŞİFRE DEĞİŞTİRME MODALI -->
+        ${this.isPasswordModalOpen ? `
+          <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-fade-in no-print">
+            <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4 text-slate-800">
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 text-xl font-black flex items-center justify-center shadow-inner">
+                    🔑
+                  </div>
+                  <div>
+                    <h3 class="font-black text-base text-slate-900">Veli Giriş Şifresi Değiştir</h3>
+                    <p class="text-xs text-slate-400">Aile Kodu: <strong>${session.familyCode}</strong></p>
+                  </div>
+                </div>
+                <button onclick="window.ParentPortal.closePasswordModal()" 
+                  class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 font-black transition flex items-center justify-center">
+                  ✕
+                </button>
+              </div>
+
+              <div class="p-3 bg-indigo-50/70 rounded-2xl border border-indigo-100 text-xs text-indigo-900 flex items-center justify-between">
+                <span>Mevcut Şifreniz:</span>
+                <strong class="font-mono bg-white px-2.5 py-1 rounded-lg border border-indigo-200 text-indigo-950">${currentStudent.password || '123'}</strong>
+              </div>
+
+              <form onsubmit="window.ParentPortal.handlePasswordChange(event)" class="space-y-3.5">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">YENİ ŞİFRE</label>
+                  <input type="text" id="parent-new-password" required placeholder="Yeni şifrenizi giriniz (en az 3 karakter)"
+                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:border-indigo-600">
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">YENİ ŞİFRE (TEKRAR)</label>
+                  <input type="text" id="parent-confirm-password" required placeholder="Yeni şifrenizi tekrar giriniz"
+                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:border-indigo-600">
+                </div>
+
+                <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-500">
+                  ℹ️ Not: Şifrenizi değiştirdiğinizde varsa kardeşleriniz için de yeni şifre geçerli olacaktır.
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button type="button" onclick="window.ParentPortal.closePasswordModal()" 
+                    class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition">
+                    Vazgeç
+                  </button>
+                  <button type="submit" 
+                    class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow transition">
+                    Şifremi Kaydet
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        ` : ''}
       </div>
     `;
   }
