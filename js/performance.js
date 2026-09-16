@@ -163,39 +163,17 @@ window.AkademiModule = {
     const container = document.getElementById('performance-container') || document.getElementById('akademi-container');
     if (!container) return;
 
-    if (this.currentSubCategory === 'takviye') {
-      this.renderTakviyeMatrixView(container);
-    } else {
-      this.renderGenelKarneView(container);
-    }
+    this.renderTakviyeMatrixView(container);
   },
 
-  // --- 1. TAKVİYE DERS PERFORMANSI (ÇİZELGE / MATRİS TABLO GÖRÜNÜMÜ) ---
+  // --- TAKVİYE DERS PERFORMANSI (ÇİZELGE / MATRİS TABLO GÖRÜNÜMÜ) ---
   renderTakviyeMatrixView(container) {
     const classes = window.Store.getClasses();
     const dayName = this.getDayName(this.currentDate);
 
     container.innerHTML = `
       <div class="space-y-4 animate-fade-in max-w-7xl mx-auto">
-        <!-- 1. AKADEMİ ALT BAŞLIKLARI (Hap Butonlar) -->
-        <div class="flex items-center gap-2 p-1.5 bg-slate-200/90 rounded-2xl max-w-md mx-auto shadow-inner">
-          ${this.subCategories.map(sub => {
-            const isActive = this.currentSubCategory === sub.id;
-            return `
-              <button type="button" onclick="window.AkademiModule.setSubCategory('${sub.id}')"
-                class="flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
-                  isActive 
-                    ? 'bg-white text-slate-900 shadow-md scale-102 ring-2 ring-emerald-500/30' 
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
-                }">
-                <span>${sub.icon}</span>
-                <span>${sub.label}</span>
-              </button>
-            `;
-          }).join('')}
-        </div>
-
-        <!-- 2. Kontrol Kartı: Tarih, Gün Adı, Çoklu Sınıf Filtresi & Renk Kılavuzu -->
+        <!-- Kontrol Kartı: Tarih, Gün Adı, Çoklu Sınıf Filtresi & Renk Kılavuzu -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <!-- Tarih ve Gün Adı -->

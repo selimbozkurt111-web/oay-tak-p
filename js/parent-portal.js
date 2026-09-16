@@ -148,8 +148,10 @@ window.ParentPortal = {
 
     const stats = window.Store.getStudentStats(currentStudent.id);
     const attendanceRecords = window.Store.getAttendanceForStudent(currentStudent.id);
-    const performances = window.Store.getPerformanceForStudent(currentStudent.id);
     const academicScores = window.Store.getAcademicScoresForStudent ? window.Store.getAcademicScoresForStudent(currentStudent.id) : [];
+    const acadAvg = academicScores.length > 0
+      ? Math.round(academicScores.reduce((sum, a) => sum + (Number(a.score) || 0), 0) / academicScores.length)
+      : 0;
 
     // Çocuğun Haftalık / Aylık Namaz Raporunu Hesapla
     const isWeekly = this.prayerReportPeriod === 'haftalik';
@@ -193,9 +195,9 @@ window.ParentPortal = {
                   </span>
                   <span class="text-xs text-indigo-200">| ${settings.institutionName || 'Veli Bilgilendirme Portalı'}</span>
                 </div>
-                <h2 class="text-2xl font-black tracking-tight">Öğrenci Durum ve Karne Portalı</h2>
+                <h2 class="text-2xl font-black tracking-tight">Öğrenci Bilgilendirme Portalı</h2>
                 <p class="text-xs text-indigo-200 mt-1">
-                  Bu alanda yalnızca çocuğunuza ait namaz raporu, devam durumu ve karnesini salt okunur olarak inceleyebilirsiniz.
+                  Bu alanda yalnızca çocuğunuza ait namaz raporu, devam durumu ve takviye ders notlarını salt okunur olarak inceleyebilirsiniz.
                 </p>
               </div>
             </div>
@@ -207,7 +209,7 @@ window.ParentPortal = {
               </button>
               <button onclick="window.print()" 
                 class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold border border-white/20 flex items-center gap-2 transition">
-                <span>🖨️ Karne / Rapor Yazdır</span>
+                <span>🖨️ Rapor Yazdır</span>
               </button>
               <button onclick="window.App.logout()" 
                 class="px-4 py-2 bg-rose-500/80 hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition">
@@ -270,9 +272,9 @@ window.ParentPortal = {
                 <div class="text-[10px] font-bold text-emerald-700 uppercase">Toplam Devam</div>
                 <div class="text-xl font-black text-emerald-800">%${stats.attendanceRate}</div>
               </div>
-              <div class="px-4 py-2 rounded-2xl bg-purple-50 border border-purple-200 text-center">
-                <div class="text-[10px] font-bold text-purple-700 uppercase">Performans Notu</div>
-                <div class="text-xl font-black text-purple-800">${stats.avgScore > 0 ? stats.avgScore + ' Puan' : 'Girilmedi'}</div>
+              <div class="px-4 py-2 rounded-2xl bg-blue-50 border border-blue-200 text-center">
+                <div class="text-[10px] font-bold text-blue-700 uppercase">Akademi Ortalaması</div>
+                <div class="text-xl font-black text-blue-800">${acadAvg > 0 ? acadAvg + ' Puan' : 'Girilmedi'}</div>
               </div>
             </div>
           </div>
@@ -494,101 +496,70 @@ window.ParentPortal = {
           </div>
         ` : ''}
 
-        <!-- Detaylar: Takviye Ders Notları & Genel Gelişim Karnesi -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <!-- 1. Takviye Ders Performansı (100 Üzerinden) -->
-          <div class="lg:col-span-6 bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
-            <h4 class="font-bold text-slate-800 text-sm mb-3 pb-2 border-b border-slate-100 flex items-center justify-between">
-              <span class="flex items-center gap-2">
-                <span>📚</span> Takviye Ders Notları (100 Üzerinden)
-              </span>
-              <span class="text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full">
-                Akademi
-              </span>
-            </h4>
-            
-            ${academicScores.length === 0 ? `
-              <div class="py-6 text-center text-slate-400 text-xs">
-                Henüz takviye ders puanı girilmemiştir.
+        <!-- Detaylar: Takviye Ders Notları (Akademi) -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-6">
+          <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-700 text-lg font-black flex items-center justify-center shadow-xs">
+                📚
               </div>
-            ` : `
-              <div class="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                ${academicScores.map(a => {
-                  let badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold';
-                  let label = 'Pekiyi 🌟';
-                  if (a.score < 85) { 
-                    badgeClass = 'bg-rose-100 text-rose-800 border-rose-300 font-black'; 
-                    label = '85 Altı ⚠️'; 
-                  } else if (a.score >= 100) { 
-                    badgeClass = 'bg-emerald-600 text-white border-emerald-700 font-black shadow-xs'; 
-                    label = '100 Tam 🌟'; 
-                  } else if (a.score >= 95) { 
-                    badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'; 
-                    label = 'Pekiyi 🌟'; 
-                  } else if (a.score >= 90) { 
-                    badgeClass = 'bg-lime-100 text-lime-800 border-lime-300 font-bold'; 
-                    label = 'Çok İyi 👍'; 
-                  } else { 
-                    badgeClass = 'bg-amber-100 text-amber-800 border-amber-300 font-bold'; 
-                    label = 'İyi ⚡'; 
-                  }
-                  return `
-                    <div class="p-3 rounded-2xl border border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3">
-                      <div class="flex items-center gap-2.5">
-                        <span class="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 font-bold text-xs flex items-center justify-center">
-                          ${a.subject === 'Türkçe' ? '🇹🇷' : (a.subject === 'Matematik' ? '📐' : (a.subject === 'Fen Bilimleri' ? '🔬' : (a.subject === 'Sosyal Bilgiler' ? '🌍' : '🇬🇧')))}
-                        </span>
-                        <div>
-                          <div class="font-bold text-xs text-slate-800">${a.subject}</div>
-                          <div class="text-[10px] text-slate-400">${a.date}</div>
-                        </div>
-                      </div>
-                      <div class="flex items-center gap-2">
-                        <span class="text-[10px] px-2 py-0.5 rounded-full font-bold border ${badgeClass}">${label}</span>
-                        <span class="px-2.5 py-1 rounded-xl bg-slate-900 text-white font-black text-xs">
-                          ${a.score} / 100
-                        </span>
-                      </div>
-                    </div>
-                  `;
-                }).join('')}
+              <div>
+                <h4 class="font-black text-slate-900 text-sm">Takviye Ders Notları (100 Üzerinden)</h4>
+                <p class="text-[11px] text-slate-400">Öğrencinin branş dersleri ve takviye sınav başarı durumu</p>
               </div>
-            `}
-          </div>
-
-          <!-- 2. Genel Gelişim & Öğretmen Görüşleri -->
-          <div class="lg:col-span-6 bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
-            <h4 class="font-bold text-slate-800 text-sm mb-3 pb-2 border-b border-slate-100 flex items-center gap-2">
-              <span>🎓</span> Genel Gelişim & Öğretmen Görüşleri
-            </h4>
-            <div class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-              ${performances.length === 0 ? `
-                <div class="py-6 text-center text-slate-400 text-xs">Henüz genel gelişim kaydı girilmemiştir.</div>
-              ` : performances.map(p => `
-                <div class="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-xs">
-                  <div class="flex items-start justify-between gap-3 mb-1.5">
-                    <div>
-                      <div class="font-bold text-slate-900 text-xs">${p.subject}</div>
-                      <div class="text-[10px] text-slate-400 font-medium">Tarih: ${p.date}</div>
-                    </div>
-                    <span class="px-2 py-0.5 rounded-lg bg-purple-100 text-purple-900 font-black text-xs">
-                      ${p.criteria?.score || 100} / 100
-                    </span>
-                  </div>
-                  <div class="grid grid-cols-3 gap-1.5 text-[10px] bg-slate-50 p-1.5 rounded-lg text-slate-700 mb-1.5">
-                    <div>Katılım: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.participation || 5)}</span></div>
-                    <div>Ödev: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.homework || 5)}</span></div>
-                    <div>Uyum: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.behavior || 5)}</span></div>
-                  </div>
-                  ${p.teacherNote ? `
-                    <div class="text-[11px] text-slate-700 bg-emerald-50 border-l-2 border-emerald-500 p-2 rounded-r">
-                      <strong>Eğitmen Görüşü:</strong> ${p.teacherNote}
-                    </div>
-                  ` : ''}
-                </div>
-              `).join('')}
             </div>
+            <span class="text-xs font-black bg-blue-100 text-blue-900 border border-blue-200 px-3 py-1 rounded-full">
+              Akademi
+            </span>
           </div>
+          
+          ${academicScores.length === 0 ? `
+            <div class="py-8 text-center text-slate-400 text-xs">
+              Henüz takviye ders puanı girilmemiştir.
+            </div>
+          ` : `
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              ${academicScores.map(a => {
+                let badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold';
+                let label = 'Pekiyi 🌟';
+                if (a.score < 85) { 
+                  badgeClass = 'bg-rose-100 text-rose-800 border-rose-300 font-black'; 
+                  label = '85 Altı ⚠️'; 
+                } else if (a.score >= 100) { 
+                  badgeClass = 'bg-emerald-600 text-white border-emerald-700 font-black shadow-xs'; 
+                  label = '100 Tam 🌟'; 
+                } else if (a.score >= 95) { 
+                  badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'; 
+                  label = 'Pekiyi 🌟'; 
+                } else if (a.score >= 90) { 
+                  badgeClass = 'bg-lime-100 text-lime-800 border-lime-300 font-bold'; 
+                  label = 'Çok İyi 👍'; 
+                } else { 
+                  badgeClass = 'bg-amber-100 text-amber-800 border-amber-300 font-bold'; 
+                  label = 'İyi ⚡'; 
+                }
+                return `
+                  <div class="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:shadow-xs transition flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5">
+                      <span class="w-9 h-9 rounded-xl bg-blue-100 text-blue-800 font-bold text-sm flex items-center justify-center">
+                        ${a.subject === 'Türkçe' ? '🇹🇷' : (a.subject === 'Matematik' ? '📐' : (a.subject === 'Fen Bilimleri' ? '🔬' : (a.subject === 'Sosyal Bilgiler' ? '🌍' : '🇬🇧')))}
+                      </span>
+                      <div>
+                        <div class="font-bold text-xs text-slate-800">${a.subject}</div>
+                        <div class="text-[10px] text-slate-400 font-medium">${a.date}</div>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-[10px] px-2 py-0.5 rounded-full font-bold border ${badgeClass}">${label}</span>
+                      <span class="px-2.5 py-1 rounded-xl bg-slate-900 text-white font-black text-xs">
+                        ${a.score} / 100
+                      </span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
         </div>
 
         <!-- VELİ ŞİFRE DEĞİŞTİRME MODALI -->

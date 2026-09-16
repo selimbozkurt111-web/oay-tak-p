@@ -314,13 +314,8 @@ window.App = {
       else if (cat === 'okul_donusu') activeTitle = '🎒 Okul Dönüşü';
       else if (cat === 'namaz_rapor') activeTitle = '📊 Namaz Raporları';
     } else if (this.activeTab === 'akademi' || this.activeTab === 'performans') {
-      const sub = (window.AkademiModule && window.AkademiModule.currentSubCategory) || 'takviye';
-      if (sub === 'takviye') {
-        const subj = (window.AkademiModule && window.AkademiModule.currentSubject) || 'Türkçe';
-        activeTitle = `🎓 Akademi • ${subj}`;
-      } else {
-        activeTitle = '🎓 Akademi • Genel Karne';
-      }
+      const subj = (window.AkademiModule && window.AkademiModule.currentSubject) || 'Türkçe';
+      activeTitle = `🎓 Akademi • ${subj}`;
     } else if (this.activeTab === 'izin_cikis') {
       activeTitle = '🚪 İzine Çıkış Takibi';
     } else if (this.activeTab === 'izin_donusu') {
@@ -527,38 +522,22 @@ window.App = {
         </div>
 
         <!-- 2. AKADEMİ (2 ALT BAŞLIK: Takviye Ders Performansı & Genel Gelişim) -->
+        <!-- 2. AKADEMİ & DERSLER -->
         <div class="space-y-1.5 pt-3 border-t border-slate-100">
           <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">AKADEMİ & DERSLER</div>
 
-          <!-- Takviye Ders Performansı -->
+          <!-- Takviye Ders Notları -->
           <button type="button" onclick="window.App.navigateFromDrawer('akademi', 'takviye')"
             class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
-              (this.activeTab === 'akademi' || this.activeTab === 'performans') && currentAkademiSub === 'takviye'
+              (this.activeTab === 'akademi' || this.activeTab === 'performans')
                 ? 'bg-blue-50 text-blue-900 font-black border border-blue-200 shadow-sm'
                 : 'text-slate-700 hover:bg-slate-50 font-bold'
             }">
             <div class="flex items-center gap-3">
               <span class="text-xl">📚</span>
               <div>
-                <div class="text-xs font-black">Takviye Ders Performansı</div>
+                <div class="text-xs font-black">Takviye Ders Notları</div>
                 <div class="text-[10px] text-slate-400 font-medium">Türkçe, Mat, Fen, Sosyal, İngilizce 100 puan</div>
-              </div>
-            </div>
-            <span class="text-slate-300">→</span>
-          </button>
-
-          <!-- Genel Gelişim & Karne -->
-          <button type="button" onclick="window.App.navigateFromDrawer('akademi', 'genel')"
-            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
-              (this.activeTab === 'akademi' || this.activeTab === 'performans') && currentAkademiSub === 'genel'
-                ? 'bg-amber-50 text-amber-900 font-black border border-amber-200 shadow-sm'
-                : 'text-slate-700 hover:bg-slate-50 font-bold'
-            }">
-            <div class="flex items-center gap-3">
-              <span class="text-xl">⭐</span>
-              <div>
-                <div class="text-xs font-black">Genel Gelişim & Karne</div>
-                <div class="text-[10px] text-slate-400 font-medium">Kriter yıldızları ve öğretmen görüşleri</div>
               </div>
             </div>
             <span class="text-slate-300">→</span>
