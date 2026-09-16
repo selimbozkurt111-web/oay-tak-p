@@ -655,37 +655,6 @@ window.AttendanceModule = {
 
     container.innerHTML = `
       <div class="space-y-4 animate-fade-in max-w-4xl mx-auto">
-        ${this.currentCategory === 'yatak' ? `
-          <!-- Yatak Kontrolü Hızlı Hatırlatıcı Barı -->
-          <div class="p-3.5 ${window.Store.isYatakAttendanceDoneToday() ? 'bg-emerald-50 border-emerald-200' : 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200'} rounded-2xl border flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-2.5">
-              <span class="text-2xl">${window.Store.isYatakAttendanceDoneToday() ? '✅' : '🛏️'}</span>
-              <div>
-                <div class="text-xs font-black ${window.Store.isYatakAttendanceDoneToday() ? 'text-emerald-950' : 'text-purple-950'}">
-                  ${window.Store.isYatakAttendanceDoneToday() ? 'Bugünkü Yatak Kontrolü Tamamlandı' : 'Yatak Kontrolü Hatırlatıcı (08:30 / 30 Dk)'}
-                </div>
-                <div class="text-[11px] ${window.Store.isYatakAttendanceDoneToday() ? 'text-emerald-800' : 'text-purple-800'}">
-                  ${window.Store.isYatakAttendanceDoneToday() 
-                    ? 'Kontrol sisteme işlendiği için hocalara giden otomatik bildirimler durduruldu.' 
-                    : 'Sabah 08:30\'dan itibaren kontrol sisteme girilmedikçe her 30 dakikada bir otomatik bildirim gönderilir.'}
-                </div>
-              </div>
-            </div>
-            <div class="flex items-center gap-2">
-              <button type="button" onclick="window.App.requestNotificationPermissionAndTest()"
-                class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5">
-                <span>🔔</span>
-                <span>Bildirim Testi</span>
-              </button>
-              <button type="button" onclick="window.App.sendYatakWhatsAppReminder()"
-                class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5">
-                <span>💬</span>
-                <span>WhatsApp</span>
-              </button>
-            </div>
-          </div>
-        ` : ''}
-
         <!-- 2. Filtre & Kontrol Kartı -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
           <!-- Üst Satır: Tarih & Gün Adı & 5 Vakit Namaz Butonları -->

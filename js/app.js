@@ -1385,34 +1385,34 @@ window.App = {
           </div>
         </div>
 
-        <!-- Yatak Kontrolü Hatırlatma & Bildirim Paneli -->
+        <!-- Yatak Kontrolü Otomatik Bildirim Yönetimi (Sadece Ana Yönetici) -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-            <div class="flex items-center gap-2.5">
-              <div class="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 text-lg flex items-center justify-center shadow-inner">
-                🔔
+          <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 text-xl flex items-center justify-center shadow-inner">
+                ⏰
               </div>
               <div>
-                <h3 class="font-bold text-slate-800 text-base leading-tight">Yatak Kontrolü Otomatik Hatırlatıcı</h3>
-                <p class="text-xs text-slate-500">Sabah 08:30'dan itibaren kontrol sisteme girilmedikçe her 30 dakikada bir bildirim gönderir</p>
+                <h3 class="font-bold text-slate-800 text-base leading-tight">Yatak Kontrolü Otomatik Bildirimleri</h3>
+                <p class="text-xs text-slate-500">Sabah 08:30'dan itibaren yoklama girilmedikçe her 30 dakikada bir hocalara otomatik bildirim gönderir</p>
               </div>
             </div>
+
+            <!-- YÖNETİCİ AÇMA / KAPATMA BUTONU -->
             <div>
-              ${window.Store.isYatakAttendanceDoneToday() ? `
-                <span class="px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-300 flex items-center gap-1.5">
-                  <span>✅</span>
-                  <span>Bugünkü Kontrol Yapıldı (Bildirimler Durduruldu)</span>
-                </span>
-              ` : `
-                <span class="px-3 py-1 rounded-xl bg-amber-50 text-amber-900 text-xs font-bold border border-amber-300 flex items-center gap-1.5">
-                  <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                  <span>Kontrol Bekleniyor (Her 30 Dk)</span>
-                </span>
-              `}
+              <button type="button" onclick="window.App.toggleYatakReminder()"
+                class="px-5 py-2.5 rounded-2xl font-black text-xs shadow-sm transition flex items-center gap-2 cursor-pointer ${
+                  settings.yatakReminderEnabled !== false 
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-4 ring-emerald-100' 
+                    : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                }">
+                <span class="w-2.5 h-2.5 rounded-full ${settings.yatakReminderEnabled !== false ? 'bg-white animate-pulse' : 'bg-slate-400'}"></span>
+                <span>${settings.yatakReminderEnabled !== false ? '🟢 Otomatik Bildirimler AÇIK' : '⚪ Otomatik Bildirimler KAPALI'}</span>
+              </button>
             </div>
           </div>
 
-          <div class="space-y-4">
+          <div class="pt-4 space-y-3">
             <!-- Otomatik Zamanlama Bilgi Kutusu -->
             <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
               <div class="flex flex-wrap items-center justify-between gap-2">
@@ -1424,30 +1424,36 @@ window.App = {
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <span class="font-bold text-slate-800">🔁 Tekrar Sıklığı:</span>
                 <span class="px-2.5 py-1 bg-white font-mono font-bold text-indigo-800 rounded-lg border border-slate-300">
-                  Kontrol Yapılmadıkça Her 30 Dakikada Bir
+                  Yoklama Alınmadıkça Her 30 Dakikada Bir
                 </span>
               </div>
               <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200">
                 <span class="font-bold text-slate-800">🛑 Durdurma Kuralı:</span>
                 <span class="text-[11px] text-emerald-700 font-bold">
-                  Hoca yatak kontrolünü sisteme girdiği anda bildirimler otomatik kesilir.
+                  Hoca yatak kontrolünü sisteme girdiği anda bildirimler o gün için otomatik kesilir.
                 </span>
               </div>
             </div>
 
-            <!-- Aksiyon Butonları -->
-            <div class="flex flex-wrap items-center gap-3">
-              <button type="button" onclick="window.App.requestNotificationPermissionAndTest()"
-                class="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center gap-2">
-                <span>🔔</span>
-                <span>Telefonda Bildirim Testi Yap</span>
-              </button>
-
-              <button type="button" onclick="window.App.sendYatakWhatsAppReminder()"
-                class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center gap-2">
-                <span>💬</span>
-                <span>WhatsApp'tan Hatırlat</span>
-              </button>
+            <!-- Canlı Durum Bildirimi -->
+            <div class="p-3 bg-white rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span class="font-bold text-slate-600">Bugünkü Durum:</span>
+              <div>
+                ${window.Store.isYatakAttendanceDoneToday() ? `
+                  <span class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-900 font-bold text-[11px] border border-emerald-300">
+                    ✅ Bugünkü Yoklama Alındı (Bildirimler Durduruldu)
+                  </span>
+                ` : (settings.yatakReminderEnabled !== false ? `
+                  <span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold text-[11px] border border-amber-300 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span>⏳ Bugünkü Yoklama Bekleniyor (Her 30 Dk Otomatik Bildirim Devrede)</span>
+                  </span>
+                ` : `
+                  <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-bold text-[11px] border border-slate-300">
+                    ⚪ Otomatik Bildirimler Yönetici Tarafından Kapatıldı
+                  </span>
+                `)}
+              </div>
             </div>
           </div>
         </div>
@@ -1665,6 +1671,26 @@ window.App = {
 
       console.log(`[YatakReminder] Otomatik hatırlatma gönderildi (${now.toLocaleTimeString()}).`);
     }
+  },
+
+  // Ana Yönetici için Yatak Hatırlatma Bildirimlerini Açma / Kapatma Anahtarı
+  toggleYatakReminder() {
+    const settings = window.Store.getSettings();
+    const currentState = settings.yatakReminderEnabled !== false;
+    const newState = !currentState;
+
+    window.Store.saveSettings({
+      yatakReminderEnabled: newState
+    });
+
+    this.showToast(
+      newState 
+        ? '✅ Yatak kontrolü otomatik bildirimleri AÇILDI. Sabah 08:30\'da yoklama alınmadıkça her 30 dk bildirim gidecek.' 
+        : '🛑 Yatak kontrolü otomatik bildirimleri KAPATILDI.',
+      newState ? 'success' : 'info'
+    );
+
+    this.renderSettingsView();
   },
 
   handleLogoFileUpload(event) {
