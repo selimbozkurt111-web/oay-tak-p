@@ -610,6 +610,8 @@ window.App = {
     const main = document.getElementById('main-content');
     if (!main) return;
 
+    const settings = window.Store.getSettings();
+
     // 1. Durum: Oturum Açılmamışsa GİRİŞ EKRANI (Giriş kılavuzu KALDIRILMIŞTIR)
     if (!this.currentSession) {
       if (this.loginMode === 'admin_otp') {
