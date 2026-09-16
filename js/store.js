@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   ATTENDANCE: 'yoklama_attendance',
   PERFORMANCE: 'yoklama_performance',
   ACADEMIC_SCORES: 'yoklama_academic_scores',
+  LEAVE_CHECKOUT: 'yoklama_leave_checkout_v1',
   SETTINGS: 'yoklama_settings',
   INITIALIZED: 'yoklama_init_v5'
 };
@@ -153,6 +154,9 @@ class DataStore {
         { id: 'acad_std_504_f', studentId: 'std_504', date: today, subject: 'Fen Bilimleri', score: 100, note: 'Mükemmel katılım.', updatedAt: new Date().toISOString() }
       ];
       localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(sampleScores));
+    }
+    if (this.getAttendance().length === 0) {
+      this.seedDemoAttendance();
     }
   }
 
@@ -507,6 +511,185 @@ class DataStore {
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(all));
   }
 
+  // --- Namaz Haftalık & Aylık Raporlama İşlemleri ---
+  getWeekRange(dateStr) {
+    const d = new Date(dateStr);
+    const day = d.getDay();
+    const diffToMon = (day === 0 ? -6 : 1) - day;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + diffToMon);
+
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const cur = new Date(monday);
+      cur.setDate(monday.getDate() + i);
+      dates.push(cur.toISOString().split('T')[0]);
+    }
+    return {
+      startDate: dates[0],
+      endDate: dates[dates.length - 1],
+      dates
+    };
+  }
+
+  getMonthRange(yearMonthStr) {
+    const parts = yearMonthStr.split('-').map(Number);
+    const year = parts[0];
+    const month = parts[1];
+    const lastDay = new Date(year, month, 0).getDate();
+    const dates = [];
+    for (let d = 1; d <= lastDay; d++) {
+      const dStr = d < 10 ? `0${d}` : `${d}`;
+      const mStr = month < 10 ? `0${month}` : `${month}`;
+      dates.push(`${year}-${mStr}-${dStr}`);
+    }
+    return {
+      startDate: dates[0],
+      endDate: dates[dates.length - 1],
+      dates
+    };
+  }
+
+  getPrayerReportForStudent(studentId, dates) {
+    const prayers = ['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Yatsı'];
+    const allAtt = this.getAttendance();
+    const studentRecords = allAtt.filter(a => 
+      a.studentId === studentId && 
+      (a.category || 'namaz') === 'namaz' && 
+      dates.includes(a.date)
+    );
+
+    const grid = {};
+    dates.forEach(d => {
+      grid[d] = {};
+    });
+
+    studentRecords.forEach(r => {
+      const p = r.prayerTime || 'Sabah';
+      if (grid[r.date]) {
+        grid[r.date][p] = this.normalizeStatusCode(r.status);
+      }
+    });
+
+    const prayerStats = {
+      Sabah: { VAR: 0, TAKKESIZ: 0, GEC: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
+      Öğle: { VAR: 0, TAKKESIZ: 0, GEC: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
+      İkindi: { VAR: 0, TAKKESIZ: 0, GEC: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
+      Akşam: { VAR: 0, TAKKESIZ: 0, GEC: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
+      Yatsı: { VAR: 0, TAKKESIZ: 0, GEC: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 }
+    };
+
+    const overallCounts = { VAR: 0, TAKKESIZ: 0, GEC: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 };
+    const totalSlots = dates.length * 5;
+
+    dates.forEach(d => {
+      prayers.forEach(p => {
+        const st = grid[d][p];
+        if (st) {
+          prayerStats[p][st] = (prayerStats[p][st] || 0) + 1;
+          overallCounts[st] = (overallCounts[st] || 0) + 1;
+        } else {
+          prayerStats[p].GIRILMEDI = (prayerStats[p].GIRILMEDI || 0) + 1;
+          overallCounts.GIRILMEDI = (overallCounts.GIRILMEDI || 0) + 1;
+        }
+      });
+    });
+
+    const attendedCount = overallCounts.VAR + overallCounts.TAKKESIZ + overallCounts.GEC;
+    const evaluatedTotal = totalSlots - overallCounts.IZINLI - overallCounts.GIRILMEDI;
+    const attendanceRate = evaluatedTotal > 0 
+      ? Math.min(100, Math.max(0, Math.round((attendedCount / evaluatedTotal) * 100))) 
+      : 100;
+
+    return {
+      studentId,
+      totalSlots,
+      grid,
+      prayerStats,
+      overallCounts,
+      attendedCount,
+      evaluatedTotal,
+      attendanceRate
+    };
+  }
+
+  getPrayerReportBatch(students, dates) {
+    const prayers = ['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Yatsı'];
+    const reports = students.map(st => this.getPrayerReportForStudent(st.id, dates));
+    const prayerTotals = {
+      Sabah: { attended: 0, total: 0 },
+      Öğle: { attended: 0, total: 0 },
+      İkindi: { attended: 0, total: 0 },
+      Akşam: { attended: 0, total: 0 },
+      Yatsı: { attended: 0, total: 0 }
+    };
+
+    let sumRate = 0;
+    reports.forEach(r => {
+      sumRate += r.attendanceRate;
+      prayers.forEach(p => {
+        const pAttended = r.prayerStats[p].VAR + r.prayerStats[p].TAKKESIZ + r.prayerStats[p].GEC;
+        const pEval = dates.length - r.prayerStats[p].IZINLI - r.prayerStats[p].GIRILMEDI;
+        prayerTotals[p].attended += pAttended;
+        prayerTotals[p].total += Math.max(0, pEval);
+      });
+    });
+
+    const classAverageRate = reports.length > 0 ? Math.round(sumRate / reports.length) : 100;
+    const prayerRates = {};
+    prayers.forEach(p => {
+      prayerRates[p] = prayerTotals[p].total > 0 
+        ? Math.round((prayerTotals[p].attended / prayerTotals[p].total) * 100) 
+        : 100;
+    });
+
+    return {
+      reports,
+      classAverageRate,
+      prayerRates
+    };
+  }
+
+  seedDemoAttendance() {
+    const today = new Date();
+    const dates = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      dates.push(d.toISOString().split('T')[0]);
+    }
+
+    const students = this.getStudents().slice(0, 15);
+    const prayers = ['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Yatsı'];
+    const records = [];
+
+    students.forEach((st, sIdx) => {
+      dates.forEach((dStr, dIdx) => {
+        prayers.forEach((pTime, pIdx) => {
+          let status = 'VAR';
+          const rand = (sIdx * 7 + dIdx * 5 + pIdx * 3) % 20;
+          if (rand === 1) status = 'TAKKESIZ';
+          else if (rand === 2 && pTime === 'Sabah') status = 'GEC';
+          else if (rand === 3 && dIdx === 5) status = 'IZINLI';
+          else if (rand === 4 && sIdx === 3) status = 'YOK';
+
+          records.push({
+            id: `att_namaz_${st.id}_${dStr}_${pTime}`,
+            studentId: st.id,
+            date: dStr,
+            category: 'namaz',
+            prayerTime: pTime,
+            status: status,
+            note: '',
+            recordedAt: new Date().toISOString()
+          });
+        });
+      });
+    });
+
+    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(records));
+  }
+
   // --- Performans İşlemleri ---
   getPerformances() {
     try {
@@ -618,6 +801,192 @@ class DataStore {
       avgScore = Math.round(perfs.reduce((sum, p) => sum + (p.criteria?.score || 0), 0) / perfs.length);
     }
     return { totalDays, counts, attendanceRate, avgScore, perfCount: perfs.length };
+  }
+
+  // --- Hafta Sonu İzin Çıkış ve Kusur Gecikme Takibi ---
+  getDayName(dateStr) {
+    if (!dateStr) return '';
+    const days = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+    const parts = dateStr.split('-').map(Number);
+    if (parts.length !== 3) return '';
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    return days[d.getDay()] || '';
+  }
+
+  calculateExitTime(baseTime = '13:00', penaltyMinutes = 0) {
+    const [hStr, mStr] = (baseTime || '13:00').split(':');
+    const h = parseInt(hStr, 10) || 13;
+    const m = parseInt(mStr, 10) || 0;
+    const totalMins = h * 60 + m + penaltyMinutes;
+    const newH = Math.floor(totalMins / 60) % 24;
+    const newM = totalMins % 60;
+    const hh = newH < 10 ? `0${newH}` : `${newH}`;
+    const mm = newM < 10 ? `0${newM}` : `${newM}`;
+    return `${hh}:${mm}`;
+  }
+
+  formatPenaltyDuration(minutes) {
+    if (!minutes || minutes <= 0) return '0 dk';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h > 0 && m > 0) return `${h} sa ${m} dk`;
+    if (h > 0) return `${h} saat`;
+    return `${m} dakika`;
+  }
+
+  getLeaveReportForStudent(studentId, weekDates, baseExitTime = '13:00') {
+    const allAtt = this.getAttendance();
+    const studentRecords = allAtt.filter(a => a.studentId === studentId && weekDates.includes(a.date));
+
+    const infractions = [];
+    let namazInfractionsCount = 0;
+    let yatakInfractionsCount = 0;
+    let okulInfractionsCount = 0;
+
+    studentRecords.forEach(rec => {
+      const cat = rec.category || 'namaz';
+      const st = this.normalizeStatusCode(rec.status);
+      const dayName = this.getDayName(rec.date);
+
+      if (cat === 'namaz') {
+        // Namazda VAR ve İZİNLİ hariç olanlar (YOK, TAKKESIZ, GEC)
+        if (st !== 'VAR' && st !== 'IZINLI' && st !== 'E' && st !== 'I') {
+          namazInfractionsCount++;
+          const pLabel = rec.prayerTime || 'Namaz';
+          const stObj = STATUS_CONFIG[st] || { label: st, bg: '#ef4444' };
+          infractions.push({
+            id: rec.id,
+            date: rec.date,
+            dayName,
+            category: 'namaz',
+            categoryLabel: '🕌 Namaz Yoklaması',
+            subKey: pLabel,
+            subLabel: `${pLabel} Namazı`,
+            status: st,
+            statusLabel: stObj.label,
+            statusBg: stObj.bg,
+            penaltyMinutes: 30,
+            desc: `${rec.date} ${dayName} • ${pLabel} Namazı: ${stObj.label} (+30 dk)`
+          });
+        }
+      } else if (cat === 'yatak') {
+        // Yatakta ORTA ve KÖTÜ olanlar
+        if (st === 'ORTA' || st === 'KOTU') {
+          yatakInfractionsCount++;
+          const stObj = STATUS_CONFIG[st] || { label: st, bg: '#f59e0b' };
+          infractions.push({
+            id: rec.id,
+            date: rec.date,
+            dayName,
+            category: 'yatak',
+            categoryLabel: '🛏️ Yatak Yoklaması',
+            subKey: 'Yatak Düzeni',
+            subLabel: 'Oda & Yatak Düzeni',
+            status: st,
+            statusLabel: stObj.label,
+            statusBg: stObj.bg,
+            penaltyMinutes: 30,
+            desc: `${rec.date} ${dayName} • Yatak Düzeni: ${stObj.label} (+30 dk)`
+          });
+        }
+      } else if (cat === 'okul_donusu') {
+        // Okul dönüşünde GEÇ ve GELMEDİ olanlar
+        if (st === 'GEC' || st === 'GELMEDI') {
+          okulInfractionsCount++;
+          const stObj = STATUS_CONFIG[st] || { label: st, bg: '#ef4444' };
+          infractions.push({
+            id: rec.id,
+            date: rec.date,
+            dayName,
+            category: 'okul_donusu',
+            categoryLabel: '🎒 Okul Dönüşü',
+            subKey: 'Okul Dönüşü',
+            subLabel: 'Yurda Geliş',
+            status: st,
+            statusLabel: stObj.label,
+            statusBg: stObj.bg,
+            penaltyMinutes: 30,
+            desc: `${rec.date} ${dayName} • Okul Dönüşü: ${stObj.label} (+30 dk)`
+          });
+        }
+      }
+    });
+
+    infractions.sort((a, b) => a.date.localeCompare(b.date));
+
+    const totalInfractions = infractions.length;
+    const penaltyMinutes = totalInfractions * 30;
+    const calculatedExitTime = this.calculateExitTime(baseExitTime, penaltyMinutes);
+    const penaltyFormatted = this.formatPenaltyDuration(penaltyMinutes);
+
+    return {
+      studentId,
+      weekDates,
+      baseExitTime,
+      calculatedExitTime,
+      totalInfractions,
+      penaltyMinutes,
+      penaltyFormatted,
+      namazInfractionsCount,
+      yatakInfractionsCount,
+      okulInfractionsCount,
+      infractions
+    };
+  }
+
+  getLeaveReportBatch(students, weekDates, baseExitTime = '13:00') {
+    const reports = students.map(st => ({
+      student: st,
+      report: this.getLeaveReportForStudent(st.id, weekDates, baseExitTime)
+    }));
+
+    let totalInfractionsAll = 0;
+    let totalPenaltyMinutesAll = 0;
+    let onTimeCount = 0;
+    let delayedCount = 0;
+
+    reports.forEach(item => {
+      totalInfractionsAll += item.report.totalInfractions;
+      totalPenaltyMinutesAll += item.report.penaltyMinutes;
+      if (item.report.totalInfractions === 0) {
+        onTimeCount++;
+      } else {
+        delayedCount++;
+      }
+    });
+
+    return {
+      reports,
+      totalStudents: students.length,
+      onTimeCount,
+      delayedCount,
+      totalInfractionsAll,
+      totalPenaltyMinutesAll,
+      totalPenaltyFormatted: this.formatPenaltyDuration(totalPenaltyMinutesAll)
+    };
+  }
+
+  getGateCheckoutStatus(weekKey) {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LEAVE_CHECKOUT);
+      const all = data ? JSON.parse(data) : {};
+      return all[weekKey] || {};
+    } catch {
+      return {};
+    }
+  }
+
+  toggleGateCheckout(weekKey, studentId) {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LEAVE_CHECKOUT);
+      const all = data ? JSON.parse(data) : {};
+      if (!all[weekKey]) all[weekKey] = {};
+      all[weekKey][studentId] = !all[weekKey][studentId];
+      localStorage.setItem(STORAGE_KEYS.LEAVE_CHECKOUT, JSON.stringify(all));
+      return all[weekKey][studentId];
+    } catch {
+      return false;
+    }
   }
 
   exportBackup() {

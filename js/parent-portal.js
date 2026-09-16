@@ -1,9 +1,15 @@
 /**
  * parent-portal.js - Kardeş Destekli Veli Portalı (Salt Okunur)
+ * - Haftalık & Aylık Namaz Yoklama Raporu (5 Vakit İnceleme)
+ * - Günlük Yoklama Geçmişi
+ * - Takviye Ders Notları (100 Üzerinden)
+ * - Genel Gelişim & Öğretmen Görüşleri
  */
 
 window.ParentPortal = {
   activeStudentId: null,
+  prayerReportPeriod: 'haftalik', // 'haftalik' | 'aylik'
+  prayerReportDate: new Date().toISOString().split('T')[0],
 
   init() {
     const session = window.App.currentSession;
@@ -28,7 +34,7 @@ window.ParentPortal = {
     container.innerHTML = `
       <div class="max-w-md mx-auto py-12 text-center">
         <div class="p-6 bg-white rounded-3xl shadow border border-slate-200">
-          <p class="text-sm text-slate-600 mb-4">Veli portalına erişebilmek için lütfen Aile Kodunuz ile giriş yapınız.</p>
+          <p class="text-sm text-slate-600 mb-4">Veli portalına erişebilmek için lütfen Aile Kodunuz veya Öğrenci Adı Soyadı ile giriş yapınız.</p>
           <button onclick="window.App.logout()" class="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-xs">Giriş Ekranına Dön</button>
         </div>
       </div>
@@ -38,6 +44,31 @@ window.ParentPortal = {
   selectStudent(studentId) {
     this.activeStudentId = studentId;
     this.renderPortalDashboard();
+  },
+
+  setPrayerReportPeriod(period) {
+    this.prayerReportPeriod = period;
+    this.renderPortalDashboard();
+  },
+
+  setPrayerReportDate(date) {
+    this.prayerReportDate = date;
+    this.renderPortalDashboard();
+  },
+
+  getDayName(dateStr) {
+    if (!dateStr) return '';
+    const days = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+    const parts = dateStr.split('-').map(Number);
+    if (parts.length !== 3) return '';
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    return days[d.getDay()] || '';
+  },
+
+  getRateColor(rate) {
+    if (rate >= 90) return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+    if (rate >= 75) return 'bg-amber-100 text-amber-800 border-amber-300';
+    return 'bg-rose-100 text-rose-800 border-rose-300';
   },
 
   renderPortalDashboard() {
@@ -58,6 +89,28 @@ window.ParentPortal = {
     const performances = window.Store.getPerformanceForStudent(currentStudent.id);
     const academicScores = window.Store.getAcademicScoresForStudent ? window.Store.getAcademicScoresForStudent(currentStudent.id) : [];
 
+    // Çocuğun Haftalık / Aylık Namaz Raporunu Hesapla
+    const isWeekly = this.prayerReportPeriod === 'haftalik';
+    const reportRange = isWeekly 
+      ? window.Store.getWeekRange(this.prayerReportDate)
+      : window.Store.getMonthRange(this.prayerReportDate.substring(0, 7));
+
+    const prayerRep = window.Store.getPrayerReportForStudent 
+      ? window.Store.getPrayerReportForStudent(currentStudent.id, reportRange.dates)
+      : null;
+
+    // Hafta Sonu İzin Çıkış Raporu Hesabı (Bu Hafta)
+    const thisWeekRange = window.Store.getWeekRange(new Date().toISOString().split('T')[0]);
+    const baseExitTime = localStorage.getItem('yoklama_base_exit_time') || '13:00';
+    const leaveRep = window.Store.getLeaveReportForStudent
+      ? window.Store.getLeaveReportForStudent(currentStudent.id, thisWeekRange.dates, baseExitTime)
+      : null;
+
+    const prayers = ['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Yatsı'];
+    const periodLabel = isWeekly 
+      ? `Haftalık (${reportRange.startDate} – ${reportRange.endDate})`
+      : `Aylık (${reportRange.startDate} – ${reportRange.endDate})`;
+
     container.innerHTML = `
       <div class="max-w-6xl mx-auto space-y-6 animate-fade-in">
         <!-- Veli Başlığı & Kardeş Sekmeleri -->
@@ -72,7 +125,7 @@ window.ParentPortal = {
               </div>
               <h2 class="text-2xl font-black tracking-tight">Öğrenci Durum ve Karne Portalı</h2>
               <p class="text-xs text-indigo-200 mt-1">
-                Bu alanda yalnızca çocuğunuza ait devam durumu, kılık-kıyafet/namaz bilgisi ve karnesini salt okunur olarak inceleyebilirsiniz.
+                Bu alanda yalnızca çocuğunuza ait namaz raporu, devam durumu ve karnesini salt okunur olarak inceleyebilirsiniz.
               </p>
             </div>
 
@@ -117,15 +170,15 @@ window.ParentPortal = {
         </div>
 
         <!-- Öğrenci Künyesi -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <div class="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-100">
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-6">
+          <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
             <div class="flex items-center gap-4">
               <div class="w-14 h-14 rounded-2xl bg-indigo-50 border-2 border-indigo-200 text-indigo-700 font-black text-xl flex items-center justify-center">
                 ${currentStudent.firstName[0]}${currentStudent.lastName[0]}
               </div>
               <div>
                 <h3 class="text-xl font-black text-slate-900">${currentStudent.firstName} ${currentStudent.lastName}</h3>
-                <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium mt-1">
+                <div class="flex flex-wrap items-center gap-2.5 text-xs text-slate-500 font-medium mt-1">
                   <span>No: <strong class="text-slate-800">${currentStudent.studentNo}</strong></span>
                   <span>•</span>
                   <span>Sınıfı: <strong class="text-slate-800">${currentStudent.className}</strong></span>
@@ -133,18 +186,16 @@ window.ParentPortal = {
                   <span>Etüt Hocası: <strong class="text-slate-800">${currentStudent.etutHocasi || '-'}</strong></span>
                   <span>•</span>
                   <span>Dahili Hoca: <strong class="text-slate-800">${currentStudent.dahiliHoca || '-'}</strong></span>
-                  <span>•</span>
-                  <span>Yatakhane: <strong class="text-indigo-800">${currentStudent.yatakhane || '-'}</strong></span>
                 </div>
               </div>
             </div>
 
             <div class="flex items-center gap-3">
-              <div class="px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-                <div class="text-[10px] font-bold text-emerald-700 uppercase">Devam Oranı</div>
+              <div class="px-4 py-2 rounded-2xl bg-emerald-50 border border-emerald-200 text-center">
+                <div class="text-[10px] font-bold text-emerald-700 uppercase">Toplam Devam</div>
                 <div class="text-xl font-black text-emerald-800">%${stats.attendanceRate}</div>
               </div>
-              <div class="px-4 py-2 rounded-xl bg-purple-50 border border-purple-200 text-center">
+              <div class="px-4 py-2 rounded-2xl bg-purple-50 border border-purple-200 text-center">
                 <div class="text-[10px] font-bold text-purple-700 uppercase">Performans Notu</div>
                 <div class="text-xl font-black text-purple-800">${stats.avgScore > 0 ? stats.avgScore + ' Puan' : 'Girilmedi'}</div>
               </div>
@@ -152,152 +203,315 @@ window.ParentPortal = {
           </div>
 
           <!-- 5 Yoklama Durumu İstatistiği -->
-          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-5">
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-4">
             ${['VAR', 'YOK', 'GEC', 'TAKKESIZ', 'IZINLI'].map(code => {
               const cfg = window.STATUS_CONFIG[code] || window.STATUS_CONFIG['VAR'];
               const count = stats.counts[code] || 0;
               return `
-                <div class="p-3 rounded-xl border flex flex-col items-center justify-center text-center" 
+                <div class="p-2.5 rounded-2xl border flex flex-col items-center justify-center text-center" 
                   style="background-color: ${cfg.bg}10; border-color: ${cfg.border}30;">
-                  <span class="px-2.5 py-1 rounded-lg text-white font-black text-xs flex items-center justify-center mb-1.5" 
+                  <span class="px-2.5 py-0.5 rounded-lg text-white font-black text-xs flex items-center justify-center mb-1" 
                     style="background-color: ${cfg.bg};">
                     ${cfg.label}
                   </span>
-                  <span class="text-base font-black text-slate-900 mt-0.5">${count} Vakit</span>
+                  <span class="text-sm font-black text-slate-900">${count} Vakit</span>
                 </div>
               `;
             }).join('')}
           </div>
         </div>
 
-        <!-- Detaylar: Yoklama Geçmişi & Performans -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div class="lg:col-span-6 bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-            <h4 class="font-bold text-slate-800 text-sm mb-3 pb-2 border-b border-slate-100 flex items-center gap-2">
-              <span>📅</span> Günlük Yoklama ve Durum Geçmişi
-            </h4>
-            <div class="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-              ${attendanceRecords.length === 0 ? `
-                <div class="py-12 text-center text-slate-400 text-sm">Henüz kayıtlı yoklama bulunmuyor.</div>
-              ` : attendanceRecords.map(r => {
-                const norm = window.Store.normalizeStatusCode ? window.Store.normalizeStatusCode(r.status) : (r.status || 'VAR');
-                const cfg = window.STATUS_CONFIG[norm] || window.STATUS_CONFIG['VAR'];
-                return `
-                  <div class="p-3 rounded-xl border border-slate-100 bg-slate-50/60 transition flex items-start justify-between gap-3">
-                    <div class="flex items-start gap-3">
-                      <span class="px-2.5 py-1 rounded-lg text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5"
-                        style="background-color: ${cfg.bg};">
-                        ${cfg.label}
-                      </span>
+        <!-- 🚪 HAFTA SONU İZİN VE ÇIKIŞ SAATİ BİLGİLENDİRMESİ -->
+        ${leaveRep ? `
+          <div class="rounded-3xl p-5 sm:p-6 border shadow-sm ${
+            leaveRep.totalInfractions === 0 
+              ? 'bg-emerald-50/80 border-emerald-200' 
+              : 'bg-rose-50/70 border-rose-200'
+          }">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+              <div class="flex items-start gap-4">
+                <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm ${
+                  leaveRep.totalInfractions === 0 ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                }">
+                  🚪
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-black uppercase tracking-wider ${
+                      leaveRep.totalInfractions === 0 ? 'text-emerald-800' : 'text-rose-800'
+                    }">
+                      HAFTA SONU İZNE ÇIKIŞ BİLGİSİ (${thisWeekRange.startDate} – ${thisWeekRange.endDate})
+                    </span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black ${
+                      leaveRep.totalInfractions === 0 ? 'bg-emerald-200 text-emerald-900' : 'bg-rose-200 text-rose-900'
+                    }">
+                      ${leaveRep.totalInfractions === 0 ? 'Tam Zamanında' : `+${leaveRep.penaltyFormatted} Gecikmeli`}
+                    </span>
+                  </div>
+                  <h3 class="text-xl font-black text-slate-900 mt-1">
+                    İzin Çıkış Saati: <span class="${leaveRep.totalInfractions === 0 ? 'text-emerald-700' : 'text-rose-700'}">${leaveRep.calculatedExitTime}</span>
+                  </h3>
+                  <p class="text-xs text-slate-600 mt-1 max-w-2xl">
+                    ${leaveRep.totalInfractions === 0 
+                      ? `Tebrikler! Çocuğunuz hafta boyunca tüm namaz, yatak ve okul dönüşü yoklamalarına eksiksiz uyduğu için hafta sonu iznine standart saat olan <strong>${baseExitTime}</strong>'da gecikme olmaksızın çıkabilecektir.`
+                      : `Bilgilendirme: Çocuğunuzun bu hafta <strong>${leaveRep.totalInfractions} adet yoklama kusuru</strong> (Namaz: ${leaveRep.namazInfractionsCount}, Yatak: ${leaveRep.yatakInfractionsCount}, Okul Dönüşü: ${leaveRep.okulInfractionsCount}) bulunmaktadır. Kurum kuralları gereği işaret başı 30 dakika geç çıkış kuralı uygulanarak standart saat olan ${baseExitTime} yerine <strong>${leaveRep.calculatedExitTime}'da</strong> izne ayrılacaktır.`
+                    }
+                  </p>
+                </div>
+              </div>
+
+              <!-- İstatistik Kutucukları -->
+              <div class="flex items-center gap-2">
+                <div class="px-3.5 py-2 rounded-2xl bg-white border border-slate-200 text-center shadow-2xs">
+                  <div class="text-[9px] font-black text-slate-400 uppercase">KUSUR SAYISI</div>
+                  <div class="text-base font-black ${leaveRep.totalInfractions === 0 ? 'text-emerald-700' : 'text-rose-700'}">
+                    ${leaveRep.totalInfractions} Adet
+                  </div>
+                </div>
+                <div class="px-3.5 py-2 rounded-2xl bg-white border border-slate-200 text-center shadow-2xs">
+                  <div class="text-[9px] font-black text-slate-400 uppercase">GECİKME</div>
+                  <div class="text-base font-black ${leaveRep.totalInfractions === 0 ? 'text-emerald-700' : 'text-rose-700'}">
+                    +${leaveRep.penaltyMinutes} dk
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Varsa Kusurların Dökümü -->
+            ${leaveRep.infractions.length > 0 ? `
+              <div class="mt-4 pt-4 border-t border-rose-200/60">
+                <div class="text-[11px] font-black uppercase tracking-wider text-rose-800 mb-2">
+                  GECİKME SEBEBİ OLAN YOKLAMA KAYITLARI:
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  ${leaveRep.infractions.map(inf => `
+                    <div class="p-2.5 bg-white rounded-xl border border-rose-200/80 text-xs flex items-center justify-between shadow-2xs">
                       <div>
-                        <div class="flex items-center gap-2">
-                          <span class="text-xs font-bold text-slate-800">${cfg.label}</span>
-                          <span class="text-[10px] text-slate-500 font-mono bg-white px-2 py-0.5 rounded border border-slate-200">
-                            ${r.date}${r.category === 'yatak' ? ' • Yatak Yoklaması' : (r.category === 'okul_donusu' ? ' • Okul Dönüşü' : (r.prayerTime ? ` • ${r.prayerTime} Namazı` : ' • Namaz'))}
-                          </span>
-                        </div>
-                        <div class="text-[11px] text-slate-500 mt-0.5">${cfg.desc}</div>
+                        <div class="font-bold text-slate-800">${inf.categoryLabel}</div>
+                        <div class="text-[10px] text-slate-400">${inf.date} • ${inf.subLabel}</div>
                       </div>
+                      <span class="px-2 py-0.5 rounded-lg text-white font-black text-[10px]" style="background-color: ${inf.statusBg};">
+                        ${inf.statusLabel} (+30 dk)
+                      </span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        ` : ''}
+
+        <!-- 🕌 1. ÇOCUĞUNUZUN HAFTALIK & AYLIK NAMAZ RAPORU (5 VAKİT DETAYI) -->
+        ${prayerRep ? `
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-5">
+            <!-- Başlık ve Periyot Seçimi -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-emerald-600 text-white font-black text-lg flex items-center justify-center shadow-sm">
+                  🕌
+                </div>
+                <div>
+                  <h3 class="font-black text-base text-slate-900">Namaz Devam ve Katılım Raporu</h3>
+                  <p class="text-xs text-slate-400 mt-0.5">Çocuğunuzun 5 vakit namaz devam durumu (${periodLabel})</p>
+                </div>
+              </div>
+
+              <!-- Hafta / Ay Toggle & Tarih -->
+              <div class="flex flex-wrap items-center gap-2">
+                <div class="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 gap-1 shadow-inner">
+                  <button type="button" onclick="window.ParentPortal.setPrayerReportPeriod('haftalik')"
+                    class="py-1 px-3 rounded-lg text-xs font-black transition ${
+                      isWeekly 
+                        ? 'bg-emerald-600 text-white shadow-sm' 
+                        : 'text-slate-600 hover:text-slate-900'
+                    }">
+                    📅 Bu Hafta
+                  </button>
+                  <button type="button" onclick="window.ParentPortal.setPrayerReportPeriod('aylik')"
+                    class="py-1 px-3 rounded-lg text-xs font-black transition ${
+                      !isWeekly 
+                        ? 'bg-emerald-600 text-white shadow-sm' 
+                        : 'text-slate-600 hover:text-slate-900'
+                    }">
+                    🗓️ Bu Ay
+                  </button>
+                </div>
+
+                <input type="date" value="${this.prayerReportDate}"
+                  class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
+                  onchange="window.ParentPortal.setPrayerReportDate(this.value)">
+              </div>
+            </div>
+
+            <!-- Vakit Bazlı Kartlar & Yüzdeler -->
+            <div class="grid grid-cols-2 sm:grid-cols-6 gap-3">
+              <!-- Toplam Başarı -->
+              <div class="col-span-2 sm:col-span-1 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-4 text-white flex flex-col justify-between shadow-sm">
+                <span class="text-[10px] font-bold uppercase text-emerald-100">DEVAM ORANI</span>
+                <div class="text-3xl font-black mt-1">%${prayerRep.attendanceRate}</div>
+                <span class="text-[10px] text-emerald-100 mt-1">${prayerRep.attendedCount} / ${prayerRep.totalSlots} Vakit</span>
+              </div>
+
+              <!-- 5 Vakit Dağılımı -->
+              ${prayers.map(p => {
+                const pData = prayerRep.prayerStats[p];
+                const attended = pData.VAR + pData.TAKKESIZ + pData.GEC;
+                const totalDay = reportRange.dates.length - pData.IZINLI;
+                const pRate = totalDay > 0 ? Math.round((attended / totalDay) * 100) : 100;
+                const icon = p === 'Sabah' ? '🌅' : (p === 'Öğle' ? '☀️' : (p === 'İkindi' ? '🌤️' : (p === 'Akşam' ? '🌇' : '🌙')));
+                return `
+                  <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100 text-center flex flex-col justify-between">
+                    <div>
+                      <div class="text-base">${icon}</div>
+                      <div class="text-[11px] font-black text-slate-700 mt-0.5">${p}</div>
+                    </div>
+                    <div class="mt-2">
+                      <div class="text-sm font-black text-emerald-700">%${pRate}</div>
+                      <div class="text-[10px] text-slate-400 font-bold">${attended} / ${totalDay} Vakit</div>
                     </div>
                   </div>
                 `;
               }).join('')}
             </div>
+
+            <!-- Gün Gün 5 Vakit Namaz Durumu Çizelgesi -->
+            <div class="rounded-2xl border border-slate-200 overflow-hidden">
+              <div class="p-3 bg-slate-50 border-b border-slate-200 font-black text-xs text-slate-700 flex items-center justify-between">
+                <span>🗓️ Günlük 5 Vakit Namaz Katılım Detayı</span>
+                <span class="text-[11px] text-slate-400 font-normal">Yeşil: Kılındı • Mor: Takkesiz • Kırmızı: Yok</span>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs min-w-[500px]">
+                  <thead>
+                    <tr class="bg-slate-100 text-slate-700 border-b border-slate-200">
+                      <th class="p-2.5 font-black">TARİH & GÜN</th>
+                      ${prayers.map(p => `<th class="p-2.5 text-center font-black">${p}</th>`).join('')}
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    ${reportRange.dates.map(dStr => {
+                      const dayName = this.getDayName(dStr);
+                      return `
+                        <tr class="hover:bg-slate-50/60">
+                          <td class="p-2.5 font-bold text-slate-800">
+                            <div>${dStr}</div>
+                            <div class="text-[10px] text-slate-400 font-medium">${dayName}</div>
+                          </td>
+                          ${prayers.map(p => {
+                            const stCode = prayerRep.grid[dStr] ? prayerRep.grid[dStr][p] : 'VAR';
+                            const cfg = window.STATUS_CONFIG[stCode] || window.STATUS_CONFIG['VAR'];
+                            return `
+                              <td class="p-2 text-center">
+                                <span class="px-2 py-1 rounded-lg text-white font-black text-[10px] inline-block shadow-2xs"
+                                  style="background-color: ${cfg.bg};">
+                                  ${cfg.label}
+                                </span>
+                              </td>
+                            `;
+                          }).join('')}
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Detaylar: Takviye Ders Notları & Genel Gelişim Karnesi -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- 1. Takviye Ders Performansı (100 Üzerinden) -->
+          <div class="lg:col-span-6 bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
+            <h4 class="font-bold text-slate-800 text-sm mb-3 pb-2 border-b border-slate-100 flex items-center justify-between">
+              <span class="flex items-center gap-2">
+                <span>📚</span> Takviye Ders Notları (100 Üzerinden)
+              </span>
+              <span class="text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full">
+                Akademi
+              </span>
+            </h4>
+            
+            ${academicScores.length === 0 ? `
+              <div class="py-6 text-center text-slate-400 text-xs">
+                Henüz takviye ders puanı girilmemiştir.
+              </div>
+            ` : `
+              <div class="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                ${academicScores.map(a => {
+                  let badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold';
+                  let label = 'Pekiyi 🌟';
+                  if (a.score < 85) { 
+                    badgeClass = 'bg-rose-100 text-rose-800 border-rose-300 font-black'; 
+                    label = '85 Altı ⚠️'; 
+                  } else if (a.score >= 100) { 
+                    badgeClass = 'bg-emerald-600 text-white border-emerald-700 font-black shadow-xs'; 
+                    label = '100 Tam 🌟'; 
+                  } else if (a.score >= 95) { 
+                    badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'; 
+                    label = 'Pekiyi 🌟'; 
+                  } else if (a.score >= 90) { 
+                    badgeClass = 'bg-lime-100 text-lime-800 border-lime-300 font-bold'; 
+                    label = 'Çok İyi 👍'; 
+                  } else { 
+                    badgeClass = 'bg-amber-100 text-amber-800 border-amber-300 font-bold'; 
+                    label = 'İyi ⚡'; 
+                  }
+                  return `
+                    <div class="p-3 rounded-2xl border border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3">
+                      <div class="flex items-center gap-2.5">
+                        <span class="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 font-bold text-xs flex items-center justify-center">
+                          ${a.subject === 'Türkçe' ? '🇹🇷' : (a.subject === 'Matematik' ? '📐' : (a.subject === 'Fen Bilimleri' ? '🔬' : (a.subject === 'Sosyal Bilgiler' ? '🌍' : '🇬🇧')))}
+                        </span>
+                        <div>
+                          <div class="font-bold text-xs text-slate-800">${a.subject}</div>
+                          <div class="text-[10px] text-slate-400">${a.date}</div>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span class="text-[10px] px-2 py-0.5 rounded-full font-bold border ${badgeClass}">${label}</span>
+                        <span class="px-2.5 py-1 rounded-xl bg-slate-900 text-white font-black text-xs">
+                          ${a.score} / 100
+                        </span>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
           </div>
 
-          <div class="lg:col-span-6 space-y-5">
-            <!-- 1. Takviye Ders Performansı (100 Üzerinden) -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-              <h4 class="font-bold text-slate-800 text-sm mb-3 pb-2 border-b border-slate-100 flex items-center justify-between">
-                <span class="flex items-center gap-2">
-                  <span>📚</span> Takviye Ders Notları (100 Üzerinden)
-                </span>
-                <span class="text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full">
-                  Akademi
-                </span>
-              </h4>
-              
-              ${academicScores.length === 0 ? `
-                <div class="py-6 text-center text-slate-400 text-xs">
-                  Henüz takviye ders puanı girilmemiştir.
-                </div>
-              ` : `
-                <div class="space-y-2 max-h-[260px] overflow-y-auto pr-1">
-                  ${academicScores.map(a => {
-                    let badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold';
-                    let label = 'Pekiyi 🌟';
-                    if (a.score < 85) { 
-                      badgeClass = 'bg-rose-100 text-rose-800 border-rose-300 font-black'; 
-                      label = '85 Altı ⚠️'; 
-                    } else if (a.score >= 100) { 
-                      badgeClass = 'bg-emerald-600 text-white border-emerald-700 font-black shadow-xs'; 
-                      label = '100 Tam 🌟'; 
-                    } else if (a.score >= 95) { 
-                      badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'; 
-                      label = 'Pekiyi 🌟'; 
-                    } else if (a.score >= 90) { 
-                      badgeClass = 'bg-lime-100 text-lime-800 border-lime-300 font-bold'; 
-                      label = 'Çok İyi 👍'; 
-                    } else { 
-                      badgeClass = 'bg-amber-100 text-amber-800 border-amber-300 font-bold'; 
-                      label = 'İyi ⚡'; 
-                    }
-                    return `
-                      <div class="p-3 rounded-xl border border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-2.5">
-                          <span class="w-8 h-8 rounded-lg bg-blue-100 text-blue-800 font-bold text-xs flex items-center justify-center">
-                            ${a.subject === 'Türkçe' ? '🇹🇷' : (a.subject === 'Matematik' ? '📐' : (a.subject === 'Fen Bilimleri' ? '🔬' : (a.subject === 'Sosyal Bilgiler' ? '🌍' : '🇬🇧')))}
-                          </span>
-                          <div>
-                            <div class="font-bold text-xs text-slate-800">${a.subject}</div>
-                            <div class="text-[10px] text-slate-400">${a.date}</div>
-                          </div>
-                        </div>
-                        <div class="flex items-center gap-2">
-                          <span class="text-[10px] px-2 py-0.5 rounded-full font-bold border ${badgeClass}">${label}</span>
-                          <span class="px-2.5 py-1 rounded-lg bg-slate-900 text-white font-black text-xs">
-                            ${a.score} / 100
-                          </span>
-                        </div>
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              `}
-            </div>
-
-            <!-- 2. Genel Gelişim & Öğretmen Görüşleri -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-              <h4 class="font-bold text-slate-800 text-sm mb-3 pb-2 border-b border-slate-100 flex items-center gap-2">
-                <span>🎓</span> Genel Gelişim & Öğretmen Görüşleri
-              </h4>
-              <div class="space-y-3 max-h-[320px] overflow-y-auto pr-1">
-                ${performances.length === 0 ? `
-                  <div class="py-6 text-center text-slate-400 text-xs">Henüz genel gelişim kaydı girilmemiştir.</div>
-                ` : performances.map(p => `
-                  <div class="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs">
-                    <div class="flex items-start justify-between gap-3 mb-1.5">
-                      <div>
-                        <div class="font-bold text-slate-900 text-xs">${p.subject}</div>
-                        <div class="text-[10px] text-slate-400 font-medium">Tarih: ${p.date}</div>
-                      </div>
-                      <span class="px-2 py-0.5 rounded-lg bg-purple-100 text-purple-900 font-black text-xs">
-                        ${p.criteria?.score || 100} / 100
-                      </span>
+          <!-- 2. Genel Gelişim & Öğretmen Görüşleri -->
+          <div class="lg:col-span-6 bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
+            <h4 class="font-bold text-slate-800 text-sm mb-3 pb-2 border-b border-slate-100 flex items-center gap-2">
+              <span>🎓</span> Genel Gelişim & Öğretmen Görüşleri
+            </h4>
+            <div class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+              ${performances.length === 0 ? `
+                <div class="py-6 text-center text-slate-400 text-xs">Henüz genel gelişim kaydı girilmemiştir.</div>
+              ` : performances.map(p => `
+                <div class="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-xs">
+                  <div class="flex items-start justify-between gap-3 mb-1.5">
+                    <div>
+                      <div class="font-bold text-slate-900 text-xs">${p.subject}</div>
+                      <div class="text-[10px] text-slate-400 font-medium">Tarih: ${p.date}</div>
                     </div>
-                    <div class="grid grid-cols-3 gap-1.5 text-[10px] bg-slate-50 p-1.5 rounded-lg text-slate-700 mb-1.5">
-                      <div>Katılım: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.participation || 5)}</span></div>
-                      <div>Ödev: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.homework || 5)}</span></div>
-                      <div>Uyum: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.behavior || 5)}</span></div>
-                    </div>
-                    ${p.teacherNote ? `
-                      <div class="text-[11px] text-slate-700 bg-emerald-50 border-l-2 border-emerald-500 p-2 rounded-r">
-                        <strong>Eğitmen Görüşü:</strong> ${p.teacherNote}
-                      </div>
-                    ` : ''}
+                    <span class="px-2 py-0.5 rounded-lg bg-purple-100 text-purple-900 font-black text-xs">
+                      ${p.criteria?.score || 100} / 100
+                    </span>
                   </div>
-                `).join('')}
-              </div>
+                  <div class="grid grid-cols-3 gap-1.5 text-[10px] bg-slate-50 p-1.5 rounded-lg text-slate-700 mb-1.5">
+                    <div>Katılım: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.participation || 5)}</span></div>
+                    <div>Ödev: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.homework || 5)}</span></div>
+                    <div>Uyum: <span class="text-amber-500 font-bold">${'★'.repeat(p.criteria?.behavior || 5)}</span></div>
+                  </div>
+                  ${p.teacherNote ? `
+                    <div class="text-[11px] text-slate-700 bg-emerald-50 border-l-2 border-emerald-500 p-2 rounded-r">
+                      <strong>Eğitmen Görüşü:</strong> ${p.teacherNote}
+                    </div>
+                  ` : ''}
+                </div>
+              `).join('')}
             </div>
           </div>
         </div>

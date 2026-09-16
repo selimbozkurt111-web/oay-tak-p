@@ -196,6 +196,7 @@ window.App = {
       if (cat === 'namaz') activeTitle = '🕌 Namaz Yoklaması';
       else if (cat === 'yatak') activeTitle = '🛏️ Yatak Yoklaması';
       else if (cat === 'okul_donusu') activeTitle = '🎒 Okul Dönüşü';
+      else if (cat === 'namaz_rapor') activeTitle = '📊 Namaz Raporları';
     } else if (this.activeTab === 'akademi' || this.activeTab === 'performans') {
       const sub = (window.AkademiModule && window.AkademiModule.currentSubCategory) || 'takviye';
       if (sub === 'takviye') {
@@ -204,6 +205,8 @@ window.App = {
       } else {
         activeTitle = '🎓 Akademi • Genel Karne';
       }
+    } else if (this.activeTab === 'izin_cikis') {
+      activeTitle = '🚪 İzine Çıkış Takibi';
     } else if (this.activeTab === 'ogrenciler') {
       activeTitle = '👥 Öğrenci Yönetimi';
     } else if (this.activeTab === 'personel') {
@@ -385,6 +388,23 @@ window.App = {
             </div>
             <span class="text-slate-300">→</span>
           </button>
+
+          <!-- Namaz Raporları (Haftalık & Aylık) -->
+          <button type="button" onclick="window.App.navigateFromDrawer('yoklama', 'namaz_rapor')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'yoklama' && currentCat === 'namaz_rapor'
+                ? 'bg-purple-50 text-purple-900 font-black border border-purple-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">📊</span>
+              <div>
+                <div class="text-xs font-black">Namaz Raporları</div>
+                <div class="text-[10px] text-slate-400 font-medium">Haftalık ve aylık katılım karnesi</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
         </div>
 
         <!-- 2. AKADEMİ (2 ALT BAŞLIK: Takviye Ders Performansı & Genel Gelişim) -->
@@ -426,7 +446,29 @@ window.App = {
           </button>
         </div>
 
-        <!-- 3. ÖĞRENCİ YÖNETİMİ -->
+        <!-- 3. HAFTA SONU İZİN İŞLEMLERİ (İzine Çıkış Takibi) -->
+        <div class="space-y-1.5 pt-3 border-t border-slate-100">
+          <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">HAFTA SONU İZİN İŞLEMLERİ</div>
+
+          <!-- İzine Çıkış Butonu -->
+          <button type="button" onclick="window.App.navigateFromDrawer('izin_cikis')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'izin_cikis'
+                ? 'bg-rose-50 text-rose-900 font-black border border-rose-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🚪</span>
+              <div>
+                <div class="text-xs font-black">İzine Çıkış Takibi</div>
+                <div class="text-[10px] text-slate-400 font-medium">Kusur başı 30 dk gecikme ve kapı saatleri</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+        </div>
+
+        <!-- 4. ÖĞRENCİ YÖNETİMİ -->
         <div class="space-y-1.5 pt-3 border-t border-slate-100">
           <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">ÖĞRENCİ & SINIF</div>
 
@@ -657,6 +699,11 @@ window.App = {
         window.AkademiModule.init();
       } else if (window.PerformanceModule) {
         window.PerformanceModule.init();
+      }
+    } else if (this.activeTab === 'izin_cikis') {
+      main.innerHTML = `<div id="leave-tracker-container"></div>`;
+      if (window.LeaveTrackerModule) {
+        window.LeaveTrackerModule.init();
       }
     } else if (this.activeTab === 'ogrenciler') {
       main.innerHTML = `<div id="students-container"></div>`;
