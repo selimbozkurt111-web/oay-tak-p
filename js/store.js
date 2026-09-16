@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   ACADEMIC_SCORES: 'yoklama_academic_scores',
   LEAVE_CHECKOUT: 'yoklama_leave_checkout_v1',
   LEAVE_RETURN: 'yoklama_leave_returns_v1',
+  BONUS_POINTS: 'yoklama_bonus_points_v1',
   SETTINGS: 'yoklama_settings',
   INITIALIZED: 'yoklama_init_v5'
 };
@@ -279,6 +280,7 @@ class DataStore {
       academicScores: this.getAcademicScores(),
       gateCheckouts: this.getAllGateCheckouts(),
       leaveReturns: this.getAllLeaveReturns(),
+      bonusPoints: this.getAllBonusPoints(),
       lastSyncedAt: new Date().toISOString()
     };
 
@@ -383,7 +385,12 @@ class DataStore {
         localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(cloudData.leaveReturns));
       }
 
-      // 8. Ayarlar
+      // 8. Hoca Takdir / Bonus Puanları
+      if (Array.isArray(cloudData.bonusPoints)) {
+        localStorage.setItem(STORAGE_KEYS.BONUS_POINTS, JSON.stringify(cloudData.bonusPoints));
+      }
+
+      // 9. Ayarlar
       if (cloudData.settings) {
         const localSettings = this.getSettings();
         const merged = { ...localSettings, ...cloudData.settings };
@@ -1463,6 +1470,290 @@ class DataStore {
     }
   }
 
+  // ========================================================
+  // --- HAFTANIN VE AYIN TALEBESİ & PUANLAMA MOTORU ---
+  // ========================================================
+  getAllBonusPoints() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.BONUS_POINTS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  addBonusPoint(studentId, points, reason, hocaName = 'Eğitmen', date = new Date().toISOString().split('T')[0]) {
+    try {
+      const all = this.getAllBonusPoints();
+      const rec = {
+        id: 'bonus_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+        studentId,
+        date,
+        points: Number(points) || 10,
+        reason: reason || 'Örnek Davranış & Gayret',
+        hocaName: hocaName || 'Eğitmen',
+        createdAt: new Date().toISOString()
+      };
+      all.push(rec);
+      localStorage.setItem(STORAGE_KEYS.BONUS_POINTS, JSON.stringify(all));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/bonusPoints', all);
+      }
+      return rec;
+    } catch (e) {
+      console.error('addBonusPoint error:', e);
+      return null;
+    }
+  }
+
+  deleteBonusPoint(id) {
+    try {
+      let all = this.getAllBonusPoints();
+      all = all.filter(b => b.id !== id);
+      localStorage.setItem(STORAGE_KEYS.BONUS_POINTS, JSON.stringify(all));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/bonusPoints', all);
+      }
+      return true;
+    } catch (e) {
+      console.error('deleteBonusPoint error:', e);
+      return false;
+    }
+  }
+
+  getStudentCompetitionScore(studentId, dates) {
+    const allAtt = this.getAttendance();
+    const studentAtt = allAtt.filter(a => a.studentId === studentId && dates.includes(a.date));
+
+    // 1. Namaz Puanı & Günlük Tam İbadet Bonusu
+    const prayers = ['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Yatsı'];
+    const namazGrid = {};
+    dates.forEach(d => { namazGrid[d] = {}; });
+    
+    studentAtt.filter(a => a.category === 'namaz').forEach(a => {
+      const pTime = a.prayerTime || 'Sabah';
+      const st = this.normalizeStatusCode(a.status);
+      if (namazGrid[a.date]) {
+        namazGrid[a.date][pTime] = st;
+      }
+    });
+
+    let namazPoints = 0;
+    let varCount = 0;
+    let gecCount = 0;
+    let takkesizCount = 0;
+    let gecTakkesizCount = 0;
+    let yokCount = 0;
+    let izinliCount = 0;
+    let fullBonusCount = 0;
+
+    dates.forEach(d => {
+      let dayAttendedPrayers = 0;
+      let dayHasYok = false;
+      prayers.forEach(p => {
+        const st = namazGrid[d] ? namazGrid[d][p] : null;
+        if (!st) return;
+        if (st === 'VAR') {
+          namazPoints += 10;
+          varCount++;
+          dayAttendedPrayers++;
+        } else if (st === 'GEC') {
+          namazPoints += 5;
+          gecCount++;
+          dayAttendedPrayers++;
+        } else if (st === 'TAKKESIZ') {
+          namazPoints += 5;
+          takkesizCount++;
+          dayAttendedPrayers++;
+        } else if (st === 'GEC_TAKKESIZ') {
+          namazPoints += 2;
+          gecTakkesizCount++;
+          dayAttendedPrayers++;
+        } else if (st === 'YOK') {
+          yokCount++;
+          dayHasYok = true;
+        } else if (st === 'IZINLI') {
+          izinliCount++;
+        }
+      });
+
+      // Eğer o gün 5 vakit namaz kılınmışsa (ve hiç 'YOK' yoksa) -> +15 Günlük Tam İbadet Bonusu
+      if (dayAttendedPrayers === 5 && !dayHasYok) {
+        fullBonusCount++;
+      }
+    });
+
+    const fullBonusPoints = fullBonusCount * 15;
+    const totalNamazPoints = namazPoints + fullBonusPoints;
+
+    // 2. Yatak Düzeni Puanı
+    let yatakPoints = 0;
+    let iyiCount = 0;
+    let ortaCount = 0;
+    let kotuCount = 0;
+    studentAtt.filter(a => a.category === 'yatak').forEach(a => {
+      const st = this.normalizeStatusCode(a.status);
+      if (st === 'IYI' || st === 'VAR') {
+        yatakPoints += 15;
+        iyiCount++;
+      } else if (st === 'ORTA') {
+        yatakPoints += 5;
+        ortaCount++;
+      } else if (st === 'KOTU' || st === 'YOK') {
+        kotuCount++;
+      }
+    });
+
+    // 3. Okul Dönüşü Puanı
+    let okulPoints = 0;
+    let geldiCount = 0;
+    let okulGecCount = 0;
+    let gelmediCount = 0;
+    studentAtt.filter(a => a.category === 'okul_donusu').forEach(a => {
+      const st = this.normalizeStatusCode(a.status);
+      if (st === 'GELDI' || st === 'VAR') {
+        okulPoints += 10;
+        geldiCount++;
+      } else if (st === 'GEC') {
+        okulPoints += 3;
+        okulGecCount++;
+      } else if (st === 'GELMEDI' || st === 'YOK') {
+        gelmediCount++;
+      }
+    });
+
+    // 4. İzin Dönüşü Puanı
+    const allReturns = this.getAllLeaveReturns();
+    let izinPoints = 0;
+    let izinCount = 0;
+    let onTimeCount = 0;
+    let lateCount = 0;
+    dates.forEach(d => {
+      if (allReturns[d] && allReturns[d][studentId]) {
+        const ret = allReturns[d][studentId];
+        izinCount++;
+        if (ret.status === 'VAKTINDE' || ret.status === 'ERKEN') {
+          izinPoints += 25;
+          onTimeCount++;
+        } else if (ret.status === 'GEC') {
+          lateCount++;
+          const penalty = Math.min(25, ret.diffMinutes || 0);
+          izinPoints += Math.max(0, 25 - penalty);
+        }
+      }
+    });
+
+    // 5. Takviye Ders Notları Puanı
+    const allAcad = this.getAcademicScores();
+    const studentAcad = allAcad.filter(s => s.studentId === studentId && dates.includes(s.date));
+    let akademiPoints = 0;
+    studentAcad.forEach(s => {
+      const score = Number(s.score) || 0;
+      if (score >= 100) {
+        akademiPoints += 50;
+      } else if (score >= 90) {
+        akademiPoints += 40;
+      } else if (score >= 85) {
+        akademiPoints += 30;
+      } else {
+        akademiPoints += Math.round(score / 3);
+      }
+    });
+
+    // 6. Hoca Takdir / Bonus Puanları
+    const allBonus = this.getAllBonusPoints();
+    const studentBonus = allBonus.filter(b => b.studentId === studentId && dates.includes(b.date));
+    let bonusPoints = 0;
+    studentBonus.forEach(b => {
+      bonusPoints += Number(b.points) || 0;
+    });
+
+    const totalScore = totalNamazPoints + yatakPoints + okulPoints + izinPoints + akademiPoints + bonusPoints;
+
+    return {
+      studentId,
+      totalScore,
+      namaz: {
+        points: totalNamazPoints,
+        basePoints: namazPoints,
+        varCount,
+        gecCount,
+        takkesizCount,
+        gecTakkesizCount,
+        yokCount,
+        izinliCount,
+        fullBonusCount,
+        fullBonusPoints
+      },
+      yatak: {
+        points: yatakPoints,
+        iyiCount,
+        ortaCount,
+        kotuCount
+      },
+      okul: {
+        points: okulPoints,
+        geldiCount,
+        gecCount: okulGecCount,
+        gelmediCount
+      },
+      izinDonus: {
+        points: izinPoints,
+        count: izinCount,
+        onTimeCount,
+        lateCount
+      },
+      akademi: {
+        points: akademiPoints,
+        count: studentAcad.length,
+        scores: studentAcad
+      },
+      bonus: {
+        points: bonusPoints,
+        count: studentBonus.length,
+        items: studentBonus
+      }
+    };
+  }
+
+  getLeaderboard(period = 'haftalik', targetDate = new Date().toISOString().split('T')[0], classFilter = 'ALL') {
+    const range = period === 'haftalik'
+      ? this.getWeekRange(targetDate)
+      : this.getMonthRange(targetDate.substring(0, 7));
+
+    let students = this.getStudents();
+    if (classFilter && classFilter !== 'ALL') {
+      students = students.filter(s => s.className === classFilter);
+    }
+
+    const leaderboard = students.map(st => {
+      const scoreData = this.getStudentCompetitionScore(st.id, range.dates);
+      return {
+        student: st,
+        ...scoreData
+      };
+    });
+
+    // Puanlara göre büyükten küçüğe sırala
+    leaderboard.sort((a, b) => b.totalScore - a.totalScore);
+
+    // Sıralama (rank) ata
+    leaderboard.forEach((item, index) => {
+      item.rank = index + 1;
+    });
+
+    return {
+      period,
+      targetDate,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      dates: range.dates,
+      classFilter,
+      totalStudents: leaderboard.length,
+      ranking: leaderboard
+    };
+  }
+
   exportBackup() {
     return JSON.stringify({
       version: '5.0',
@@ -1472,6 +1763,8 @@ class DataStore {
       attendance: this.getAttendance(),
       performance: this.getPerformances(),
       academicScores: this.getAcademicScores(),
+      leaveReturns: this.getAllLeaveReturns(),
+      bonusPoints: this.getAllBonusPoints(),
       settings: this.getSettings()
     }, null, 2);
   }
@@ -1485,6 +1778,8 @@ class DataStore {
       if (parsed.attendance) localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(parsed.attendance));
       if (parsed.performance) localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(parsed.performance));
       if (parsed.academicScores) localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(parsed.academicScores));
+      if (parsed.leaveReturns) localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(parsed.leaveReturns));
+      if (parsed.bonusPoints) localStorage.setItem(STORAGE_KEYS.BONUS_POINTS, JSON.stringify(parsed.bonusPoints));
       if (parsed.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(parsed.settings));
       return { success: true };
     } catch (err) {

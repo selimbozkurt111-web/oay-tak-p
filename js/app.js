@@ -316,6 +316,8 @@ window.App = {
     } else if (this.activeTab === 'akademi' || this.activeTab === 'performans') {
       const subj = (window.AkademiModule && window.AkademiModule.currentSubject) || 'Türkçe';
       activeTitle = `🎓 Akademi • ${subj}`;
+    } else if (this.activeTab === 'leaderboard') {
+      activeTitle = '🏆 Haftanın & Ayın Talebesi';
     } else if (this.activeTab === 'izin_cikis') {
       activeTitle = '🚪 İzine Çıkış Takibi';
     } else if (this.activeTab === 'izin_donusu') {
@@ -541,6 +543,28 @@ window.App = {
               </div>
             </div>
             <span class="text-slate-300">→</span>
+          </button>
+        </div>
+
+        <!-- YARIŞMA & LİDERLİK TABLOSU -->
+        <div class="space-y-1.5 pt-3 border-t border-slate-100">
+          <div class="px-3 text-[10px] font-black uppercase tracking-wider text-amber-500">🏆 YARIŞMA & LİDERLİK</div>
+
+          <!-- Haftanın ve Ayın Talebesi -->
+          <button type="button" onclick="window.App.navigateFromDrawer('leaderboard')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'leaderboard'
+                ? 'bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-950 font-black border border-amber-300 shadow-sm'
+                : 'text-slate-700 hover:bg-amber-50/50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🏆</span>
+              <div>
+                <div class="text-xs font-black text-amber-900">Haftanın & Ayın Talebesi</div>
+                <div class="text-[10px] text-slate-500 font-medium">Puanlama ve şampiyonluk podyumu</div>
+              </div>
+            </div>
+            <span class="text-amber-600 font-bold">→</span>
           </button>
         </div>
 
@@ -866,6 +890,10 @@ window.App = {
         window.AkademiModule.init();
       } else if (window.PerformanceModule) {
         window.PerformanceModule.init();
+      }
+    } else if (this.activeTab === 'leaderboard') {
+      if (window.LeaderboardModule) {
+        window.LeaderboardModule.init();
       }
     } else if (this.activeTab === 'izin_cikis') {
       main.innerHTML = `<div id="leave-tracker-container"></div>`;

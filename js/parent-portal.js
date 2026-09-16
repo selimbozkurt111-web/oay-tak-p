@@ -170,6 +170,14 @@ window.ParentPortal = {
       ? window.Store.getLeaveReportForStudent(currentStudent.id, thisWeekRange.dates, baseExitTime)
       : null;
 
+    // Haftalık Puan ve Liderlik Sıralaması
+    const classLeaderboard = window.Store.getLeaderboard 
+      ? window.Store.getLeaderboard('haftalik', new Date().toISOString().split('T')[0], currentStudent.className) 
+      : null;
+    const studentRankItem = classLeaderboard 
+      ? classLeaderboard.ranking.find(r => r.student.id === currentStudent.id) 
+      : null;
+
     const prayers = ['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Yatsı'];
     const periodLabel = isWeekly 
       ? `Haftalık (${reportRange.startDate} – ${reportRange.endDate})`
@@ -297,6 +305,66 @@ window.ParentPortal = {
             }).join('')}
           </div>
         </div>
+
+        <!-- 🏆 HAFTALIK BAŞARI VE YARIŞMA DERECESİ KARTI -->
+        ${studentRankItem ? `
+          <div class="rounded-3xl p-5 sm:p-6 border shadow-sm ${
+            studentRankItem.rank === 1 
+              ? 'bg-gradient-to-r from-amber-500/10 via-amber-400/20 to-yellow-500/10 border-amber-300' 
+              : (studentRankItem.rank <= 3 ? 'bg-slate-50 border-slate-300' : 'bg-white border-slate-200')
+          }">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+              <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm ${
+                  studentRankItem.rank === 1 
+                    ? 'bg-gradient-to-tr from-amber-500 to-yellow-400 text-white shadow-amber-200' 
+                    : (studentRankItem.rank === 2 ? 'bg-slate-300 text-slate-800' : (studentRankItem.rank === 3 ? 'bg-amber-700 text-white' : 'bg-slate-100 text-slate-700'))
+                }">
+                  ${studentRankItem.rank === 1 ? '🏆' : (studentRankItem.rank === 2 ? '🥈' : (studentRankItem.rank === 3 ? '🥉' : '⭐'))}
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-black uppercase tracking-wider ${
+                      studentRankItem.rank === 1 ? 'text-amber-800' : 'text-slate-700'
+                    }">
+                      HAFTANIN TALEBESİ SIRALAMASI (${thisWeekRange.startDate} – ${thisWeekRange.endDate})
+                    </span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                      studentRankItem.rank === 1 
+                        ? 'bg-amber-400 text-amber-950 animate-pulse' 
+                        : (studentRankItem.rank <= 3 ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-800')
+                    }">
+                      ${studentRankItem.rank === 1 ? '🌟 1. SIRA (ŞAMPİYON)' : `${studentRankItem.rank}. Sırada`}
+                    </span>
+                  </div>
+                  <h3 class="text-base sm:text-lg font-black text-slate-900 mt-1">
+                    ${studentRankItem.rank === 1 
+                      ? `Tebrikler! Çocuğunuz bu hafta ${currentStudent.className} 1. sırada yer alarak Haftanın Talebesi seçilmiştir! 🏆` 
+                      : (studentRankItem.rank <= 3 
+                        ? `Tebrikler! Çocuğunuz bu hafta sınıfında ${studentRankItem.rank}. sırada yer alarak dereceye girmiştir!` 
+                        : `Çocuğunuz bu hafta toplam ${studentRankItem.totalScore} başarı puanı toplamıştır.`)}
+                  </h3>
+                  <div class="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-2">
+                    <span>🕌 Namaz: <strong>${studentRankItem.namaz.points} Puan</strong></span>
+                    <span>•</span>
+                    <span>🛏️ Yatak: <strong>${studentRankItem.yatak.points} Puan</strong></span>
+                    <span>•</span>
+                    <span>🎒 Okul: <strong>${studentRankItem.okul.points} Puan</strong></span>
+                    <span>•</span>
+                    <span>📚 Akademi: <strong>${studentRankItem.akademi.points} Puan</strong></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <div class="px-4 py-2 rounded-2xl bg-white border border-slate-200 text-center shadow-2xs">
+                  <div class="text-[9px] font-black text-slate-400 uppercase">HAFTALIK PUAN</div>
+                  <div class="text-xl font-black text-amber-600">${studentRankItem.totalScore}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ` : ''}
 
         <!-- 🚪 HAFTA SONU İZİN VE ÇIKIŞ SAATİ BİLGİLENDİRMESİ -->
         ${leaveRep ? `
