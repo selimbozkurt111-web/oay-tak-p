@@ -649,7 +649,6 @@ window.AttendanceModule = {
   // --- 2. GÜNLÜK YOKLAMA ALMA GÖRÜNÜMÜ ---
   renderDailyYoklamaView(container) {
     const classes = window.Store.getClasses();
-    const allHocalar = window.Store.getAllHocalar ? window.Store.getAllHocalar() : window.Store.getEtutHocalari();
     const dayName = this.getDayName(this.currentDate);
     this.loadDailyDraft();
 
@@ -703,7 +702,7 @@ window.AttendanceModule = {
             </div>
           </div>
 
-          <!-- Alt Satır: Çoklu Sınıf Filtresi & Hoca Filtresi & Arama -->
+          <!-- Alt Satır: Çoklu Sınıf Filtresi & Arama -->
           <div class="space-y-3 pt-1">
             <div>
               <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
@@ -741,23 +740,12 @@ window.AttendanceModule = {
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
-              <div class="flex flex-wrap items-center gap-2">
-                <div>
-                  <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">HOCA FİLTRESİ</label>
-                  <select onchange="window.AttendanceModule.setHocaFilter(this.value)"
-                    class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 focus:border-emerald-500 focus:outline-none shadow-2xs">
-                    <option value="ALL">Tüm Hocalar</option>
-                    ${allHocalar.map(h => `<option value="${h}" ${this.currentHoca === h ? 'selected' : ''}>${h}</option>`).join('')}
-                  </select>
-                </div>
-
-                <div>
-                  <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">ÖĞRENCİ ARA</label>
-                  <input type="text" placeholder="${this.currentCategory === 'yatak' ? 'İsim veya Oda ara...' : 'Öğrenci adı ara...'}" 
-                    value="${this.searchQuery}"
-                    class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:border-emerald-500 focus:outline-none w-36 sm:w-44 shadow-2xs"
-                    oninput="window.AttendanceModule.setSearchQuery(this.value)">
-                </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">ÖĞRENCİ ARA</label>
+                <input type="text" placeholder="${this.currentCategory === 'yatak' ? 'İsim veya Oda ara...' : 'Öğrenci adı ara...'}" 
+                  value="${this.searchQuery}"
+                  class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:border-emerald-500 focus:outline-none w-48 sm:w-64 shadow-2xs"
+                  oninput="window.AttendanceModule.setSearchQuery(this.value)">
               </div>
 
               <div class="text-xs text-slate-400">
