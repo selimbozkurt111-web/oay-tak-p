@@ -26,6 +26,73 @@ window.App = {
     this.renderMainContent();
   },
 
+  // --- Kurs Logosu / Fotoğrafı Otomatik Aday Bulma ve Hata Yönetimi ---
+  handleLogoError(img, fallbackId) {
+    if (!img) return;
+    const candidates = [
+      'kurs_logo.jpg', 'kurs_logo.png', 'kurs_logo.jpeg',
+      'kurs.jpg', 'kurs.png', 'kurs.jpeg',
+      'logo.png', 'logo.jpg', 'logo.jpeg',
+      'bina.jpg', 'bina.png',
+      'media_1789552804483.jpg'
+    ];
+    const currentSrc = img.getAttribute('src') || '';
+
+    // Eğer base64 veya farklı bir tam URL ise ve yüklenemediyse fallback yap
+    if (currentSrc.startsWith('data:') || (currentSrc.startsWith('http') && !candidates.some(c => currentSrc.endsWith(c)))) {
+      img.style.display = 'none';
+      if (fallbackId) {
+        const fb = document.getElementById(fallbackId);
+        if (fb) fb.classList.remove('hidden');
+      } else if (img.nextElementSibling) {
+        img.nextElementSibling.classList.remove('hidden');
+      }
+      return;
+    }
+
+    // Sıradaki dosya adayını bul ve dene
+    let currentCandidate = '';
+    for (const c of candidates) {
+      if (currentSrc.endsWith(c)) {
+        currentCandidate = c;
+        break;
+      }
+    }
+
+    const currentIdx = currentCandidate ? candidates.indexOf(currentCandidate) : -1;
+    const nextIdx = currentIdx + 1;
+
+    if (nextIdx < candidates.length) {
+      img.src = candidates[nextIdx];
+    } else {
+      img.style.display = 'none';
+      if (fallbackId) {
+        const fb = document.getElementById(fallbackId);
+        if (fb) fb.classList.remove('hidden');
+      } else if (img.nextElementSibling) {
+        img.nextElementSibling.classList.remove('hidden');
+      }
+    }
+  },
+
+  // --- Ayarlarda Yüklenen/Seçilen Resmi GitHub İçin kurs_logo.jpg Olarak İndirme ---
+  downloadCurrentLogo() {
+    const settings = window.Store.getSettings();
+    const preview = document.getElementById('settings-logo-preview');
+    const src = (preview && preview.src && preview.style.display !== 'none') ? preview.src : settings.institutionLogo;
+    if (!src || src.includes('undefined')) {
+      this.showToast('Önce bilgisayarınızdan veya telefonunuzdan bir fotoğraf seçiniz.', 'warning');
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = src;
+    a.download = 'kurs_logo.jpg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    this.showToast('kurs_logo.jpg başarıyla indirildi! GitHub yükleme sayfasından bu dosyayı yükleyiniz.', 'success');
+  },
+
   // --- Kullanıcı Girişi (Veli & Personel / Hoca İçin Tek Ekran) ---
   handleUserLogin(event) {
     if (event) event.preventDefault();
@@ -175,7 +242,7 @@ window.App = {
             <div class="w-10 h-10 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-md">
               ${settings.institutionLogo ? `
                 <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover bg-white"
-                  onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
+                  onerror="window.App.handleLogoError(this)">
                 <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-lg flex items-center justify-center">ÖT</div>
               ` : `
                 <div class="w-full h-full bg-emerald-600 text-white font-black text-lg flex items-center justify-center">ÖT</div>
@@ -253,7 +320,7 @@ window.App = {
           <div class="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
             ${settings.institutionLogo ? `
               <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover bg-white"
-                onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
+                onerror="window.App.handleLogoError(this)">
               <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">ÖT</div>
             ` : `
               <div class="w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">ÖT</div>
@@ -350,7 +417,7 @@ window.App = {
           <div class="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
             ${settings.institutionLogo ? `
               <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover bg-white"
-                onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
+                onerror="window.App.handleLogoError(this)">
               <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">ÖT</div>
             ` : `
               <div class="w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">ÖT</div>
@@ -613,10 +680,10 @@ window.App = {
               <!-- Kurum Logosu / Fotoğrafı -->
               <div class="mb-4 flex flex-col items-center">
                 ${settings.institutionLogo ? `
-                  <div class="relative group mb-2">
+                  <div class="w-full relative group mb-3 flex justify-center">
                     <img src="${settings.institutionLogo}" alt="${settings.institutionName}" 
-                      class="max-h-20 max-w-[220px] w-auto object-contain rounded-2xl shadow-md border border-amber-200 bg-white p-1.5"
-                      onerror="this.style.display='none'; document.getElementById('admin-inst-fallback-badge').classList.remove('hidden');">
+                      class="h-36 sm:h-40 w-full max-w-xs object-cover rounded-2xl shadow-md border border-amber-200"
+                      onerror="window.App.handleLogoError(this, 'admin-inst-fallback-badge')">
                     <div id="admin-inst-fallback-badge" class="hidden w-16 h-16 bg-amber-50 text-amber-700 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-inner">
                       👑
                     </div>
@@ -708,12 +775,12 @@ window.App = {
             <div class="bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sm:p-8 text-center relative overflow-hidden">
               
               <!-- Kurum Logosu veya Simgesi -->
-              <div class="mb-6 flex flex-col items-center">
+              <div class="mb-5 flex flex-col items-center">
                 ${settings.institutionLogo ? `
-                  <div class="relative group">
-                    <img src="${settings.institutionLogo}" alt="Logo" 
-                      class="max-h-24 max-w-[260px] w-auto object-contain rounded-2xl shadow-sm border border-slate-200 bg-white p-2 transition-transform duration-200 hover:scale-105"
-                      onerror="this.style.display='none'; document.getElementById('login-inst-fallback-badge').classList.remove('hidden');">
+                  <div class="w-full relative group flex justify-center">
+                    <img src="${settings.institutionLogo}" alt="Kurs Binası" 
+                      class="h-44 sm:h-52 w-full max-w-sm object-cover rounded-2xl shadow-md border border-slate-200 transition-all duration-300 hover:shadow-lg hover:scale-[1.01]"
+                      onerror="window.App.handleLogoError(this, 'login-inst-fallback-badge')">
                     <div id="login-inst-fallback-badge" class="hidden w-16 h-16 bg-gradient-to-tr from-emerald-600 to-teal-600 text-white rounded-2xl flex items-center justify-center text-3xl shadow-md font-bold">
                       🏛️
                     </div>
@@ -1123,6 +1190,27 @@ window.App = {
                       <span>Resmi Kaldır</span>
                     </button>
                   ` : ''}
+                </div>
+                <div class="mt-3 p-3.5 bg-amber-50 rounded-2xl border border-amber-200">
+                  <div class="text-xs font-bold text-amber-900 flex items-center gap-1.5 mb-1">
+                    <span>📢</span>
+                    <span>Resmin Herkesin Telefonunda Görünmesi İçin:</span>
+                  </div>
+                  <p class="text-[11px] text-amber-800 leading-relaxed mb-2.5">
+                    Telefon veya bilgisayarınızdan seçtiğiniz fotoğraf bu cihazda görünür. <strong>Tüm veli ve hocaların telefonlarında da kalıcı olarak görünmesi için</strong> bu fotoğrafı GitHub'a <strong>kurs_logo.jpg</strong> adıyla yüklemeniz gerekir.
+                  </p>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" onclick="window.App.downloadCurrentLogo()" 
+                      class="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs shadow-sm transition flex items-center gap-1.5">
+                      <span>💾</span>
+                      <span>Resmi "kurs_logo.jpg" Olarak İndir</span>
+                    </button>
+                    <a href="https://github.com/selimbozkurt111-web/oay-tak-p/upload" target="_blank"
+                      class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs shadow-sm transition flex items-center gap-1.5">
+                      <span>🚀</span>
+                      <span>GitHub Yükleme Sayfasına Git ➔</span>
+                    </a>
+                  </div>
                 </div>
               </div>
 

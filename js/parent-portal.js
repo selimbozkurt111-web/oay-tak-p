@@ -183,7 +183,7 @@ window.ParentPortal = {
               ${settings.institutionLogo ? `
                 <div class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0 bg-white shadow-md p-1 border border-white/30">
                   <img src="${settings.institutionLogo}" alt="Logo" class="max-w-full max-h-full object-contain"
-                    onerror="this.parentElement.style.display='none';">
+                    onerror="if (window.App) { window.App.handleLogoError(this); } else { this.parentElement.style.display='none'; }">
                 </div>
               ` : ''}
               <div>
