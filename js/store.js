@@ -45,7 +45,10 @@ const DEFAULT_SETTINGS = {
   institutionLogo: 'kurs_logo.jpg', // Varsayılan kurs logosu dosya adı
   adminEmail: 'selimbozkurt111@gmail.com', // Ana yöneticinin doğrulama maili alacağı adres
   academicYear: '2026-2027',
-  firebaseUrl: 'https://oay-takip-default-rtdb.firebaseio.com' // Canlı Bulut Veritabanı URL
+  firebaseUrl: 'https://oay-takip-default-rtdb.firebaseio.com', // Canlı Bulut Veritabanı URL
+  yatakReminderEnabled: true, // Otomatik yatak kontrolü hatırlatıcısı
+  yatakReminderStartTime: '08:30', // Başlangıç saati (sabah 08:30)
+  yatakReminderIntervalMins: 30 // Kontrol edilmedikçe her 30 dakikada bir tekrar
 };
 
 // Sistemdeki Eğitmen / Hoca Kadrosu (İsim ve Şifreleri ile)
@@ -754,6 +757,14 @@ class DataStore {
       }
       return true;
     });
+  }
+
+  // Bugünün yatak yoklaması yapıldı mı kontrolü
+  isYatakAttendanceDoneToday(dateStr = null) {
+    const today = dateStr || new Date().toISOString().split('T')[0];
+    const records = this.getAttendanceByCategory(today, 'yatak', 'yatak');
+    // En az 1 öğrencinin yatak yoklaması girildiyse kontrol yapılmış sayılır
+    return records && records.length > 0;
   }
 
   getAttendanceForStudent(studentId) {

@@ -44,14 +44,19 @@ window.App = {
       // Kullanıcı sayfaya geri döndüğünde (sekme değişiminde) ve her 60 saniyede bir eşitle
       window.addEventListener('focus', () => {
         window.Store.syncFromCloud();
+        this.checkAndTriggerYatakReminder();
       });
 
       setInterval(() => {
         if (window.Store.isCloudEnabled()) {
           window.Store.syncFromCloud();
         }
+        this.checkAndTriggerYatakReminder();
       }, 60000);
     }
+
+    // Yatak kontrolü zamanlayıcısını sayfa açılışında da bir kez denetle
+    this.checkAndTriggerYatakReminder();
   },
 
   // --- Kurs Logosu / Fotoğrafı Otomatik Aday Bulma ve Hata Yönetimi ---
@@ -1388,34 +1393,56 @@ window.App = {
                 🔔
               </div>
               <div>
-                <h3 class="font-bold text-slate-800 text-base leading-tight">Yatak Kontrolü Hatırlatma & Bildirim Testi</h3>
-                <p class="text-xs text-slate-500">Telefonunuza ekran bildirimi veya WhatsApp mesajı gönderin</p>
+                <h3 class="font-bold text-slate-800 text-base leading-tight">Yatak Kontrolü Otomatik Hatırlatıcı</h3>
+                <p class="text-xs text-slate-500">Sabah 08:30'dan itibaren kontrol sisteme girilmedikçe her 30 dakikada bir bildirim gönderir</p>
               </div>
+            </div>
+            <div>
+              ${window.Store.isYatakAttendanceDoneToday() ? `
+                <span class="px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-300 flex items-center gap-1.5">
+                  <span>✅</span>
+                  <span>Bugünkü Kontrol Yapıldı (Bildirimler Durduruldu)</span>
+                </span>
+              ` : `
+                <span class="px-3 py-1 rounded-xl bg-amber-50 text-amber-900 text-xs font-bold border border-amber-300 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                  <span>Kontrol Bekleniyor (Her 30 Dk)</span>
+                </span>
+              `}
             </div>
           </div>
 
           <div class="space-y-4">
-            <div class="p-4 bg-purple-50/60 rounded-2xl border border-purple-200 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div class="text-xs font-black text-purple-900 mb-0.5">📱 Telefona Sesli / Ekran Bildirimi Testi</div>
-                <p class="text-[11px] text-purple-800">
-                  Ana ekrana eklediğiniz uygulamanızın telefonunuza bildirim gönderip göndermediğini test edin.
-                </p>
+            <!-- Otomatik Zamanlama Bilgi Kutusu -->
+            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-bold text-slate-800">⏰ Hatırlatma Başlama Saati:</span>
+                <span class="px-2.5 py-1 bg-white font-mono font-bold text-emerald-800 rounded-lg border border-slate-300">
+                  Sabah 08:30
+                </span>
               </div>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-bold text-slate-800">🔁 Tekrar Sıklığı:</span>
+                <span class="px-2.5 py-1 bg-white font-mono font-bold text-indigo-800 rounded-lg border border-slate-300">
+                  Kontrol Yapılmadıkça Her 30 Dakikada Bir
+                </span>
+              </div>
+              <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200">
+                <span class="font-bold text-slate-800">🛑 Durdurma Kuralı:</span>
+                <span class="text-[11px] text-emerald-700 font-bold">
+                  Hoca yatak kontrolünü sisteme girdiği anda bildirimler otomatik kesilir.
+                </span>
+              </div>
+            </div>
+
+            <!-- Aksiyon Butonları -->
+            <div class="flex flex-wrap items-center gap-3">
               <button type="button" onclick="window.App.requestNotificationPermissionAndTest()"
                 class="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center gap-2">
                 <span>🔔</span>
                 <span>Telefonda Bildirim Testi Yap</span>
               </button>
-            </div>
 
-            <div class="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div class="text-xs font-black text-emerald-900 mb-0.5">📲 Dahili Hocalarına WhatsApp Hatırlatması</div>
-                <p class="text-[11px] text-emerald-800">
-                  Tek tıkla nöbetçi dahili hocalarına hazır yatak kontrolü mesajı ve linki gönderin.
-                </p>
-              </div>
               <button type="button" onclick="window.App.sendYatakWhatsAppReminder()"
                 class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center gap-2">
                 <span>💬</span>
@@ -1586,6 +1613,58 @@ window.App = {
       : `https://wa.me/?text=${encodeURIComponent(defaultText)}`;
 
     window.open(targetUrl, '_blank');
+  },
+
+  // --- OTOMATİK YATAK KONTROLÜ HATIRLATMA MOTORU ---
+  // Sabah 08:30'dan itibaren, kontrol sisteme işlenmedikçe her 30 dakikada bir otomatik bildirim gönderir.
+  // Kontrol sisteme işlendiği anda bildirimler otomatik olarak durdurulur!
+  checkAndTriggerYatakReminder() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+      return;
+    }
+
+    const settings = window.Store.getSettings();
+    if (settings.yatakReminderEnabled === false) return;
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const currentTimeInMins = currentHours * 60 + currentMinutes;
+
+    // Başlangıç saati: 08:30
+    const startTimeStr = settings.yatakReminderStartTime || '08:30';
+    const [startH, startM] = startTimeStr.split(':').map(Number);
+    const startTimeInMins = (startH !== undefined ? startH : 8) * 60 + (startM !== undefined ? startM : 30);
+
+    // Sabah 08:30'dan önce veya öğlen 13:00'dan sonra bildirim gönderilmez
+    if (currentTimeInMins < startTimeInMins || currentTimeInMins > 13 * 60) {
+      return;
+    }
+
+    // 1. KONTROL EDİLDİ Mİ? (Sisteme işlendiyse BİLDİRİM GÖNDERİLMEZ!)
+    const isDone = window.Store.isYatakAttendanceDoneToday(todayStr);
+    if (isDone) {
+      return;
+    }
+
+    // 2. Son bildirimden bu yana 30 dakika geçti mi?
+    const intervalMins = parseInt(settings.yatakReminderIntervalMins, 10) || 30;
+    const lastSentKey = 'oay_last_yatak_reminder_sent_v1';
+    const lastSentTime = parseInt(localStorage.getItem(lastSentKey), 10) || 0;
+    const elapsedMinutes = (Date.now() - lastSentTime) / (1000 * 60);
+
+    if (elapsedMinutes >= intervalMins) {
+      // 30 dakika doldu ve kontrol henüz girilmedi! Bildirimi gönder:
+      localStorage.setItem(lastSentKey, Date.now().toString());
+
+      this.triggerLocalPushNotification(
+        '🛏️ Yatak Kontrolü Hatırlatması',
+        'Sayın Hocam, bugünün yatak ve oda kontrolü henüz sisteme girilmedi! Lütfen yoklamayı tamamlayınız. (Ömer Avniyel Akademi)'
+      );
+
+      console.log(`[YatakReminder] Otomatik hatırlatma gönderildi (${now.toLocaleTimeString()}).`);
+    }
   },
 
   handleLogoFileUpload(event) {
