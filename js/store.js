@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
   PERFORMANCE: 'yoklama_performance',
   ACADEMIC_SCORES: 'yoklama_academic_scores',
   LEAVE_CHECKOUT: 'yoklama_leave_checkout_v1',
+  LEAVE_RETURN: 'yoklama_leave_returns_v1',
   SETTINGS: 'yoklama_settings',
   INITIALIZED: 'yoklama_init_v5'
 };
@@ -273,6 +274,7 @@ class DataStore {
       performance: this.getPerformances(),
       academicScores: this.getAcademicScores(),
       gateCheckouts: this.getAllGateCheckouts(),
+      leaveReturns: this.getAllLeaveReturns(),
       lastSyncedAt: new Date().toISOString()
     };
 
@@ -372,7 +374,12 @@ class DataStore {
         localStorage.setItem(STORAGE_KEYS.LEAVE_CHECKOUT, JSON.stringify(cloudData.gateCheckouts));
       }
 
-      // 7. Ayarlar
+      // 7. İzin dönüş kayıtları
+      if (cloudData.leaveReturns && typeof cloudData.leaveReturns === 'object') {
+        localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(cloudData.leaveReturns));
+      }
+
+      // 8. Ayarlar
       if (cloudData.settings) {
         const localSettings = this.getSettings();
         const merged = { ...localSettings, ...cloudData.settings };
@@ -1247,10 +1254,44 @@ class DataStore {
       }
     });
 
+    // İzin Dönüşü Gecikmeleri (Kaç dakika geç kaldıysa x3 geç çıkış cezası)
+    let leaveReturnInfractionsCount = 0;
+    let leaveReturnPenaltyMinutes = 0;
+    const allLeaveReturns = this.getAllLeaveReturns();
+
+    weekDates.forEach(dStr => {
+      if (allLeaveReturns[dStr] && allLeaveReturns[dStr][studentId]) {
+        const lr = allLeaveReturns[dStr][studentId];
+        if (lr.status === 'GEC' && lr.lateMinutes > 0) {
+          const multPenalty = lr.lateMinutes * 3;
+          leaveReturnInfractionsCount++;
+          leaveReturnPenaltyMinutes += multPenalty;
+          const dayName = this.getDayName(dStr);
+          infractions.push({
+            id: 'lr_' + dStr + '_' + studentId,
+            date: dStr,
+            dayName,
+            category: 'izin_donusu',
+            categoryLabel: '🧳 İzin Dönüşü',
+            subKey: 'İzin Dönüşü Gecikmesi',
+            subLabel: `${lr.lateMinutes} dk Geç Kaldı`,
+            status: 'GEC',
+            statusLabel: `${lr.lateMinutes} dk Geç`,
+            statusBg: '#ef4444',
+            penaltyMinutes: multPenalty,
+            lateMinutes: lr.lateMinutes,
+            arrivalTime: lr.arrivalTime,
+            expectedTime: lr.expectedTime,
+            desc: `${dStr} ${dayName} • İzin Dönüşü: ${lr.lateMinutes} dk geç geldi (${lr.arrivalTime}, beklenen: ${lr.expectedTime}) • 3x Ceza: +${multPenalty} dk geç çıkış`
+          });
+        }
+      }
+    });
+
     infractions.sort((a, b) => a.date.localeCompare(b.date));
 
     const totalInfractions = infractions.length;
-    const penaltyMinutes = totalInfractions * 30;
+    const penaltyMinutes = infractions.reduce((sum, inf) => sum + (inf.penaltyMinutes || 30), 0);
     const calculatedExitTime = this.calculateExitTime(baseExitTime, penaltyMinutes);
     const penaltyFormatted = this.formatPenaltyDuration(penaltyMinutes);
 
@@ -1265,6 +1306,8 @@ class DataStore {
       namazInfractionsCount,
       yatakInfractionsCount,
       okulInfractionsCount,
+      leaveReturnInfractionsCount,
+      leaveReturnPenaltyMinutes,
       infractions
     };
   }
@@ -1323,6 +1366,60 @@ class DataStore {
       }
       return all[weekKey][studentId];
     } catch {
+      return false;
+    }
+  }
+
+  // --- İzin Dönüşü Kayıt Metodları ---
+  getAllLeaveReturns() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LEAVE_RETURN);
+      return data ? JSON.parse(data) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  getLeaveReturnsByDate(dateStr) {
+    const all = this.getAllLeaveReturns();
+    return all[dateStr] || {};
+  }
+
+  saveLeaveReturn(dateStr, studentId, recordData) {
+    try {
+      const all = this.getAllLeaveReturns();
+      if (!all[dateStr]) all[dateStr] = {};
+      all[dateStr][studentId] = {
+        studentId,
+        date: dateStr,
+        ...recordData,
+        updatedAt: new Date().toISOString()
+      };
+      localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(all));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud(`kurs_data/leaveReturns/${dateStr}/${studentId}`, all[dateStr][studentId]);
+      }
+      return all[dateStr][studentId];
+    } catch (e) {
+      console.error('saveLeaveReturn error:', e);
+      return null;
+    }
+  }
+
+  deleteLeaveReturn(dateStr, studentId) {
+    try {
+      const all = this.getAllLeaveReturns();
+      if (all[dateStr] && all[dateStr][studentId]) {
+        delete all[dateStr][studentId];
+        localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(all));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud(`kurs_data/leaveReturns/${dateStr}/${studentId}`, null);
+        }
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('deleteLeaveReturn error:', e);
       return false;
     }
   }

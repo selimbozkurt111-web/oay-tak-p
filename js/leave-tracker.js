@@ -387,7 +387,7 @@ window.LeaveTrackerModule = {
                 <span class="text-xs font-normal text-slate-500">(${displayedReports.length} Talebe Listeleniyor)</span>
               </h3>
               <p class="text-[11px] text-slate-400 mt-0.5">
-                Kusur Başı = <strong>+30 Dk</strong> • Standart Çıkış Saati: <strong>${this.baseExitTime}</strong>
+                Kusur Başı = <strong>+30 Dk</strong> • İzin Dönüşü Gecikmesi = <strong>Dakika Başı 3x Dk</strong> • Standart Çıkış Saati: <strong>${this.baseExitTime}</strong>
               </p>
             </div>
 
@@ -411,6 +411,7 @@ window.LeaveTrackerModule = {
                   <th class="p-3 font-black text-center">🕌 NAMAZ KUSURLARI</th>
                   <th class="p-3 font-black text-center">🛏️ YATAK</th>
                   <th class="p-3 font-black text-center">🎒 OKUL DÖNÜŞÜ</th>
+                  <th class="p-3 font-black text-center">🧳 İZİN DÖNÜŞÜ (3x)</th>
                   <th class="p-3 font-black text-center">TOPLAM KUSUR</th>
                   <th class="p-3 font-black text-center">CEZA SÜRESİ</th>
                   <th class="p-3 font-black text-center">İZİN ÇIKIŞ SAATİ</th>
@@ -421,7 +422,7 @@ window.LeaveTrackerModule = {
               <tbody class="divide-y divide-slate-100">
                 ${displayedReports.length === 0 ? `
                   <tr>
-                    <td colspan="10" class="p-8 text-center text-slate-400">
+                    <td colspan="11" class="p-8 text-center text-slate-400">
                       Seçilen kriterlere uygun öğrenci bulunamadı.
                     </td>
                   </tr>
@@ -482,6 +483,17 @@ window.LeaveTrackerModule = {
                         ${rep.okulInfractionsCount > 0 ? `
                           <span class="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 font-black inline-block">
                             ${rep.okulInfractionsCount} Kusur
+                          </span>
+                        ` : `
+                          <span class="text-slate-300 font-bold">-</span>
+                        `}
+                      </td>
+
+                      <!-- İzin Dönüşü Gecikmeleri (3x Ceza) -->
+                      <td class="p-3 text-center">
+                        ${(rep.leaveReturnInfractionsCount || 0) > 0 ? `
+                          <span class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-900 border border-rose-300 font-black inline-block shadow-2xs">
+                            +${rep.leaveReturnPenaltyMinutes} dk (3x)
                           </span>
                         ` : `
                           <span class="text-slate-300 font-bold">-</span>
@@ -609,10 +621,10 @@ window.LeaveTrackerModule = {
                 ${rep.infractions.map(inf => `
                   <div class="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs flex items-center justify-between gap-3">
                     <div class="flex items-center gap-2.5">
-                      <span class="text-lg">${inf.category === 'namaz' ? '🕌' : (inf.category === 'yatak' ? '🛏️' : '🎒')}</span>
+                      <span class="text-lg">${inf.category === 'namaz' ? '🕌' : (inf.category === 'yatak' ? '🛏️' : (inf.category === 'izin_donusu' ? '🧳' : '🎒'))}</span>
                       <div>
                         <div class="font-bold text-xs text-slate-800">${inf.subLabel}</div>
-                        <div class="text-[10px] text-slate-400">${inf.date} • ${inf.dayName}</div>
+                        <div class="text-[10px] text-slate-400">${inf.desc || `${inf.date} • ${inf.dayName}`}</div>
                       </div>
                     </div>
                     <div class="flex items-center gap-2">
@@ -620,7 +632,7 @@ window.LeaveTrackerModule = {
                         ${inf.statusLabel}
                       </span>
                       <span class="px-2 py-0.5 rounded-lg bg-rose-100 text-rose-800 font-black text-[10px]">
-                        +30 Dk
+                        +${inf.penaltyMinutes || 30} Dk
                       </span>
                     </div>
                   </div>

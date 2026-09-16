@@ -323,6 +323,8 @@ window.App = {
       }
     } else if (this.activeTab === 'izin_cikis') {
       activeTitle = '🚪 İzine Çıkış Takibi';
+    } else if (this.activeTab === 'izin_donusu') {
+      activeTitle = '🧳 İzin Dönüşü Takibi';
     } else if (this.activeTab === 'ogrenciler') {
       activeTitle = '👥 Öğrenci Yönetimi';
     } else if (this.activeTab === 'personel') {
@@ -579,6 +581,23 @@ window.App = {
               <div>
                 <div class="text-xs font-black">İzine Çıkış Takibi</div>
                 <div class="text-[10px] text-slate-400 font-medium">Kusur başı 30 dk gecikme ve kapı saatleri</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+
+          <!-- İzin Dönüşü Butonu (YENİ!) -->
+          <button type="button" onclick="window.App.navigateFromDrawer('izin_donusu')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'izin_donusu'
+                ? 'bg-indigo-50 text-indigo-900 font-black border border-indigo-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🧳</span>
+              <div>
+                <div class="text-xs font-black">İzin Dönüşü Takibi</div>
+                <div class="text-[10px] text-slate-400 font-medium">Saatli varış kaydı ve 3 katı geç çıkış cezası</div>
               </div>
             </div>
             <span class="text-slate-300">→</span>
@@ -873,6 +892,11 @@ window.App = {
       main.innerHTML = `<div id="leave-tracker-container"></div>`;
       if (window.LeaveTrackerModule) {
         window.LeaveTrackerModule.init();
+      }
+    } else if (this.activeTab === 'izin_donusu') {
+      main.innerHTML = `<div id="leave-return-container"></div>`;
+      if (window.LeaveReturnModule) {
+        window.LeaveReturnModule.init();
       }
     } else if (this.activeTab === 'ogrenciler') {
       main.innerHTML = `<div id="students-container"></div>`;
