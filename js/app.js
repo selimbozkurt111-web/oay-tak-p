@@ -1380,6 +1380,51 @@ window.App = {
           </div>
         </div>
 
+        <!-- Yatak Kontrolü Hatırlatma & Bildirim Paneli -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 text-lg flex items-center justify-center shadow-inner">
+                🔔
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-800 text-base leading-tight">Yatak Kontrolü Hatırlatma & Bildirim Testi</h3>
+                <p class="text-xs text-slate-500">Telefonunuza ekran bildirimi veya WhatsApp mesajı gönderin</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <div class="p-4 bg-purple-50/60 rounded-2xl border border-purple-200 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div class="text-xs font-black text-purple-900 mb-0.5">📱 Telefona Sesli / Ekran Bildirimi Testi</div>
+                <p class="text-[11px] text-purple-800">
+                  Ana ekrana eklediğiniz uygulamanızın telefonunuza bildirim gönderip göndermediğini test edin.
+                </p>
+              </div>
+              <button type="button" onclick="window.App.requestNotificationPermissionAndTest()"
+                class="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center gap-2">
+                <span>🔔</span>
+                <span>Telefonda Bildirim Testi Yap</span>
+              </button>
+            </div>
+
+            <div class="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div class="text-xs font-black text-emerald-900 mb-0.5">📲 Dahili Hocalarına WhatsApp Hatırlatması</div>
+                <p class="text-[11px] text-emerald-800">
+                  Tek tıkla nöbetçi dahili hocalarına hazır yatak kontrolü mesajı ve linki gönderin.
+                </p>
+              </div>
+              <button type="button" onclick="window.App.sendYatakWhatsAppReminder()"
+                class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center gap-2">
+                <span>💬</span>
+                <span>WhatsApp'tan Hatırlat</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h3 class="font-bold text-slate-800 text-base mb-2 flex items-center gap-2">
             <span>💾</span> Yerel Dosya Yedekleme
@@ -1471,6 +1516,76 @@ window.App = {
         this.showToast(`Eşitleme uyarısı: ${res.message}`, 'error');
       }
     }
+  },
+
+  // --- BİLDİRİM YÖNETİMİ & TESTİ (Telefona Ekran Bildirimi Gönderme) ---
+  async requestNotificationPermissionAndTest() {
+    if (!('Notification' in window)) {
+      alert('Bu tarayıcıda veya cihazda bildirim desteği kapalı. Lütfen telefonunuzun Chrome veya Safari ayarlarından bildirimlere izin veriniz.');
+      return;
+    }
+
+    try {
+      let permission = Notification.permission;
+      if (permission !== 'granted') {
+        permission = await Notification.requestPermission();
+      }
+
+      if (permission === 'granted') {
+        this.showToast('✅ Bildirim izni açık! Telefonunuza test bildirimi gönderiliyor...', 'success');
+        this.triggerLocalPushNotification(
+          '🛏️ Yatak Kontrolü Hatırlatması',
+          'Sayın Hocam, bugünün yatak ve oda kontrolünü sisteme girmeyi unutmayınız! (Ömer Avniyel Akademi)'
+        );
+      } else if (permission === 'denied') {
+        alert('⚠️ Bildirim izni daha önce engellenmiş. Bildirim alabilmek için telefonunuzun Ayarlar > Bildirimler bölümünden tarayıcınıza izin veriniz.');
+      } else {
+        this.showToast('Bildirim izni onaylanmadı.', 'warning');
+      }
+    } catch (err) {
+      alert('Bildirim izni alınırken bir sorun oluştu: ' + err.message);
+    }
+  },
+
+  triggerLocalPushNotification(title, body) {
+    const options = {
+      body: body,
+      icon: 'icon.svg',
+      badge: 'icon.svg',
+      vibrate: [200, 100, 200, 100, 200],
+      tag: 'oay-yatak-reminder',
+      renotify: true
+    };
+
+    // 1. Service Worker ile bildirim (Mobilde ve PWA'da en güçlü yöntem)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        if (reg && reg.showNotification) {
+          reg.showNotification(title, options);
+        }
+      }).catch(() => {
+        try { new Notification(title, options); } catch(e) {}
+      });
+      return;
+    }
+
+    // 2. Standart Notification API
+    try {
+      new Notification(title, options);
+    } catch (err) {
+      console.warn('Notification API hatası:', err);
+    }
+  },
+
+  // WhatsApp Hatırlatması Gönder
+  sendYatakWhatsAppReminder(hocaPhone = '', hocaName = '') {
+    const defaultText = `Selamün aleyküm ${hocaName ? hocaName + ' ' : ''}Hocam, hayırlı sabahlar. Bugünün yatak ve oda kontrolünü sisteme girmeyi unutmayınız.\n\nYoklama Giriş Linki:\nhttps://selimbozkurt111-web.github.io/oay-tak-p/`;
+    const cleanPhone = (hocaPhone || '').replace(/\D/g, '');
+    const targetUrl = cleanPhone 
+      ? `https://wa.me/90${cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone}?text=${encodeURIComponent(defaultText)}`
+      : `https://wa.me/?text=${encodeURIComponent(defaultText)}`;
+
+    window.open(targetUrl, '_blank');
   },
 
   handleLogoFileUpload(event) {

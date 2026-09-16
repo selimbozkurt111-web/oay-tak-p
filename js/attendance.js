@@ -655,6 +655,31 @@ window.AttendanceModule = {
 
     container.innerHTML = `
       <div class="space-y-4 animate-fade-in max-w-4xl mx-auto">
+        ${this.currentCategory === 'yatak' ? `
+          <!-- Yatak Kontrolü Hızlı Hatırlatıcı Barı -->
+          <div class="p-3.5 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl border border-purple-200 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">🛏️</span>
+              <div>
+                <div class="text-xs font-black text-purple-950">Yatak Kontrolü Hatırlatıcı & Bildirim</div>
+                <div class="text-[11px] text-purple-800">Telefona ekran bildirimi veya dahili hocalarına WhatsApp mesajı gönderin</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="window.App.requestNotificationPermissionAndTest()"
+                class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5">
+                <span>🔔</span>
+                <span>Telefonda Bildirim Testi Yap</span>
+              </button>
+              <button type="button" onclick="window.App.sendYatakWhatsAppReminder()"
+                class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5">
+                <span>💬</span>
+                <span>WhatsApp'tan Hatırlat</span>
+              </button>
+            </div>
+          </div>
+        ` : ''}
+
         <!-- 2. Filtre & Kontrol Kartı -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
           <!-- Üst Satır: Tarih & Gün Adı & 5 Vakit Namaz Butonları -->
