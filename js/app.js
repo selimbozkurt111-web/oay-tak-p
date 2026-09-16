@@ -181,8 +181,14 @@ window.App = {
       header.innerHTML = `
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-2xl bg-emerald-600 text-white font-black text-lg flex items-center justify-center shadow-md">
-              ÖT
+            <div class="w-10 h-10 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-md">
+              ${settings.institutionLogo ? `
+                <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover bg-white"
+                  onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
+                <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-lg flex items-center justify-center">ÖT</div>
+              ` : `
+                <div class="w-full h-full bg-emerald-600 text-white font-black text-lg flex items-center justify-center">ÖT</div>
+              `}
             </div>
             <div>
               <h1 class="text-base font-black text-slate-900 tracking-tight leading-none">${settings.institutionName}</h1>
@@ -254,8 +260,14 @@ window.App = {
             </button>
           ` : ''}
 
-          <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center shadow-sm">
-            ÖT
+          <div class="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
+            ${settings.institutionLogo ? `
+              <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover bg-white"
+                onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
+              <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">ÖT</div>
+            ` : `
+              <div class="w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">ÖT</div>
+            `}
           </div>
           <div>
             <h1 class="text-sm font-black text-slate-900 leading-none">${settings.institutionName}</h1>
@@ -345,8 +357,14 @@ window.App = {
       <!-- Drawer Üst Başlık -->
       <div class="p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between shadow-md">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center shadow-sm">
-            ÖT
+          <div class="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
+            ${settings.institutionLogo ? `
+              <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover bg-white"
+                onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
+              <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">ÖT</div>
+            ` : `
+              <div class="w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">ÖT</div>
+            `}
           </div>
           <div>
             <h3 class="font-black text-sm leading-tight text-white">${settings.institutionName}</h3>
@@ -599,13 +617,28 @@ window.App = {
         main.innerHTML = `
           <div class="max-w-md mx-auto py-12 px-4 animate-fade-in">
             <div class="bg-white rounded-3xl shadow-xl border border-amber-200 p-8 text-center relative overflow-hidden">
-              <div class="w-16 h-16 bg-amber-50 text-amber-700 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl font-bold shadow-inner">
-                👑
+              
+              <!-- Kurum Logosu / Fotoğrafı -->
+              <div class="mb-4 flex flex-col items-center">
+                ${settings.institutionLogo ? `
+                  <div class="relative group mb-2">
+                    <img src="${settings.institutionLogo}" alt="${settings.institutionName}" 
+                      class="max-h-20 max-w-[220px] w-auto object-contain rounded-2xl shadow-md border border-amber-200 bg-white p-1.5"
+                      onerror="this.style.display='none'; document.getElementById('admin-inst-fallback-badge').classList.remove('hidden');">
+                    <div id="admin-inst-fallback-badge" class="hidden w-16 h-16 bg-amber-50 text-amber-700 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-inner">
+                      👑
+                    </div>
+                  </div>
+                ` : `
+                  <div class="w-16 h-16 bg-amber-50 text-amber-700 rounded-2xl flex items-center justify-center mx-auto mb-2 text-2xl font-bold shadow-inner">
+                    👑
+                  </div>
+                `}
+                <h2 class="text-xl font-black text-slate-900 mb-1">Ana Yönetici Girişi</h2>
+                <p class="text-xs text-slate-500 mb-6">
+                  Yüksek güvenlik için Ana Yönetici girişi sabit şifreyle değil, **e-posta doğrulama koduyla** yapılmaktadır.
+                </p>
               </div>
-              <h2 class="text-xl font-black text-slate-900 mb-1">Ana Yönetici Girişi</h2>
-              <p class="text-xs text-slate-500 mb-6">
-                Yüksek güvenlik için Ana Yönetici girişi sabit şifreyle değil, **e-posta doğrulama koduyla** yapılmaktadır.
-              </p>
 
               ${this.otpStep === 'request' ? `
                 <form onsubmit="window.App.handleAdminOtpRequest(event)" class="space-y-4">
@@ -686,6 +719,26 @@ window.App = {
           <div class="max-w-md mx-auto py-8 px-4 animate-fade-in">
             <div class="bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sm:p-8 text-center relative overflow-hidden">
               
+              <!-- Kurum Logosu veya Fotoğrafı -->
+              <div class="mb-5 flex flex-col items-center">
+                ${settings.institutionLogo ? `
+                  <div class="relative group">
+                    <img src="${settings.institutionLogo}" alt="${settings.institutionName}" 
+                      class="max-h-24 max-w-[260px] w-auto object-contain rounded-2xl shadow-md border border-slate-200 bg-white p-2 transition-transform duration-200 hover:scale-105"
+                      onerror="this.style.display='none'; document.getElementById('login-inst-fallback-badge').classList.remove('hidden');">
+                    <div id="login-inst-fallback-badge" class="hidden w-16 h-16 bg-gradient-to-tr from-emerald-600 to-teal-600 text-white rounded-2xl flex items-center justify-center text-3xl shadow-md font-bold">
+                      🏛️
+                    </div>
+                  </div>
+                ` : `
+                  <div class="w-16 h-16 bg-gradient-to-tr from-emerald-600 to-teal-600 text-white rounded-2xl flex items-center justify-center text-3xl shadow-md font-bold mb-1">
+                    🏛️
+                  </div>
+                `}
+                <h2 class="text-base font-black text-slate-900 mt-2.5 tracking-tight leading-tight">${settings.institutionName}</h2>
+                <p class="text-[11px] text-slate-500 font-semibold mt-0.5">Yoklama, Devam & Performans Portalı</p>
+              </div>
+
               <!-- 1. GİRİŞ TÜRÜ SEÇİMİ (Veli vs Eğitmen Sekmeleri) -->
               <div class="flex items-center p-1.5 bg-slate-100 rounded-2xl mb-6 shadow-inner">
                 <button type="button" onclick="window.App.loginTab='parent'; window.App.renderMainContent();"
@@ -706,13 +759,14 @@ window.App = {
 
               ${isParentTab ? `
                 <!-- 2.A: VELİ BİLGİLENDİRME PORTALI GİRİŞİ -->
-                <div class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl shadow-inner font-bold">
-                  👨‍👩‍👧
+                <div class="text-center mb-4">
+                  <span class="text-xs px-3 py-1 rounded-full bg-indigo-50 text-indigo-800 font-bold border border-indigo-200">
+                    👨‍👩‍👧 Veli Giriş Ekranı
+                  </span>
+                  <p class="text-xs text-slate-500 mt-2">
+                    Öğrencinizin namaz durumu, ders notları ve hafta sonu izin saatini görüntüleyebilirsiniz.
+                  </p>
                 </div>
-                <h2 class="text-xl font-black text-slate-900 mb-1">Veli Portalı Girişi</h2>
-                <p class="text-xs text-slate-500 mb-5">
-                  Öğrencinizin namaz durumu, ders performansı ve hafta sonu izin saatini görüntüleyebilirsiniz.
-                </p>
 
                 <!-- Hızlı Öğrenci Seçici (Açılır Liste) -->
                 <div class="mb-4 text-left">
@@ -764,13 +818,14 @@ window.App = {
                 </form>
               ` : `
                 <!-- 2.B: EĞİTMEN GİRİŞİ -->
-                <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl shadow-inner font-bold">
-                  👨‍🏫
+                <div class="text-center mb-4">
+                  <span class="text-xs px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+                    👨‍🏫 Eğitmen Giriş Ekranı
+                  </span>
+                  <p class="text-xs text-slate-500 mt-2">
+                    Yoklama almak ve ders notu girmek için eğitmen adınız ve şifrenizle giriş yapınız.
+                  </p>
                 </div>
-                <h2 class="text-xl font-black text-slate-900 mb-1">Eğitmen Portalı</h2>
-                <p class="text-xs text-slate-500 mb-5">
-                  Yoklama almak ve ders notu girmek için eğitmen adınız ve şifrenizle giriş yapınız.
-                </p>
 
                 <!-- Hızlı Eğitmen Seçimi -->
                 <div class="mb-4 text-left">
@@ -1127,25 +1182,81 @@ window.App = {
       <div class="max-w-4xl mx-auto space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h3 class="font-bold text-slate-800 text-base mb-4 pb-3 border-b border-slate-100 flex items-center gap-2">
-            <span>⚙️</span> Ana Yönetici E-posta Ayarları (Kodların Gönderileceği Adres)
+            <span>⚙️</span> Kurum Bilgileri ve Yönetici Ayarları
           </h3>
 
           <form onsubmit="window.App.saveSettingsSubmit(event)" class="space-y-4 max-w-lg">
             <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">KURUM / KURS ADI</label>
+              <label class="block text-xs font-semibold text-slate-600 mb-1 uppercase">KURUM / KURS ADI</label>
               <input type="text" id="set-inst-name" value="${settings.institutionName}" required
-                class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none">
+                class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:bg-white">
             </div>
 
-            <div>
+            <!-- Kurum / Kurs Resmi & Logosu -->
+            <div class="pt-3 border-t border-slate-100">
+              <label class="block text-xs font-black text-slate-800 mb-1 uppercase">
+                📸 KURS RESMİ VEYA LOGOSU
+              </label>
+              <p class="text-[11px] text-slate-500 mb-3">
+                Buraya ekleyeceğiniz fotoğraf veya logo; giriş portalında, veli karnesinde ve üst menü başlığında görüntülenir.
+              </p>
+
+              <!-- Logo Önizleme ve Seçme Alanı -->
+              <div class="flex items-center gap-4 mb-3">
+                <div class="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center overflow-hidden p-1 shadow-inner relative">
+                  <img id="settings-logo-preview" 
+                    src="${settings.institutionLogo || ''}" 
+                    alt="Logo Önizleme" 
+                    class="${settings.institutionLogo ? '' : 'hidden'} max-w-full max-h-full object-contain rounded-xl"
+                    onerror="this.style.display='none'; document.getElementById('settings-logo-placeholder').classList.remove('hidden');">
+                  <div id="settings-logo-placeholder" class="${settings.institutionLogo ? 'hidden' : ''} text-center p-2 text-slate-400">
+                    <span class="text-2xl block">🏛️</span>
+                    <span class="text-[10px] font-bold">Resim Yok</span>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <input type="file" id="set-inst-logo-file" accept="image/*" class="hidden" onchange="window.App.handleLogoFileUpload(event)">
+                  <button type="button" onclick="document.getElementById('set-inst-logo-file').click()"
+                    class="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs border border-indigo-200 shadow-2xs transition flex items-center gap-2">
+                    <span>📁</span>
+                    <span>Bilgisayardan / Telefondan Fotoğraf Seç</span>
+                  </button>
+
+                  ${settings.institutionLogo ? `
+                    <button type="button" onclick="window.App.removeLogo()"
+                      class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-[11px] border border-rose-200 transition flex items-center gap-1.5">
+                      <span>🗑️</span>
+                      <span>Resmi Kaldır</span>
+                    </button>
+                  ` : ''}
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1 uppercase">
+                  VEYA İNTERNET RESİM BAĞLANTISI (URL) / DOSYA ADI:
+                </label>
+                <input type="text" id="set-inst-logo-url" value="${settings.institutionLogo || ''}" 
+                  placeholder="Örn: https://site.com/logo.png veya kurs_logo.jpg"
+                  oninput="window.App.handleLogoUrlInput(this.value)"
+                  class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono text-slate-700 focus:outline-none focus:bg-white transition">
+                <p class="text-[10px] text-slate-400 mt-1">
+                  💡 İpucu: GitHub ana dizininize <strong>kurs_logo.jpg</strong> adıyla bir fotoğraf yüklerseniz buraya sadece <code>kurs_logo.jpg</code> yazabilirsiniz.
+                </p>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100">
               <label class="block text-xs font-black text-amber-900 mb-1 uppercase">👑 ANA YÖNETİCİ E-POSTA ADRESİ</label>
               <input type="email" id="set-admin-email" value="${settings.adminEmail || ''}" required
-                class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none">
+                class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none focus:bg-white">
               <span class="text-[11px] text-slate-400">Giriş yaparken doğrulama kodunuz bu e-postaya gönderilir.</span>
             </div>
 
-            <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition">
-              E-posta Ayarını Kaydet
+            <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-2">
+              <span>💾</span>
+              <span>Ayarları & Logoyu Kaydet</span>
             </button>
           </form>
         </div>
@@ -1176,14 +1287,97 @@ window.App = {
     event.preventDefault();
     const instName = document.getElementById('set-inst-name').value.trim();
     const adminEmail = document.getElementById('set-admin-email').value.trim();
+    const logoUrl = document.getElementById('set-inst-logo-url') ? document.getElementById('set-inst-logo-url').value.trim() : '';
 
     window.Store.saveSettings({
       institutionName: instName,
-      adminEmail: adminEmail
+      adminEmail: adminEmail,
+      institutionLogo: logoUrl
     });
 
-    this.showToast('Ana Yönetici e-posta adresi güncellendi.', 'success');
+    this.showToast('Ayarlar ve kurs logosu kaydedildi!', 'success');
     this.renderHeader();
+    this.renderSettingsView();
+  },
+
+  handleLogoFileUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    if (file.size > 12 * 1024 * 1024) {
+      this.showToast('Lütfen 12 MB\'tan küçük bir resim seçiniz.', 'warning');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 500;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        
+        const preview = document.getElementById('settings-logo-preview');
+        const placeholder = document.getElementById('settings-logo-placeholder');
+        const urlInput = document.getElementById('set-inst-logo-url');
+        if (preview) {
+          preview.src = compressedDataUrl;
+          preview.classList.remove('hidden');
+          preview.style.display = 'block';
+        }
+        if (placeholder) placeholder.classList.add('hidden');
+        if (urlInput) urlInput.value = compressedDataUrl;
+
+        this.showToast('Fotoğraf hazırlandı! Kaydet butonuna basarak aktifleştirin.', 'info');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  handleLogoUrlInput(val) {
+    const preview = document.getElementById('settings-logo-preview');
+    const placeholder = document.getElementById('settings-logo-placeholder');
+    if (val && val.trim()) {
+      if (preview) {
+        preview.src = val.trim();
+        preview.classList.remove('hidden');
+        preview.style.display = 'block';
+      }
+      if (placeholder) placeholder.classList.add('hidden');
+    } else {
+      if (preview) {
+        preview.src = '';
+        preview.classList.add('hidden');
+      }
+      if (placeholder) placeholder.classList.remove('hidden');
+    }
+  },
+
+  removeLogo() {
+    window.Store.saveSettings({ institutionLogo: '' });
+    this.showToast('Kurs logosu kaldırıldı, varsayılan simgeye dönüldü.', 'info');
+    this.renderHeader();
+    this.renderSettingsView();
   },
 
   downloadBackup() {

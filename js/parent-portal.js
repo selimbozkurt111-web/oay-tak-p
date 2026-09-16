@@ -172,23 +172,32 @@ window.ParentPortal = {
     const periodLabel = isWeekly 
       ? `Haftalık (${reportRange.startDate} – ${reportRange.endDate})`
       : `Aylık (${reportRange.startDate} – ${reportRange.endDate})`;
+    const settings = window.Store.getSettings ? window.Store.getSettings() : {};
 
     container.innerHTML = `
       <div class="max-w-6xl mx-auto space-y-6 animate-fade-in">
         <!-- Veli Başlığı & Kardeş Sekmeleri -->
         <div class="bg-gradient-to-r from-indigo-700 via-indigo-800 to-purple-800 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
           <div class="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div class="flex items-center gap-2 mb-1">
-                <span class="text-xs px-2.5 py-0.5 rounded-full bg-white/20 text-white font-bold">
-                  AİLE KODU: ${session.familyCode}
-                </span>
-                <span class="text-xs text-indigo-200">| Veli Bilgilendirme Portalı</span>
+            <div class="flex items-center gap-4">
+              ${settings.institutionLogo ? `
+                <div class="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0 bg-white shadow-md p-1 border border-white/30">
+                  <img src="${settings.institutionLogo}" alt="Logo" class="max-w-full max-h-full object-contain"
+                    onerror="this.parentElement.style.display='none';">
+                </div>
+              ` : ''}
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-xs px-2.5 py-0.5 rounded-full bg-white/20 text-white font-bold">
+                    AİLE KODU: ${session.familyCode}
+                  </span>
+                  <span class="text-xs text-indigo-200">| ${settings.institutionName || 'Veli Bilgilendirme Portalı'}</span>
+                </div>
+                <h2 class="text-2xl font-black tracking-tight">Öğrenci Durum ve Karne Portalı</h2>
+                <p class="text-xs text-indigo-200 mt-1">
+                  Bu alanda yalnızca çocuğunuza ait namaz raporu, devam durumu ve karnesini salt okunur olarak inceleyebilirsiniz.
+                </p>
               </div>
-              <h2 class="text-2xl font-black tracking-tight">Öğrenci Durum ve Karne Portalı</h2>
-              <p class="text-xs text-indigo-200 mt-1">
-                Bu alanda yalnızca çocuğunuza ait namaz raporu, devam durumu ve karnesini salt okunur olarak inceleyebilirsiniz.
-              </p>
             </div>
 
             <div class="flex items-center gap-2 no-print">

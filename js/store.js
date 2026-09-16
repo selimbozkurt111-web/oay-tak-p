@@ -42,6 +42,7 @@ STATUS_CONFIG.E = STATUS_CONFIG.VAR;
 
 const DEFAULT_SETTINGS = {
   institutionName: 'Kurs & Etüt Öğrenci Takip Sistemi',
+  institutionLogo: '', // Kurum/Kurs Logosu veya Fotoğrafı (Base64 data URL, dosya adı veya web bağlantısı)
   adminEmail: 'selimbozkurt111@gmail.com', // Ana yöneticinin doğrulama maili alacağı adres
   academicYear: '2026-2027'
 };
