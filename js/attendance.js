@@ -196,7 +196,40 @@ window.AttendanceModule = {
     if (!this.draftAttendance[studentId]) {
       this.draftAttendance[studentId] = { status: this.getDefaultStatus() };
     }
-    this.draftAttendance[studentId].status = statusCode;
+
+    let finalStatusCode = statusCode;
+
+    // Namaz yoklamasında "Geç" ve "Takkesiz" aynı anda seçilebilir
+    if (this.currentCategory === 'namaz') {
+      const current = window.Store.normalizeStatusCode(this.draftAttendance[studentId].status || 'VAR');
+
+      if (statusCode === 'GEC') {
+        if (current === 'TAKKESIZ') {
+          finalStatusCode = 'GEC_TAKKESIZ'; // Takkesiz vardı, geç de eklendi -> Her ikisi aktif!
+        } else if (current === 'GEC_TAKKESIZ') {
+          finalStatusCode = 'TAKKESIZ'; // Geç kaldırıldı, sadece takkesiz kaldı
+        } else if (current === 'GEC') {
+          finalStatusCode = 'VAR'; // Tekrar basıldığında normale döner
+        } else {
+          finalStatusCode = 'GEC';
+        }
+      } else if (statusCode === 'TAKKESIZ') {
+        if (current === 'GEC') {
+          finalStatusCode = 'GEC_TAKKESIZ'; // Geç vardı, takkesiz de eklendi -> Her ikisi aktif!
+        } else if (current === 'GEC_TAKKESIZ') {
+          finalStatusCode = 'GEC'; // Takkesiz kaldırıldı, sadece geç kaldı
+        } else if (current === 'TAKKESIZ') {
+          finalStatusCode = 'VAR'; // Tekrar basıldığında normale döner
+        } else {
+          finalStatusCode = 'TAKKESIZ';
+        }
+      } else {
+        // 'VAR', 'YOK', 'IZINLI' basıldığında direkt o durum atanır
+        finalStatusCode = statusCode;
+      }
+    }
+
+    this.draftAttendance[studentId].status = finalStatusCode;
 
     const subKey = this.currentCategory === 'namaz' ? this.currentPrayer : this.currentCategory;
 
@@ -204,7 +237,7 @@ window.AttendanceModule = {
       studentId,
       this.currentDate,
       subKey,
-      statusCode,
+      finalStatusCode,
       this.currentCategory
     );
 
@@ -649,7 +682,6 @@ window.AttendanceModule = {
   // --- 2. GÜNLÜK YOKLAMA ALMA GÖRÜNÜMÜ ---
   renderDailyYoklamaView(container) {
     const classes = window.Store.getClasses();
-    const allHocalar = window.Store.getAllHocalar ? window.Store.getAllHocalar() : window.Store.getEtutHocalari();
     const dayName = this.getDayName(this.currentDate);
     this.loadDailyDraft();
 
@@ -703,7 +735,7 @@ window.AttendanceModule = {
             </div>
           </div>
 
-          <!-- Alt Satır: Çoklu Sınıf Filtresi & Hoca Filtresi & Arama -->
+          <!-- Alt Satır: Çoklu Sınıf Filtresi & Arama -->
           <div class="space-y-3 pt-1">
             <div>
               <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
@@ -741,23 +773,12 @@ window.AttendanceModule = {
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
-              <div class="flex flex-wrap items-center gap-2">
-                <div>
-                  <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">HOCA FİLTRESİ</label>
-                  <select onchange="window.AttendanceModule.setHocaFilter(this.value)"
-                    class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 focus:border-emerald-500 focus:outline-none shadow-2xs">
-                    <option value="ALL">Tüm Hocalar</option>
-                    ${allHocalar.map(h => `<option value="${h}" ${this.currentHoca === h ? 'selected' : ''}>${h}</option>`).join('')}
-                  </select>
-                </div>
-
-                <div>
-                  <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">ÖĞRENCİ ARA</label>
-                  <input type="text" placeholder="${this.currentCategory === 'yatak' ? 'İsim veya Oda ara...' : 'Öğrenci adı ara...'}" 
-                    value="${this.searchQuery}"
-                    class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:border-emerald-500 focus:outline-none w-36 sm:w-44 shadow-2xs"
-                    oninput="window.AttendanceModule.setSearchQuery(this.value)">
-                </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">ÖĞRENCİ ARA</label>
+                <input type="text" placeholder="${this.currentCategory === 'yatak' ? 'İsim veya Oda ara...' : 'Öğrenci adı ara...'}" 
+                  value="${this.searchQuery}"
+                  class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:border-emerald-500 focus:outline-none w-48 sm:w-64 shadow-2xs"
+                  oninput="window.AttendanceModule.setSearchQuery(this.value)">
               </div>
 
               <div class="text-xs text-slate-400">
@@ -798,13 +819,18 @@ window.AttendanceModule = {
     const currentStatuses = this.statusConfigs[this.currentCategory] || this.statusConfigs.namaz;
     const counts = {};
     currentStatuses.forEach(st => { counts[st.code] = 0; });
+    let gecTakkesizCount = 0;
 
     const defaultStatus = this.getDefaultStatus();
 
     students.forEach(s => {
       const draft = this.draftAttendance[s.id];
       const status = draft ? draft.status : defaultStatus;
-      if (counts[status] !== undefined) {
+      if (status === 'GEC_TAKKESIZ') {
+        gecTakkesizCount++;
+        counts['GEC'] = (counts['GEC'] || 0) + 1;
+        counts['TAKKESIZ'] = (counts['TAKKESIZ'] || 0) + 1;
+      } else if (counts[status] !== undefined) {
         counts[status]++;
       } else {
         counts[defaultStatus] = (counts[defaultStatus] || 0) + 1;
@@ -821,6 +847,12 @@ window.AttendanceModule = {
             <span class="font-black">${counts[st.code] || 0}</span>
           </div>
         `).join('')}
+        ${this.currentCategory === 'namaz' && gecTakkesizCount > 0 ? `
+          <div class="px-3 py-1 rounded-xl font-bold flex items-center gap-1.5 border border-fuchsia-300 bg-fuchsia-50 text-fuchsia-900 shadow-2xs">
+            <span>⚡ Geç + Takkesiz:</span>
+            <span class="font-black">${gecTakkesizCount}</span>
+          </div>
+        ` : ''}
         <span class="text-slate-400 font-bold ml-auto text-[11px]">Toplam: ${students.length} Öğrenci</span>
       </div>
     `;
@@ -851,13 +883,18 @@ window.AttendanceModule = {
         <div class="p-3 sm:px-5 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
           <!-- 1. Öğrenci Bilgisi -->
           <div class="min-w-0">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               <span class="font-black text-slate-900 text-sm sm:text-base leading-tight truncate">
                 ${s.firstName} ${s.lastName}
               </span>
               <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold text-[10px] shrink-0">
                 ${s.className}
               </span>
+              ${this.currentCategory === 'namaz' && currentStatus === 'GEC_TAKKESIZ' ? `
+                <span class="px-2 py-0.5 rounded-md bg-fuchsia-100 text-fuchsia-900 border border-fuchsia-300 font-black text-[10px] shrink-0 flex items-center gap-1 shadow-2xs">
+                  <span>⚡</span> <span>Geç + Takkesiz</span>
+                </span>
+              ` : ''}
             </div>
             ${this.currentCategory === 'yatak' && s.yatakhane ? `
               <div class="text-[11px] text-indigo-700 font-bold mt-0.5">
@@ -869,7 +906,19 @@ window.AttendanceModule = {
           <!-- 2. Kategoriye Özel Kelimeli Butonlar -->
           <div class="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2 w-full sm:w-auto shrink-0">
             ${currentStatuses.map(st => {
-              const isSelected = currentStatus === st.code;
+              let isSelected = false;
+              if (this.currentCategory === 'namaz') {
+                if (st.code === 'GEC') {
+                  isSelected = (currentStatus === 'GEC' || currentStatus === 'GEC_TAKKESIZ');
+                } else if (st.code === 'TAKKESIZ') {
+                  isSelected = (currentStatus === 'TAKKESIZ' || currentStatus === 'GEC_TAKKESIZ');
+                } else {
+                  isSelected = (currentStatus === st.code);
+                }
+              } else {
+                isSelected = (currentStatus === st.code);
+              }
+
               return `
                 <button type="button" 
                   onclick="window.AttendanceModule.setStatus('${s.id}', '${st.code}')"

@@ -20,6 +20,7 @@ const STATUS_CONFIG = {
   YOK: { code: 'YOK', label: 'Yok', short: 'Yok', bg: '#ef4444', border: '#dc2626', desc: 'Katılmadı / Yok' },
   GEC: { code: 'GEC', label: 'Geç', short: 'Geç', bg: '#f59e0b', border: '#d97706', desc: 'Geç kaldı' },
   TAKKESIZ: { code: 'TAKKESIZ', label: 'Takkesiz', short: 'Takkesiz', bg: '#9333ea', border: '#7e22ce', desc: 'Takkesiz katıldı' },
+  GEC_TAKKESIZ: { code: 'GEC_TAKKESIZ', label: 'Geç + Takkesiz', short: 'Geç+Tak.', bg: '#9333ea', border: '#7e22ce', desc: 'Hem geç kaldı hem takkesiz katıldı' },
   IZINLI: { code: 'IZINLI', label: 'İzinli', short: 'İzinli', bg: '#0d9488', border: '#0f766e', desc: 'İzinli / Raporlu' },
 
   // Yatak Yoklaması
@@ -38,6 +39,9 @@ STATUS_CONFIG.K = STATUS_CONFIG.YOK;
 STATUS_CONFIG.Y = STATUS_CONFIG.YOK;
 STATUS_CONFIG.G = STATUS_CONFIG.GEC;
 STATUS_CONFIG.T = STATUS_CONFIG.TAKKESIZ;
+STATUS_CONFIG.GT = STATUS_CONFIG.GEC_TAKKESIZ;
+STATUS_CONFIG.TG = STATUS_CONFIG.GEC_TAKKESIZ;
+STATUS_CONFIG.TAKKESIZ_GEC = STATUS_CONFIG.GEC_TAKKESIZ;
 STATUS_CONFIG.I = STATUS_CONFIG.IZINLI;
 STATUS_CONFIG.E = STATUS_CONFIG.VAR;
 
@@ -902,14 +906,14 @@ class DataStore {
     });
 
     const prayerStats = {
-      Sabah: { VAR: 0, TAKKESIZ: 0, GEC: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
-      Öğle: { VAR: 0, TAKKESIZ: 0, GEC: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
-      İkindi: { VAR: 0, TAKKESIZ: 0, GEC: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
-      Akşam: { VAR: 0, TAKKESIZ: 0, GEC: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
-      Yatsı: { VAR: 0, TAKKESIZ: 0, GEC: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 }
+      Sabah: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
+      Öğle: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
+      İkindi: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
+      Akşam: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
+      Yatsı: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 }
     };
 
-    const overallCounts = { VAR: 0, TAKKESIZ: 0, GEC: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 };
+    const overallCounts = { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 };
     const totalSlots = dates.length * 5;
 
     dates.forEach(d => {
@@ -925,7 +929,7 @@ class DataStore {
       });
     });
 
-    const attendedCount = overallCounts.VAR + overallCounts.TAKKESIZ + overallCounts.GEC;
+    const attendedCount = overallCounts.VAR + overallCounts.TAKKESIZ + overallCounts.GEC + (overallCounts.GEC_TAKKESIZ || 0);
     const evaluatedTotal = totalSlots - overallCounts.IZINLI - overallCounts.GIRILMEDI;
     const attendanceRate = evaluatedTotal > 0 
       ? Math.min(100, Math.max(0, Math.round((attendedCount / evaluatedTotal) * 100))) 
@@ -958,7 +962,7 @@ class DataStore {
     reports.forEach(r => {
       sumRate += r.attendanceRate;
       prayers.forEach(p => {
-        const pAttended = r.prayerStats[p].VAR + r.prayerStats[p].TAKKESIZ + r.prayerStats[p].GEC;
+        const pAttended = r.prayerStats[p].VAR + r.prayerStats[p].TAKKESIZ + r.prayerStats[p].GEC + (r.prayerStats[p].GEC_TAKKESIZ || 0);
         const pEval = dates.length - r.prayerStats[p].IZINLI - r.prayerStats[p].GIRILMEDI;
         prayerTotals[p].attended += pAttended;
         prayerTotals[p].total += Math.max(0, pEval);
@@ -1118,23 +1122,25 @@ class DataStore {
   normalizeStatusCode(code) {
     if (!code) return 'VAR';
     const c = code.toString().toUpperCase().trim();
+    if (c === 'GEC_TAKKESIZ' || c === 'TAKKESIZ_GEC' || c === 'GEÇ_TAKKESİZ' || c === 'TAKKESİZ_GEÇ' || c === 'GT' || c === 'TG') return 'GEC_TAKKESIZ';
     if (c === 'V' || c === 'VAR') return 'VAR';
     if (c === 'K' || c === 'Y' || c === 'YOK') return 'YOK';
     if (c === 'G' || c === 'GEC' || c === 'GEÇ') return 'GEC';
     if (c === 'T' || c === 'TAKKESIZ' || c === 'TAKKESİZ') return 'TAKKESIZ';
     if (c === 'I' || c === 'İ' || c === 'IZINLI' || c === 'İZİNLİ') return 'IZINLI';
+    if (c === 'IYI' || c === 'ORTA' || c === 'KOTU' || c === 'GELDI' || c === 'GELMEDI') return c;
     return 'VAR';
   }
 
   getStudentStats(studentId) {
     const records = this.getAttendanceForStudent(studentId);
     const totalDays = records.length;
-    const counts = { VAR: 0, YOK: 0, GEC: 0, TAKKESIZ: 0, IZINLI: 0 };
+    const counts = { VAR: 0, YOK: 0, GEC: 0, TAKKESIZ: 0, GEC_TAKKESIZ: 0, IZINLI: 0 };
     records.forEach(r => {
       const st = this.normalizeStatusCode(r.status);
       counts[st] = (counts[st] || 0) + 1;
     });
-    const presentCount = (counts.VAR || 0) + (counts.TAKKESIZ || 0) + (counts.GEC || 0);
+    const presentCount = (counts.VAR || 0) + (counts.TAKKESIZ || 0) + (counts.GEC || 0) + (counts.GEC_TAKKESIZ || 0);
     const effectiveTotal = totalDays - (counts.IZINLI || 0);
     const attendanceRate = effectiveTotal > 0 ? Math.round((presentCount / effectiveTotal) * 100) : 100;
     const perfs = this.getPerformanceForStudent(studentId);
@@ -1191,25 +1197,58 @@ class DataStore {
       const dayName = this.getDayName(rec.date);
 
       if (cat === 'namaz') {
-        // Namazda VAR ve İZİNLİ hariç olanlar (YOK, TAKKESIZ, GEC)
+        // Namazda VAR ve İZİNLİ hariç olanlar (YOK, TAKKESIZ, GEC, GEC_TAKKESIZ)
         if (st !== 'VAR' && st !== 'IZINLI' && st !== 'E' && st !== 'I') {
-          namazInfractionsCount++;
           const pLabel = rec.prayerTime || 'Namaz';
-          const stObj = STATUS_CONFIG[st] || { label: st, bg: '#ef4444' };
-          infractions.push({
-            id: rec.id,
-            date: rec.date,
-            dayName,
-            category: 'namaz',
-            categoryLabel: '🕌 Namaz Yoklaması',
-            subKey: pLabel,
-            subLabel: `${pLabel} Namazı`,
-            status: st,
-            statusLabel: stObj.label,
-            statusBg: stObj.bg,
-            penaltyMinutes: 30,
-            desc: `${rec.date} ${dayName} • ${pLabel} Namazı: ${stObj.label} (+30 dk)`
-          });
+          if (st === 'GEC_TAKKESIZ') {
+            // Hem geç kaldı (+30 dk) hem takkesiz (+30 dk) -> 2 kusur, +60 dk ceza
+            namazInfractionsCount += 2;
+            infractions.push({
+              id: rec.id + '_gec',
+              date: rec.date,
+              dayName,
+              category: 'namaz',
+              categoryLabel: '🕌 Namaz Yoklaması',
+              subKey: pLabel,
+              subLabel: `${pLabel} Namazı (Geç Kaldı)`,
+              status: 'GEC',
+              statusLabel: 'Geç Kaldı',
+              statusBg: '#f59e0b',
+              penaltyMinutes: 30,
+              desc: `${rec.date} ${dayName} • ${pLabel} Namazı: Geç Kaldı (+30 dk)`
+            });
+            infractions.push({
+              id: rec.id + '_takkesiz',
+              date: rec.date,
+              dayName,
+              category: 'namaz',
+              categoryLabel: '🕌 Namaz Yoklaması',
+              subKey: pLabel,
+              subLabel: `${pLabel} Namazı (Takkesiz)`,
+              status: 'TAKKESIZ',
+              statusLabel: 'Takkesiz Katıldı',
+              statusBg: '#9333ea',
+              penaltyMinutes: 30,
+              desc: `${rec.date} ${dayName} • ${pLabel} Namazı: Takkesiz Katıldı (+30 dk)`
+            });
+          } else {
+            namazInfractionsCount++;
+            const stObj = STATUS_CONFIG[st] || { label: st, bg: '#ef4444' };
+            infractions.push({
+              id: rec.id,
+              date: rec.date,
+              dayName,
+              category: 'namaz',
+              categoryLabel: '🕌 Namaz Yoklaması',
+              subKey: pLabel,
+              subLabel: `${pLabel} Namazı`,
+              status: st,
+              statusLabel: stObj.label,
+              statusBg: stObj.bg,
+              penaltyMinutes: 30,
+              desc: `${rec.date} ${dayName} • ${pLabel} Namazı: ${stObj.label} (+30 dk)`
+            });
+          }
         }
       } else if (cat === 'yatak') {
         // Yatakta ORTA ve KÖTÜ olanlar
