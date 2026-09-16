@@ -299,21 +299,11 @@ window.App = {
     const session = this.currentSession;
     let roleBadge = '';
     if (session.role === 'superadmin') {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs border border-amber-300">👑 Ana Yönetici (Müdür)</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs border border-amber-300 whitespace-nowrap">👑 Ana Yönetici (Müdür)</span>`;
     } else if (session.role === 'staff') {
-      roleBadge = `
-        <div class="flex items-center gap-1.5">
-          <span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-bold text-xs border border-blue-200">👨‍🏫 ${session.name}</span>
-          <button type="button" onclick="window.App.openStaffSelfPasswordModal()" 
-            class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-[11px] border border-amber-300 shadow-2xs transition flex items-center gap-1"
-            title="Kendi Giriş Şifrenizi Değiştirin">
-            <span>🔑</span>
-            <span class="hidden sm:inline">Şifremi Değiştir</span>
-          </button>
-        </div>
-      `;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-bold text-xs border border-blue-200 whitespace-nowrap">👨‍🏫 ${session.name}</span>`;
     } else {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 font-bold text-xs border border-purple-200">👨‍👩‍👧 Veli Portalı (${session.familyCode})</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 font-bold text-xs border border-purple-200 whitespace-nowrap">👨‍👩‍👧 Veli Portalı (${session.familyCode})</span>`;
     }
 
     let activeTitle = '📋 Yoklama';
@@ -341,65 +331,42 @@ window.App = {
       activeTitle = '⚙️ Sistem Ayarları';
     }
 
+    // SOLDAN SAĞA SIRASIYLA: 1. MENÜ, 2. FOTOĞRAF, 3. AD SOYAD, 4. YOKLAMA VS.
     header.innerHTML = `
-      <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-3">
-        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3.5">
-          ${session.role !== 'parent' ? `
-            <!-- 1. MENÜ BUTONU -->
-            <button onclick="window.App.openDrawer()" 
-              class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5 flex-shrink-0">
-              <span class="text-sm leading-none">☰</span>
-              <span>Menü</span>
-            </button>
-          ` : ''}
-
-          <!-- 2. KURS GÖRSELİ -->
-          <div class="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm border border-slate-200 bg-white">
-            ${settings.institutionLogo ? `
-              <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover"
-                onerror="window.App.handleLogoError(this)">
-              <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">🏛️</div>
-            ` : `
-              <div class="w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">🏛️</div>
-            `}
-          </div>
-
-          <!-- 3. KULLANICI ADI & 4. HANGİ SAYFADAYSAK O -->
-          <div class="flex flex-wrap items-center gap-2">
-            ${roleBadge}
-            ${session.role !== 'parent' ? `
-              <span class="text-slate-300 hidden sm:inline">•</span>
-              <span class="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-900 font-black text-xs border border-emerald-300 shadow-2xs flex items-center gap-1.5">
-                ${activeTitle}
-              </span>
-            ` : ''}
-          </div>
-        </div>
-
-        <!-- SAĞ: BULUT DURUMU & ÇIKIŞ BUTONU -->
-        <div class="flex items-center gap-2 flex-shrink-0">
-          ${window.Store && window.Store.isCloudEnabled() ? `
-            <button type="button" onclick="window.App.handleSyncFromCloud(true)"
-              title="Canlı Bulut Veritabanı Aktif. Tıklayarak verileri şimdi eşitleyebilirsiniz."
-              class="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300 shadow-2xs transition flex items-center gap-1.5 cursor-pointer">
-              <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span class="hidden md:inline">Canlı Bulut</span>
-              <span class="text-[11px] opacity-75">☁️</span>
-            </button>
-          ` : `
-            <span title="Bulut bağlantısı tanımlı değil, veriler bu cihazın yerel hafızasında saklanıyor."
-              class="px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-600 font-bold text-xs border border-slate-300 flex items-center gap-1.5">
-              <span class="inline-block w-2 h-2 rounded-full bg-slate-400"></span>
-              <span class="hidden md:inline">Yerel Mod</span>
-              <span class="text-[11px] opacity-75">💾</span>
-            </span>
-          `}
-          <button onclick="window.App.logout()" 
-            class="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 transition flex items-center gap-1">
-            <span>🚪</span>
-            <span class="hidden sm:inline">Çıkış</span>
+      <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2 flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar">
+        ${session.role !== 'parent' ? `
+          <!-- 1. MENÜ BUTONU -->
+          <button onclick="window.App.openDrawer()" 
+            class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 flex-shrink-0">
+            <span class="text-sm leading-none">☰</span>
+            <span>Menü</span>
           </button>
+        ` : ''}
+
+        <!-- 2. KURS GÖRSELİ -->
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-xs border border-slate-200 bg-white">
+          ${settings.institutionLogo ? `
+            <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover"
+              onerror="window.App.handleLogoError(this)">
+            <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center">🏛️</div>
+          ` : `
+            <div class="w-full h-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center">🏛️</div>
+          `}
         </div>
+
+        <!-- 3. AD SOYAD -->
+        <div class="flex-shrink-0">
+          ${roleBadge}
+        </div>
+
+        <!-- 4. HANGİ SAYFADAYSAK O (YOKLAMA VS.) -->
+        ${session.role !== 'parent' ? `
+          <div class="flex-shrink-0">
+            <span class="px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-900 font-black text-xs border border-emerald-300 shadow-2xs whitespace-nowrap flex items-center gap-1">
+              ${activeTitle}
+            </span>
+          </div>
+        ` : ''}
       </div>
     `;
   },
