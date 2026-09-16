@@ -31,6 +31,22 @@
       }
     }
   </script>
+  <script>
+    window.addEventListener('error', function(e) {
+      setTimeout(function() {
+        var main = document.getElementById('main-content');
+        if (main) {
+          main.innerHTML = '<div style="max-width:640px;margin:40px auto;padding:24px;background:#fff1f2;border:2px solid #f43f5e;border-radius:20px;color:#9f1239;font-family:sans-serif;box-shadow:0 10px 25px rgba(0,0,0,0.1);">' +
+            '<h3 style="font-weight:900;font-size:18px;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><span>⚠️</span> <span>Sistem Başlatma Hatası</span></h3>' +
+            '<p style="font-size:13px;margin-bottom:12px;color:#881337;">Sayfa çalışırken bir JavaScript hatası yakalandı:</p>' +
+            '<div style="background:#fff;padding:12px;border-radius:12px;border:1px solid #fecdd3;font-family:monospace;font-size:12px;word-break:break-all;color:#be123c;">' +
+            '<strong>' + (e.message || 'Hata') + '</strong><br><small style="color:#64748b;">Dosya: ' + (e.filename || 'Bilinmiyor') + ' | Satır: ' + (e.lineno || '?') + '</small></div>' +
+            '<p style="font-size:12px;margin-top:12px;color:#9f1239;">Bu hata mesajı ekranın boş kalmaması için otomatik gösterilmiştir.</p>' +
+            '</div>';
+        }
+      }, 50);
+    });
+  </script>
 </head>
 <body class="bg-slate-100 text-slate-900 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
 
@@ -255,12 +271,12 @@
     </div>
   </div>
 
-  <!-- JavaScript Modülleri -->
-  <script src="js/store.js"></script>
-  <script src="js/attendance.js"></script>
-  <script src="js/leave-tracker.js"></script>
-  <script src="js/performance.js"></script>
-  <script src="js/parent-portal.js"></script>
-  <script src="js/app.js"></script>
+  <!-- JavaScript Modülleri (Cache-Busting ile Her Zaman En Güncel Sürüm) -->
+  <script src="js/store.js?v=2.2"></script>
+  <script src="js/attendance.js?v=2.2"></script>
+  <script src="js/leave-tracker.js?v=2.2"></script>
+  <script src="js/performance.js?v=2.2"></script>
+  <script src="js/parent-portal.js?v=2.2"></script>
+  <script src="js/app.js?v=2.2"></script>
 </body>
 </html>
