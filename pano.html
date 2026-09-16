@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="tr" class="h-full bg-slate-950">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
+  
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.4); }
+      50% { box-shadow: 0 0 45px rgba(245, 158, 11, 0.8); }
+    }
+    .gold-glow {
+      animation: pulse-glow 3s infinite ease-in-out;
+    }
+    @keyframes marquee {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+    .animate-marquee {
+      display: inline-block;
+      white-space: nowrap;
+      animation: marquee 35s linear infinite;
+    }
+    .animate-marquee:hover {
+      animation-play-state: paused;
+    }
+  </style>
+</head>
+<body class="h-full bg-slate-950 text-slate-100 flex flex-col justify-between overflow-hidden select-none font-sans">
+
+  <!-- 1. ÜST BİLGİ VE DURUM ÇUBUĞU (HEADER) -->
+  <header class="bg-slate-900/90 border-b border-slate-800/80 px-6 py-3.5 flex items-center justify-between shadow-2xl backdrop-blur z-20">
+    <!-- Sol: Logo & Kurum Başlığı -->
+    <div class="flex items-center gap-3.5">
+      <div class="w-12 h-12 rounded-2xl overflow-hidden bg-white p-1 border-2 border-amber-400/60 shadow-md flex items-center justify-center flex-shrink-0">
+        <img id="pano-logo" src="kurs_logo.jpg" alt="Logo" class="w-full h-full object-contain"
+          onerror="this.parentElement.innerHTML='<span class=\'font-black text-amber-600 text-xl\'>ÖA</span>'">
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 id="pano-inst-name" class="text-lg sm:text-xl font-black tracking-tight text-white">
+            Ömer Avniyel Akademi
+          </h1>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-black uppercase tracking-wider">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            Canlı Pano
+          </span>
+        </div>
+        <p id="pano-sub-title" class="text-xs text-slate-400 font-medium">
+          Talebe İntizam, İbadet ve Akademik Başarı Liderlik Ekranı
+        </p>
+      </div>
+    </div>
+
+    <!-- Orta: Slayt Göstergeleri (Tabs) -->
+    <div class="hidden lg:flex items-center gap-2 bg-slate-950/70 p-1.5 rounded-2xl border border-slate-800">
+      <button onclick="PanoApp.goToSlide(0)" id="slide-btn-0" class="px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 bg-amber-500 text-slate-950">
+        <span>🏆</span> <span>Şampiyonlar</span>
+      </button>
+      <button onclick="PanoApp.goToSlide(1)" id="slide-btn-1" class="px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+        <span>🎓</span> <span>Sınıf Liderleri</span>
+      </button>
+      <button onclick="PanoApp.goToSlide(2)" id="slide-btn-2" class="px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+        <span>📊</span> <span>İlk 10</span>
+      </button>
+      <button onclick="PanoApp.goToSlide(3)" id="slide-btn-3" class="px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+        <span>📋</span> <span>11 - 20 Sıralama</span>
+      </button>
+      <button onclick="PanoApp.goToSlide(4)" id="slide-btn-4" class="px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+        <span>🕌</span> <span>Günün İbadeti</span>
+      </button>
+    </div>
+
+    <!-- Sağ: Dijital Saat, Tarih & Tam Ekran -->
+    <div class="flex items-center gap-4">
+      <div class="text-right">
+        <div id="pano-clock" class="text-xl sm:text-2xl font-black tracking-tight text-amber-400 font-mono">
+          00:00:00
+        </div>
+        <div id="pano-date" class="text-xs font-medium text-slate-400">
+          16 Eylül 2026
+        </div>
+      </div>
+
+      <!-- TV Kontrolleri -->
+      <div class="flex items-center gap-1.5 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+        <button onclick="PanoApp.togglePause()" id="pause-btn" title="Durdur / Oynat"
+          class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold transition">
+          ⏸
+        </button>
+        <button onclick="PanoApp.toggleFullscreen()" title="Tam Ekran (F11)"
+          class="w-9 h-9 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center justify-center text-base font-bold transition">
+          ⛶
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- İlerleme Çubuğu (Progress Bar for next slide) -->
+  <div class="w-full h-1 bg-slate-900 relative">
+    <div id="slide-progress" class="h-full bg-gradient-to-r from-amber-500 to-yellow-300 transition-all duration-300 w-0"></div>
+  </div>
+
+  <!-- 2. ANA SLAYT İÇERİK ALANI -->
+  <main id="slide-container" class="flex-1 p-6 flex flex-col justify-center max-w-[1700px] w-full mx-auto relative overflow-hidden">
+    <!-- JavaScript ile slaytlar buraya render edilir -->
+  </main>
+
+  <!-- 3. ALT BİLGİ VE HABER BANTI (TICKER) -->
+  <footer class="bg-slate-900 border-t border-slate-800/80 px-6 py-2.5 flex items-center justify-between z-20">
+    <div class="flex items-center gap-2 bg-amber-500 text-slate-950 px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider flex-shrink-0 shadow-md">
+      <span>📢</span> <span>DUYURU</span>
+    </div>
+    <div class="flex-1 overflow-hidden mx-4 text-xs font-semibold text-slate-300">
+      <div id="pano-ticker" class="animate-marquee">
+        Ömer Avniyel Akademi Canlı Liderlik Panosu • 🕌 5 Vakit namazını eksiksiz kılan talebelerimize günlük +15 puan İbadet Bonusu! • 🛏️ Sabah odasını ve yatağını nizami toplayana +15 puan • 📚 Takviye ders sınavlarında 100 tam puan alan talebelerimize +50 şampiyonluk puanı! • "İki günü birbirine eşit olan ziyandadır." (Hadis-i Şerif)
+      </div>
+    </div>
+    <div class="flex items-center gap-2 text-[11px] text-slate-500 flex-shrink-0 font-mono">
+      <span id="sync-status">🟢 Canlı Eşitlendi</span>
+    </div>
+  </footer>
+
+  <!-- Store ve Leaderboard Modülleri -->
+  <script src="js/store.js?v=3.3"></script>
+  <script src="js/leaderboard.js?v=3.3"></script>
+
+  <!-- Pano TV Yönetim Motoru -->
+  <script>
+    const PanoApp = {
+      currentSlide: 0,
+      totalSlides: 5,
+      slideDuration: 18000, // 18 saniye
+      timer: null,
+      progressTimer: null,
+      progressStartTime: 0,
+      isPaused: false,
+
+      init() {
+        this.updateClock();
+        setInterval(() => this.updateClock(), 1000);
+
+        // Firebase canlı senkronizasyon (her 30 saniyede bir)
+        if (window.Store && window.Store.isCloudEnabled()) {
+          window.Store.syncFromCloud().then(() => this.renderCurrentSlide());
+          setInterval(() => {
+            window.Store.syncFromCloud().then(() => {
+              const statusEl = document.getElementById('sync-status');
+              if (statusEl) {
+                const now = new Date().toLocaleTimeString('tr-TR');
+                statusEl.textContent = `🟢 Güncellendi (${now})`;
+              }
+              this.renderCurrentSlide();
+            });
+          }, 30000);
+        }
+
+        // Klavye kısayolları (TV kumandası / klavye desteği)
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowRight' || e.key === 'PageDown') this.nextSlide();
+          if (e.key === 'ArrowLeft' || e.key === 'PageUp') this.prevSlide();
+          if (e.key === ' ' || e.key === 'Enter') this.togglePause();
+          if (e.key === 'f' || e.key === 'F11') this.toggleFullscreen();
+        });
+
+        // Kurum adı & logosu ayarla
+        const settings = window.Store ? window.Store.getSettings() : {};
+        if (settings.institutionName) {
+          const nameEl = document.getElementById('pano-inst-name');
+          if (nameEl) nameEl.textContent = settings.institutionName;
+        }
+        if (settings.institutionLogo) {
+          const logoEl = document.getElementById('pano-logo');
+          if (logoEl) logoEl.src = settings.institutionLogo;
+        }
+
+        this.goToSlide(0);
+      },
+
+      updateClock() {
+        const now = new Date();
+        const clockEl = document.getElementById('pano-clock');
+        const dateEl = document.getElementById('pano-date');
+        if (clockEl) {
+          const hh = String(now.getHours()).padStart(2, '0');
+          const mm = String(now.getMinutes()).padStart(2, '0');
+          const ss = String(now.getSeconds()).padStart(2, '0');
+          clockEl.textContent = `${hh}:${mm}:${ss}`;
+        }
+        if (dateEl) {
+          const options = { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' };
+          dateEl.textContent = now.toLocaleDateString('tr-TR', options);
+        }
+      },
+
+      startSlideTimer() {
+        clearInterval(this.timer);
+        clearInterval(this.progressTimer);
+        if (this.isPaused) return;
+
+        this.progressStartTime = Date.now();
+        const progressEl = document.getElementById('slide-progress');
+
+        this.progressTimer = setInterval(() => {
+          if (this.isPaused) return;
+          const elapsed = Date.now() - this.progressStartTime;
+          const pct = Math.min(100, (elapsed / this.slideDuration) * 100);
+          if (progressEl) progressEl.style.width = pct + '%';
+        }, 100);
+
+        this.timer = setTimeout(() => {
+          this.nextSlide();
+        }, this.slideDuration);
+      },
+
+      goToSlide(index) {
+        this.currentSlide = (index + this.totalSlides) % this.totalSlides;
+        this.updateSlideButtons();
+        this.renderCurrentSlide();
+        this.startSlideTimer();
+      },
+
+      nextSlide() {
+        this.goToSlide(this.currentSlide + 1);
+      },
+
+      prevSlide() {
+        this.goToSlide(this.currentSlide - 1);
+      },
+
+      togglePause() {
+        this.isPaused = !this.isPaused;
+        const btn = document.getElementById('pause-btn');
+        if (btn) btn.textContent = this.isPaused ? '▶' : '⏸';
+        if (!this.isPaused) {
+          this.startSlideTimer();
+        } else {
+          clearInterval(this.timer);
+          clearInterval(this.progressTimer);
+        }
+      },
+
+      toggleFullscreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          if (document.exitFullscreen) document.exitFullscreen();
+        }
+      },
+
+      updateSlideButtons() {
+        for (let i = 0; i < this.totalSlides; i++) {
+          const btn = document.getElementById(`slide-btn-${i}`);
+          if (btn) {
+            if (i === this.currentSlide) {
+              btn.className = 'px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 bg-amber-500 text-slate-950 shadow-md';
+            } else {
+              btn.className = 'px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 text-slate-400 hover:text-white';
+            }
+          }
+        }
+      },
+
+      renderCurrentSlide() {
+        const container = document.getElementById('slide-container');
+        if (!container || !window.Store) return;
+
+        const data = window.Store.getLeaderboard('haftalik', new Date().toISOString().split('T')[0], 'ALL');
+        const ranking = data.ranking || [];
+
+        switch (this.currentSlide) {
+          case 0:
+            this.renderSlidePodium(container, ranking, data);
+            break;
+          case 1:
+            this.renderSlideClassChampions(container, data);
+            break;
+          case 2:
+            this.renderSlideLeaderboardTop10(container, ranking, data);
+            break;
+          case 3:
+            this.renderSlideLeaderboard11To20(container, ranking, data);
+            break;
+          case 4:
+            this.renderSlideDailyPrayerQuote(container);
+            break;
+        }
+      },
+
+      // SLAYT 0: 🏆 ALTIN PODYUM (1., 2. ve 3. SIRA)
+      renderSlidePodium(container, ranking, data) {
+        const top1 = ranking[0] || null;
+        const top2 = ranking[1] || null;
+        const top3 = ranking[2] || null;
+
+        container.innerHTML = `
+          <div class="space-y-4 animate-fade-in">
+            <div class="text-center">
+              <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-black text-xs uppercase tracking-widest mb-1 shadow-lg">
+                <span>👑</span> HAFTANIN ŞAMPİYONLARI <span>👑</span>
+              </div>
+              <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                Ömer Avniyel Akademi Şampiyonlar Kürsüsü
+              </h2>
+              <p class="text-xs text-slate-400 font-medium">
+                Dönem: ${data.startDate} – ${data.endDate} • Tüm Kurs Genel Başarı Puanları
+              </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end max-w-5xl mx-auto pt-6 pb-2">
+              
+              <!-- 🥈 2. SIRA (GÜMÜŞ) -->
+              <div class="order-2 md:order-1">
+                ${top2 ? `
+                  <div class="bg-slate-900/90 rounded-3xl border-2 border-slate-500/60 p-6 text-center shadow-xl relative overflow-hidden">
+                    <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-slate-400 to-slate-200"></div>
+                    <div class="text-4xl mb-1">🥈</div>
+                    <div class="text-[11px] font-black uppercase text-slate-400 tracking-wider">2. SIRA • GÜMÜŞ</div>
+                    <h3 class="text-xl font-black text-white mt-1 truncate">
+                      ${top2.student.firstName} ${top2.student.lastName}
+                    </h3>
+                    <div class="text-xs text-slate-400 font-bold mb-3">${top2.student.className} • No: ${top2.student.studentNo}</div>
+
+                    <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 mb-3">
+                      <div class="text-[10px] font-bold text-slate-400 uppercase">TOPLAM PUAN</div>
+                      <div class="text-3xl font-black text-slate-200">${top2.totalScore}</div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-1.5 text-[10px] text-slate-400">
+                      <div class="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800">🕌 +${top2.namaz.points}</div>
+                      <div class="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800">🛏️ +${top2.yatak.points}</div>
+                      <div class="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800">📚 +${top2.akademi.points}</div>
+                    </div>
+                  </div>
+                ` : '<div class="text-center text-slate-600">2. Bekleniyor</div>'}
+              </div>
+
+              <!-- 🥇 1. SIRA (ALTIN ŞAMPİYON) -->
+              <div class="order-1 md:order-2 transform md:-translate-y-4">
+                ${top1 ? `
+                  <div class="bg-gradient-to-b from-amber-950/40 via-slate-900 to-slate-900 rounded-3xl border-3 border-amber-400 p-7 text-center shadow-2xl relative overflow-hidden gold-glow">
+                    <div class="absolute top-0 left-0 right-0 h-3 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500"></div>
+                    
+                    <div class="relative inline-block mb-1">
+                      <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-white font-black text-4xl flex items-center justify-center shadow-xl mx-auto">
+                        🏆
+                      </div>
+                      <span class="absolute -top-3 -right-2 text-2xl animate-bounce">👑</span>
+                    </div>
+
+                    <div class="inline-block px-3.5 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-widest mt-2 shadow-md">
+                      🌟 HAFTANIN TALEBESİ 🌟
+                    </div>
+
+                    <h3 class="text-2xl sm:text-3xl font-black text-amber-300 mt-2 truncate tracking-tight">
+                      ${top1.student.firstName} ${top1.student.lastName}
+                    </h3>
+                    <div class="text-sm font-bold text-slate-300 mb-4">${top1.student.className} • No: ${top1.student.studentNo}</div>
+
+                    <div class="p-4 bg-slate-950/90 rounded-2xl border-2 border-amber-400/80 mb-4 shadow-inner">
+                      <div class="text-[11px] font-black uppercase text-amber-400 tracking-wider">ŞAMPİYONLUK PUANI</div>
+                      <div class="text-5xl font-black text-white my-1">${top1.totalScore}</div>
+                      ${top1.namaz.fullBonusCount > 0 ? `
+                        <div class="text-[11px] font-black text-emerald-400 mt-1">
+                          ⭐ ${top1.namaz.fullBonusCount} Gün 5 Vakit Tam İbadet Bonusu!
+                        </div>
+                      ` : ''}
+                    </div>
+
+                    <div class="grid grid-cols-4 gap-2 text-xs font-bold">
+                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-emerald-400">🕌 +${top1.namaz.points}</div>
+                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-teal-400">🛏️ +${top1.yatak.points}</div>
+                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-blue-400">🎒 +${top1.okul.points}</div>
+                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-sky-400">📚 +${top1.akademi.points}</div>
+                    </div>
+                  </div>
+                ` : '<div class="text-center text-slate-600">1. Bekleniyor</div>'}
+              </div>
+
+              <!-- 🥉 3. SIRA (BRONZ) -->
+              <div class="order-3 md:order-3">
+                ${top3 ? `
+                  <div class="bg-slate-900/90 rounded-3xl border-2 border-amber-700/60 p-6 text-center shadow-xl relative overflow-hidden">
+                    <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-700 to-amber-500"></div>
+                    <div class="text-4xl mb-1">🥉</div>
+                    <div class="text-[11px] font-black uppercase text-amber-500 tracking-wider">3. SIRA • BRONZ</div>
+                    <h3 class="text-xl font-black text-white mt-1 truncate">
+                      ${top3.student.firstName} ${top3.student.lastName}
+                    </h3>
+                    <div class="text-xs text-slate-400 font-bold mb-3">${top3.student.className} • No: ${top3.student.studentNo}</div>
+
+                    <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 mb-3">
+                      <div class="text-[10px] font-bold text-slate-400 uppercase">TOPLAM PUAN</div>
+                      <div class="text-3xl font-black text-slate-200">${top3.totalScore}</div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-1.5 text-[10px] text-slate-400">
+                      <div class="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800">🕌 +${top3.namaz.points}</div>
+                      <div class="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800">🛏️ +${top3.yatak.points}</div>
+                      <div class="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800">📚 +${top3.akademi.points}</div>
+                    </div>
+                  </div>
+                ` : '<div class="text-center text-slate-600">3. Bekleniyor</div>'}
+              </div>
+
+            </div>
+          </div>
+        `;
+      },
+
+      // SLAYT 1: 🎓 SINIF ŞAMPİYONLARI (5, 6, 7 ve 8. Sınıf Birincileri)
+      renderSlideClassChampions(container, data) {
+        const classes = ['5. Sınıf', '6. Sınıf', '7. Sınıf', '8. Sınıf'];
+        const classLeaders = classes.map(c => {
+          const cData = window.Store.getLeaderboard('haftalik', new Date().toISOString().split('T')[0], c);
+          return {
+            className: c,
+            leader: cData.ranking[0] || null
+          };
+        });
+
+        container.innerHTML = `
+          <div class="space-y-6 animate-fade-in max-w-6xl mx-auto w-full">
+            <div class="text-center">
+              <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-black text-xs uppercase tracking-widest mb-1">
+                <span>🎓</span> SINIF BAZLI ŞAMPİYONLAR <span>🎓</span>
+              </div>
+              <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                Her Sınıfın Haftalık Zirvedeki Talebeleri
+              </h2>
+              <p class="text-xs text-slate-400 font-medium">
+                Kendi akranları arasında en yüksek puanı toplayan sınıf birincileri
+              </p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 pt-4">
+              ${classLeaders.map(item => {
+                const l = item.leader;
+                return `
+                  <div class="bg-slate-900/90 rounded-3xl border-2 border-slate-800 hover:border-amber-400/60 p-6 text-center shadow-xl relative overflow-hidden transition">
+                    <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
+                    
+                    <div class="inline-block px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-black text-xs mb-3 uppercase">
+                      ${item.className}
+                    </div>
+
+                    ${l ? `
+                      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-black text-2xl flex items-center justify-center shadow-md mx-auto mb-3">
+                        🥇
+                      </div>
+                      <h3 class="text-lg font-black text-white truncate">
+                        ${l.student.firstName} ${l.student.lastName}
+                      </h3>
+                      <div class="text-xs text-slate-400 mb-3">No: ${l.student.studentNo}</div>
+
+                      <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 mb-3">
+                        <div class="text-[10px] font-bold text-slate-400 uppercase">SINIF 1.'Sİ PUANI</div>
+                        <div class="text-3xl font-black text-amber-400">${l.totalScore}</div>
+                      </div>
+
+                      <div class="text-[11px] text-slate-400 space-y-1 text-left bg-slate-950/40 p-2.5 rounded-xl border border-slate-800">
+                        <div class="flex justify-between"><span>🕌 Namaz:</span> <strong class="text-emerald-400">+${l.namaz.points}</strong></div>
+                        <div class="flex justify-between"><span>🛏️ Yatak:</span> <strong class="text-teal-400">+${l.yatak.points}</strong></div>
+                        <div class="flex justify-between"><span>🎒 Okul:</span> <strong class="text-blue-400">+${l.okul.points}</strong></div>
+                        <div class="flex justify-between"><span>📚 Akademi:</span> <strong class="text-sky-400">+${l.akademi.points}</strong></div>
+                      </div>
+                    ` : `
+                      <div class="py-12 text-slate-500 text-xs font-bold">
+                        Puan Kaydı Bekleniyor
+                      </div>
+                    `}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      },
+
+      // SLAYT 2: 📊 İLK 10 TALEBE (LİDERLİK TABLOSU)
+      renderSlideLeaderboardTop10(container, ranking, data) {
+        const top10 = ranking.slice(0, 10);
+        this.renderTableSlide(container, top10, 'HAFTANIN İLK 10 TALEBESİ', '1 - 10 Arası Zirve Sıralaması', data);
+      },
+
+      // SLAYT 3: 📋 11 - 20 ARASI SIRALAMA
+      renderSlideLeaderboard11To20(container, ranking, data) {
+        const next10 = ranking.slice(10, 20);
+        this.renderTableSlide(container, next10, 'GENEL SIRALAMANIN DEVAMI', '11 - 20 Arası Başarılı Talebeler', data);
+      },
+
+      renderTableSlide(container, items, title, subtitle, data) {
+        container.innerHTML = `
+          <div class="space-y-4 animate-fade-in max-w-6xl mx-auto w-full">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">📊</span>
+                  <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">${title}</h2>
+                  <span class="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-bold text-xs">
+                    ${subtitle}
+                  </span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">Dönem: ${data.startDate} – ${data.endDate}</p>
+              </div>
+              <div class="text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/20">
+                ⭐ Canlı Sıralama
+              </div>
+            </div>
+
+            <div class="bg-slate-900/90 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-950/80 text-[11px] font-black uppercase text-slate-400 border-b border-slate-800">
+                    <th class="p-3 text-center w-16">SIRA</th>
+                    <th class="p-3">TALEBE ADI & SINIFI</th>
+                    <th class="p-3 text-center">🕌 NAMAZ</th>
+                    <th class="p-3 text-center">🛏️ YATAK</th>
+                    <th class="p-3 text-center">🎒 OKUL</th>
+                    <th class="p-3 text-center">📚 AKADEMİ</th>
+                    <th class="p-3 text-center">🌟 TAKDİR</th>
+                    <th class="p-3 text-center font-black">TOPLAM PUAN</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/80">
+                  ${items.length === 0 ? `
+                    <tr><td colspan="8" class="p-8 text-center text-slate-500">Bu grupta henüz öğrenci yok.</td></tr>
+                  ` : items.map(i => {
+                    let rankBadge = `<span class="font-bold text-slate-400">#${i.rank}</span>`;
+                    let rowBg = 'hover:bg-slate-800/50';
+                    if (i.rank === 1) {
+                      rankBadge = `<span class="w-7 h-7 rounded-xl bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center mx-auto shadow-md">🥇 1</span>`;
+                      rowBg = 'bg-amber-500/10 hover:bg-amber-500/20';
+                    } else if (i.rank === 2) {
+                      rankBadge = `<span class="w-7 h-7 rounded-xl bg-slate-300 text-slate-950 font-black text-xs flex items-center justify-center mx-auto shadow-md">🥈 2</span>`;
+                      rowBg = 'bg-slate-500/10 hover:bg-slate-500/20';
+                    } else if (i.rank === 3) {
+                      rankBadge = `<span class="w-7 h-7 rounded-xl bg-amber-700 text-white font-black text-xs flex items-center justify-center mx-auto shadow-md">🥉 3</span>`;
+                      rowBg = 'bg-amber-700/10 hover:bg-amber-700/20';
+                    }
+
+                    return `
+                      <tr class="${rowBg} transition">
+                        <td class="p-3 text-center">${rankBadge}</td>
+                        <td class="p-3">
+                          <div class="font-black text-sm text-white">${i.student.firstName} ${i.student.lastName}</div>
+                          <div class="text-[10px] text-slate-400 font-medium">${i.student.className} • No: ${i.student.studentNo}</div>
+                        </td>
+                        <td class="p-3 text-center font-bold text-emerald-400">+${i.namaz.points}</td>
+                        <td class="p-3 text-center font-bold text-teal-400">+${i.yatak.points}</td>
+                        <td class="p-3 text-center font-bold text-blue-400">+${i.okul.points}</td>
+                        <td class="p-3 text-center font-bold text-sky-400">+${i.akademi.points}</td>
+                        <td class="p-3 text-center font-bold text-amber-400">+${i.bonus.points}</td>
+                        <td class="p-3 text-center">
+                          <span class="px-3.5 py-1 rounded-xl bg-slate-950 text-amber-300 border border-amber-500/40 font-black text-sm shadow-inner">
+                            ${i.totalScore} Puan
+                          </span>
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      },
+
+      // SLAYT 4: 🕌 GÜNÜN İBADETİ & MOTİVASYON HADİSİ
+      renderSlideDailyPrayerQuote(container) {
+        const quotes = [
+          { text: "İki günü birbirine eşit olan ziyandadır.", author: "Hadis-i Şerif" },
+          { text: "Namaz dinin direğidir; kim onu ikame ederse dinini ikame etmiş olur.", author: "Hadis-i Şerif" },
+          { text: "İlim tahsil etmek her Müslümana farzdır.", author: "Hadis-i Şerif" },
+          { text: "Müminlerin iman bakımından en mükemmeli, ahlakı en güzel olanıdır.", author: "Hadis-i Şerif" },
+          { text: "Temizlik imandandır.", author: "Hadis-i Şerif" }
+        ];
+        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+
+        container.innerHTML = `
+          <div class="space-y-8 animate-fade-in max-w-5xl mx-auto w-full text-center py-4">
+            
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-black text-xs uppercase tracking-widest">
+              <span>🕌</span> GÜNÜN HİKMETİ VE BEREKETİ <span>🕌</span>
+            </div>
+
+            <!-- Hadis / Hikmet Kartı -->
+            <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/60 rounded-3xl border-2 border-indigo-500/40 p-8 sm:p-12 shadow-2xl relative overflow-hidden">
+              <div class="text-5xl sm:text-6xl text-amber-400/40 font-serif mb-3">“</div>
+              <p class="text-2xl sm:text-4xl font-black text-white leading-relaxed tracking-tight max-w-3xl mx-auto">
+                ${randomQuote.text}
+              </p>
+              <div class="text-amber-400 font-black text-sm sm:text-base mt-4 uppercase tracking-widest">
+                — ${randomQuote.author}
+              </div>
+            </div>
+
+            <!-- Motivasyon Kutucukları -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
+              <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-md">
+                <div class="text-2xl mb-1">🕌</div>
+                <div class="font-black text-sm text-white">5 Vakit Namaz</div>
+                <div class="text-xs text-slate-400 mt-1">Cemaatle kılınan her vakit için +10 Puan. Günün 5 vaktini tam kılanlara +15 gün sonu bonusu!</div>
+              </div>
+
+              <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-md">
+                <div class="text-2xl mb-1">🛏️</div>
+                <div class="font-black text-sm text-white">Oda ve Yatak Düzeni</div>
+                <div class="text-xs text-slate-400 mt-1">Sabah yatağını ve dolabını nizami, tertemiz toplayan talebelerimize +15 Puan!</div>
+              </div>
+
+              <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-md">
+                <div class="text-2xl mb-1">📚</div>
+                <div class="font-black text-sm text-white">Akademi ve Dersler</div>
+                <div class="text-xs text-slate-400 mt-1">Takviye derslerinde gösterilen gayret ve yüksek sınav notları ile haftanın zirvesine yerleş!</div>
+              </div>
+            </div>
+
+          </div>
+        `;
+      }
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      PanoApp.init();
+    });
+  </script>
+</body>
+</html>
