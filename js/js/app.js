@@ -24,6 +24,39 @@ window.App = {
 
     this.renderHeader();
     this.renderMainContent();
+
+    // Bulut senkronizasyonu tamamlandığında ekranı sessizce tazele
+    window.addEventListener('cloud-sync-done', () => {
+      this.renderHeader();
+      if (this.currentSession) {
+        this.renderMainContent();
+      }
+    });
+
+    // Eğer Firebase URL tanımlıysa sayfa açıldığında buluttan en güncel veriyi çek
+    if (window.Store && window.Store.isCloudEnabled()) {
+      window.Store.syncFromCloud().then(res => {
+        if (res && res.success) {
+          console.log('[CloudSync] İlk senkronizasyon başarılı:', res.message);
+        }
+      });
+
+      // Kullanıcı sayfaya geri döndüğünde (sekme değişiminde) ve her 60 saniyede bir eşitle
+      window.addEventListener('focus', () => {
+        window.Store.syncFromCloud();
+        this.checkAndTriggerYatakReminder();
+      });
+
+      setInterval(() => {
+        if (window.Store.isCloudEnabled()) {
+          window.Store.syncFromCloud();
+        }
+        this.checkAndTriggerYatakReminder();
+      }, 60000);
+    }
+
+    // Yatak kontrolü zamanlayıcısını sayfa açılışında da bir kez denetle
+    this.checkAndTriggerYatakReminder();
   },
 
   // --- Kurs Logosu / Fotoğrafı Otomatik Aday Bulma ve Hata Yönetimi ---
@@ -169,11 +202,11 @@ window.App = {
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          _subject: `🔑 [GİRİŞ KODU: ${res.code}] - Kurs Yönetim Sistemi`,
+          _subject: `🔑 [GİRİŞ KODU: ${res.code}] - Ömer Avniyel Akademi`,
           "Yönetici": "Selim Bozkurt",
           "Alıcı E-Posta": email,
           "Giriş Doğrulama Kodu": res.code,
-          "Açıklama": `Sayın Selim Bozkurt,\n\nKurs & Etüt Öğrenci Takip Sistemi Ana Yönetici girişi için tek kullanımlık güvenlik kodunuz:\n\n👉  ${res.code}  👈\n\nBu kod 10 dakika geçerlidir.`,
+          "Açıklama": `Sayın Selim Bozkurt,\n\nÖmer Avniyel Akademi Ana Yönetici girişi için tek kullanımlık güvenlik kodunuz:\n\n👉  ${res.code}  👈\n\nBu kod 10 dakika geçerlidir.`,
           _captcha: "false",
           _template: "table"
         })
@@ -266,21 +299,11 @@ window.App = {
     const session = this.currentSession;
     let roleBadge = '';
     if (session.role === 'superadmin') {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs border border-amber-300">👑 Ana Yönetici (Müdür)</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs border border-amber-300 whitespace-nowrap">👑 Ana Yönetici (Müdür)</span>`;
     } else if (session.role === 'staff') {
-      roleBadge = `
-        <div class="flex items-center gap-1.5">
-          <span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-bold text-xs border border-blue-200">👨‍🏫 ${session.name}</span>
-          <button type="button" onclick="window.App.openStaffSelfPasswordModal()" 
-            class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-[11px] border border-amber-300 shadow-2xs transition flex items-center gap-1"
-            title="Kendi Giriş Şifrenizi Değiştirin">
-            <span>🔑</span>
-            <span class="hidden sm:inline">Şifremi Değiştir</span>
-          </button>
-        </div>
-      `;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-bold text-xs border border-blue-200 whitespace-nowrap">👨‍🏫 ${session.name}</span>`;
     } else {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 font-bold text-xs border border-purple-200">👨‍👩‍👧 Veli Portalı (${session.familyCode})</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 font-bold text-xs border border-purple-200 whitespace-nowrap">👨‍👩‍👧 Veli Portalı (${session.familyCode})</span>`;
     }
 
     let activeTitle = '📋 Yoklama';
@@ -308,49 +331,42 @@ window.App = {
       activeTitle = '⚙️ Sistem Ayarları';
     }
 
+    // SOLDAN SAĞA SIRASIYLA: 1. MENÜ, 2. FOTOĞRAF, 3. AD SOYAD, 4. YOKLAMA VS.
     header.innerHTML = `
-      <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-3">
-        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3.5">
-          ${session.role !== 'parent' ? `
-            <!-- 1. MENÜ BUTONU -->
-            <button onclick="window.App.openDrawer()" 
-              class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5 flex-shrink-0">
-              <span class="text-sm leading-none">☰</span>
-              <span>Menü</span>
-            </button>
-          ` : ''}
-
-          <!-- 2. KURS GÖRSELİ -->
-          <div class="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm border border-slate-200 bg-white">
-            ${settings.institutionLogo ? `
-              <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover"
-                onerror="window.App.handleLogoError(this)">
-              <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">🏛️</div>
-            ` : `
-              <div class="w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">🏛️</div>
-            `}
-          </div>
-
-          <!-- 3. KULLANICI ADI & 4. HANGİ SAYFADAYSAK O -->
-          <div class="flex flex-wrap items-center gap-2">
-            ${roleBadge}
-            ${session.role !== 'parent' ? `
-              <span class="text-slate-300 hidden sm:inline">•</span>
-              <span class="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-900 font-black text-xs border border-emerald-300 shadow-2xs flex items-center gap-1.5">
-                ${activeTitle}
-              </span>
-            ` : ''}
-          </div>
-        </div>
-
-        <!-- SAĞ: ÇIKIŞ BUTONU -->
-        <div class="flex items-center gap-2 flex-shrink-0">
-          <button onclick="window.App.logout()" 
-            class="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 transition flex items-center gap-1">
-            <span>🚪</span>
-            <span class="hidden sm:inline">Çıkış</span>
+      <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2 flex items-center gap-2 sm:gap-3 overflow-x-auto">
+        ${session.role !== 'parent' ? `
+          <!-- 1. MENÜ BUTONU -->
+          <button onclick="window.App.openDrawer()" 
+            class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 flex-shrink-0">
+            <span class="text-sm leading-none">☰</span>
+            <span>Menü</span>
           </button>
+        ` : ''}
+
+        <!-- 2. KURS GÖRSELİ -->
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-xs border border-slate-200 bg-white">
+          ${settings.institutionLogo ? `
+            <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover"
+              onerror="window.App.handleLogoError(this)">
+            <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center">🏛️</div>
+          ` : `
+            <div class="w-full h-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center">🏛️</div>
+          `}
         </div>
+
+        <!-- 3. AD SOYAD -->
+        <div class="flex-shrink-0">
+          ${roleBadge}
+        </div>
+
+        <!-- 4. HANGİ SAYFADAYSAK O (YOKLAMA VS.) -->
+        ${session.role !== 'parent' ? `
+          <div class="flex-shrink-0">
+            <span class="px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-900 font-black text-xs border border-emerald-300 shadow-2xs whitespace-nowrap flex items-center gap-1">
+              ${activeTitle}
+            </span>
+          </div>
+        ` : ''}
       </div>
     `;
   },
@@ -1234,16 +1250,184 @@ window.App = {
               <span class="text-[11px] text-slate-400">Giriş yaparken doğrulama kodunuz bu e-postaya gönderilir.</span>
             </div>
 
+            <!-- Canlı Bulut Veritabanı Ayarı -->
+            <div class="pt-3 border-t border-slate-100">
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-black text-slate-800 uppercase">
+                  ☁️ CANLI BULUT VERİTABANI (TÜM CİHAZLARI ANLIK EŞİTLEME)
+                </label>
+                ${settings.firebaseUrl ? `
+                  <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Aktif</span>
+                  </span>
+                ` : `
+                  <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold border border-slate-300">
+                    Yerel Mod
+                  </span>
+                `}
+              </div>
+              <p class="text-[11px] text-slate-500 mb-2">
+                Hocaların telefonlarından aldıkları yoklamaların ve veli girişlerinin tüm telefonlarda ve bilgisayarınızda anında canlı görünmesini sağlar.
+              </p>
+              <input type="url" id="set-firebase-url" value="${settings.firebaseUrl || ''}" 
+                placeholder="Örn: https://oay-takip-default-rtdb.firebaseio.com"
+                class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 transition">
+              <span class="text-[10px] text-slate-400 block mt-1">
+                Google Firebase Realtime Database URL adresinizi buraya yapıştırıp "Ayarları Kaydet"e basınız.
+              </span>
+            </div>
+
             <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-2">
               <span>💾</span>
-              <span>Ayarları & Logoyu Kaydet</span>
+              <span>Ayarları Kaydet</span>
             </button>
           </form>
         </div>
 
+        <!-- Canlı Bulut Veritabanı Yönetimi & Eşitleme Paneli -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 text-lg flex items-center justify-center shadow-inner">
+                ☁️
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-800 text-base leading-tight">Canlı Bulut Senkronizasyonu</h3>
+                <p class="text-xs text-slate-500">Tüm hocaların telefonlarını ve bilgisayarınızı tek bir canlı merkeze bağlayın</p>
+              </div>
+            </div>
+            <div>
+              ${settings.firebaseUrl ? `
+                <span class="px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-300 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Canlı Bağlantı Hazır</span>
+                </span>
+              ` : `
+                <span class="px-3 py-1 rounded-xl bg-amber-50 text-amber-800 text-xs font-bold border border-amber-300 flex items-center gap-1.5">
+                  <span>⚠️</span>
+                  <span>URL Tanımlanmadı</span>
+                </span>
+              `}
+            </div>
+          </div>
+
+          <!-- Aksiyon Butonları -->
+          <div class="flex flex-wrap items-center gap-3 mb-5">
+            <button type="button" onclick="window.App.handlePushAllToCloud()"
+              class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-2">
+              <span>🚀</span>
+              <span>Tüm Verileri Buluta İlk Yükle</span>
+            </button>
+
+            <button type="button" onclick="window.App.handleSyncFromCloud(true)"
+              class="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-2">
+              <span>🔄</span>
+              <span>Buluttan Şimdi Eşitle (Verileri Çek)</span>
+            </button>
+          </div>
+
+          <!-- 2 Dakikalık Kolay Firebase Kurulum Kılavuzu -->
+          <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-700 space-y-2.5">
+            <div class="font-bold text-slate-900 flex items-center gap-2">
+              <span>📋</span>
+              <span>2 Dakikada Tamamen Ücretsiz Canlı Veritabanı Kurulumu:</span>
+            </div>
+            <ol class="list-decimal list-inside space-y-1.5 text-[11px] text-slate-600 leading-relaxed">
+              <li>
+                <a href="https://console.firebase.google.com" target="_blank" class="text-emerald-700 underline font-bold hover:text-emerald-800">
+                  console.firebase.google.com ↗
+                </a> 
+                adresine Google hesabınızla giriş yapın.
+              </li>
+              <li><strong>"Proje Ekle"</strong> butonuna basın, proje adını <code>oay-takip</code> yapıp adımları onaylayın.</li>
+              <li>Sol menüden <strong>"Build (Derle)" ➔ "Realtime Database"</strong> seçeneğine tıklayın.</li>
+              <li><strong>"Veritabanı Oluştur"</strong> deyin, kurallar ekranında <strong>"Test Modunda Başlat"</strong> (read: true, write: true) seçeneğini işaretleyin.</li>
+              <li>Sayfanın üstünde beliren veritabanı bağlantı adresini (Örn: <code>https://oay-takip-default-rtdb.firebaseio.com/</code>) kopyalayın.</li>
+              <li>Bu adresi yukarıdaki <strong>"Canlı Bulut Veritabanı"</strong> kutucuğuna yapıştırıp <strong>"Ayarları Kaydet"</strong>e ve ardından <strong>"Tüm Verileri Buluta İlk Yükle"</strong> butonuna basın.</li>
+            </ol>
+            <p class="text-[10px] text-emerald-800 bg-emerald-50/80 p-2 rounded-xl border border-emerald-200 mt-2">
+              ✨ Tebrikler! Artık hocalar kendi telefonlarından yoklama aldığında veya veliler sisteme baktığında tüm veriler otomatik olarak canlı eşitlenecektir.
+            </p>
+          </div>
+        </div>
+
+        <!-- Yatak Kontrolü Otomatik Bildirim Yönetimi (Sadece Ana Yönetici) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 text-xl flex items-center justify-center shadow-inner">
+                ⏰
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-800 text-base leading-tight">Yatak Kontrolü Otomatik Bildirimleri</h3>
+                <p class="text-xs text-slate-500">Sabah 08:30'dan itibaren yoklama girilmedikçe her 30 dakikada bir hocalara otomatik bildirim gönderir</p>
+              </div>
+            </div>
+
+            <!-- YÖNETİCİ AÇMA / KAPATMA BUTONU -->
+            <div>
+              <button type="button" onclick="window.App.toggleYatakReminder()"
+                class="px-5 py-2.5 rounded-2xl font-black text-xs shadow-sm transition flex items-center gap-2 cursor-pointer ${
+                  settings.yatakReminderEnabled !== false 
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-4 ring-emerald-100' 
+                    : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                }">
+                <span class="w-2.5 h-2.5 rounded-full ${settings.yatakReminderEnabled !== false ? 'bg-white animate-pulse' : 'bg-slate-400'}"></span>
+                <span>${settings.yatakReminderEnabled !== false ? '🟢 Otomatik Bildirimler AÇIK' : '⚪ Otomatik Bildirimler KAPALI'}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="pt-4 space-y-3">
+            <!-- Otomatik Zamanlama Bilgi Kutusu -->
+            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-bold text-slate-800">⏰ Hatırlatma Başlama Saati:</span>
+                <span class="px-2.5 py-1 bg-white font-mono font-bold text-emerald-800 rounded-lg border border-slate-300">
+                  Sabah 08:30
+                </span>
+              </div>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-bold text-slate-800">🔁 Tekrar Sıklığı:</span>
+                <span class="px-2.5 py-1 bg-white font-mono font-bold text-indigo-800 rounded-lg border border-slate-300">
+                  Yoklama Alınmadıkça Her 30 Dakikada Bir
+                </span>
+              </div>
+              <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200">
+                <span class="font-bold text-slate-800">🛑 Durdurma Kuralı:</span>
+                <span class="text-[11px] text-emerald-700 font-bold">
+                  Hoca yatak kontrolünü sisteme girdiği anda bildirimler o gün için otomatik kesilir.
+                </span>
+              </div>
+            </div>
+
+            <!-- Canlı Durum Bildirimi -->
+            <div class="p-3 bg-white rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span class="font-bold text-slate-600">Bugünkü Durum:</span>
+              <div>
+                ${window.Store.isYatakAttendanceDoneToday() ? `
+                  <span class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-900 font-bold text-[11px] border border-emerald-300">
+                    ✅ Bugünkü Yoklama Alındı (Bildirimler Durduruldu)
+                  </span>
+                ` : (settings.yatakReminderEnabled !== false ? `
+                  <span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold text-[11px] border border-amber-300 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span>⏳ Bugünkü Yoklama Bekleniyor (Her 30 Dk Otomatik Bildirim Devrede)</span>
+                  </span>
+                ` : `
+                  <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-bold text-[11px] border border-slate-300">
+                    ⚪ Otomatik Bildirimler Yönetici Tarafından Kapatıldı
+                  </span>
+                `)}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h3 class="font-bold text-slate-800 text-base mb-2 flex items-center gap-2">
-            <span>💾</span> Veri Yedekleme
+            <span>💾</span> Yerel Dosya Yedekleme
           </h3>
           <p class="text-xs text-slate-500 mb-4">Tüm verilerinizi tek dosya olarak bilgisayarınıza indirebilirsiniz.</p>
 
@@ -1268,15 +1452,211 @@ window.App = {
     const instName = document.getElementById('set-inst-name').value.trim();
     const adminEmail = document.getElementById('set-admin-email').value.trim();
     const logoUrl = document.getElementById('set-inst-logo-url') ? document.getElementById('set-inst-logo-url').value.trim() : '';
+    const firebaseUrl = document.getElementById('set-firebase-url') ? document.getElementById('set-firebase-url').value.trim() : '';
 
     window.Store.saveSettings({
       institutionName: instName,
       adminEmail: adminEmail,
-      institutionLogo: logoUrl
+      institutionLogo: logoUrl,
+      firebaseUrl: firebaseUrl
     });
 
-    this.showToast('Ayarlar ve kurs logosu kaydedildi!', 'success');
+    this.showToast('Ayarlar, kurs logosu ve canlı bulut bağlantısı kaydedildi!', 'success');
     this.renderHeader();
+    this.renderSettingsView();
+  },
+
+  async handlePushAllToCloud() {
+    const url = window.Store.getFirebaseUrl();
+    if (!url) {
+      this.showToast('Lütfen önce yukarıdaki kutucuğa Firebase Veritabanı URL adresinizi yapıştırıp "Ayarları Kaydet"e basınız.', 'warning');
+      const input = document.getElementById('set-firebase-url');
+      if (input) input.focus();
+      return;
+    }
+
+    if (!confirm('Bilgisayarınızdaki tüm öğrenci listesi (66 talebe), hoca kadrosu, yoklamalar ve sistem ayarları canlı bulut veritabanına aktarılacak. Onaylıyor musunuz?')) {
+      return;
+    }
+
+    this.showToast('Veriler canlı buluta aktarılıyor, lütfen bekleyiniz...', 'info');
+    const res = await window.Store.pushAllToCloud();
+    if (res.success) {
+      this.showToast(res.message, 'success');
+      this.renderHeader();
+      this.renderSettingsView();
+    } else {
+      this.showToast(res.message, 'error');
+    }
+  },
+
+  async handleSyncFromCloud(showToastNotice = true) {
+    if (!window.Store.isCloudEnabled()) {
+      if (showToastNotice) {
+        this.showToast('Canlı bulut bağlantısı henüz tanımlanmamış. Ayarlar ekranından Firebase URL ekleyiniz.', 'warning');
+      }
+      return;
+    }
+
+    if (showToastNotice) {
+      this.showToast('Buluttaki en güncel kayıtlar kontrol ediliyor...', 'info');
+    }
+
+    const res = await window.Store.syncFromCloud();
+    if (res.success) {
+      if (showToastNotice) {
+        this.showToast(res.message, 'success');
+      }
+      this.renderHeader();
+      if (this.currentSession) {
+        this.renderMainContent();
+      }
+    } else {
+      if (showToastNotice) {
+        this.showToast(`Eşitleme uyarısı: ${res.message}`, 'error');
+      }
+    }
+  },
+
+  // --- BİLDİRİM YÖNETİMİ & TESTİ (Telefona Ekran Bildirimi Gönderme) ---
+  async requestNotificationPermissionAndTest() {
+    if (!('Notification' in window)) {
+      alert('Bu tarayıcıda veya cihazda bildirim desteği kapalı. Lütfen telefonunuzun Chrome veya Safari ayarlarından bildirimlere izin veriniz.');
+      return;
+    }
+
+    try {
+      let permission = Notification.permission;
+      if (permission !== 'granted') {
+        permission = await Notification.requestPermission();
+      }
+
+      if (permission === 'granted') {
+        this.showToast('✅ Bildirim izni açık! Telefonunuza test bildirimi gönderiliyor...', 'success');
+        this.triggerLocalPushNotification(
+          '🛏️ Yatak Kontrolü Hatırlatması',
+          'Sayın Hocam, bugünün yatak ve oda kontrolünü sisteme girmeyi unutmayınız! (Ömer Avniyel Akademi)'
+        );
+      } else if (permission === 'denied') {
+        alert('⚠️ Bildirim izni daha önce engellenmiş. Bildirim alabilmek için telefonunuzun Ayarlar > Bildirimler bölümünden tarayıcınıza izin veriniz.');
+      } else {
+        this.showToast('Bildirim izni onaylanmadı.', 'warning');
+      }
+    } catch (err) {
+      alert('Bildirim izni alınırken bir sorun oluştu: ' + err.message);
+    }
+  },
+
+  triggerLocalPushNotification(title, body) {
+    const options = {
+      body: body,
+      icon: 'icon.svg',
+      badge: 'icon.svg',
+      vibrate: [200, 100, 200, 100, 200],
+      tag: 'oay-yatak-reminder',
+      renotify: true
+    };
+
+    // 1. Service Worker ile bildirim (Mobilde ve PWA'da en güçlü yöntem)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        if (reg && reg.showNotification) {
+          reg.showNotification(title, options);
+        }
+      }).catch(() => {
+        try { new Notification(title, options); } catch(e) {}
+      });
+      return;
+    }
+
+    // 2. Standart Notification API
+    try {
+      new Notification(title, options);
+    } catch (err) {
+      console.warn('Notification API hatası:', err);
+    }
+  },
+
+  // WhatsApp Hatırlatması Gönder
+  sendYatakWhatsAppReminder(hocaPhone = '', hocaName = '') {
+    const defaultText = `Selamün aleyküm ${hocaName ? hocaName + ' ' : ''}Hocam, hayırlı sabahlar. Bugünün yatak ve oda kontrolünü sisteme girmeyi unutmayınız.\n\nYoklama Giriş Linki:\nhttps://selimbozkurt111-web.github.io/oay-tak-p/`;
+    const cleanPhone = (hocaPhone || '').replace(/\D/g, '');
+    const targetUrl = cleanPhone 
+      ? `https://wa.me/90${cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone}?text=${encodeURIComponent(defaultText)}`
+      : `https://wa.me/?text=${encodeURIComponent(defaultText)}`;
+
+    window.open(targetUrl, '_blank');
+  },
+
+  // --- OTOMATİK YATAK KONTROLÜ HATIRLATMA MOTORU ---
+  // Sabah 08:30'dan itibaren, kontrol sisteme işlenmedikçe her 30 dakikada bir otomatik bildirim gönderir.
+  // Kontrol sisteme işlendiği anda bildirimler otomatik olarak durdurulur!
+  checkAndTriggerYatakReminder() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+      return;
+    }
+
+    const settings = window.Store.getSettings();
+    if (settings.yatakReminderEnabled === false) return;
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const currentTimeInMins = currentHours * 60 + currentMinutes;
+
+    // Başlangıç saati: 08:30
+    const startTimeStr = settings.yatakReminderStartTime || '08:30';
+    const [startH, startM] = startTimeStr.split(':').map(Number);
+    const startTimeInMins = (startH !== undefined ? startH : 8) * 60 + (startM !== undefined ? startM : 30);
+
+    // Sabah 08:30'dan önce veya öğlen 13:00'dan sonra bildirim gönderilmez
+    if (currentTimeInMins < startTimeInMins || currentTimeInMins > 13 * 60) {
+      return;
+    }
+
+    // 1. KONTROL EDİLDİ Mİ? (Sisteme işlendiyse BİLDİRİM GÖNDERİLMEZ!)
+    const isDone = window.Store.isYatakAttendanceDoneToday(todayStr);
+    if (isDone) {
+      return;
+    }
+
+    // 2. Son bildirimden bu yana 30 dakika geçti mi?
+    const intervalMins = parseInt(settings.yatakReminderIntervalMins, 10) || 30;
+    const lastSentKey = 'oay_last_yatak_reminder_sent_v1';
+    const lastSentTime = parseInt(localStorage.getItem(lastSentKey), 10) || 0;
+    const elapsedMinutes = (Date.now() - lastSentTime) / (1000 * 60);
+
+    if (elapsedMinutes >= intervalMins) {
+      // 30 dakika doldu ve kontrol henüz girilmedi! Bildirimi gönder:
+      localStorage.setItem(lastSentKey, Date.now().toString());
+
+      this.triggerLocalPushNotification(
+        '🛏️ Yatak Kontrolü Hatırlatması',
+        'Sayın Hocam, bugünün yatak ve oda kontrolü henüz sisteme girilmedi! Lütfen yoklamayı tamamlayınız. (Ömer Avniyel Akademi)'
+      );
+
+      console.log(`[YatakReminder] Otomatik hatırlatma gönderildi (${now.toLocaleTimeString()}).`);
+    }
+  },
+
+  // Ana Yönetici için Yatak Hatırlatma Bildirimlerini Açma / Kapatma Anahtarı
+  toggleYatakReminder() {
+    const settings = window.Store.getSettings();
+    const currentState = settings.yatakReminderEnabled !== false;
+    const newState = !currentState;
+
+    window.Store.saveSettings({
+      yatakReminderEnabled: newState
+    });
+
+    this.showToast(
+      newState 
+        ? '✅ Yatak kontrolü otomatik bildirimleri AÇILDI. Sabah 08:30\'da yoklama alınmadıkça her 30 dk bildirim gidecek.' 
+        : '🛑 Yatak kontrolü otomatik bildirimleri KAPATILDI.',
+      newState ? 'success' : 'info'
+    );
+
     this.renderSettingsView();
   },
 

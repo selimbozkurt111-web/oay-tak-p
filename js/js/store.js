@@ -41,10 +41,14 @@ STATUS_CONFIG.I = STATUS_CONFIG.IZINLI;
 STATUS_CONFIG.E = STATUS_CONFIG.VAR;
 
 const DEFAULT_SETTINGS = {
-  institutionName: 'Kurs & Etüt Öğrenci Takip Sistemi',
+  institutionName: 'Ömer Avniyel Akademi',
   institutionLogo: 'kurs_logo.jpg', // Varsayılan kurs logosu dosya adı
   adminEmail: 'selimbozkurt111@gmail.com', // Ana yöneticinin doğrulama maili alacağı adres
-  academicYear: '2026-2027'
+  academicYear: '2026-2027',
+  firebaseUrl: 'https://oay-takip-default-rtdb.firebaseio.com', // Canlı Bulut Veritabanı URL
+  yatakReminderEnabled: true, // Otomatik yatak kontrolü hatırlatıcısı
+  yatakReminderStartTime: '08:30', // Başlangıç saati (sabah 08:30)
+  yatakReminderIntervalMins: 30 // Kontrol edilmedikçe her 30 dakikada bir tekrar
 };
 
 // Sistemdeki Eğitmen / Hoca Kadrosu (İsim ve Şifreleri ile)
@@ -178,15 +182,25 @@ class DataStore {
       const parsed = data ? JSON.parse(data) : {};
       const settings = { ...DEFAULT_SETTINGS, ...parsed };
 
+      // Eğer kayıtlı kurum adı eski varsayılan ise veya boşsa Ömer Avniyel Akademi yap
+      if (!settings.institutionName || settings.institutionName === 'Kurs & Etüt Öğrenci Takip Sistemi') {
+        settings.institutionName = 'Ömer Avniyel Akademi';
+      }
+
       // Eğer kayıtlı logo boş ise varsayılan kurs_logo.jpg kullan
       if (!settings.institutionLogo || !settings.institutionLogo.trim()) {
-        settings.institutionLogo = DEFAULT_SETTINGS.institutionLogo || 'kurs_logo.jpg';
+        settings.institutionLogo = 'kurs_logo.jpg';
       }
 
       if (!settings.adminEmail || settings.adminEmail === 'yonetici@kurs.com') {
         settings.adminEmail = 'selimbozkurt111@gmail.com';
-        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
       }
+
+      if (!settings.firebaseUrl || !settings.firebaseUrl.trim()) {
+        settings.firebaseUrl = 'https://oay-takip-default-rtdb.firebaseio.com';
+      }
+
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
       return settings;
     } catch {
       return DEFAULT_SETTINGS;
@@ -197,7 +211,183 @@ class DataStore {
     const current = this.getSettings();
     const merged = { ...current, ...newSettings };
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/settings', merged);
+    }
     return merged;
+  }
+
+  // ========================================================
+  // --- GOOGLE FIREBASE CANLI BULUT VERİTABANI MOTORU ---
+  // ========================================================
+  getFirebaseUrl() {
+    const settings = this.getSettings();
+    let url = (settings.firebaseUrl || '').trim();
+    if (!url) return '';
+    url = url.replace(/\/+$/, '');
+    return url;
+  }
+
+  isCloudEnabled() {
+    return !!this.getFirebaseUrl();
+  }
+
+  getAllGateCheckouts() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LEAVE_CHECKOUT);
+      return data ? JSON.parse(data) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  // Buluta Asenkron Arka Plan Gönderimi
+  async syncToCloud(endpoint, data) {
+    const baseUrl = this.getFirebaseUrl();
+    if (!baseUrl) return false;
+    try {
+      const res = await fetch(`${baseUrl}/${endpoint}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn(`[CloudSync] ${endpoint} gönderilemedi (çevrimdışı):`, err);
+      return false;
+    }
+  }
+
+  // Tüm Veritabanını Tek Tıkla Buluta İlk Yükleme
+  async pushAllToCloud() {
+    const baseUrl = this.getFirebaseUrl();
+    if (!baseUrl) {
+      return { success: false, message: 'Lütfen önce geçerli bir Firebase Veritabanı URL adresi giriniz.' };
+    }
+
+    const payload = {
+      settings: this.getSettings(),
+      students: this.getStudents(),
+      staff: this.getStaff(),
+      attendance: this.getAttendance(),
+      performance: this.getPerformances(),
+      academicScores: this.getAcademicScores(),
+      gateCheckouts: this.getAllGateCheckouts(),
+      lastSyncedAt: new Date().toISOString()
+    };
+
+    try {
+      const res = await fetch(`${baseUrl}/kurs_data.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        return { 
+          success: true, 
+          message: 'Tüm öğrenci, hoca, yoklama ve sistem verileri başarıyla buluta yüklendi! Artık tüm telefonlar ve bilgisayarlar bu verileri anlık görebilir.' 
+        };
+      } else {
+        return { 
+          success: false, 
+          message: `Buluta yükleme başarısız (Kod: ${res.status}). Lütfen Firebase kurallarınızı ("read": true, "write": true) kontrol ediniz.` 
+        };
+      }
+    } catch (err) {
+      return { 
+        success: false, 
+        message: `Bağlantı hatası: ${err.message}. Lütfen internetinizi ve Firebase linkinizi kontrol ediniz.` 
+      };
+    }
+  }
+
+  // Buluttan En Güncel Verileri Çekme ve Yerel Hafıza ile Birleştirme (Merge)
+  async syncFromCloud() {
+    const baseUrl = this.getFirebaseUrl();
+    if (!baseUrl) return { success: false, message: 'Bulut bağlantısı tanımlı değil.' };
+
+    try {
+      const res = await fetch(`${baseUrl}/kurs_data.json`, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!res.ok) {
+        return { success: false, message: `Bulut veri hatası: ${res.status}` };
+      }
+
+      const cloudData = await res.json();
+      if (!cloudData) {
+        return { success: true, message: 'Bulutta henüz kayıtlı veri bulunmuyor.' };
+      }
+
+      // 1. Yoklamaları birleştir
+      if (Array.isArray(cloudData.attendance)) {
+        const localAtt = this.getAttendance();
+        const attMap = new Map();
+        localAtt.forEach(a => { if (a && a.id) attMap.set(a.id, a); });
+        cloudData.attendance.forEach(a => {
+          if (a && a.id) {
+            const existing = attMap.get(a.id);
+            if (!existing || (a.recordedAt && (!existing.recordedAt || new Date(a.recordedAt) >= new Date(existing.recordedAt)))) {
+              attMap.set(a.id, a);
+            }
+          }
+        });
+        localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(Array.from(attMap.values())));
+      }
+
+      // 2. Performans notlarını birleştir
+      if (Array.isArray(cloudData.performance)) {
+        const localPerf = this.getPerformances();
+        const perfMap = new Map();
+        localPerf.forEach(p => { if (p && p.id) perfMap.set(p.id, p); });
+        cloudData.performance.forEach(p => { if (p && p.id) perfMap.set(p.id, p); });
+        localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(Array.from(perfMap.values())));
+      }
+
+      // 3. Takviye ders notlarını birleştir
+      if (Array.isArray(cloudData.academicScores)) {
+        const localAcad = this.getAcademicScores();
+        const acadMap = new Map();
+        localAcad.forEach(s => { if (s && s.studentId) acadMap.set(`${s.studentId}_${s.date}_${s.subject}`, s); });
+        cloudData.academicScores.forEach(s => {
+          if (s && s.studentId) acadMap.set(`${s.studentId}_${s.date}_${s.subject}`, s);
+        });
+        localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(Array.from(acadMap.values())));
+      }
+
+      // 4. Öğrenci listesi
+      if (Array.isArray(cloudData.students) && cloudData.students.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(cloudData.students));
+      }
+
+      // 5. Hoca listesi
+      if (Array.isArray(cloudData.staff) && cloudData.staff.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(cloudData.staff));
+      }
+
+      // 6. İzin kapı çıkışları
+      if (cloudData.gateCheckouts && typeof cloudData.gateCheckouts === 'object') {
+        localStorage.setItem(STORAGE_KEYS.LEAVE_CHECKOUT, JSON.stringify(cloudData.gateCheckouts));
+      }
+
+      // 7. Ayarlar
+      if (cloudData.settings) {
+        const localSettings = this.getSettings();
+        const merged = { ...localSettings, ...cloudData.settings };
+        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
+      }
+
+      window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: cloudData }));
+      return { 
+        success: true, 
+        message: 'Buluttaki en güncel yoklama ve not kayıtları cihazınıza başarıyla aktarıldı.' 
+      };
+    } catch (err) {
+      console.warn('[CloudSync] Veri çekme hatası (çevrimdışı):', err);
+      return { success: false, message: err.message };
+    }
   }
 
   // --- Ana Yönetici E-posta Doğrulama Kodu (OTP) Üretimi ---
@@ -390,6 +580,9 @@ class DataStore {
 
   saveStaff(staffList) {
     localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(staffList));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/staff', staffList);
+    }
   }
 
   addStaff(member) {
@@ -462,6 +655,9 @@ class DataStore {
 
   saveStudents(students) {
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/students', students);
+    }
   }
 
   addStudent(student) {
@@ -563,6 +759,14 @@ class DataStore {
     });
   }
 
+  // Bugünün yatak yoklaması yapıldı mı kontrolü
+  isYatakAttendanceDoneToday(dateStr = null) {
+    const today = dateStr || new Date().toISOString().split('T')[0];
+    const records = this.getAttendanceByCategory(today, 'yatak', 'yatak');
+    // En az 1 öğrencinin yatak yoklaması girildiyse kontrol yapılmış sayılır
+    return records && records.length > 0;
+  }
+
   getAttendanceForStudent(studentId) {
     return this.getAttendance().filter(a => a.studentId === studentId).sort((a, b) => new Date(b.date) - new Date(a.date));
   }
@@ -594,6 +798,9 @@ class DataStore {
       all.push(rec);
     }
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(all));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/attendance', all);
+    }
     return rec;
   }
 
@@ -622,6 +829,9 @@ class DataStore {
       }
     });
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(all));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/attendance', all);
+    }
   }
 
   // --- Namaz Haftalık & Aylık Raporlama İşlemleri ---
@@ -822,12 +1032,18 @@ class DataStore {
     const newEntry = { id: 'perf_' + Date.now(), ...entry, createdAt: new Date().toISOString() };
     all.unshift(newEntry);
     localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(all));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/performance', all);
+    }
     return newEntry;
   }
 
   deletePerformance(id) {
     let all = this.getPerformances().filter(p => p.id !== id);
     localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(all));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/performance', all);
+    }
   }
 
   // --- Takviye Ders Performansı (100 Üzerinden Değerlendirme Puanları) ---
@@ -862,6 +1078,9 @@ class DataStore {
       if (idx !== -1) {
         all.splice(idx, 1);
         localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(all));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/academicScores', all);
+        }
       }
       return null;
     }
@@ -883,6 +1102,9 @@ class DataStore {
     }
 
     localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(all));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/academicScores', all);
+    }
     return rec;
   }
 
@@ -1096,6 +1318,9 @@ class DataStore {
       if (!all[weekKey]) all[weekKey] = {};
       all[weekKey][studentId] = !all[weekKey][studentId];
       localStorage.setItem(STORAGE_KEYS.LEAVE_CHECKOUT, JSON.stringify(all));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/gateCheckouts', all);
+      }
       return all[weekKey][studentId];
     } catch {
       return false;
