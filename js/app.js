@@ -31,6 +31,9 @@ window.App = {
     if (!img) return;
     const candidates = [
       'kurs_logo.jpg', 'kurs_logo.png', 'kurs_logo.jpeg',
+      'kurs_logo.JPG', 'kurs_logo.PNG',
+      'kurs_logo.jpg.jpg', 'kurs_logo.png.png',
+      'js/kurs_logo.jpg', 'js/kurs_logo.png',
       'kurs.jpg', 'kurs.png', 'kurs.jpeg',
       'logo.png', 'logo.jpg', 'logo.jpeg',
       'bina.jpg', 'bina.png',
@@ -166,11 +169,11 @@ window.App = {
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          _subject: `🔑 [GİRİŞ KODU: ${res.code}] - Kurs Yönetim Sistemi`,
+          _subject: `🔑 [GİRİŞ KODU: ${res.code}] - Ömer Avniyel Akademi`,
           "Yönetici": "Selim Bozkurt",
           "Alıcı E-Posta": email,
           "Giriş Doğrulama Kodu": res.code,
-          "Açıklama": `Sayın Selim Bozkurt,\n\nKurs & Etüt Öğrenci Takip Sistemi Ana Yönetici girişi için tek kullanımlık güvenlik kodunuz:\n\n👉  ${res.code}  👈\n\nBu kod 10 dakika geçerlidir.`,
+          "Açıklama": `Sayın Selim Bozkurt,\n\nÖmer Avniyel Akademi Ana Yönetici girişi için tek kullanımlık güvenlik kodunuz:\n\n👉  ${res.code}  👈\n\nBu kod 10 dakika geçerlidir.`,
           _captcha: "false",
           _template: "table"
         })

@@ -41,7 +41,7 @@ STATUS_CONFIG.I = STATUS_CONFIG.IZINLI;
 STATUS_CONFIG.E = STATUS_CONFIG.VAR;
 
 const DEFAULT_SETTINGS = {
-  institutionName: 'Kurs & Etüt Öğrenci Takip Sistemi',
+  institutionName: 'Ömer Avniyel Akademi',
   institutionLogo: 'kurs_logo.jpg', // Varsayılan kurs logosu dosya adı
   adminEmail: 'selimbozkurt111@gmail.com', // Ana yöneticinin doğrulama maili alacağı adres
   academicYear: '2026-2027'
@@ -178,15 +178,21 @@ class DataStore {
       const parsed = data ? JSON.parse(data) : {};
       const settings = { ...DEFAULT_SETTINGS, ...parsed };
 
+      // Eğer kayıtlı kurum adı eski varsayılan ise veya boşsa Ömer Avniyel Akademi yap
+      if (!settings.institutionName || settings.institutionName === 'Kurs & Etüt Öğrenci Takip Sistemi') {
+        settings.institutionName = 'Ömer Avniyel Akademi';
+      }
+
       // Eğer kayıtlı logo boş ise varsayılan kurs_logo.jpg kullan
       if (!settings.institutionLogo || !settings.institutionLogo.trim()) {
-        settings.institutionLogo = DEFAULT_SETTINGS.institutionLogo || 'kurs_logo.jpg';
+        settings.institutionLogo = 'kurs_logo.jpg';
       }
 
       if (!settings.adminEmail || settings.adminEmail === 'yonetici@kurs.com') {
         settings.adminEmail = 'selimbozkurt111@gmail.com';
-        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
       }
+
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
       return settings;
     } catch {
       return DEFAULT_SETTINGS;
