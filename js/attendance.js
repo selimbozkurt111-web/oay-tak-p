@@ -279,24 +279,6 @@ window.AttendanceModule = {
 
     container.innerHTML = `
       <div class="space-y-5 animate-fade-in max-w-7xl mx-auto">
-        <!-- 1. ÜST BAŞLIKLAR (Hap Butonlar) -->
-        <div class="flex items-center gap-2 p-1.5 bg-slate-200/90 rounded-2xl max-w-2xl mx-auto shadow-inner">
-          ${this.categories.map(cat => {
-            const isActive = this.currentCategory === cat.id;
-            return `
-              <button type="button" onclick="window.AttendanceModule.setCategory('${cat.id}')"
-                class="flex-1 py-2 px-2 sm:px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
-                  isActive 
-                    ? 'bg-white text-slate-900 shadow-md scale-102 ring-2 ring-emerald-500/30' 
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
-                }">
-                <span>${cat.icon}</span>
-                <span>${cat.label}</span>
-              </button>
-            `;
-          }).join('')}
-        </div>
-
         <!-- 2. FİLTRE & PERİYOT KONTROL PANELİ -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
@@ -673,24 +655,6 @@ window.AttendanceModule = {
 
     container.innerHTML = `
       <div class="space-y-4 animate-fade-in max-w-4xl mx-auto">
-        <!-- 1. YOKLAMA ALT BAŞLIKLARI (Namaz, Namaz Raporları, Yatak, Okul Dönüşü) -->
-        <div class="flex items-center gap-2 p-1.5 bg-slate-200/90 rounded-2xl max-w-2xl mx-auto shadow-inner">
-          ${this.categories.map(cat => {
-            const isActive = this.currentCategory === cat.id;
-            return `
-              <button type="button" onclick="window.AttendanceModule.setCategory('${cat.id}')"
-                class="flex-1 py-2 px-2 sm:px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
-                  isActive 
-                    ? 'bg-white text-slate-900 shadow-md scale-102 ring-2 ring-emerald-500/30' 
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
-                }">
-                <span>${cat.icon}</span>
-                <span>${cat.label}</span>
-              </button>
-            `;
-          }).join('')}
-        </div>
-
         <!-- 2. Filtre & Kontrol Kartı -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
           <!-- Üst Satır: Tarih & Gün Adı & 5 Vakit Namaz Butonları -->
@@ -736,12 +700,6 @@ window.AttendanceModule = {
                   </div>
                 ` : ''}
               </div>
-            </div>
-
-            <div class="text-right">
-              <span class="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl inline-block shadow-2xs">
-                ⚡ Otomatik Kayıt Aktif
-              </span>
             </div>
           </div>
 

@@ -306,51 +306,47 @@ window.App = {
     }
 
     header.innerHTML = `
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
+      <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3.5">
           ${session.role !== 'parent' ? `
-            <!-- SOLDAN KAYAR MENÜ PENCERESİNİ AÇMA BUTONU -->
+            <!-- 1. MENÜ BUTONU -->
             <button onclick="window.App.openDrawer()" 
-              class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-2">
-              <span class="text-base leading-none">☰</span>
-              <span class="font-bold">Menü</span>
+              class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5 flex-shrink-0">
+              <span class="text-sm leading-none">☰</span>
+              <span>Menü</span>
             </button>
           ` : ''}
 
-          <div class="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
+          <!-- 2. KURS GÖRSELİ -->
+          <div class="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm border border-slate-200 bg-white">
             ${settings.institutionLogo ? `
-              <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover bg-white"
+              <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover"
                 onerror="window.App.handleLogoError(this)">
-              <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">ÖT</div>
+              <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">🏛️</div>
             ` : `
-              <div class="w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">ÖT</div>
+              <div class="w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">🏛️</div>
             `}
           </div>
-          <div>
-            <h1 class="text-sm font-black text-slate-900 leading-none">${settings.institutionName}</h1>
-            <div class="mt-1 flex items-center gap-2">
-              ${roleBadge}
-              ${session.role !== 'parent' ? `
-                <span class="text-xs font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
-                  ${activeTitle}
-                </span>
-              ` : ''}
-            </div>
+
+          <!-- 3. KULLANICI ADI & 4. HANGİ SAYFADAYSAK O -->
+          <div class="flex flex-wrap items-center gap-2">
+            ${roleBadge}
+            ${session.role !== 'parent' ? `
+              <span class="text-slate-300 hidden sm:inline">•</span>
+              <span class="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-900 font-black text-xs border border-emerald-300 shadow-2xs flex items-center gap-1.5">
+                ${activeTitle}
+              </span>
+            ` : ''}
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
-          ${session.role === 'parent' ? `
-            <button onclick="window.App.logout()" 
-              class="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 transition flex items-center gap-1.5">
-              Çıkış Yap
-            </button>
-          ` : `
-            <button onclick="window.App.logout()" 
-              class="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 transition hidden sm:flex items-center gap-1.5">
-              Çıkış
-            </button>
-          `}
+        <!-- SAĞ: ÇIKIŞ BUTONU -->
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button onclick="window.App.logout()" 
+            class="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 transition flex items-center gap-1">
+            <span>🚪</span>
+            <span class="hidden sm:inline">Çıkış</span>
+          </button>
         </div>
       </div>
     `;
