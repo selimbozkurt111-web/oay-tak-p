@@ -212,7 +212,7 @@ class DataStore {
       this.syncToCloud('kurs_data/settings', merged);
     }
     return merged;
-  },
+  }
 
   // ========================================================
   // --- GOOGLE FIREBASE CANLI BULUT VERİTABANI MOTORU ---
@@ -223,11 +223,11 @@ class DataStore {
     if (!url) return '';
     url = url.replace(/\/+$/, '');
     return url;
-  },
+  }
 
   isCloudEnabled() {
     return !!this.getFirebaseUrl();
-  },
+  }
 
   getAllGateCheckouts() {
     try {
@@ -236,7 +236,7 @@ class DataStore {
     } catch {
       return {};
     }
-  },
+  }
 
   // Buluta Asenkron Arka Plan Gönderimi
   async syncToCloud(endpoint, data) {
@@ -253,7 +253,7 @@ class DataStore {
       console.warn(`[CloudSync] ${endpoint} gönderilemedi (çevrimdışı):`, err);
       return false;
     }
-  },
+  }
 
   // Tüm Veritabanını Tek Tıkla Buluta İlk Yükleme
   async pushAllToCloud() {
@@ -297,7 +297,7 @@ class DataStore {
         message: `Bağlantı hatası: ${err.message}. Lütfen internetinizi ve Firebase linkinizi kontrol ediniz.` 
       };
     }
-  },
+  }
 
   // Buluttan En Güncel Verileri Çekme ve Yerel Hafıza ile Birleştirme (Merge)
   async syncFromCloud() {
@@ -385,7 +385,7 @@ class DataStore {
       console.warn('[CloudSync] Veri çekme hatası (çevrimdışı):', err);
       return { success: false, message: err.message };
     }
-  },
+  }
 
   // --- Ana Yönetici E-posta Doğrulama Kodu (OTP) Üretimi ---
   generateAdminOtp(emailInput) {
