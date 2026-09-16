@@ -6,6 +6,7 @@ window.App = {
   currentSession: null,
   activeTab: 'yoklama',
   loginMode: 'user', // 'user' (Ad Soyad + Şifre) veya 'admin_otp' (E-posta ile Doğrulama)
+  loginTab: 'parent', // 'parent' (Veli) veya 'staff' (Eğitmen)
   otpStep: 'request', // 'request' (mail yazma) veya 'verify' (kodu girme)
   adminEmailDraft: '',
   studentFilterClass: 'ALL',
@@ -25,26 +26,42 @@ window.App = {
     this.renderMainContent();
   },
 
-  // --- Normal Kullanıcı Girişi (Ad Soyad + Şifre) ---
+  selectQuickStudent(studentNo) {
+    if (!studentNo) return;
+    const nameInput = document.getElementById('login-fullname');
+    const passInput = document.getElementById('login-password');
+    if (nameInput) nameInput.value = studentNo;
+    if (passInput && !passInput.value) passInput.value = '123';
+  },
+
+  selectQuickStaff(fullName) {
+    if (!fullName) return;
+    const nameInput = document.getElementById('login-fullname');
+    const passInput = document.getElementById('login-password');
+    if (nameInput) nameInput.value = fullName;
+    if (passInput && !passInput.value) passInput.value = '123';
+  },
+
+  // --- Normal Kullanıcı Girişi (Veli & Eğitmen) ---
   handleUserLogin(event) {
     if (event) event.preventDefault();
     const nameInput = document.getElementById('login-fullname');
     const passInput = document.getElementById('login-password');
 
-    if (!nameInput || !passInput) return;
+    if (!nameInput) return;
     const name = nameInput.value.trim();
-    const pass = passInput.value.trim();
+    const pass = passInput ? (passInput.value.trim() || '123') : '123';
 
-    if (!name || !pass) {
-      this.showToast('Lütfen Ad Soyad ve Şifrenizi eksiksiz giriniz.', 'warning');
+    if (!name) {
+      this.showToast('Lütfen Öğrenci No, Adı Soyadı veya Aile Kodunu giriniz ya da listeden seçiniz.', 'warning');
       return;
     }
 
     const session = window.Store.authenticateUser(name, pass);
 
     if (!session) {
-      this.showToast('Hatalı Ad Soyad veya Şifre girdiniz!', 'error');
-      passInput.select();
+      this.showToast('Girdiğiniz bilgilerle eşleşen kayıt bulunamadı. Lütfen öğrenci no (örn: 502) veya listeden seçerek deneyiniz.', 'error');
+      if (passInput) passInput.select();
       return;
     }
 
@@ -205,6 +222,8 @@ window.App = {
       } else {
         activeTitle = '🎓 Akademi • Genel Karne';
       }
+    } else if (this.activeTab === 'izin_cikis') {
+      activeTitle = '🚪 İzine Çıkış Takibi';
     } else if (this.activeTab === 'ogrenciler') {
       activeTitle = '👥 Öğrenci Yönetimi';
     } else if (this.activeTab === 'personel') {
@@ -444,7 +463,29 @@ window.App = {
           </button>
         </div>
 
-        <!-- 3. ÖĞRENCİ YÖNETİMİ -->
+        <!-- 3. HAFTA SONU İZİN İŞLEMLERİ (İzine Çıkış Takibi) -->
+        <div class="space-y-1.5 pt-3 border-t border-slate-100">
+          <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">HAFTA SONU İZİN İŞLEMLERİ</div>
+
+          <!-- İzine Çıkış Butonu -->
+          <button type="button" onclick="window.App.navigateFromDrawer('izin_cikis')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'izin_cikis'
+                ? 'bg-rose-50 text-rose-900 font-black border border-rose-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🚪</span>
+              <div>
+                <div class="text-xs font-black">İzine Çıkış Takibi</div>
+                <div class="text-[10px] text-slate-400 font-medium">Kusur başı 30 dk gecikme ve kapı saatleri</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+        </div>
+
+        <!-- 4. ÖĞRENCİ YÖNETİMİ -->
         <div class="space-y-1.5 pt-3 border-t border-slate-100">
           <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">ÖĞRENCİ & SINIF</div>
 
@@ -608,42 +649,136 @@ window.App = {
           </div>
         `;
       } else {
-        // --- NORMAL AD SOYAD + ŞİFRE GİRİŞ PORTALI ---
+        // --- KULLANICI GİRİŞ PORTALI (VELİ & EĞİTMEN) ---
+        const isParentTab = this.loginTab !== 'staff';
+        const allStudents = window.Store.getStudents();
+        const allStaff = window.Store.getStaff();
+
         main.innerHTML = `
-          <div class="max-w-md mx-auto py-12 px-4 animate-fade-in">
-            <div class="bg-white rounded-3xl shadow-xl border border-slate-200 p-8 text-center">
-              <div class="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-5 text-2xl shadow-inner font-bold">
-                🏫
-              </div>
-              <h2 class="text-2xl font-black text-slate-900 mb-2">Giriş Portalı</h2>
-              <p class="text-xs text-slate-500 mb-6">
-                Eğitmen veya veli olarak sisteme erişmek için Ad Soyad ve şifrenizi giriniz.
-              </p>
-
-              <form onsubmit="window.App.handleUserLogin(event)" class="space-y-4">
-                <div>
-                  <label class="block text-left text-xs font-bold text-slate-700 mb-1.5 uppercase">AD SOYAD</label>
-                  <input type="text" id="login-fullname" required autofocus placeholder="Örn: Yasin Ekinci veya Öğrenci Adı Soyadı" 
-                    class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:border-emerald-600 focus:bg-white focus:outline-none transition">
-                </div>
-
-                <div>
-                  <label class="block text-left text-xs font-bold text-slate-700 mb-1.5 uppercase">GİRİŞ ŞİFRESİ</label>
-                  <input type="password" id="login-password" required placeholder="••••••••" 
-                    class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:border-emerald-600 focus:bg-white focus:outline-none transition">
-                </div>
-
-                <button type="submit" 
-                  class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2">
-                  <span>Sisteme Giriş Yap</span>
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
-                  </svg>
+          <div class="max-w-md mx-auto py-8 px-4 animate-fade-in">
+            <div class="bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sm:p-8 text-center relative overflow-hidden">
+              
+              <!-- 1. GİRİŞ TÜRÜ SEÇİMİ (Veli vs Eğitmen Sekmeleri) -->
+              <div class="flex items-center p-1.5 bg-slate-100 rounded-2xl mb-6 shadow-inner">
+                <button type="button" onclick="window.App.loginTab='parent'; window.App.renderMainContent();"
+                  class="flex-1 py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${
+                    isParentTab ? 'bg-white text-indigo-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'
+                  }">
+                  <span>👨‍👩‍👧</span>
+                  <span>Veli Portalı</span>
                 </button>
-              </form>
+                <button type="button" onclick="window.App.loginTab='staff'; window.App.renderMainContent();"
+                  class="flex-1 py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${
+                    !isParentTab ? 'bg-white text-emerald-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'
+                  }">
+                  <span>👨‍🏫</span>
+                  <span>Eğitmen Girişi</span>
+                </button>
+              </div>
+
+              ${isParentTab ? `
+                <!-- 2.A: VELİ BİLGİLENDİRME PORTALI GİRİŞİ -->
+                <div class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl shadow-inner font-bold">
+                  👨‍👩‍👧
+                </div>
+                <h2 class="text-xl font-black text-slate-900 mb-1">Veli Portalı Girişi</h2>
+                <p class="text-xs text-slate-500 mb-5">
+                  Öğrencinizin namaz durumu, ders performansı ve hafta sonu izin saatini görüntüleyebilirsiniz.
+                </p>
+
+                <!-- Hızlı Öğrenci Seçici (Açılır Liste) -->
+                <div class="mb-4 text-left">
+                  <label class="block text-[11px] font-black text-indigo-900 mb-1">
+                    ⚡ LİSTEDEN ÇOCUĞUNUZU SEÇİNİZ:
+                  </label>
+                  <select onchange="window.App.selectQuickStudent(this.value)"
+                    class="w-full px-3.5 py-2.5 bg-indigo-50/60 border-2 border-indigo-200 rounded-xl text-xs font-bold text-indigo-900 focus:border-indigo-600 focus:bg-white focus:outline-none transition cursor-pointer">
+                    <option value="">-- Listeden Hızlı Seçim Yapabilirsiniz --</option>
+                    ${allStudents.map(s => `
+                      <option value="${s.studentNo}">${s.studentNo} - ${s.firstName} ${s.lastName} (${s.className})</option>
+                    `).join('')}
+                  </select>
+                </div>
+
+                <form onsubmit="window.App.handleUserLogin(event)" class="space-y-3.5">
+                  <div>
+                    <label class="block text-left text-xs font-bold text-slate-700 mb-1 uppercase">
+                      ÖĞRENCİ NO, AD SOYAD VEYA AİLE KODU
+                    </label>
+                    <input type="text" id="login-fullname" required autofocus placeholder="Örn: 502 veya Arda Yusuf Saygı veya SAYGI2026" 
+                      class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:border-indigo-600 focus:bg-white focus:outline-none transition">
+                  </div>
+
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-left text-xs font-bold text-slate-700 uppercase">GİRİŞ ŞİFRESİ</label>
+                      <span class="text-[10px] text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                        İlk Şifre: 123
+                      </span>
+                    </div>
+                    <input type="text" id="login-password" value="123" placeholder="123" 
+                      class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:border-indigo-600 focus:bg-white focus:outline-none transition">
+                  </div>
+
+                  <!-- Yardımcı Bilgilendirme -->
+                  <div class="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 text-left text-[11px] text-indigo-900 flex items-start gap-2">
+                    <span class="text-base leading-none">💡</span>
+                    <div>
+                      Öğrencinizin okul numarasını (örn: <strong>502</strong>) veya adını soyadını yazmanız yeterlidir. Varsayılan şifreniz <strong>123</strong>'tür.
+                    </div>
+                  </div>
+
+                  <button type="submit" 
+                    class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                    <span>Veli Portalı Girişi Yap</span>
+                    <span>➔</span>
+                  </button>
+                </form>
+              ` : `
+                <!-- 2.B: EĞİTMEN GİRİŞİ -->
+                <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl shadow-inner font-bold">
+                  👨‍🏫
+                </div>
+                <h2 class="text-xl font-black text-slate-900 mb-1">Eğitmen Portalı</h2>
+                <p class="text-xs text-slate-500 mb-5">
+                  Yoklama almak ve ders notu girmek için eğitmen adınız ve şifrenizle giriş yapınız.
+                </p>
+
+                <!-- Hızlı Eğitmen Seçimi -->
+                <div class="mb-4 text-left">
+                  <label class="block text-[11px] font-black text-emerald-900 mb-1">EĞİTMEN SEÇİMİ:</label>
+                  <select onchange="window.App.selectQuickStaff(this.value)"
+                    class="w-full px-3.5 py-2.5 bg-emerald-50/60 border-2 border-emerald-200 rounded-xl text-xs font-bold text-emerald-900 focus:border-emerald-600 focus:bg-white focus:outline-none transition cursor-pointer">
+                    <option value="">-- Eğitmen Seçiniz --</option>
+                    ${allStaff.map(st => `
+                      <option value="${st.fullName}">${st.fullName} (${st.role})</option>
+                    `).join('')}
+                  </select>
+                </div>
+
+                <form onsubmit="window.App.handleUserLogin(event)" class="space-y-3.5">
+                  <div>
+                    <label class="block text-left text-xs font-bold text-slate-700 mb-1 uppercase">EĞİTMEN AD SOYAD</label>
+                    <input type="text" id="login-fullname" required autofocus placeholder="Örn: Yasin Ekinci" 
+                      class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:border-emerald-600 focus:bg-white focus:outline-none transition">
+                  </div>
+
+                  <div>
+                    <label class="block text-left text-xs font-bold text-slate-700 mb-1 uppercase">GİRİŞ ŞİFRESİ</label>
+                    <input type="password" id="login-password" value="123" placeholder="••••••••" 
+                      class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:border-emerald-600 focus:bg-white focus:outline-none transition">
+                  </div>
+
+                  <button type="submit" 
+                    class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                    <span>Eğitmen Olarak Giriş Yap</span>
+                    <span>➔</span>
+                  </button>
+                </form>
+              `}
 
               <!-- Ana Yönetici Giriş Linki -->
-              <div class="mt-8 pt-5 border-t border-slate-100 flex items-center justify-between text-xs">
+              <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
                 <span class="text-slate-400">Kurum Yöneticisi misiniz?</span>
                 <button onclick="window.App.loginMode='admin_otp'; window.App.otpStep='request'; window.App.renderMainContent();" 
                   class="font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1">
@@ -675,6 +810,11 @@ window.App = {
         window.AkademiModule.init();
       } else if (window.PerformanceModule) {
         window.PerformanceModule.init();
+      }
+    } else if (this.activeTab === 'izin_cikis') {
+      main.innerHTML = `<div id="leave-tracker-container"></div>`;
+      if (window.LeaveTrackerModule) {
+        window.LeaveTrackerModule.init();
       }
     } else if (this.activeTab === 'ogrenciler') {
       main.innerHTML = `<div id="students-container"></div>`;

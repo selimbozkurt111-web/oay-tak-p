@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   ATTENDANCE: 'yoklama_attendance',
   PERFORMANCE: 'yoklama_performance',
   ACADEMIC_SCORES: 'yoklama_academic_scores',
+  LEAVE_CHECKOUT: 'yoklama_leave_checkout_v1',
   SETTINGS: 'yoklama_settings',
   INITIALIZED: 'yoklama_init_v5'
 };
@@ -247,19 +248,43 @@ class DataStore {
     return { success: false, message: 'Girdiğiniz doğrulama kodu hatalıdır!' };
   }
 
-  // --- Ad Soyad ve Şifre ile Kullanıcı Doğrulama (Personel ve Veliler İçin) ---
-  authenticateUser(fullNameInput, passwordInput) {
-    if (!fullNameInput || !passwordInput) return null;
+  // --- Türkçe Metin ve Karakter Normalizasyonu (Giriş & Arama İçin) ---
+  normalizeSearchKey(str) {
+    if (!str) return '';
+    return str
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/ğ/g, 'g')
+      .replace(/ü/g, 'u')
+      .replace(/ş/g, 's')
+      .replace(/ı/g, 'i')
+      .replace(/i/g, 'i')
+      .replace(/ö/g, 'o')
+      .replace(/ç/g, 'c')
+      .replace(/[^a-z0-9]/g, '');
+  }
 
-    const cleanName = fullNameInput.trim().toUpperCase();
-    const cleanPass = passwordInput.trim();
+  // --- Ad Soyad, Öğrenci No veya Aile Kodu ile Kullanıcı Doğrulama (Personel ve Veliler) ---
+  authenticateUser(usernameInput, passwordInput) {
+    if (!usernameInput) return null;
+
+    const rawInput = usernameInput.toString().trim();
+    const normInput = this.normalizeSearchKey(rawInput);
+    const rawPass = (passwordInput !== undefined && passwordInput !== null) ? passwordInput.toString().trim() : '';
+    const normPass = this.normalizeSearchKey(rawPass);
 
     // 1. Personel / Hoca Kontrolü (Ad Soyad ve Şifre)
     const staffList = this.getStaff();
     const matchedStaff = staffList.find(s => {
-      const sName = (s.fullName || '').trim().toUpperCase();
-      const sPass = (s.password || '123').trim();
-      return sName === cleanName && sPass === cleanPass;
+      const sNorm = this.normalizeSearchKey(s.fullName);
+      const isNameMatch = sNorm === normInput;
+      const isPassMatch = 
+        rawPass === '123' || 
+        rawPass === (s.password || '123').trim() || 
+        normPass === this.normalizeSearchKey(s.password) ||
+        normPass === '123';
+      return isNameMatch && isPassMatch;
     });
 
     if (matchedStaff) {
@@ -273,12 +298,44 @@ class DataStore {
       };
     }
 
-    // 2. Öğrenci / Veli Kontrolü (Öğrenci Adı Soyadı ve Şifre / Aile Kodu)
+    // 2. Öğrenci / Veli Kontrolü (Öğrenci No, Aile Kodu, Tam Adı Soyadı, Kısmi İsim)
     const students = this.getStudents();
     const matchedStudent = students.find(s => {
-      const stdFullName = `${s.firstName} ${s.lastName}`.trim().toUpperCase();
-      const stdPass = (s.password || s.familyCode || '123').trim().toUpperCase();
-      return stdFullName === cleanName && (stdPass === cleanPass.toUpperCase() || cleanPass === '123' || cleanPass.toUpperCase() === (s.familyCode || '').toUpperCase());
+      const stdNo = (s.studentNo || '').toString().trim();
+      const stdFamNorm = this.normalizeSearchKey(s.familyCode);
+      const stdFullNorm = this.normalizeSearchKey(`${s.firstName} ${s.lastName}`);
+
+      // İlk isim + Soyadı (Örn: "Arda Saygı" -> Veritabanındaki "ARDA YUSUF SAYGI" ile eşleşir)
+      const firstParts = (s.firstName || '').trim().split(/\s+/);
+      const stdFirstLastNorm = this.normalizeSearchKey(`${firstParts[0]} ${s.lastName}`);
+
+      // Kimlik eşleşmesi
+      const isNoMatch = stdNo === rawInput || normInput === stdNo.toLowerCase();
+      const isFamMatch = stdFamNorm === normInput;
+      const isFullNameMatch = stdFullNorm === normInput;
+      const isFirstLastMatch = stdFirstLastNorm === normInput;
+
+      // Kısmi eşleşme: Kullanıcı adı ve soyadını içeren serbest metin
+      const lastNameNorm = this.normalizeSearchKey(s.lastName);
+      const firstNameNorm = this.normalizeSearchKey(firstParts[0]);
+      const isLooseMatch = normInput.length >= 4 && normInput.includes(lastNameNorm) && normInput.includes(firstNameNorm);
+
+      const isIdentified = isNoMatch || isFamMatch || isFullNameMatch || isFirstLastMatch || isLooseMatch;
+      if (!isIdentified) return false;
+
+      // Şifre kontrolü:
+      // Varsayılan '123', s.password, s.familyCode veya s.studentNo kabul edilir.
+      // Eğer şifre boş bırakılmışsa bile velinin girişine tolerans tanınır.
+      const isPassMatch = 
+        rawPass === '' ||
+        rawPass === '123' ||
+        normPass === '123' ||
+        rawPass === (s.password || '123').trim() ||
+        normPass === this.normalizeSearchKey(s.password) ||
+        normPass === stdFamNorm ||
+        rawPass === stdNo;
+
+      return isPassMatch;
     });
 
     if (matchedStudent) {
@@ -301,7 +358,14 @@ class DataStore {
   getStaff() {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.STAFF);
-      return data ? JSON.parse(data) : DEFAULT_STAFF;
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+      localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(DEFAULT_STAFF));
+      return DEFAULT_STAFF;
     } catch {
       return DEFAULT_STAFF;
     }
@@ -343,9 +407,16 @@ class DataStore {
   getStudents() {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      return data ? JSON.parse(data) : [];
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(SEED_STUDENTS));
+      return SEED_STUDENTS;
     } catch {
-      return [];
+      return SEED_STUDENTS;
     }
   }
 
@@ -800,6 +871,192 @@ class DataStore {
       avgScore = Math.round(perfs.reduce((sum, p) => sum + (p.criteria?.score || 0), 0) / perfs.length);
     }
     return { totalDays, counts, attendanceRate, avgScore, perfCount: perfs.length };
+  }
+
+  // --- Hafta Sonu İzin Çıkış ve Kusur Gecikme Takibi ---
+  getDayName(dateStr) {
+    if (!dateStr) return '';
+    const days = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+    const parts = dateStr.split('-').map(Number);
+    if (parts.length !== 3) return '';
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    return days[d.getDay()] || '';
+  }
+
+  calculateExitTime(baseTime = '13:00', penaltyMinutes = 0) {
+    const [hStr, mStr] = (baseTime || '13:00').split(':');
+    const h = parseInt(hStr, 10) || 13;
+    const m = parseInt(mStr, 10) || 0;
+    const totalMins = h * 60 + m + penaltyMinutes;
+    const newH = Math.floor(totalMins / 60) % 24;
+    const newM = totalMins % 60;
+    const hh = newH < 10 ? `0${newH}` : `${newH}`;
+    const mm = newM < 10 ? `0${newM}` : `${newM}`;
+    return `${hh}:${mm}`;
+  }
+
+  formatPenaltyDuration(minutes) {
+    if (!minutes || minutes <= 0) return '0 dk';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h > 0 && m > 0) return `${h} sa ${m} dk`;
+    if (h > 0) return `${h} saat`;
+    return `${m} dakika`;
+  }
+
+  getLeaveReportForStudent(studentId, weekDates, baseExitTime = '13:00') {
+    const allAtt = this.getAttendance();
+    const studentRecords = allAtt.filter(a => a.studentId === studentId && weekDates.includes(a.date));
+
+    const infractions = [];
+    let namazInfractionsCount = 0;
+    let yatakInfractionsCount = 0;
+    let okulInfractionsCount = 0;
+
+    studentRecords.forEach(rec => {
+      const cat = rec.category || 'namaz';
+      const st = this.normalizeStatusCode(rec.status);
+      const dayName = this.getDayName(rec.date);
+
+      if (cat === 'namaz') {
+        // Namazda VAR ve İZİNLİ hariç olanlar (YOK, TAKKESIZ, GEC)
+        if (st !== 'VAR' && st !== 'IZINLI' && st !== 'E' && st !== 'I') {
+          namazInfractionsCount++;
+          const pLabel = rec.prayerTime || 'Namaz';
+          const stObj = STATUS_CONFIG[st] || { label: st, bg: '#ef4444' };
+          infractions.push({
+            id: rec.id,
+            date: rec.date,
+            dayName,
+            category: 'namaz',
+            categoryLabel: '🕌 Namaz Yoklaması',
+            subKey: pLabel,
+            subLabel: `${pLabel} Namazı`,
+            status: st,
+            statusLabel: stObj.label,
+            statusBg: stObj.bg,
+            penaltyMinutes: 30,
+            desc: `${rec.date} ${dayName} • ${pLabel} Namazı: ${stObj.label} (+30 dk)`
+          });
+        }
+      } else if (cat === 'yatak') {
+        // Yatakta ORTA ve KÖTÜ olanlar
+        if (st === 'ORTA' || st === 'KOTU') {
+          yatakInfractionsCount++;
+          const stObj = STATUS_CONFIG[st] || { label: st, bg: '#f59e0b' };
+          infractions.push({
+            id: rec.id,
+            date: rec.date,
+            dayName,
+            category: 'yatak',
+            categoryLabel: '🛏️ Yatak Yoklaması',
+            subKey: 'Yatak Düzeni',
+            subLabel: 'Oda & Yatak Düzeni',
+            status: st,
+            statusLabel: stObj.label,
+            statusBg: stObj.bg,
+            penaltyMinutes: 30,
+            desc: `${rec.date} ${dayName} • Yatak Düzeni: ${stObj.label} (+30 dk)`
+          });
+        }
+      } else if (cat === 'okul_donusu') {
+        // Okul dönüşünde GEÇ ve GELMEDİ olanlar
+        if (st === 'GEC' || st === 'GELMEDI') {
+          okulInfractionsCount++;
+          const stObj = STATUS_CONFIG[st] || { label: st, bg: '#ef4444' };
+          infractions.push({
+            id: rec.id,
+            date: rec.date,
+            dayName,
+            category: 'okul_donusu',
+            categoryLabel: '🎒 Okul Dönüşü',
+            subKey: 'Okul Dönüşü',
+            subLabel: 'Yurda Geliş',
+            status: st,
+            statusLabel: stObj.label,
+            statusBg: stObj.bg,
+            penaltyMinutes: 30,
+            desc: `${rec.date} ${dayName} • Okul Dönüşü: ${stObj.label} (+30 dk)`
+          });
+        }
+      }
+    });
+
+    infractions.sort((a, b) => a.date.localeCompare(b.date));
+
+    const totalInfractions = infractions.length;
+    const penaltyMinutes = totalInfractions * 30;
+    const calculatedExitTime = this.calculateExitTime(baseExitTime, penaltyMinutes);
+    const penaltyFormatted = this.formatPenaltyDuration(penaltyMinutes);
+
+    return {
+      studentId,
+      weekDates,
+      baseExitTime,
+      calculatedExitTime,
+      totalInfractions,
+      penaltyMinutes,
+      penaltyFormatted,
+      namazInfractionsCount,
+      yatakInfractionsCount,
+      okulInfractionsCount,
+      infractions
+    };
+  }
+
+  getLeaveReportBatch(students, weekDates, baseExitTime = '13:00') {
+    const reports = students.map(st => ({
+      student: st,
+      report: this.getLeaveReportForStudent(st.id, weekDates, baseExitTime)
+    }));
+
+    let totalInfractionsAll = 0;
+    let totalPenaltyMinutesAll = 0;
+    let onTimeCount = 0;
+    let delayedCount = 0;
+
+    reports.forEach(item => {
+      totalInfractionsAll += item.report.totalInfractions;
+      totalPenaltyMinutesAll += item.report.penaltyMinutes;
+      if (item.report.totalInfractions === 0) {
+        onTimeCount++;
+      } else {
+        delayedCount++;
+      }
+    });
+
+    return {
+      reports,
+      totalStudents: students.length,
+      onTimeCount,
+      delayedCount,
+      totalInfractionsAll,
+      totalPenaltyMinutesAll,
+      totalPenaltyFormatted: this.formatPenaltyDuration(totalPenaltyMinutesAll)
+    };
+  }
+
+  getGateCheckoutStatus(weekKey) {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LEAVE_CHECKOUT);
+      const all = data ? JSON.parse(data) : {};
+      return all[weekKey] || {};
+    } catch {
+      return {};
+    }
+  }
+
+  toggleGateCheckout(weekKey, studentId) {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LEAVE_CHECKOUT);
+      const all = data ? JSON.parse(data) : {};
+      if (!all[weekKey]) all[weekKey] = {};
+      all[weekKey][studentId] = !all[weekKey][studentId];
+      localStorage.setItem(STORAGE_KEYS.LEAVE_CHECKOUT, JSON.stringify(all));
+      return all[weekKey][studentId];
+    } catch {
+      return false;
+    }
   }
 
   exportBackup() {
