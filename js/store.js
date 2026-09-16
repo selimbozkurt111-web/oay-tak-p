@@ -45,7 +45,7 @@ const DEFAULT_SETTINGS = {
   institutionLogo: 'kurs_logo.jpg', // Varsayılan kurs logosu dosya adı
   adminEmail: 'selimbozkurt111@gmail.com', // Ana yöneticinin doğrulama maili alacağı adres
   academicYear: '2026-2027',
-  firebaseUrl: '' // Canlı Bulut Veritabanı URL (Örn: https://oay-takip-default-rtdb.firebaseio.com)
+  firebaseUrl: 'https://oay-takip-default-rtdb.firebaseio.com' // Canlı Bulut Veritabanı URL
 };
 
 // Sistemdeki Eğitmen / Hoca Kadrosu (İsim ve Şifreleri ile)
@@ -191,6 +191,10 @@ class DataStore {
 
       if (!settings.adminEmail || settings.adminEmail === 'yonetici@kurs.com') {
         settings.adminEmail = 'selimbozkurt111@gmail.com';
+      }
+
+      if (!settings.firebaseUrl || !settings.firebaseUrl.trim()) {
+        settings.firebaseUrl = 'https://oay-takip-default-rtdb.firebaseio.com';
       }
 
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
