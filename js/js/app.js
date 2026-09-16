@@ -333,7 +333,7 @@ window.App = {
 
     // SOLDAN SAĞA SIRASIYLA: 1. MENÜ, 2. FOTOĞRAF, 3. AD SOYAD, 4. YOKLAMA VS.
     header.innerHTML = `
-      <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2 flex items-center gap-2 sm:gap-3 overflow-x-auto">
+      <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2 flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar">
         ${session.role !== 'parent' ? `
           <!-- 1. MENÜ BUTONU -->
           <button onclick="window.App.openDrawer()" 
