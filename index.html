@@ -11,11 +11,11 @@
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- html2canvas CDN (Veli ile Paylaşım İçin Görüntü Alma Kütüphanesi) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- html2canvas CDN (Veli ile Paylaşım İçin Görüntü Alma Kütüphanesi - Çift CDN Korumalı) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';"></script>
   
   <!-- Özel Stiller ve Yazdırma Kuralları -->
-  <link rel="stylesheet" href="css/custom.css?v=3.6">
+  <link rel="stylesheet" href="css/custom.css">
   
   <script>
     tailwind.config = {
@@ -35,9 +35,14 @@
   </script>
   <script>
     window.addEventListener('error', function(e) {
+      // Resim veya stil yükleme hatalarının sayfayı kilitlemesini engelle
+      if (e.target && (e.target.tagName === 'IMG' || e.target.tagName === 'LINK')) {
+        return;
+      }
+      if (!e.message) return;
       setTimeout(function() {
         var main = document.getElementById('main-content');
-        if (main) {
+        if (main && !main.hasChildNodes()) {
           main.innerHTML = '<div style="max-width:640px;margin:40px auto;padding:24px;background:#fff1f2;border:2px solid #f43f5e;border-radius:20px;color:#9f1239;font-family:sans-serif;box-shadow:0 10px 25px rgba(0,0,0,0.1);">' +
             '<h3 style="font-weight:900;font-size:18px;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><span>⚠️</span> <span>Sistem Başlatma Hatası</span></h3>' +
             '<p style="font-size:13px;margin-bottom:12px;color:#881337;">Sayfa çalışırken bir JavaScript hatası yakalandı:</p>' +
@@ -46,7 +51,7 @@
             '<p style="font-size:12px;margin-top:12px;color:#9f1239;">Bu hata mesajı ekranın boş kalmaması için otomatik gösterilmiştir.</p>' +
             '</div>';
         }
-      }, 50);
+      }, 100);
     });
   </script>
 </head>
@@ -273,14 +278,14 @@
     </div>
   </div>
 
-  <!-- JavaScript Modülleri (Cache-Busting ile Her Zaman En Güncel Sürüm) -->
-  <script src="js/store.js?v=3.6"></script>
-  <script src="js/attendance.js?v=3.6"></script>
-  <script src="js/leave-tracker.js?v=3.6"></script>
-  <script src="js/leave-return.js?v=3.6"></script>
-  <script src="js/performance.js?v=3.6"></script>
-  <script src="js/leaderboard.js?v=3.6"></script>
-  <script src="js/parent-portal.js?v=3.6"></script>
-  <script src="js/app.js?v=3.6"></script>
+  <!-- JavaScript Modülleri -->
+  <script src="js/store.js"></script>
+  <script src="js/attendance.js"></script>
+  <script src="js/leave-tracker.js"></script>
+  <script src="js/leave-return.js"></script>
+  <script src="js/performance.js"></script>
+  <script src="js/leaderboard.js"></script>
+  <script src="js/parent-portal.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
