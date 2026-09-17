@@ -895,7 +895,7 @@ window.LeaderboardModule = {
                     onerror="this.style.display='none'">
                 </div>
               ` : ''}
-              <div class="text-xs font-black tracking-widest uppercase text-amber-800/80">T.C. MİLLİ EĞİTİM BAKANLIĞI BAĞLI</div>
+              <div class="text-xs font-black tracking-widest uppercase text-amber-800/80">T.C. MİLLİ EĞİTİM BAKANLIĞI</div>
               <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 mt-0.5">
                 ${instName}
               </h1>
@@ -933,17 +933,13 @@ window.LeaderboardModule = {
               </p>
             </div>
 
-            <!-- İmzalar ve Tarih -->
-            <div class="pt-8 mt-6 border-t border-amber-200/60 flex items-center justify-between text-xs max-w-lg mx-auto">
-              <div class="text-left">
-                <div class="text-[10px] text-slate-400 font-bold uppercase">DÜZENLENME TARİHİ</div>
-                <div class="font-bold text-slate-800">${dateStr}</div>
-              </div>
-
-              <div class="text-right">
-                <div class="font-black text-slate-900 text-sm">SELİM BOZKURT</div>
-                <div class="text-[10px] text-slate-500 font-bold uppercase">Kurum Müdürü / Dahili Hocası</div>
-                <div class="text-[10px] text-amber-600 font-medium mt-0.5">Mühür & İmza</div>
+            <!-- Mühür & İmza -->
+            <div class="pt-8 mt-6 border-t border-amber-200/60 flex items-center justify-end text-xs max-w-lg mx-auto">
+              <div class="text-center min-w-[160px]">
+                <div class="h-10"></div>
+                <div class="text-xs font-black text-slate-800 uppercase tracking-widest border-t border-slate-300 pt-1.5">
+                  Mühür & İmza
+                </div>
               </div>
             </div>
 
