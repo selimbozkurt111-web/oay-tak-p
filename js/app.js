@@ -252,6 +252,7 @@ window.App = {
   logout() {
     this.currentSession = null;
     sessionStorage.removeItem('yoklama_active_session');
+    localStorage.removeItem('pano_admin_authorized');
     this.loginMode = 'user';
     this.otpStep = 'request';
     this.showToast('Güvenli çıkış yapıldı.', 'info');
@@ -567,21 +568,23 @@ window.App = {
             <span class="text-amber-600 font-bold">→</span>
           </button>
 
-          <!-- Canlı TV / Koridor Panosu (Yeni Sekmede Açar) -->
-          <a href="pano.html" target="_blank" onclick="window.App.closeDrawer()"
-            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between text-slate-700 hover:bg-purple-50 font-bold border border-purple-100/60">
+          <!-- Canlı TV / Koridor Panosu (Sadece Kurum Yöneticisine Özel) -->
+          ${(session && (session.role === 'superadmin' || session.canManageStaff || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')))) ? `
+          <a href="pano.html" target="_blank" onclick="localStorage.setItem('pano_admin_authorized', 'true'); window.App.closeDrawer()"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between text-slate-700 hover:bg-purple-50 font-bold border border-purple-200/80 bg-purple-50/40">
             <div class="flex items-center gap-3">
               <span class="text-xl">📺</span>
               <div>
                 <div class="text-xs font-black text-purple-900 flex items-center gap-1.5">
                   <span>Canlı TV / Dijital Pano</span>
-                  <span class="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-bold">7/24</span>
+                  <span class="text-[9px] bg-purple-600 text-white px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Yönetici</span>
                 </div>
                 <div class="text-[10px] text-slate-500 font-medium">TV ekranı ve projeksiyon kiosk modu</div>
               </div>
             </div>
             <span class="text-purple-600 font-bold text-xs">Aç ↗</span>
           </a>
+          ` : ''}
         </div>
 
         <!-- 3. HAFTA SONU İZİN İŞLEMLERİ (İzine Çıkış Takibi) -->
@@ -881,15 +884,6 @@ window.App = {
                   <span>👑 Ana Yönetici Girişi</span>
                   <span>→</span>
                 </button>
-              </div>
-
-              <!-- TV Panosu Linki (Giriş Yapmadan Doğrudan İzleme) -->
-              <div class="mt-3 pt-3 border-t border-slate-100 text-center">
-                <a href="pano.html" target="_blank"
-                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
-                  <span>📺 Koridor / TV Dijital Panosunu Aç</span>
-                  <span class="text-slate-400 font-normal">↗</span>
-                </a>
               </div>
             </div>
           </div>
