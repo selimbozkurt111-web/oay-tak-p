@@ -24,25 +24,112 @@ window.App = {
 
     this.renderHeader();
     this.renderMainContent();
+
+    // Bulut senkronizasyonu tamamlandığında ekranı sessizce tazele
+    window.addEventListener('cloud-sync-done', () => {
+      this.renderHeader();
+      if (this.currentSession) {
+        this.renderMainContent();
+      }
+    });
+
+    // Eğer Firebase URL tanımlıysa sayfa açıldığında buluttan en güncel veriyi çek
+    if (window.Store && window.Store.isCloudEnabled()) {
+      window.Store.syncFromCloud().then(res => {
+        if (res && res.success) {
+          console.log('[CloudSync] İlk senkronizasyon başarılı:', res.message);
+        }
+      });
+
+      // Kullanıcı sayfaya geri döndüğünde (sekme değişiminde) ve her 60 saniyede bir eşitle
+      window.addEventListener('focus', () => {
+        window.Store.syncFromCloud();
+        this.checkAndTriggerYatakReminder();
+      });
+
+      setInterval(() => {
+        if (window.Store.isCloudEnabled()) {
+          window.Store.syncFromCloud();
+        }
+        this.checkAndTriggerYatakReminder();
+      }, 60000);
+    }
+
+    // Yatak kontrolü zamanlayıcısını sayfa açılışında da bir kez denetle
+    this.checkAndTriggerYatakReminder();
   },
 
-  selectQuickStudent(studentNo) {
-    if (!studentNo) return;
-    const nameInput = document.getElementById('login-fullname');
-    const passInput = document.getElementById('login-password');
-    if (nameInput) nameInput.value = studentNo;
-    if (passInput && !passInput.value) passInput.value = '123';
+  // --- Kurs Logosu / Fotoğrafı Otomatik Aday Bulma ve Hata Yönetimi ---
+  handleLogoError(img, fallbackId) {
+    if (!img) return;
+    const candidates = [
+      'kurs_logo.jpg', 'kurs_logo.png', 'kurs_logo.jpeg',
+      'kurs_logo.JPG', 'kurs_logo.PNG',
+      'kurs_logo.jpg.jpg', 'kurs_logo.png.png',
+      'js/kurs_logo.jpg', 'js/kurs_logo.png',
+      'kurs.jpg', 'kurs.png', 'kurs.jpeg',
+      'logo.png', 'logo.jpg', 'logo.jpeg',
+      'bina.jpg', 'bina.png',
+      'media_1789552804483.jpg'
+    ];
+    const currentSrc = img.getAttribute('src') || '';
+
+    // Eğer base64 veya farklı bir tam URL ise ve yüklenemediyse fallback yap
+    if (currentSrc.startsWith('data:') || (currentSrc.startsWith('http') && !candidates.some(c => currentSrc.endsWith(c)))) {
+      img.style.display = 'none';
+      if (fallbackId) {
+        const fb = document.getElementById(fallbackId);
+        if (fb) fb.classList.remove('hidden');
+      } else if (img.nextElementSibling) {
+        img.nextElementSibling.classList.remove('hidden');
+      }
+      return;
+    }
+
+    // Sıradaki dosya adayını bul ve dene
+    let currentCandidate = '';
+    for (const c of candidates) {
+      if (currentSrc.endsWith(c)) {
+        currentCandidate = c;
+        break;
+      }
+    }
+
+    const currentIdx = currentCandidate ? candidates.indexOf(currentCandidate) : -1;
+    const nextIdx = currentIdx + 1;
+
+    if (nextIdx < candidates.length) {
+      img.src = candidates[nextIdx];
+    } else {
+      img.style.display = 'none';
+      if (fallbackId) {
+        const fb = document.getElementById(fallbackId);
+        if (fb) fb.classList.remove('hidden');
+      } else if (img.nextElementSibling) {
+        img.nextElementSibling.classList.remove('hidden');
+      }
+    }
   },
 
-  selectQuickStaff(fullName) {
-    if (!fullName) return;
-    const nameInput = document.getElementById('login-fullname');
-    const passInput = document.getElementById('login-password');
-    if (nameInput) nameInput.value = fullName;
-    if (passInput && !passInput.value) passInput.value = '123';
+  // --- Ayarlarda Yüklenen/Seçilen Resmi GitHub İçin kurs_logo.jpg Olarak İndirme ---
+  downloadCurrentLogo() {
+    const settings = window.Store.getSettings();
+    const preview = document.getElementById('settings-logo-preview');
+    const src = (preview && preview.src && preview.style.display !== 'none') ? preview.src : settings.institutionLogo;
+    if (!src || src.includes('undefined')) {
+      this.showToast('Önce bilgisayarınızdan veya telefonunuzdan bir fotoğraf seçiniz.', 'warning');
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = src;
+    a.download = 'kurs_logo.jpg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    this.showToast('kurs_logo.jpg başarıyla indirildi! GitHub yükleme sayfasından bu dosyayı yükleyiniz.', 'success');
   },
 
-  // --- Normal Kullanıcı Girişi (Veli & Eğitmen) ---
+  // --- Kullanıcı Girişi (Veli & Personel / Hoca İçin Tek Ekran) ---
   handleUserLogin(event) {
     if (event) event.preventDefault();
     const nameInput = document.getElementById('login-fullname');
@@ -50,17 +137,24 @@ window.App = {
 
     if (!nameInput) return;
     const name = nameInput.value.trim();
-    const pass = passInput ? (passInput.value.trim() || '123') : '123';
+    const pass = passInput ? passInput.value.trim() : '';
 
     if (!name) {
-      this.showToast('Lütfen Öğrenci No, Adı Soyadı veya Aile Kodunu giriniz ya da listeden seçiniz.', 'warning');
+      this.showToast('Lütfen Ad Soyad, Öğrenci No veya Eğitmen Adınızı giriniz.', 'warning');
+      nameInput.focus();
+      return;
+    }
+
+    if (!pass) {
+      this.showToast('Lütfen şifrenizi giriniz.', 'warning');
+      if (passInput) passInput.focus();
       return;
     }
 
     const session = window.Store.authenticateUser(name, pass);
 
     if (!session) {
-      this.showToast('Girdiğiniz bilgilerle eşleşen kayıt bulunamadı. Lütfen öğrenci no (örn: 502) veya listeden seçerek deneyiniz.', 'error');
+      this.showToast('Girdiğiniz bilgiler veya şifre hatalıdır. Lütfen kontrol edip tekrar deneyiniz.', 'error');
       if (passInput) passInput.select();
       return;
     }
@@ -70,9 +164,9 @@ window.App = {
 
     if (session.role === 'staff') {
       this.activeTab = 'yoklama';
-      this.showToast(`Hoş geldiniz Sayın ${session.name} (Eğitmen Girişi)`, 'success');
+      this.showToast(`Hoş geldiniz Sayın ${session.name}`, 'success');
     } else if (session.role === 'parent') {
-      this.showToast(`Hoş geldiniz Sayın Veli (Aile Kodu: ${session.familyCode})`, 'success');
+      this.showToast(`Hoş geldiniz Sayın Veli`, 'success');
     }
 
     this.renderHeader();
@@ -108,11 +202,11 @@ window.App = {
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          _subject: `🔑 [GİRİŞ KODU: ${res.code}] - Kurs Yönetim Sistemi`,
+          _subject: `🔑 [GİRİŞ KODU: ${res.code}] - Ömer Avniyel Akademi`,
           "Yönetici": "Selim Bozkurt",
           "Alıcı E-Posta": email,
           "Giriş Doğrulama Kodu": res.code,
-          "Açıklama": `Sayın Selim Bozkurt,\n\nKurs & Etüt Öğrenci Takip Sistemi Ana Yönetici girişi için tek kullanımlık güvenlik kodunuz:\n\n👉  ${res.code}  👈\n\nBu kod 10 dakika geçerlidir.`,
+          "Açıklama": `Sayın Selim Bozkurt,\n\nÖmer Avniyel Akademi Ana Yönetici girişi için tek kullanımlık güvenlik kodunuz:\n\n👉  ${res.code}  👈\n\nBu kod 10 dakika geçerlidir.`,
           _captcha: "false",
           _template: "table"
         })
@@ -158,6 +252,7 @@ window.App = {
   logout() {
     this.currentSession = null;
     sessionStorage.removeItem('yoklama_active_session');
+    localStorage.removeItem('pano_admin_authorized');
     this.loginMode = 'user';
     this.otpStep = 'request';
     this.showToast('Güvenli çıkış yapıldı.', 'info');
@@ -181,12 +276,17 @@ window.App = {
       header.innerHTML = `
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-2xl bg-emerald-600 text-white font-black text-lg flex items-center justify-center shadow-md">
-              ÖT
+            <div class="w-10 h-10 rounded-2xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-md">
+              ${settings.institutionLogo ? `
+                <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover bg-white"
+                  onerror="window.App.handleLogoError(this)">
+                <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-lg flex items-center justify-center">ÖT</div>
+              ` : `
+                <div class="w-full h-full bg-emerald-600 text-white font-black text-lg flex items-center justify-center">ÖT</div>
+              `}
             </div>
             <div>
               <h1 class="text-base font-black text-slate-900 tracking-tight leading-none">${settings.institutionName}</h1>
-              <p class="text-[11px] text-slate-500 font-semibold mt-0.5">Yoklama, Devam & Performans Portalı</p>
             </div>
           </div>
           <span class="text-xs px-3 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200">
@@ -200,11 +300,11 @@ window.App = {
     const session = this.currentSession;
     let roleBadge = '';
     if (session.role === 'superadmin') {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs border border-amber-300">👑 Ana Yönetici (Müdür)</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs border border-amber-300 whitespace-nowrap">👑 Ana Yönetici (Müdür)</span>`;
     } else if (session.role === 'staff') {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-bold text-xs border border-blue-200">👨‍🏫 ${session.name}</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-bold text-xs border border-blue-200 whitespace-nowrap">👨‍🏫 ${session.name}</span>`;
     } else {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 font-bold text-xs border border-purple-200">👨‍👩‍👧 Veli Portalı (${session.familyCode})</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 font-bold text-xs border border-purple-200 whitespace-nowrap">👨‍👩‍👧 Veli Portalı (${session.familyCode})</span>`;
     }
 
     let activeTitle = '📋 Yoklama';
@@ -215,15 +315,14 @@ window.App = {
       else if (cat === 'okul_donusu') activeTitle = '🎒 Okul Dönüşü';
       else if (cat === 'namaz_rapor') activeTitle = '📊 Namaz Raporları';
     } else if (this.activeTab === 'akademi' || this.activeTab === 'performans') {
-      const sub = (window.AkademiModule && window.AkademiModule.currentSubCategory) || 'takviye';
-      if (sub === 'takviye') {
-        const subj = (window.AkademiModule && window.AkademiModule.currentSubject) || 'Türkçe';
-        activeTitle = `🎓 Akademi • ${subj}`;
-      } else {
-        activeTitle = '🎓 Akademi • Genel Karne';
-      }
+      const subj = (window.AkademiModule && window.AkademiModule.currentSubject) || 'Türkçe';
+      activeTitle = `🎓 Akademi • ${subj}`;
+    } else if (this.activeTab === 'leaderboard') {
+      activeTitle = '🏆 Haftanın & Ayın Talebesi';
     } else if (this.activeTab === 'izin_cikis') {
       activeTitle = '🚪 İzine Çıkış Takibi';
+    } else if (this.activeTab === 'izin_donusu') {
+      activeTitle = '🧳 İzin Dönüşü Takibi';
     } else if (this.activeTab === 'ogrenciler') {
       activeTitle = '👥 Öğrenci Yönetimi';
     } else if (this.activeTab === 'personel') {
@@ -232,47 +331,42 @@ window.App = {
       activeTitle = '⚙️ Sistem Ayarları';
     }
 
+    // SOLDAN SAĞA SIRASIYLA: 1. MENÜ, 2. FOTOĞRAF, 3. AD SOYAD, 4. YOKLAMA VS.
     header.innerHTML = `
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-          ${session.role !== 'parent' ? `
-            <!-- SOLDAN KAYAR MENÜ PENCERESİNİ AÇMA BUTONU -->
-            <button onclick="window.App.openDrawer()" 
-              class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-2">
-              <span class="text-base leading-none">☰</span>
-              <span class="font-bold">Menü</span>
-            </button>
-          ` : ''}
+      <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2 flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar">
+        ${session.role !== 'parent' ? `
+          <!-- 1. MENÜ BUTONU -->
+          <button onclick="window.App.openDrawer()" 
+            class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 flex-shrink-0">
+            <span class="text-sm leading-none">☰</span>
+            <span>Menü</span>
+          </button>
+        ` : ''}
 
-          <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center shadow-sm">
-            ÖT
-          </div>
-          <div>
-            <h1 class="text-sm font-black text-slate-900 leading-none">${settings.institutionName}</h1>
-            <div class="mt-1 flex items-center gap-2">
-              ${roleBadge}
-              ${session.role !== 'parent' ? `
-                <span class="text-xs font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
-                  ${activeTitle}
-                </span>
-              ` : ''}
-            </div>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2">
-          ${session.role === 'parent' ? `
-            <button onclick="window.App.logout()" 
-              class="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 transition flex items-center gap-1.5">
-              Çıkış Yap
-            </button>
+        <!-- 2. KURS GÖRSELİ -->
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-xs border border-slate-200 bg-white">
+          ${settings.institutionLogo ? `
+            <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover"
+              onerror="window.App.handleLogoError(this)">
+            <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center">🏛️</div>
           ` : `
-            <button onclick="window.App.logout()" 
-              class="text-xs text-rose-600 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-50 transition hidden sm:flex items-center gap-1.5">
-              Çıkış
-            </button>
+            <div class="w-full h-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center">🏛️</div>
           `}
         </div>
+
+        <!-- 3. AD SOYAD -->
+        <div class="flex-shrink-0">
+          ${roleBadge}
+        </div>
+
+        <!-- 4. HANGİ SAYFADAYSAK O (YOKLAMA VS.) -->
+        ${session.role !== 'parent' ? `
+          <div class="flex-shrink-0">
+            <span class="px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-900 font-black text-xs border border-emerald-300 shadow-2xs whitespace-nowrap flex items-center gap-1">
+              ${activeTitle}
+            </span>
+          </div>
+        ` : ''}
       </div>
     `;
   },
@@ -335,8 +429,14 @@ window.App = {
       <!-- Drawer Üst Başlık -->
       <div class="p-5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between shadow-md">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center shadow-sm">
-            ÖT
+          <div class="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
+            ${settings.institutionLogo ? `
+              <img src="${settings.institutionLogo}" alt="Logo" class="w-full h-full object-cover bg-white"
+                onerror="window.App.handleLogoError(this)">
+              <div class="hidden w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">ÖT</div>
+            ` : `
+              <div class="w-full h-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center">ÖT</div>
+            `}
           </div>
           <div>
             <h3 class="font-black text-sm leading-tight text-white">${settings.institutionName}</h3>
@@ -425,42 +525,66 @@ window.App = {
         </div>
 
         <!-- 2. AKADEMİ (2 ALT BAŞLIK: Takviye Ders Performansı & Genel Gelişim) -->
+        <!-- 2. AKADEMİ & DERSLER -->
         <div class="space-y-1.5 pt-3 border-t border-slate-100">
           <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">AKADEMİ & DERSLER</div>
 
-          <!-- Takviye Ders Performansı -->
+          <!-- Takviye Ders Notları -->
           <button type="button" onclick="window.App.navigateFromDrawer('akademi', 'takviye')"
             class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
-              (this.activeTab === 'akademi' || this.activeTab === 'performans') && currentAkademiSub === 'takviye'
+              (this.activeTab === 'akademi' || this.activeTab === 'performans')
                 ? 'bg-blue-50 text-blue-900 font-black border border-blue-200 shadow-sm'
                 : 'text-slate-700 hover:bg-slate-50 font-bold'
             }">
             <div class="flex items-center gap-3">
               <span class="text-xl">📚</span>
               <div>
-                <div class="text-xs font-black">Takviye Ders Performansı</div>
+                <div class="text-xs font-black">Takviye Ders Notları</div>
                 <div class="text-[10px] text-slate-400 font-medium">Türkçe, Mat, Fen, Sosyal, İngilizce 100 puan</div>
               </div>
             </div>
             <span class="text-slate-300">→</span>
           </button>
+        </div>
 
-          <!-- Genel Gelişim & Karne -->
-          <button type="button" onclick="window.App.navigateFromDrawer('akademi', 'genel')"
+        <!-- YARIŞMA & LİDERLİK TABLOSU -->
+        <div class="space-y-1.5 pt-3 border-t border-slate-100">
+          <div class="px-3 text-[10px] font-black uppercase tracking-wider text-amber-500">🏆 YARIŞMA & LİDERLİK</div>
+
+          <!-- Haftanın ve Ayın Talebesi -->
+          <button type="button" onclick="window.App.navigateFromDrawer('leaderboard')"
             class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
-              (this.activeTab === 'akademi' || this.activeTab === 'performans') && currentAkademiSub === 'genel'
-                ? 'bg-amber-50 text-amber-900 font-black border border-amber-200 shadow-sm'
-                : 'text-slate-700 hover:bg-slate-50 font-bold'
+              this.activeTab === 'leaderboard'
+                ? 'bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-950 font-black border border-amber-300 shadow-sm'
+                : 'text-slate-700 hover:bg-amber-50/50 font-bold'
             }">
             <div class="flex items-center gap-3">
-              <span class="text-xl">⭐</span>
+              <span class="text-xl">🏆</span>
               <div>
-                <div class="text-xs font-black">Genel Gelişim & Karne</div>
-                <div class="text-[10px] text-slate-400 font-medium">Kriter yıldızları ve öğretmen görüşleri</div>
+                <div class="text-xs font-black text-amber-900">Haftanın & Ayın Talebesi</div>
+                <div class="text-[10px] text-slate-500 font-medium">Puanlama ve şampiyonluk podyumu</div>
               </div>
             </div>
-            <span class="text-slate-300">→</span>
+            <span class="text-amber-600 font-bold">→</span>
           </button>
+
+          <!-- Canlı TV / Koridor Panosu (Sadece Kurum Yöneticisine Özel) -->
+          ${(session && (session.role === 'superadmin' || session.canManageStaff || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')))) ? `
+          <a href="pano.html" target="_blank" onclick="localStorage.setItem('pano_admin_authorized', 'true'); window.App.closeDrawer()"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between text-slate-700 hover:bg-purple-50 font-bold border border-purple-200/80 bg-purple-50/40">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">📺</span>
+              <div>
+                <div class="text-xs font-black text-purple-900 flex items-center gap-1.5">
+                  <span>Canlı TV / Dijital Pano</span>
+                  <span class="text-[9px] bg-purple-600 text-white px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Yönetici</span>
+                </div>
+                <div class="text-[10px] text-slate-500 font-medium">TV ekranı ve projeksiyon kiosk modu</div>
+              </div>
+            </div>
+            <span class="text-purple-600 font-bold text-xs">Aç ↗</span>
+          </a>
+          ` : ''}
         </div>
 
         <!-- 3. HAFTA SONU İZİN İŞLEMLERİ (İzine Çıkış Takibi) -->
@@ -479,6 +603,23 @@ window.App = {
               <div>
                 <div class="text-xs font-black">İzine Çıkış Takibi</div>
                 <div class="text-[10px] text-slate-400 font-medium">Kusur başı 30 dk gecikme ve kapı saatleri</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+
+          <!-- İzin Dönüşü Butonu (YENİ!) -->
+          <button type="button" onclick="window.App.navigateFromDrawer('izin_donusu')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'izin_donusu'
+                ? 'bg-indigo-50 text-indigo-900 font-black border border-indigo-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🧳</span>
+              <div>
+                <div class="text-xs font-black">İzin Dönüşü Takibi</div>
+                <div class="text-[10px] text-slate-400 font-medium">Saatli varış kaydı ve 3 katı geç çıkış cezası</div>
               </div>
             </div>
             <span class="text-slate-300">→</span>
@@ -547,6 +688,24 @@ window.App = {
             </button>
           </div>
         ` : ''}
+
+        ${session.role === 'staff' ? `
+          <!-- Personel Şifre Değiştirme -->
+          <div class="space-y-1.5 pt-3 border-t border-slate-100">
+            <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">HESAP GÜVENLİĞİ</div>
+            <button type="button" onclick="window.App.closeDrawer(); window.App.openStaffSelfPasswordModal();"
+              class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200">
+              <div class="flex items-center gap-3">
+                <span class="text-xl">🔑</span>
+                <div>
+                  <div class="text-xs font-black">Giriş Şifremi Değiştir</div>
+                  <div class="text-[10px] text-amber-700 font-medium">Kendi hoca giriş şifrenizi güncelleyin</div>
+                </div>
+              </div>
+              <span class="text-amber-500 font-bold">→</span>
+            </button>
+          </div>
+        ` : ''}
       </div>
 
       <!-- Drawer Alt Bar: Güvenli Çıkış -->
@@ -564,6 +723,8 @@ window.App = {
     const main = document.getElementById('main-content');
     if (!main) return;
 
+    const settings = window.Store.getSettings();
+
     // 1. Durum: Oturum Açılmamışsa GİRİŞ EKRANI (Giriş kılavuzu KALDIRILMIŞTIR)
     if (!this.currentSession) {
       if (this.loginMode === 'admin_otp') {
@@ -571,13 +732,28 @@ window.App = {
         main.innerHTML = `
           <div class="max-w-md mx-auto py-12 px-4 animate-fade-in">
             <div class="bg-white rounded-3xl shadow-xl border border-amber-200 p-8 text-center relative overflow-hidden">
-              <div class="w-16 h-16 bg-amber-50 text-amber-700 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl font-bold shadow-inner">
-                👑
+              
+              <!-- Kurum Logosu / Fotoğrafı -->
+              <div class="mb-4 flex flex-col items-center">
+                ${settings.institutionLogo ? `
+                  <div class="w-full relative group mb-3 flex justify-center">
+                    <img src="${settings.institutionLogo}" alt="${settings.institutionName}" 
+                      class="h-36 sm:h-40 w-full max-w-xs object-cover rounded-2xl shadow-md border border-amber-200"
+                      onerror="window.App.handleLogoError(this, 'admin-inst-fallback-badge')">
+                    <div id="admin-inst-fallback-badge" class="hidden w-16 h-16 bg-amber-50 text-amber-700 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-inner">
+                      👑
+                    </div>
+                  </div>
+                ` : `
+                  <div class="w-16 h-16 bg-amber-50 text-amber-700 rounded-2xl flex items-center justify-center mx-auto mb-2 text-2xl font-bold shadow-inner">
+                    👑
+                  </div>
+                `}
+                <h2 class="text-xl font-black text-slate-900 mb-1">Ana Yönetici Girişi</h2>
+                <p class="text-xs text-slate-500 mb-6">
+                  Yüksek güvenlik için Ana Yönetici girişi sabit şifreyle değil, **e-posta doğrulama koduyla** yapılmaktadır.
+                </p>
               </div>
-              <h2 class="text-xl font-black text-slate-900 mb-1">Ana Yönetici Girişi</h2>
-              <p class="text-xs text-slate-500 mb-6">
-                Yüksek güvenlik için Ana Yönetici girişi sabit şifreyle değil, **e-posta doğrulama koduyla** yapılmaktadır.
-              </p>
 
               ${this.otpStep === 'request' ? `
                 <form onsubmit="window.App.handleAdminOtpRequest(event)" class="space-y-4">
@@ -649,133 +825,56 @@ window.App = {
           </div>
         `;
       } else {
-        // --- KULLANICI GİRİŞ PORTALI (VELİ & EĞİTMEN) ---
-        const isParentTab = this.loginTab !== 'staff';
-        const allStudents = window.Store.getStudents();
-        const allStaff = window.Store.getStaff();
-
+        // --- TEK VE BİRLEŞİK KULLANICI GİRİŞ PORTALI (TÜM VELİLER VE EĞİTMENLER İÇİN) ---
         main.innerHTML = `
-          <div class="max-w-md mx-auto py-8 px-4 animate-fade-in">
+          <div class="max-w-md mx-auto py-10 px-4 animate-fade-in">
             <div class="bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sm:p-8 text-center relative overflow-hidden">
               
-              <!-- 1. GİRİŞ TÜRÜ SEÇİMİ (Veli vs Eğitmen Sekmeleri) -->
-              <div class="flex items-center p-1.5 bg-slate-100 rounded-2xl mb-6 shadow-inner">
-                <button type="button" onclick="window.App.loginTab='parent'; window.App.renderMainContent();"
-                  class="flex-1 py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${
-                    isParentTab ? 'bg-white text-indigo-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'
-                  }">
-                  <span>👨‍👩‍👧</span>
-                  <span>Veli Portalı</span>
-                </button>
-                <button type="button" onclick="window.App.loginTab='staff'; window.App.renderMainContent();"
-                  class="flex-1 py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${
-                    !isParentTab ? 'bg-white text-emerald-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'
-                  }">
-                  <span>👨‍🏫</span>
-                  <span>Eğitmen Girişi</span>
-                </button>
+              <!-- Kurum Logosu veya Simgesi -->
+              <div class="mb-5 flex flex-col items-center">
+                ${settings.institutionLogo ? `
+                  <div class="w-full relative group flex justify-center">
+                    <img src="${settings.institutionLogo}" alt="Kurs Binası" 
+                      class="h-44 sm:h-52 w-full max-w-sm object-cover rounded-2xl shadow-md border border-slate-200 transition-all duration-300 hover:shadow-lg hover:scale-[1.01]"
+                      onerror="window.App.handleLogoError(this, 'login-inst-fallback-badge')">
+                    <div id="login-inst-fallback-badge" class="hidden w-16 h-16 bg-gradient-to-tr from-emerald-600 to-teal-600 text-white rounded-2xl flex items-center justify-center text-3xl shadow-md font-bold">
+                      🏛️
+                    </div>
+                  </div>
+                ` : `
+                  <div class="w-16 h-16 bg-gradient-to-tr from-emerald-600 to-teal-600 text-white rounded-2xl flex items-center justify-center text-3xl shadow-md font-bold mb-1">
+                    🏛️
+                  </div>
+                `}
+                <h2 class="text-lg font-black text-slate-900 mt-3 tracking-tight">${settings.institutionName || 'Giriş Portalı'}</h2>
               </div>
 
-              ${isParentTab ? `
-                <!-- 2.A: VELİ BİLGİLENDİRME PORTALI GİRİŞİ -->
-                <div class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl shadow-inner font-bold">
-                  👨‍👩‍👧
-                </div>
-                <h2 class="text-xl font-black text-slate-900 mb-1">Veli Portalı Girişi</h2>
-                <p class="text-xs text-slate-500 mb-5">
-                  Öğrencinizin namaz durumu, ders performansı ve hafta sonu izin saatini görüntüleyebilirsiniz.
-                </p>
-
-                <!-- Hızlı Öğrenci Seçici (Açılır Liste) -->
-                <div class="mb-4 text-left">
-                  <label class="block text-[11px] font-black text-indigo-900 mb-1">
-                    ⚡ LİSTEDEN ÇOCUĞUNUZU SEÇİNİZ:
+              <!-- Tek ve Sade Giriş Formu -->
+              <form onsubmit="window.App.handleUserLogin(event)" class="space-y-4 text-left">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase">
+                    KULLANICI ADI / NO
                   </label>
-                  <select onchange="window.App.selectQuickStudent(this.value)"
-                    class="w-full px-3.5 py-2.5 bg-indigo-50/60 border-2 border-indigo-200 rounded-xl text-xs font-bold text-indigo-900 focus:border-indigo-600 focus:bg-white focus:outline-none transition cursor-pointer">
-                    <option value="">-- Listeden Hızlı Seçim Yapabilirsiniz --</option>
-                    ${allStudents.map(s => `
-                      <option value="${s.studentNo}">${s.studentNo} - ${s.firstName} ${s.lastName} (${s.className})</option>
-                    `).join('')}
-                  </select>
+                  <input type="text" id="login-fullname" required autofocus 
+                    placeholder="Ad Soyad, Öğrenci No veya Eğitmen Adı" 
+                    class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:border-emerald-600 focus:bg-white focus:outline-none transition">
                 </div>
 
-                <form onsubmit="window.App.handleUserLogin(event)" class="space-y-3.5">
-                  <div>
-                    <label class="block text-left text-xs font-bold text-slate-700 mb-1 uppercase">
-                      ÖĞRENCİ NO, AD SOYAD VEYA AİLE KODU
-                    </label>
-                    <input type="text" id="login-fullname" required autofocus placeholder="Örn: 502 veya Arda Yusuf Saygı veya SAYGI2026" 
-                      class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:border-indigo-600 focus:bg-white focus:outline-none transition">
-                  </div>
-
-                  <div>
-                    <div class="flex items-center justify-between mb-1">
-                      <label class="text-left text-xs font-bold text-slate-700 uppercase">GİRİŞ ŞİFRESİ</label>
-                      <span class="text-[10px] text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-                        İlk Şifre: 123
-                      </span>
-                    </div>
-                    <input type="text" id="login-password" value="123" placeholder="123" 
-                      class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:border-indigo-600 focus:bg-white focus:outline-none transition">
-                  </div>
-
-                  <!-- Yardımcı Bilgilendirme -->
-                  <div class="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 text-left text-[11px] text-indigo-900 flex items-start gap-2">
-                    <span class="text-base leading-none">💡</span>
-                    <div>
-                      Öğrencinizin okul numarasını (örn: <strong>502</strong>) veya adını soyadını yazmanız yeterlidir. Varsayılan şifreniz <strong>123</strong>'tür.
-                    </div>
-                  </div>
-
-                  <button type="submit" 
-                    class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2">
-                    <span>Veli Portalı Girişi Yap</span>
-                    <span>➔</span>
-                  </button>
-                </form>
-              ` : `
-                <!-- 2.B: EĞİTMEN GİRİŞİ -->
-                <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl shadow-inner font-bold">
-                  👨‍🏫
-                </div>
-                <h2 class="text-xl font-black text-slate-900 mb-1">Eğitmen Portalı</h2>
-                <p class="text-xs text-slate-500 mb-5">
-                  Yoklama almak ve ders notu girmek için eğitmen adınız ve şifrenizle giriş yapınız.
-                </p>
-
-                <!-- Hızlı Eğitmen Seçimi -->
-                <div class="mb-4 text-left">
-                  <label class="block text-[11px] font-black text-emerald-900 mb-1">EĞİTMEN SEÇİMİ:</label>
-                  <select onchange="window.App.selectQuickStaff(this.value)"
-                    class="w-full px-3.5 py-2.5 bg-emerald-50/60 border-2 border-emerald-200 rounded-xl text-xs font-bold text-emerald-900 focus:border-emerald-600 focus:bg-white focus:outline-none transition cursor-pointer">
-                    <option value="">-- Eğitmen Seçiniz --</option>
-                    ${allStaff.map(st => `
-                      <option value="${st.fullName}">${st.fullName} (${st.role})</option>
-                    `).join('')}
-                  </select>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase">
+                    GİRİŞ ŞİFRESİ
+                  </label>
+                  <input type="password" id="login-password" required 
+                    placeholder="Şifrenizi giriniz" 
+                    class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:border-emerald-600 focus:bg-white focus:outline-none transition">
                 </div>
 
-                <form onsubmit="window.App.handleUserLogin(event)" class="space-y-3.5">
-                  <div>
-                    <label class="block text-left text-xs font-bold text-slate-700 mb-1 uppercase">EĞİTMEN AD SOYAD</label>
-                    <input type="text" id="login-fullname" required autofocus placeholder="Örn: Yasin Ekinci" 
-                      class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:border-emerald-600 focus:bg-white focus:outline-none transition">
-                  </div>
-
-                  <div>
-                    <label class="block text-left text-xs font-bold text-slate-700 mb-1 uppercase">GİRİŞ ŞİFRESİ</label>
-                    <input type="password" id="login-password" value="123" placeholder="••••••••" 
-                      class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:border-emerald-600 focus:bg-white focus:outline-none transition">
-                  </div>
-
-                  <button type="submit" 
-                    class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2">
-                    <span>Eğitmen Olarak Giriş Yap</span>
-                    <span>➔</span>
-                  </button>
-                </form>
-              `}
+                <button type="submit" 
+                  class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 mt-2">
+                  <span>Sisteme Giriş Yap</span>
+                  <span>➔</span>
+                </button>
+              </form>
 
               <!-- Ana Yönetici Giriş Linki -->
               <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
@@ -811,10 +910,19 @@ window.App = {
       } else if (window.PerformanceModule) {
         window.PerformanceModule.init();
       }
+    } else if (this.activeTab === 'leaderboard') {
+      if (window.LeaderboardModule) {
+        window.LeaderboardModule.init();
+      }
     } else if (this.activeTab === 'izin_cikis') {
       main.innerHTML = `<div id="leave-tracker-container"></div>`;
       if (window.LeaveTrackerModule) {
         window.LeaveTrackerModule.init();
+      }
+    } else if (this.activeTab === 'izin_donusu') {
+      main.innerHTML = `<div id="leave-return-container"></div>`;
+      if (window.LeaveReturnModule) {
+        window.LeaveReturnModule.init();
       }
     } else if (this.activeTab === 'ogrenciler') {
       main.innerHTML = `<div id="students-container"></div>`;
@@ -909,7 +1017,7 @@ window.App = {
                 <th class="py-3 px-4">Sınıfı</th>
                 <th class="py-3 px-4">Etüt & Dahili Hocası</th>
                 <th class="py-3 px-4">Yatakhane</th>
-                <th class="py-3 px-4">Veli Giriş Şifresi</th>
+                <th class="py-3 px-4">Veli Giriş Şifresi <span class="text-[9px] font-bold text-amber-700 block lowercase">değişenler vurgulu</span></th>
                 <th class="py-3 px-4">Ortak Aile Kodu</th>
                 ${canEdit ? '<th class="py-3 px-4 text-right">İşlem</th>' : ''}
               </tr>
@@ -928,9 +1036,17 @@ window.App = {
                     <td class="py-3 px-4 text-xs text-slate-600">${s.etutHocasi || '-'}<br><span class="text-[10px] text-slate-400">${s.dahiliHoca || ''}</span></td>
                     <td class="py-3 px-4 text-xs font-medium text-indigo-800">${s.yatakhane || '-'}</td>
                     <td class="py-3 px-4">
-                      <span class="px-2.5 py-1 rounded bg-emerald-50 text-emerald-800 font-mono font-bold text-xs border border-emerald-200">
-                        ${s.password || '123'}
-                      </span>
+                      ${s.password && s.password.trim() !== '123' ? `
+                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 font-mono font-black text-xs border border-amber-300 shadow-2xs">
+                          <span title="Şifre güncellendi">🔑</span>
+                          <span>${s.password}</span>
+                          <span class="text-[9px] font-sans px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 uppercase font-black tracking-tight">Değişti</span>
+                        </div>
+                      ` : `
+                        <span class="px-2.5 py-1 rounded bg-slate-100 text-slate-700 font-mono font-bold text-xs border border-slate-200" title="Varsayılan Şifre: 123">
+                          ${s.password || '123'}
+                        </span>
+                      `}
                     </td>
                     <td class="py-3 px-4">
                       <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-slate-600">
@@ -978,7 +1094,7 @@ window.App = {
                 <span>👨‍🏫 Personel İsim ve Şifre Yönetimi</span>
               </h3>
               <p class="text-xs text-slate-500">
-                Eğitmenlerin sisteme girerken kullanacağı Ad Soyad ve Şifrelerini buradan belirleyiniz.
+                Eğitmenlerin sisteme girerken kullanacağı Ad Soyad ve Şifrelerini buradan yönetebilirsiniz. Personeller kendi şifrelerini değiştirdiğinde burada sarı "🔑 Değişti" rozetiyle güncel olarak görüntülenir.
               </p>
             </div>
 
@@ -995,7 +1111,7 @@ window.App = {
                   <th class="py-3 px-4">Giriş Yapılacak İsim (Ad Soyad)</th>
                   <th class="py-3 px-4">Görevi / Alanı</th>
                   <th class="py-3 px-4">Telefon</th>
-                  <th class="py-3 px-4">Giriş Şifresi</th>
+                  <th class="py-3 px-4">Giriş Şifresi <span class="text-[9px] font-bold text-amber-700 block lowercase">değişenler vurgulu</span></th>
                   <th class="py-3 px-4 text-right">İşlem</th>
                 </tr>
               </thead>
@@ -1006,9 +1122,17 @@ window.App = {
                     <td class="py-3 px-4 text-xs text-slate-600">${stf.role}</td>
                     <td class="py-3 px-4 text-xs font-mono text-slate-700">${stf.phone || '-'}</td>
                     <td class="py-3 px-4">
-                      <span class="px-2.5 py-1 rounded bg-blue-50 text-blue-800 font-mono font-bold text-xs border border-blue-200">
-                        ${stf.password || '123'}
-                      </span>
+                      ${stf.password && stf.password.trim() !== '123' ? `
+                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 font-mono font-black text-xs border border-amber-300 shadow-2xs">
+                          <span title="Şifre güncellendi">🔑</span>
+                          <span>${stf.password}</span>
+                          <span class="text-[9px] font-sans px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 uppercase font-black tracking-tight">Değişti</span>
+                        </div>
+                      ` : `
+                        <span class="px-2.5 py-1 rounded bg-blue-50 text-blue-800 font-mono font-bold text-xs border border-blue-200" title="Varsayılan Şifre: 123">
+                          ${stf.password || '123'}
+                        </span>
+                      `}
                     </td>
                     <td class="py-3 px-4 text-right">
                       <button onclick="window.App.editStaffPassword('${stf.id}')"
@@ -1083,32 +1207,277 @@ window.App = {
       <div class="max-w-4xl mx-auto space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h3 class="font-bold text-slate-800 text-base mb-4 pb-3 border-b border-slate-100 flex items-center gap-2">
-            <span>⚙️</span> Ana Yönetici E-posta Ayarları (Kodların Gönderileceği Adres)
+            <span>⚙️</span> Kurum Bilgileri ve Yönetici Ayarları
           </h3>
 
           <form onsubmit="window.App.saveSettingsSubmit(event)" class="space-y-4 max-w-lg">
             <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">KURUM / KURS ADI</label>
+              <label class="block text-xs font-semibold text-slate-600 mb-1 uppercase">KURUM / KURS ADI</label>
               <input type="text" id="set-inst-name" value="${settings.institutionName}" required
-                class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none">
+                class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:bg-white">
             </div>
 
-            <div>
+            <!-- Kurum / Kurs Resmi & Logosu -->
+            <div class="pt-3 border-t border-slate-100">
+              <label class="block text-xs font-black text-slate-800 mb-1 uppercase">
+                📸 KURS RESMİ VEYA LOGOSU
+              </label>
+              <p class="text-[11px] text-slate-500 mb-3">
+                Buraya ekleyeceğiniz fotoğraf veya logo; giriş portalında, veli karnesinde ve üst menü başlığında görüntülenir.
+              </p>
+
+              <!-- Logo Önizleme ve Seçme Alanı -->
+              <div class="flex items-center gap-4 mb-3">
+                <div class="w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center overflow-hidden p-1 shadow-inner relative">
+                  <img id="settings-logo-preview" 
+                    src="${settings.institutionLogo || ''}" 
+                    alt="Logo Önizleme" 
+                    class="${settings.institutionLogo ? '' : 'hidden'} max-w-full max-h-full object-contain rounded-xl"
+                    onerror="this.style.display='none'; document.getElementById('settings-logo-placeholder').classList.remove('hidden');">
+                  <div id="settings-logo-placeholder" class="${settings.institutionLogo ? 'hidden' : ''} text-center p-2 text-slate-400">
+                    <span class="text-2xl block">🏛️</span>
+                    <span class="text-[10px] font-bold">Resim Yok</span>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <input type="file" id="set-inst-logo-file" accept="image/*" class="hidden" onchange="window.App.handleLogoFileUpload(event)">
+                  <button type="button" onclick="document.getElementById('set-inst-logo-file').click()"
+                    class="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs border border-indigo-200 shadow-2xs transition flex items-center gap-2">
+                    <span>📁</span>
+                    <span>Bilgisayardan / Telefondan Fotoğraf Seç</span>
+                  </button>
+
+                  ${settings.institutionLogo ? `
+                    <button type="button" onclick="window.App.removeLogo()"
+                      class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-[11px] border border-rose-200 transition flex items-center gap-1.5">
+                      <span>🗑️</span>
+                      <span>Resmi Kaldır</span>
+                    </button>
+                  ` : ''}
+                </div>
+                <div class="mt-3 p-3.5 bg-amber-50 rounded-2xl border border-amber-200">
+                  <div class="text-xs font-bold text-amber-900 flex items-center gap-1.5 mb-1">
+                    <span>📢</span>
+                    <span>Resmin Herkesin Telefonunda Görünmesi İçin:</span>
+                  </div>
+                  <p class="text-[11px] text-amber-800 leading-relaxed mb-2.5">
+                    Telefon veya bilgisayarınızdan seçtiğiniz fotoğraf bu cihazda görünür. <strong>Tüm veli ve hocaların telefonlarında da kalıcı olarak görünmesi için</strong> bu fotoğrafı GitHub'a <strong>kurs_logo.jpg</strong> adıyla yüklemeniz gerekir.
+                  </p>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" onclick="window.App.downloadCurrentLogo()" 
+                      class="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs shadow-sm transition flex items-center gap-1.5">
+                      <span>💾</span>
+                      <span>Resmi "kurs_logo.jpg" Olarak İndir</span>
+                    </button>
+                    <a href="https://github.com/selimbozkurt111-web/oay-tak-p/upload" target="_blank"
+                      class="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs shadow-sm transition flex items-center gap-1.5">
+                      <span>🚀</span>
+                      <span>GitHub Yükleme Sayfasına Git ➔</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1 uppercase">
+                  VEYA İNTERNET RESİM BAĞLANTISI (URL) / DOSYA ADI:
+                </label>
+                <input type="text" id="set-inst-logo-url" value="${settings.institutionLogo || ''}" 
+                  placeholder="Örn: https://site.com/logo.png veya kurs_logo.jpg"
+                  oninput="window.App.handleLogoUrlInput(this.value)"
+                  class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono text-slate-700 focus:outline-none focus:bg-white transition">
+                <p class="text-[10px] text-slate-400 mt-1">
+                  💡 İpucu: GitHub ana dizininize <strong>kurs_logo.jpg</strong> adıyla bir fotoğraf yüklerseniz buraya sadece <code>kurs_logo.jpg</code> yazabilirsiniz.
+                </p>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100">
               <label class="block text-xs font-black text-amber-900 mb-1 uppercase">👑 ANA YÖNETİCİ E-POSTA ADRESİ</label>
               <input type="email" id="set-admin-email" value="${settings.adminEmail || ''}" required
-                class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none">
+                class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none focus:bg-white">
               <span class="text-[11px] text-slate-400">Giriş yaparken doğrulama kodunuz bu e-postaya gönderilir.</span>
             </div>
 
-            <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition">
-              E-posta Ayarını Kaydet
+            <!-- Canlı Bulut Veritabanı Ayarı -->
+            <div class="pt-3 border-t border-slate-100">
+              <div class="flex items-center justify-between mb-1">
+                <label class="block text-xs font-black text-slate-800 uppercase">
+                  ☁️ CANLI BULUT VERİTABANI (TÜM CİHAZLARI ANLIK EŞİTLEME)
+                </label>
+                ${settings.firebaseUrl ? `
+                  <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Aktif</span>
+                  </span>
+                ` : `
+                  <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold border border-slate-300">
+                    Yerel Mod
+                  </span>
+                `}
+              </div>
+              <p class="text-[11px] text-slate-500 mb-2">
+                Hocaların telefonlarından aldıkları yoklamaların ve veli girişlerinin tüm telefonlarda ve bilgisayarınızda anında canlı görünmesini sağlar.
+              </p>
+              <input type="url" id="set-firebase-url" value="${settings.firebaseUrl || ''}" 
+                placeholder="Örn: https://oay-takip-default-rtdb.firebaseio.com"
+                class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 transition">
+              <span class="text-[10px] text-slate-400 block mt-1">
+                Google Firebase Realtime Database URL adresinizi buraya yapıştırıp "Ayarları Kaydet"e basınız.
+              </span>
+            </div>
+
+            <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-2">
+              <span>💾</span>
+              <span>Ayarları Kaydet</span>
             </button>
           </form>
         </div>
 
+        <!-- Canlı Bulut Veritabanı Yönetimi & Eşitleme Paneli -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 text-lg flex items-center justify-center shadow-inner">
+                ☁️
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-800 text-base leading-tight">Canlı Bulut Senkronizasyonu</h3>
+                <p class="text-xs text-slate-500">Tüm hocaların telefonlarını ve bilgisayarınızı tek bir canlı merkeze bağlayın</p>
+              </div>
+            </div>
+            <div>
+              ${settings.firebaseUrl ? `
+                <span class="px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-300 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Canlı Bağlantı Hazır</span>
+                </span>
+              ` : `
+                <span class="px-3 py-1 rounded-xl bg-amber-50 text-amber-800 text-xs font-bold border border-amber-300 flex items-center gap-1.5">
+                  <span>⚠️</span>
+                  <span>URL Tanımlanmadı</span>
+                </span>
+              `}
+            </div>
+          </div>
+
+          <!-- Aksiyon Butonları -->
+          <div class="flex flex-wrap items-center gap-3 mb-5">
+            <button type="button" onclick="window.App.handlePushAllToCloud()"
+              class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-2">
+              <span>🚀</span>
+              <span>Tüm Verileri Buluta İlk Yükle</span>
+            </button>
+
+            <button type="button" onclick="window.App.handleSyncFromCloud(true)"
+              class="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-2">
+              <span>🔄</span>
+              <span>Buluttan Şimdi Eşitle (Verileri Çek)</span>
+            </button>
+          </div>
+
+          <!-- 2 Dakikalık Kolay Firebase Kurulum Kılavuzu -->
+          <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-700 space-y-2.5">
+            <div class="font-bold text-slate-900 flex items-center gap-2">
+              <span>📋</span>
+              <span>2 Dakikada Tamamen Ücretsiz Canlı Veritabanı Kurulumu:</span>
+            </div>
+            <ol class="list-decimal list-inside space-y-1.5 text-[11px] text-slate-600 leading-relaxed">
+              <li>
+                <a href="https://console.firebase.google.com" target="_blank" class="text-emerald-700 underline font-bold hover:text-emerald-800">
+                  console.firebase.google.com ↗
+                </a> 
+                adresine Google hesabınızla giriş yapın.
+              </li>
+              <li><strong>"Proje Ekle"</strong> butonuna basın, proje adını <code>oay-takip</code> yapıp adımları onaylayın.</li>
+              <li>Sol menüden <strong>"Build (Derle)" ➔ "Realtime Database"</strong> seçeneğine tıklayın.</li>
+              <li><strong>"Veritabanı Oluştur"</strong> deyin, kurallar ekranında <strong>"Test Modunda Başlat"</strong> (read: true, write: true) seçeneğini işaretleyin.</li>
+              <li>Sayfanın üstünde beliren veritabanı bağlantı adresini (Örn: <code>https://oay-takip-default-rtdb.firebaseio.com/</code>) kopyalayın.</li>
+              <li>Bu adresi yukarıdaki <strong>"Canlı Bulut Veritabanı"</strong> kutucuğuna yapıştırıp <strong>"Ayarları Kaydet"</strong>e ve ardından <strong>"Tüm Verileri Buluta İlk Yükle"</strong> butonuna basın.</li>
+            </ol>
+            <p class="text-[10px] text-emerald-800 bg-emerald-50/80 p-2 rounded-xl border border-emerald-200 mt-2">
+              ✨ Tebrikler! Artık hocalar kendi telefonlarından yoklama aldığında veya veliler sisteme baktığında tüm veriler otomatik olarak canlı eşitlenecektir.
+            </p>
+          </div>
+        </div>
+
+        <!-- Yatak Kontrolü Otomatik Bildirim Yönetimi (Sadece Ana Yönetici) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 text-xl flex items-center justify-center shadow-inner">
+                ⏰
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-800 text-base leading-tight">Yatak Kontrolü Otomatik Bildirimleri</h3>
+                <p class="text-xs text-slate-500">Sabah 08:30'dan itibaren yoklama girilmedikçe her 30 dakikada bir hocalara otomatik bildirim gönderir</p>
+              </div>
+            </div>
+
+            <!-- YÖNETİCİ AÇMA / KAPATMA BUTONU -->
+            <div>
+              <button type="button" onclick="window.App.toggleYatakReminder()"
+                class="px-5 py-2.5 rounded-2xl font-black text-xs shadow-sm transition flex items-center gap-2 cursor-pointer ${
+                  settings.yatakReminderEnabled !== false 
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-4 ring-emerald-100' 
+                    : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                }">
+                <span class="w-2.5 h-2.5 rounded-full ${settings.yatakReminderEnabled !== false ? 'bg-white animate-pulse' : 'bg-slate-400'}"></span>
+                <span>${settings.yatakReminderEnabled !== false ? '🟢 Otomatik Bildirimler AÇIK' : '⚪ Otomatik Bildirimler KAPALI'}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="pt-4 space-y-3">
+            <!-- Otomatik Zamanlama Bilgi Kutusu -->
+            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-bold text-slate-800">⏰ Hatırlatma Başlama Saati:</span>
+                <span class="px-2.5 py-1 bg-white font-mono font-bold text-emerald-800 rounded-lg border border-slate-300">
+                  Sabah 08:30
+                </span>
+              </div>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-bold text-slate-800">🔁 Tekrar Sıklığı:</span>
+                <span class="px-2.5 py-1 bg-white font-mono font-bold text-indigo-800 rounded-lg border border-slate-300">
+                  Yoklama Alınmadıkça Her 30 Dakikada Bir
+                </span>
+              </div>
+              <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200">
+                <span class="font-bold text-slate-800">🛑 Durdurma Kuralı:</span>
+                <span class="text-[11px] text-emerald-700 font-bold">
+                  Hoca yatak kontrolünü sisteme girdiği anda bildirimler o gün için otomatik kesilir.
+                </span>
+              </div>
+            </div>
+
+            <!-- Canlı Durum Bildirimi -->
+            <div class="p-3 bg-white rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span class="font-bold text-slate-600">Bugünkü Durum:</span>
+              <div>
+                ${window.Store.isYatakAttendanceDoneToday() ? `
+                  <span class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-900 font-bold text-[11px] border border-emerald-300">
+                    ✅ Bugünkü Yoklama Alındı (Bildirimler Durduruldu)
+                  </span>
+                ` : (settings.yatakReminderEnabled !== false ? `
+                  <span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold text-[11px] border border-amber-300 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span>⏳ Bugünkü Yoklama Bekleniyor (Her 30 Dk Otomatik Bildirim Devrede)</span>
+                  </span>
+                ` : `
+                  <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-bold text-[11px] border border-slate-300">
+                    ⚪ Otomatik Bildirimler Yönetici Tarafından Kapatıldı
+                  </span>
+                `)}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h3 class="font-bold text-slate-800 text-base mb-2 flex items-center gap-2">
-            <span>💾</span> Veri Yedekleme
+            <span>💾</span> Yerel Dosya Yedekleme
           </h3>
           <p class="text-xs text-slate-500 mb-4">Tüm verilerinizi tek dosya olarak bilgisayarınıza indirebilirsiniz.</p>
 
@@ -1132,14 +1501,293 @@ window.App = {
     event.preventDefault();
     const instName = document.getElementById('set-inst-name').value.trim();
     const adminEmail = document.getElementById('set-admin-email').value.trim();
+    const logoUrl = document.getElementById('set-inst-logo-url') ? document.getElementById('set-inst-logo-url').value.trim() : '';
+    const firebaseUrl = document.getElementById('set-firebase-url') ? document.getElementById('set-firebase-url').value.trim() : '';
 
     window.Store.saveSettings({
       institutionName: instName,
-      adminEmail: adminEmail
+      adminEmail: adminEmail,
+      institutionLogo: logoUrl,
+      firebaseUrl: firebaseUrl
     });
 
-    this.showToast('Ana Yönetici e-posta adresi güncellendi.', 'success');
+    this.showToast('Ayarlar, kurs logosu ve canlı bulut bağlantısı kaydedildi!', 'success');
     this.renderHeader();
+    this.renderSettingsView();
+  },
+
+  async handlePushAllToCloud() {
+    const url = window.Store.getFirebaseUrl();
+    if (!url) {
+      this.showToast('Lütfen önce yukarıdaki kutucuğa Firebase Veritabanı URL adresinizi yapıştırıp "Ayarları Kaydet"e basınız.', 'warning');
+      const input = document.getElementById('set-firebase-url');
+      if (input) input.focus();
+      return;
+    }
+
+    if (!confirm('Bilgisayarınızdaki tüm öğrenci listesi (66 talebe), hoca kadrosu, yoklamalar ve sistem ayarları canlı bulut veritabanına aktarılacak. Onaylıyor musunuz?')) {
+      return;
+    }
+
+    this.showToast('Veriler canlı buluta aktarılıyor, lütfen bekleyiniz...', 'info');
+    const res = await window.Store.pushAllToCloud();
+    if (res.success) {
+      this.showToast(res.message, 'success');
+      this.renderHeader();
+      this.renderSettingsView();
+    } else {
+      this.showToast(res.message, 'error');
+    }
+  },
+
+  async handleSyncFromCloud(showToastNotice = true) {
+    if (!window.Store.isCloudEnabled()) {
+      if (showToastNotice) {
+        this.showToast('Canlı bulut bağlantısı henüz tanımlanmamış. Ayarlar ekranından Firebase URL ekleyiniz.', 'warning');
+      }
+      return;
+    }
+
+    if (showToastNotice) {
+      this.showToast('Buluttaki en güncel kayıtlar kontrol ediliyor...', 'info');
+    }
+
+    const res = await window.Store.syncFromCloud();
+    if (res.success) {
+      if (showToastNotice) {
+        this.showToast(res.message, 'success');
+      }
+      this.renderHeader();
+      if (this.currentSession) {
+        this.renderMainContent();
+      }
+    } else {
+      if (showToastNotice) {
+        this.showToast(`Eşitleme uyarısı: ${res.message}`, 'error');
+      }
+    }
+  },
+
+  // --- BİLDİRİM YÖNETİMİ & TESTİ (Telefona Ekran Bildirimi Gönderme) ---
+  async requestNotificationPermissionAndTest() {
+    if (!('Notification' in window)) {
+      alert('Bu tarayıcıda veya cihazda bildirim desteği kapalı. Lütfen telefonunuzun Chrome veya Safari ayarlarından bildirimlere izin veriniz.');
+      return;
+    }
+
+    try {
+      let permission = Notification.permission;
+      if (permission !== 'granted') {
+        permission = await Notification.requestPermission();
+      }
+
+      if (permission === 'granted') {
+        this.showToast('✅ Bildirim izni açık! Telefonunuza test bildirimi gönderiliyor...', 'success');
+        this.triggerLocalPushNotification(
+          '🛏️ Yatak Kontrolü Hatırlatması',
+          'Sayın Hocam, bugünün yatak ve oda kontrolünü sisteme girmeyi unutmayınız! (Ömer Avniyel Akademi)'
+        );
+      } else if (permission === 'denied') {
+        alert('⚠️ Bildirim izni daha önce engellenmiş. Bildirim alabilmek için telefonunuzun Ayarlar > Bildirimler bölümünden tarayıcınıza izin veriniz.');
+      } else {
+        this.showToast('Bildirim izni onaylanmadı.', 'warning');
+      }
+    } catch (err) {
+      alert('Bildirim izni alınırken bir sorun oluştu: ' + err.message);
+    }
+  },
+
+  triggerLocalPushNotification(title, body) {
+    const options = {
+      body: body,
+      icon: 'icon.svg',
+      badge: 'icon.svg',
+      vibrate: [200, 100, 200, 100, 200],
+      tag: 'oay-yatak-reminder',
+      renotify: true
+    };
+
+    // 1. Service Worker ile bildirim (Mobilde ve PWA'da en güçlü yöntem)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        if (reg && reg.showNotification) {
+          reg.showNotification(title, options);
+        }
+      }).catch(() => {
+        try { new Notification(title, options); } catch(e) {}
+      });
+      return;
+    }
+
+    // 2. Standart Notification API
+    try {
+      new Notification(title, options);
+    } catch (err) {
+      console.warn('Notification API hatası:', err);
+    }
+  },
+
+  // WhatsApp Hatırlatması Gönder
+  sendYatakWhatsAppReminder(hocaPhone = '', hocaName = '') {
+    const defaultText = `Selamün aleyküm ${hocaName ? hocaName + ' ' : ''}Hocam, hayırlı sabahlar. Bugünün yatak ve oda kontrolünü sisteme girmeyi unutmayınız.\n\nYoklama Giriş Linki:\nhttps://selimbozkurt111-web.github.io/oay-tak-p/`;
+    const cleanPhone = (hocaPhone || '').replace(/\D/g, '');
+    const targetUrl = cleanPhone 
+      ? `https://wa.me/90${cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone}?text=${encodeURIComponent(defaultText)}`
+      : `https://wa.me/?text=${encodeURIComponent(defaultText)}`;
+
+    window.open(targetUrl, '_blank');
+  },
+
+  // --- OTOMATİK YATAK KONTROLÜ HATIRLATMA MOTORU ---
+  // Sabah 08:30'dan itibaren, kontrol sisteme işlenmedikçe her 30 dakikada bir otomatik bildirim gönderir.
+  // Kontrol sisteme işlendiği anda bildirimler otomatik olarak durdurulur!
+  checkAndTriggerYatakReminder() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') {
+      return;
+    }
+
+    const settings = window.Store.getSettings();
+    if (settings.yatakReminderEnabled === false) return;
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const currentTimeInMins = currentHours * 60 + currentMinutes;
+
+    // Başlangıç saati: 08:30
+    const startTimeStr = settings.yatakReminderStartTime || '08:30';
+    const [startH, startM] = startTimeStr.split(':').map(Number);
+    const startTimeInMins = (startH !== undefined ? startH : 8) * 60 + (startM !== undefined ? startM : 30);
+
+    // Sabah 08:30'dan önce veya öğlen 13:00'dan sonra bildirim gönderilmez
+    if (currentTimeInMins < startTimeInMins || currentTimeInMins > 13 * 60) {
+      return;
+    }
+
+    // 1. KONTROL EDİLDİ Mİ? (Sisteme işlendiyse BİLDİRİM GÖNDERİLMEZ!)
+    const isDone = window.Store.isYatakAttendanceDoneToday(todayStr);
+    if (isDone) {
+      return;
+    }
+
+    // 2. Son bildirimden bu yana 30 dakika geçti mi?
+    const intervalMins = parseInt(settings.yatakReminderIntervalMins, 10) || 30;
+    const lastSentKey = 'oay_last_yatak_reminder_sent_v1';
+    const lastSentTime = parseInt(localStorage.getItem(lastSentKey), 10) || 0;
+    const elapsedMinutes = (Date.now() - lastSentTime) / (1000 * 60);
+
+    if (elapsedMinutes >= intervalMins) {
+      // 30 dakika doldu ve kontrol henüz girilmedi! Bildirimi gönder:
+      localStorage.setItem(lastSentKey, Date.now().toString());
+
+      this.triggerLocalPushNotification(
+        '🛏️ Yatak Kontrolü Hatırlatması',
+        'Sayın Hocam, bugünün yatak ve oda kontrolü henüz sisteme girilmedi! Lütfen yoklamayı tamamlayınız. (Ömer Avniyel Akademi)'
+      );
+
+      console.log(`[YatakReminder] Otomatik hatırlatma gönderildi (${now.toLocaleTimeString()}).`);
+    }
+  },
+
+  // Ana Yönetici için Yatak Hatırlatma Bildirimlerini Açma / Kapatma Anahtarı
+  toggleYatakReminder() {
+    const settings = window.Store.getSettings();
+    const currentState = settings.yatakReminderEnabled !== false;
+    const newState = !currentState;
+
+    window.Store.saveSettings({
+      yatakReminderEnabled: newState
+    });
+
+    this.showToast(
+      newState 
+        ? '✅ Yatak kontrolü otomatik bildirimleri AÇILDI. Sabah 08:30\'da yoklama alınmadıkça her 30 dk bildirim gidecek.' 
+        : '🛑 Yatak kontrolü otomatik bildirimleri KAPATILDI.',
+      newState ? 'success' : 'info'
+    );
+
+    this.renderSettingsView();
+  },
+
+  handleLogoFileUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    if (file.size > 12 * 1024 * 1024) {
+      this.showToast('Lütfen 12 MB\'tan küçük bir resim seçiniz.', 'warning');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 500;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        
+        const preview = document.getElementById('settings-logo-preview');
+        const placeholder = document.getElementById('settings-logo-placeholder');
+        const urlInput = document.getElementById('set-inst-logo-url');
+        if (preview) {
+          preview.src = compressedDataUrl;
+          preview.classList.remove('hidden');
+          preview.style.display = 'block';
+        }
+        if (placeholder) placeholder.classList.add('hidden');
+        if (urlInput) urlInput.value = compressedDataUrl;
+
+        this.showToast('Fotoğraf hazırlandı! Kaydet butonuna basarak aktifleştirin.', 'info');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  handleLogoUrlInput(val) {
+    const preview = document.getElementById('settings-logo-preview');
+    const placeholder = document.getElementById('settings-logo-placeholder');
+    if (val && val.trim()) {
+      if (preview) {
+        preview.src = val.trim();
+        preview.classList.remove('hidden');
+        preview.style.display = 'block';
+      }
+      if (placeholder) placeholder.classList.add('hidden');
+    } else {
+      if (preview) {
+        preview.src = '';
+        preview.classList.add('hidden');
+      }
+      if (placeholder) placeholder.classList.remove('hidden');
+    }
+  },
+
+  removeLogo() {
+    window.Store.saveSettings({ institutionLogo: '' });
+    this.showToast('Kurs logosu kaldırıldı, varsayılan simgeye dönüldü.', 'info');
+    this.renderHeader();
+    this.renderSettingsView();
   },
 
   downloadBackup() {
@@ -1317,6 +1965,85 @@ window.App = {
       window.Store.deleteStudent(id);
       this.showToast('Öğrenci kaydı silindi.', 'info');
       this.renderStudentsView();
+    }
+  },
+
+  // --- Personel / Hoca Kendi Şifresini Değiştirme Modalı ---
+  openStaffSelfPasswordModal() {
+    const session = this.currentSession;
+    if (!session || session.role !== 'staff') {
+      this.showToast('Bu özellik sadece oturum açmış personeller içindir.', 'warning');
+      return;
+    }
+
+    const modal = document.getElementById('staff-self-password-modal');
+    if (!modal) return;
+
+    const staffList = window.Store.getStaff();
+    const stf = staffList.find(s => (session.staffId && s.id === session.staffId) || s.fullName === session.name);
+    const currentPass = stf ? (stf.password || '123') : (session.password || '123');
+
+    const nameEl = document.getElementById('staff-modal-user-name');
+    if (nameEl) nameEl.textContent = `${session.name} (Eğitmen)`;
+
+    const passEl = document.getElementById('staff-modal-current-pass');
+    if (passEl) passEl.textContent = currentPass;
+
+    const p1 = document.getElementById('staff-self-new-password');
+    const p2 = document.getElementById('staff-self-confirm-password');
+    if (p1) p1.value = '';
+    if (p2) p2.value = '';
+
+    modal.classList.remove('hidden');
+    setTimeout(() => { if (p1) p1.focus(); }, 100);
+  },
+
+  closeStaffSelfPasswordModal() {
+    const modal = document.getElementById('staff-self-password-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  handleStaffSelfPasswordSubmit(event) {
+    if (event) event.preventDefault();
+    const session = this.currentSession;
+    if (!session || session.role !== 'staff') return;
+
+    const p1Input = document.getElementById('staff-self-new-password');
+    const p2Input = document.getElementById('staff-self-confirm-password');
+    if (!p1Input || !p2Input) return;
+
+    const p1 = p1Input.value.trim();
+    const p2 = p2Input.value.trim();
+
+    if (!p1 || p1.length < 3) {
+      this.showToast('Yeni şifre en az 3 karakter olmalıdır.', 'warning');
+      p1Input.focus();
+      return;
+    }
+
+    if (p1 !== p2) {
+      this.showToast('Girdiğiniz yeni şifreler birbiriyle uyuşmuyor!', 'error');
+      p2Input.select();
+      return;
+    }
+
+    const staffList = window.Store.getStaff();
+    const stf = staffList.find(s => (session.staffId && s.id === session.staffId) || s.fullName === session.name);
+    if (!stf) {
+      this.showToast('Personel kaydı bulunamadı.', 'error');
+      return;
+    }
+
+    const res = window.Store.updateStaffPassword(stf.id, p1);
+    if (res.success) {
+      session.password = p1;
+      session.staffId = stf.id;
+      sessionStorage.setItem('yoklama_active_session', JSON.stringify(session));
+      this.showToast(`Şifreniz başarıyla güncellendi! Yeni şifreniz: ${p1}`, 'success');
+      this.closeStaffSelfPasswordModal();
+      this.renderHeader();
+    } else {
+      this.showToast(res.message || 'Şifre güncellenemedi.', 'error');
     }
   },
 
