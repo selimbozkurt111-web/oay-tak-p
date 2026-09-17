@@ -12,6 +12,7 @@ window.AkademiModule = {
   searchQuery: '',
   saveTimers: {},
   selectedBadges: new Set(),
+  shareStudentId: null,
 
   subCategories: [
     { id: 'takviye', label: 'Takviye Ders Performansı', icon: '📚', short: 'Takviye Çizelgesi' },
@@ -174,7 +175,7 @@ window.AkademiModule = {
     container.innerHTML = `
       <div class="space-y-4 animate-fade-in max-w-7xl mx-auto">
         <!-- Kontrol Kartı: Tarih, Gün Adı, Çoklu Sınıf Filtresi & Renk Kılavuzu -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4 no-print">
           <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <!-- Tarih ve Gün Adı -->
             <div class="flex flex-wrap items-center gap-2.5">
@@ -191,12 +192,24 @@ window.AkademiModule = {
               </div>
             </div>
 
-            <!-- Otomatik Kayıt Durumu & Bilgi -->
-            <div class="flex items-center gap-3">
+            <!-- Çıktı Alma, Resim İndirme & Canlı Kayıt Göstergesi -->
+            <div class="flex flex-wrap items-center gap-3">
               <div id="matrix-save-indicator" class="h-6 flex items-center"></div>
-              <div class="text-right hidden sm:block">
-                <div class="text-[11px] font-black text-slate-700">Canlı Not Çizelgesi</div>
-                <div class="text-[10px] text-slate-400">Yazdığınız anda anında kaydedilir & ortalamalar güncellenir</div>
+
+              <!-- Yazdır & Görüntü Al Butonları -->
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="window.AkademiModule.printMatrixTable()"
+                  class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Tüm sınıf not çizelgesini A4 formatında yazdır">
+                  <span>🖨️</span>
+                  <span>Çizelgeyi Yazdır (A4)</span>
+                </button>
+                <button type="button" onclick="window.AkademiModule.downloadTableImage()" id="btn-download-matrix-img"
+                  class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Çizelge tablosunu yüksek çözünürlüklü resim (PNG) olarak indir">
+                  <span>📸</span>
+                  <span>Çizelge Resmi İndir</span>
+                </button>
               </div>
             </div>
           </div>
@@ -268,10 +281,23 @@ window.AkademiModule = {
         </div>
 
         <!-- 3. MATRİS TABLO: SOLDA ÖĞRENCİLER, ÜSTTE 5 DERS, SAĞDA ÖĞRENCİ ORTALAMASI, ALTTA DERS ORTALAMALARI -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <div id="takviye-matrix-table-container" class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden p-0 sm:p-1">
+          
+          <!-- KURUMSAL YAZDIRMA ÜST BAŞLIĞI (Sadece Çıktıda Görünür) -->
+          <div class="print-only p-4 mb-2 text-center border-b-2 border-slate-800">
+            <div class="text-xs font-bold tracking-widest text-slate-600 uppercase">T.C. MİLLİ EĞİTİM BAKANLIĞI</div>
+            <div class="text-lg font-black text-slate-900 uppercase mt-0.5">ÖMER AVNİYEL AKADEMİ</div>
+            <div class="text-sm font-black text-slate-800 mt-1 uppercase">TAKVİYE DERSLERİ PERFORMANS VE NOT ÇİZELGESİ</div>
+            <div class="flex items-center justify-between text-xs font-bold text-slate-700 mt-3 pt-2 border-t border-slate-300">
+              <span>📅 Değerlendirme Tarihi: ${this.currentDate} (${dayName})</span>
+              <span>Sınıf: ${this.selectedClasses.length > 0 ? this.selectedClasses.join(', ') : 'Tüm Sınıflar'}</span>
+              <span>Toplam Öğrenci: ${this.getFilteredStudents().length}</span>
+            </div>
+          </div>
+
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse min-w-[700px]">
-              <!-- Üst Başlıklar (Soldan Sağa: Öğrenci, 5 Ders, Öğrenci Ortalaması) -->
+              <!-- Üst Başlıklar (Soldan Sağa: Öğrenci, 5 Ders, Öğrenci Ortalaması, Veli Paylaşım) -->
               <thead>
                 <tr class="bg-slate-900 text-white text-xs border-b border-slate-800">
                   <th class="p-3.5 sm:p-4 font-black tracking-wide w-48 sm:w-56 sticky left-0 bg-slate-900 z-10 shadow-r">
@@ -289,6 +315,10 @@ window.AkademiModule = {
                   <th class="p-3.5 sm:p-4 text-center font-black tracking-wide w-32 border-l border-slate-800 bg-slate-950 text-amber-300">
                     <div>ÖĞRENCİ ORT.</div>
                     <div class="text-[10px] text-slate-400 font-normal">Dersler Ortalaması</div>
+                  </th>
+                  <th class="p-3.5 sm:p-4 text-center font-black tracking-wide w-28 border-l border-slate-800 no-print">
+                    <div>VELİ PAYLAŞ</div>
+                    <div class="text-[10px] text-slate-400 font-normal">Görüntü / WhatsApp</div>
                   </th>
                 </tr>
               </thead>
@@ -321,11 +351,29 @@ window.AkademiModule = {
                       <span class="text-slate-400 font-bold">-</span>
                     </div>
                   </td>
+                  <td class="p-3.5 sm:p-4 border-l border-slate-200 bg-slate-100 no-print"></td>
                 </tr>
               </tfoot>
             </table>
           </div>
+
+          <!-- KURUMSAL YAZDIRMA İMZA VE MÜHÜR ALANI (Sadece Çıktıda Görünür) -->
+          <div class="print-only mt-8 pt-4 border-t border-slate-300 pb-4">
+            <div class="flex justify-between items-end px-12 text-xs font-bold text-slate-800">
+              <div class="text-center">
+                <div>Ders Öğretmeni</div>
+                <div class="mt-14 font-normal text-slate-500">İmza</div>
+              </div>
+              <div class="text-center">
+                <div>Mühür & İmza</div>
+                <div class="mt-14 font-normal text-slate-500">Kurum Kaşe / Onay</div>
+              </div>
+            </div>
+          </div>
         </div>
+
+        <!-- VELİ İLE PAYLAŞIM VE GÖRÜNTÜ ALMA MODALI -->
+        ${this.renderShareModalHtml()}
       </div>
     `;
 
@@ -349,7 +397,7 @@ window.AkademiModule = {
     if (students.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="${this.subjects.length + 2}" class="p-12 text-center text-slate-400 text-xs">
+          <td colspan="${this.subjects.length + 3}" class="p-12 text-center text-slate-400 text-xs">
             Seçilen kriterlere uygun öğrenci bulunamadı.
           </td>
         </tr>
@@ -421,7 +469,7 @@ window.AkademiModule = {
             `;
           }).join('')}
 
-          <!-- En Sağdaki Öğrenci Ortalaması Rozeti -->
+          <!-- Sağdaki Öğrenci Ortalaması Rozeti -->
           <td class="p-3 text-center border-l border-slate-100 bg-slate-50/50">
             <div id="row-avg-${st.id}">
               ${rowAvg === null ? `
@@ -433,6 +481,16 @@ window.AkademiModule = {
                 </span>
               `}
             </div>
+          </td>
+
+          <!-- Veli İle Paylaş Butonu (Görüntü Alma & WhatsApp) -->
+          <td class="p-2 text-center border-l border-slate-100 no-print">
+            <button type="button" onclick="window.AkademiModule.openShareModal('${st.id}')"
+              class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 hover:border-emerald-600 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1 mx-auto shadow-2xs group cursor-pointer"
+              title="Bu öğrencinin not karnesini görüntü olarak al veya WhatsApp ile veliye gönder">
+              <span class="group-hover:scale-110 transition-transform">📸</span>
+              <span>Veli ile Paylaş</span>
+            </button>
           </td>
         </tr>
       `;
@@ -610,6 +668,449 @@ window.AkademiModule = {
       this.updateSubjectColumnAverage(s.key);
     });
     this.updateOverallAverage();
+  },
+
+  // --- VELİ İLE PAYLAŞIM, GÖRÜNTÜ ALMA (SNAPSHOT) VE ÇIKTI METODLARI ---
+  generateShareCardHtml(studentId) {
+    const student = window.Store.getStudentById(studentId);
+    if (!student) return '<div class="p-6 text-center text-slate-400">Öğrenci bulunamadı.</div>';
+
+    const scores = window.Store.getAcademicScores();
+    const scoreMap = {};
+    scores.forEach(s => {
+      if (s.studentId === studentId && s.date === this.currentDate) {
+        scoreMap[s.subject] = s.score;
+      }
+    });
+
+    const dayName = this.getDayName(this.currentDate);
+    const dateFormatted = this.currentDate ? this.currentDate.split('-').reverse().join('.') : '';
+
+    const studentScores = [];
+    this.subjects.forEach(subj => {
+      const val = scoreMap[subj.name];
+      if (val !== undefined && val !== null && !isNaN(val)) {
+        studentScores.push(Number(val));
+      }
+    });
+
+    const avg = studentScores.length > 0 
+      ? Math.round((studentScores.reduce((a, b) => a + b, 0) / studentScores.length) * 10) / 10 
+      : null;
+
+    const avgStyle = this.getColorStyle(avg);
+
+    // Başarı Durumu İbaresi
+    let statusText = 'Değerlendirme Aşamasında';
+    let statusBadge = 'bg-slate-100 text-slate-700 border-slate-200';
+    if (avg !== null) {
+      if (avg >= 95) {
+        statusText = '🌟 Üstün Başarı & Tebrik';
+        statusBadge = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+      } else if (avg >= 85) {
+        statusText = '👍 Başarılı & Gayretli';
+        statusBadge = 'bg-lime-100 text-lime-800 border-lime-300';
+      } else {
+        statusText = '🎯 Takviye & Tekrar Yapılmalı';
+        statusBadge = 'bg-amber-100 text-amber-800 border-amber-300';
+      }
+    }
+
+    return `
+      <!-- KART ÜST BAŞLIĞI -->
+      <div class="border-b-2 border-slate-800 pb-3.5 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-2xl shadow-sm">
+            🎓
+          </div>
+          <div>
+            <div class="text-[10px] font-black tracking-widest text-slate-500 uppercase">T.C. MİLLİ EĞİTİM BAKANLIĞI</div>
+            <div class="text-base font-black text-slate-900 tracking-tight leading-tight">ÖMER AVNİYEL AKADEMİ</div>
+            <div class="text-[11px] font-bold text-blue-700">TAKVİYE DERS GELİŞİM VE NOT KARNESİ</div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-xs font-black text-slate-900 flex items-center justify-end gap-1">
+            <span>📅</span>
+            <span>${dateFormatted}</span>
+          </div>
+          <div class="text-[11px] font-bold text-slate-500">${dayName}</div>
+        </div>
+      </div>
+
+      <!-- ÖĞRENCİ KÜNYESİ -->
+      <div class="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-2xl">
+            👤
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-300 font-bold uppercase tracking-wide">Öğrenci Adı Soyadı</div>
+            <div class="text-base sm:text-lg font-black tracking-tight text-amber-300">
+              ${student.firstName} ${student.lastName}
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-4 text-xs">
+          <div class="bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+            <span class="text-[10px] text-slate-400 block font-bold">SINIFI</span>
+            <span class="font-black text-white text-sm">${student.className || '-'}</span>
+          </div>
+          <div class="bg-white/10 px-3 py-1.5 rounded-xl border border-white/10">
+            <span class="text-[10px] text-slate-400 block font-bold">OKUL NO</span>
+            <span class="font-mono font-black text-white text-sm">${student.studentNo || '-'}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- DERS NOTLARI IZGARASI (5 TAKVİYE DERSİ) -->
+      <div class="space-y-2">
+        <div class="text-[11px] font-black text-slate-600 uppercase tracking-wide flex items-center justify-between">
+          <span>📚 DERS PERFORMANS NOTLARI</span>
+          <span class="text-[10px] text-slate-400 font-normal">Tam Not: 100</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          ${this.subjects.map(subj => {
+            const rawScore = scoreMap[subj.name];
+            const hasScore = (rawScore !== undefined && rawScore !== null && !isNaN(rawScore));
+            const scoreNum = hasScore ? Number(rawScore) : null;
+            const style = this.getColorStyle(scoreNum);
+
+            return `
+              <div class="p-3 rounded-xl border border-slate-200 bg-slate-50/80 flex items-center justify-between gap-2 shadow-2xs">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">${subj.icon}</span>
+                  <div>
+                    <div class="text-xs font-black text-slate-800">${subj.name}</div>
+                    <div class="text-[10px] text-slate-400 font-bold">${subj.short} Dersi</div>
+                  </div>
+                </div>
+                <div>
+                  ${hasScore ? `
+                    <span class="px-2.5 py-1 rounded-xl text-xs font-black border inline-block ${style.badge}"
+                      style="background-color: ${style.bg}; color: ${style.text}; border-color: ${style.border};">
+                      ${scoreNum}
+                    </span>
+                  ` : `
+                    <span class="px-2 py-0.5 rounded-lg text-xs font-bold text-slate-400 bg-white border border-slate-200">
+                      -
+                    </span>
+                  `}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- GENEL ORTALAMA VE BAŞARI DURUMU -->
+      <div class="p-3.5 rounded-2xl border border-slate-200 bg-gradient-to-br from-amber-50/70 via-white to-slate-50 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+        <div>
+          <div class="text-[10px] font-black text-slate-500 uppercase tracking-wide">DERSLER GENEL ORTALAMASI</div>
+          <div class="text-xs text-slate-600 mt-0.5">5 Takviye dersinin güncel aritmetik ortalaması</div>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="px-3 py-1 rounded-xl text-xs font-black border ${statusBadge}">
+            ${statusText}
+          </span>
+          <div class="px-3.5 py-1.5 rounded-xl text-base font-black border shadow-sm ${avgStyle.badge}"
+            style="background-color: ${avgStyle.bg}; color: ${avgStyle.text}; border-color: ${avgStyle.border};">
+            ${avg !== null ? avg.toFixed(1) : '-'}
+          </div>
+        </div>
+      </div>
+
+      <!-- VELİ BİLGİLENDİRME VE TEBRİK NOTU -->
+      <div class="text-[11px] text-slate-600 bg-blue-50/60 border border-blue-200 rounded-xl p-3 leading-relaxed">
+        <span class="font-black text-blue-900">Sayın Velimiz;</span> Talebemizin takviye ders gayreti ve not değerlendirmesi yukarıda bilgilerinize sunulmuştur. Göstermiş olduğu azim ve çalışkanlıktan ötürü talebemizi tebrik eder, başarılarının daim olmasını temenni ederiz.
+      </div>
+
+      <!-- MÜHÜR VE EĞİTMEN ALANI -->
+      <div class="pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-bold">
+        <div>
+          <span>Ömer Avniyel Akademi Kurs Yönetimi</span>
+        </div>
+        <div class="text-right">
+          <span>Mühür & İmza: </span>
+          <span class="text-slate-800 font-black">Onaylandı ✓</span>
+        </div>
+      </div>
+    `;
+  },
+
+  openShareModal(studentId) {
+    this.shareStudentId = studentId;
+    const cardEl = document.getElementById('takviye-share-card');
+    if (cardEl) {
+      cardEl.innerHTML = this.generateShareCardHtml(studentId);
+    }
+    const modal = document.getElementById('takviye-share-modal');
+    if (modal) {
+      modal.classList.remove('hidden');
+    }
+  },
+
+  closeShareModal() {
+    this.shareStudentId = null;
+    const modal = document.getElementById('takviye-share-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+    }
+  },
+
+  downloadCardImage() {
+    const card = document.getElementById('takviye-share-card');
+    if (!card) return;
+
+    if (typeof html2canvas === 'undefined') {
+      window.App.showToast('Görüntü alma kütüphanesi henüz hazır değil. Lütfen sayfayı yenileyiniz.', 'error');
+      return;
+    }
+
+    const student = this.shareStudentId ? window.Store.getStudentById(this.shareStudentId) : null;
+    const studentName = student ? `${student.firstName}_${student.lastName}`.replace(/\s+/g, '_') : 'Ogrenci';
+
+    const btn = document.getElementById('btn-download-card-img');
+    const oldText = btn ? btn.innerHTML : '';
+    if (btn) btn.innerHTML = '⏳ Hazırlanıyor...';
+
+    html2canvas(card, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff'
+    }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `${studentName}_Takviye_Not_Karnesi_${this.currentDate}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      if (btn) btn.innerHTML = oldText;
+      window.App.showToast('Karne yüksek çözünürlüklü resim (PNG) olarak indirildi!', 'success');
+    }).catch(err => {
+      console.error(err);
+      if (btn) btn.innerHTML = oldText;
+      window.App.showToast('Resim oluşturulurken bir hata meydana geldi.', 'error');
+    });
+  },
+
+  copyCardImage() {
+    const card = document.getElementById('takviye-share-card');
+    if (!card) return;
+
+    if (typeof html2canvas === 'undefined') {
+      window.App.showToast('Görüntü alma kütüphanesi henüz hazır değil. Lütfen sayfayı yenileyiniz.', 'error');
+      return;
+    }
+
+    const student = this.shareStudentId ? window.Store.getStudentById(this.shareStudentId) : null;
+    const studentName = student ? `${student.firstName}_${student.lastName}`.replace(/\s+/g, '_') : 'Ogrenci';
+
+    const btn = document.getElementById('btn-copy-card-img');
+    const oldText = btn ? btn.innerHTML : '';
+    if (btn) btn.innerHTML = '⏳ Kopyalanıyor...';
+
+    html2canvas(card, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff'
+    }).then(canvas => {
+      canvas.toBlob(blob => {
+        if (navigator.clipboard && navigator.clipboard.write && window.ClipboardItem) {
+          navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]).then(() => {
+            if (btn) btn.innerHTML = oldText;
+            window.App.showToast('📋 Karne resmi panoya kopyalandı! WhatsApp Web veya mesaja yapıştırabilirsiniz (Ctrl+V).', 'success');
+          }).catch(e => {
+            // Fallback: download
+            const link = document.createElement('a');
+            link.download = `${studentName}_Takviye_Not_Karnesi_${this.currentDate}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            if (btn) btn.innerHTML = oldText;
+            window.App.showToast('Resim indirildi (Tarayıcınız panoya doğrudan kopyalamayı desteklemedi).', 'info');
+          });
+        } else {
+          const link = document.createElement('a');
+          link.download = `${studentName}_Takviye_Not_Karnesi_${this.currentDate}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+          if (btn) btn.innerHTML = oldText;
+          window.App.showToast('Resim cihazınıza indirildi.', 'info');
+        }
+      }, 'image/png');
+    }).catch(err => {
+      console.error(err);
+      if (btn) btn.innerHTML = oldText;
+      window.App.showToast('Resim oluşturulamadı.', 'error');
+    });
+  },
+
+  shareViaWhatsApp(targetStudentId) {
+    const studentId = targetStudentId || this.shareStudentId;
+    if (!studentId) return;
+
+    const student = window.Store.getStudentById(studentId);
+    if (!student) return;
+
+    const scores = window.Store.getAcademicScores().filter(s => s.studentId === studentId && s.date === this.currentDate);
+    const scoreMap = {};
+    scores.forEach(s => scoreMap[s.subject] = s.score);
+
+    let subjectLines = this.subjects.map(subj => {
+      const val = scoreMap[subj.name];
+      const displayVal = (val !== undefined && val !== null && !isNaN(val)) ? `${val} / 100` : '-';
+      return `${subj.icon} *${subj.name}:* ${displayVal}`;
+    }).join('\n');
+
+    const avg = this.calculateStudentAverage(studentId);
+    const avgText = avg !== null ? `${avg.toFixed(1)} / 100` : '-';
+    const dayName = this.getDayName(this.currentDate);
+    const dateFormatted = this.currentDate ? this.currentDate.split('-').reverse().join('.') : '';
+
+    let phone = student.fatherPhone || student.motherPhone || student.phone || '';
+    let cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '90' + cleanPhone.substring(1);
+    } else if (cleanPhone && !cleanPhone.startsWith('90')) {
+      cleanPhone = '90' + cleanPhone;
+    }
+
+    const message = `🎓 *ÖMER AVNİYEL AKADEMİ*
+*TAKVİYE DERS GELİŞİM VE NOT RAPORU*
+
+Sayın Velimiz,
+Öğrencimiz *${student.firstName} ${student.lastName}* (${student.className || '-'}, No: ${student.studentNo}) takviye ders değerlendirme sonuçları:
+
+📅 *Tarih:* ${dateFormatted} (${dayName})
+
+${subjectLines}
+
+⭐ *GENEL ORTALAMA:* ${avgText}
+
+Talebemizin azim ve gayretinin daim olmasını temenni eder, başarılar dileriz.`;
+
+    const url = cleanPhone
+      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+
+    window.open(url, '_blank');
+  },
+
+  printSingleCard() {
+    document.body.classList.add('print-single-card-mode');
+    window.print();
+    setTimeout(() => {
+      document.body.classList.remove('print-single-card-mode');
+    }, 1000);
+  },
+
+  printMatrixTable() {
+    document.body.classList.remove('print-single-card-mode');
+    window.print();
+  },
+
+  downloadTableImage() {
+    const tableContainer = document.getElementById('takviye-matrix-table-container');
+    if (!tableContainer) return;
+
+    if (typeof html2canvas === 'undefined') {
+      window.App.showToast('Görüntü alma kütüphanesi henüz hazır değil. Lütfen sayfayı yenileyiniz.', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('btn-download-matrix-img');
+    const oldText = btn ? btn.innerHTML : '';
+    if (btn) btn.innerHTML = '⏳ Hazırlanıyor...';
+
+    html2canvas(tableContainer, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff'
+    }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `Takviye_Ders_Not_Cizelgesi_${this.currentDate}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      if (btn) btn.innerHTML = oldText;
+      window.App.showToast('Not çizelgesi resim olarak indirildi!', 'success');
+    }).catch(err => {
+      console.error(err);
+      if (btn) btn.innerHTML = oldText;
+      window.App.showToast('Çizelge resmi oluşturulurken hata oluştu.', 'error');
+    });
+  },
+
+  renderShareModalHtml() {
+    return `
+      <!-- TAKVİYE NOTLARI VELİ PAYLAŞIM VE GÖRÜNTÜ ALMA MODALI -->
+      <div id="takviye-share-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden p-3 sm:p-6 overflow-y-auto no-print">
+        <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden my-auto animate-fade-in">
+          <!-- Modal Üst Başlık Çubuğu -->
+          <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">📸</span>
+              <div>
+                <h3 class="text-sm font-black text-slate-800">Veli İle Paylaşım & Görüntü Alma</h3>
+                <p class="text-[10px] text-slate-400">Yüksek çözünürlüklü karne kartı, WhatsApp ile anında paylaşım veya çıktı alma</p>
+              </div>
+            </div>
+            <button type="button" onclick="window.AkademiModule.closeShareModal()"
+              class="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center text-sm font-bold shadow-2xs hover:bg-slate-100 transition cursor-pointer">
+              ✕
+            </button>
+          </div>
+
+          <!-- Modal İçeriği / Kart Önizleme -->
+          <div class="p-4 sm:p-6 max-h-[75vh] overflow-y-auto bg-slate-100/60 flex flex-col items-center">
+            <!-- FOTOĞRAF ALINACAK KART BAŞLANGICI -->
+            <div id="takviye-share-card" class="w-full bg-white rounded-2xl shadow-md border border-slate-200 p-5 sm:p-6 space-y-4 text-slate-800">
+              <!-- Dinamik doldurulur -->
+            </div>
+            <!-- FOTOĞRAF ALINACAK KART BİTİŞİ -->
+          </div>
+
+          <!-- Modal Alt Butonları -->
+          <div class="px-5 py-3.5 bg-white border-t border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
+            <button type="button" onclick="window.AkademiModule.closeShareModal()"
+              class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition cursor-pointer">
+              Kapat
+            </button>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <!-- 1. Tek Yazdır -->
+              <button type="button" onclick="window.AkademiModule.printSingleCard()"
+                class="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer">
+                <span>🖨️</span>
+                <span>Yazdır</span>
+              </button>
+
+              <!-- 2. Panoya Kopyala -->
+              <button type="button" onclick="window.AkademiModule.copyCardImage()" id="btn-copy-card-img"
+                class="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                title="Görüntüyü kopyalayıp WhatsApp Web'e yapıştırabilirsiniz">
+                <span>📋</span>
+                <span>Resmi Kopyala</span>
+              </button>
+
+              <!-- 3. Resmi İndir (PNG) -->
+              <button type="button" onclick="window.AkademiModule.downloadCardImage()" id="btn-download-card-img"
+                class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer">
+                <span>📸</span>
+                <span>Resmi İndir (PNG)</span>
+              </button>
+
+              <!-- 4. WhatsApp ile Paylaş -->
+              <button type="button" onclick="window.AkademiModule.shareViaWhatsApp()"
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer">
+                <span>💬</span>
+                <span>WhatsApp İle Gönder</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   },
 
   // --- 2. GENEL GELİŞİM & KARNE GÖRÜNÜMÜ ---
