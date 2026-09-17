@@ -18,7 +18,8 @@
   <link rel="stylesheet" href="css/custom.css">
   
   <script>
-    tailwind.config = {
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = {
       theme: {
         extend: {
           colors: {
@@ -31,27 +32,43 @@
           }
         }
       }
-    }
-  </script>
-  <script>
+    };
+
+    // Global Hata Yakalayıcı (Hataları ekranda açıkça gösterir)
     window.addEventListener('error', function(e) {
-      // Resim, stil veya harici CDN yükleme hatalarının sayfayı kilitlemesini engelle
-      if (e.target && (e.target.tagName === 'IMG' || e.target.tagName === 'LINK' || e.target.tagName === 'SCRIPT')) {
+      if (e.target && (e.target.tagName === 'IMG' || e.target.tagName === 'LINK')) {
         return;
       }
-      if (!e.message) return;
+      var main = document.getElementById('main-content');
+      if (main) {
+        main.innerHTML = '<div style="max-width:640px;margin:40px auto;padding:24px;background:#fff1f2;border:2px solid #f43f5e;border-radius:20px;color:#9f1239;font-family:system-ui,sans-serif;box-shadow:0 10px 25px rgba(0,0,0,0.1);">' +
+          '<h3 style="font-weight:900;font-size:18px;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><span>⚠️</span> <span>Sistem Başlatma Uyarısı</span></h3>' +
+          '<p style="font-size:13px;margin-bottom:12px;color:#881337;">Sayfa çalışırken bir hata yakalandı:</p>' +
+          '<div style="background:#fff;padding:12px;border-radius:12px;border:1px solid #fecdd3;font-family:monospace;font-size:12px;word-break:break-all;color:#be123c;">' +
+          '<strong>' + (e.message || 'JavaScript Hatası') + '</strong><br><small style="color:#64748b;">Dosya: ' + (e.filename || 'Bilinmiyor') + ' | Satır: ' + (e.lineno || '?') + '</small></div>' +
+          '</div>';
+      }
+    });
+
+    // Dosya & Modül Yüklenme Kontrolü (Ekranın asla boş kalmamasını garanti eder)
+    window.addEventListener('DOMContentLoaded', function() {
       setTimeout(function() {
-        var main = document.getElementById('main-content');
-        if (main && !main.hasChildNodes()) {
-          main.innerHTML = '<div style="max-width:640px;margin:40px auto;padding:24px;background:#fff1f2;border:2px solid #f43f5e;border-radius:20px;color:#9f1239;font-family:sans-serif;box-shadow:0 10px 25px rgba(0,0,0,0.1);">' +
-            '<h3 style="font-weight:900;font-size:18px;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><span>⚠️</span> <span>Sistem Başlatma Hatası</span></h3>' +
-            '<p style="font-size:13px;margin-bottom:12px;color:#881337;">Sayfa çalışırken bir JavaScript hatası yakalandı:</p>' +
-            '<div style="background:#fff;padding:12px;border-radius:12px;border:1px solid #fecdd3;font-family:monospace;font-size:12px;word-break:break-all;color:#be123c;">' +
-            '<strong>' + (e.message || 'Hata') + '</strong><br><small style="color:#64748b;">Dosya: ' + (e.filename || 'Bilinmiyor') + ' | Satır: ' + (e.lineno || '?') + '</small></div>' +
-            '<p style="font-size:12px;margin-top:12px;color:#9f1239;">Bu hata mesajı ekranın boş kalmaması için otomatik gösterilmiştir.</p>' +
-            '</div>';
+        if (!window.App || !window.Store) {
+          var main = document.getElementById('main-content');
+          if (main) {
+            main.innerHTML = '<div style="max-width:600px;margin:40px auto;padding:30px;background:#ffffff;border:2px solid #f59e0b;border-radius:24px;box-shadow:0 15px 35px rgba(0,0,0,0.08);font-family:system-ui,sans-serif;text-align:center;">' +
+              '<div style="font-size:44px;margin-bottom:12px;">📁</div>' +
+              '<h2 style="font-size:19px;font-weight:900;color:#92400e;margin-bottom:10px;">JavaScript Modülleri Bulunamadı</h2>' +
+              '<p style="font-size:14px;color:#475569;line-height:1.6;margin-bottom:16px;">' +
+              'Bu sayfanın açılabilmesi için <strong>js/</strong> ve <strong>css/</strong> klasörlerinin <code>index.html</code> dosyasının yanında bulunması gerekir.' +
+              '</p>' +
+              '<div style="background:#fef3c7;padding:12px 16px;border-radius:14px;font-size:12px;color:#78350f;text-align:left;line-height:1.5;">' +
+              '💡 <strong>Çözüm:</strong> Eğer bu dosyayı Masaüstüne tek başına kopyaladıysanız, lütfen <code>okul-yoklama-performans</code> klasörünün tamamını açıp içindeki <code>index.html</code> dosyasına tıklayınız.' +
+              '</div>' +
+              '</div>';
+          }
         }
-      }, 100);
+      }, 400);
     });
   </script>
 </head>

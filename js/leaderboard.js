@@ -147,7 +147,54 @@ window.LeaderboardModule = {
   },
 
   printCertificate() {
+    let style = document.getElementById('cert-print-style');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'cert-print-style';
+      document.head.appendChild(style);
+    }
+    style.innerHTML = `@page { size: A4 landscape !important; margin: 8mm !important; }`;
+    document.body.classList.add('print-certificate-mode');
+
     window.print();
+
+    setTimeout(() => {
+      document.body.classList.remove('print-certificate-mode');
+      if (style) style.innerHTML = '';
+    }, 1500);
+  },
+
+  downloadCertificateImage() {
+    const certArea = document.getElementById('certificate-print-area');
+    if (!certArea) return;
+
+    if (typeof html2canvas === 'undefined') {
+      window.App.showToast('Görüntü alma kütüphanesi hazır değil. Lütfen sayfayı yenileyiniz.', 'error');
+      return;
+    }
+
+    const st = this.certModalData?.student;
+    const name = st ? `${st.firstName}_${st.lastName}`.replace(/\s+/g, '_') : 'Talebe';
+    const btn = document.getElementById('btn-download-cert-img');
+    const oldText = btn ? btn.innerHTML : '';
+    if (btn) btn.innerHTML = '⏳ Hazırlanıyor...';
+
+    html2canvas(certArea, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff'
+    }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `${name}_Basari_ve_Onur_Belgesi.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      if (btn) btn.innerHTML = oldText;
+      window.App.showToast('Başarı Belgesi yüksek çözünürlüklü resim (PNG) olarak indirildi!', 'success');
+    }).catch(err => {
+      console.error(err);
+      if (btn) btn.innerHTML = oldText;
+      window.App.showToast('Resim oluşturulurken bir hata oluştu.', 'error');
+    });
   },
 
   renderView() {
@@ -856,88 +903,111 @@ window.LeaderboardModule = {
     const logoUrl = settings.institutionLogo || 'kurs_logo.jpg';
 
     return `
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 animate-fade-in overflow-y-auto">
-        <div class="bg-white rounded-3xl shadow-2xl max-w-3xl w-full p-4 sm:p-8 space-y-4">
+      <div id="certificate-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-3 sm:p-6 animate-fade-in overflow-y-auto">
+        <div id="certificate-modal-container" class="bg-white rounded-3xl shadow-2xl max-w-5xl w-full p-4 sm:p-6 space-y-4">
           
           <!-- Modal Toolbar (Yazdırma ve Kapatma) -->
-          <div class="flex items-center justify-between pb-3 border-b border-slate-200 no-print">
-            <div class="text-xs font-bold text-slate-500 flex items-center gap-1.5">
-              <span>📄</span>
-              <span>A4 Başarı ve Onur Belgesi Önizlemesi</span>
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 no-print">
+            <div class="text-xs font-bold text-slate-500 flex items-center gap-2">
+              <span class="text-base">📄</span>
+              <span class="font-black text-slate-800 text-sm">A4 Yatay Başarı ve Onur Belgesi</span>
+              <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold text-[10px]">Yatay Format</span>
             </div>
             <div class="flex items-center gap-2">
               <button onclick="window.LeaderboardModule.printCertificate()"
-                class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow transition flex items-center gap-1.5">
+                class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer"
+                title="A4 Yatay formatında doğrudan yazdırın veya PDF olarak kaydedin">
                 <span>🖨️</span>
-                <span>Yazdır / PDF Kaydet</span>
+                <span>Yatay A4 Yazdır / PDF</span>
+              </button>
+              <button onclick="window.LeaderboardModule.downloadCertificateImage()" id="btn-download-cert-img"
+                class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer"
+                title="Belgeyi yüksek çözünürlüklü resim (PNG) olarak indirin">
+                <span>📸</span>
+                <span>Resim İndir</span>
               </button>
               <button onclick="window.LeaderboardModule.closeCertificate()"
-                class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
+                class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer">
                 Kapat
               </button>
             </div>
           </div>
 
-          <!-- YAZDIRILABİLİR SERTİFİKA ALANI (PRINT FRIENDLY) -->
-          <div id="certificate-print-area" class="bg-gradient-to-br from-amber-50/30 via-white to-amber-50/20 border-8 border-double border-amber-600/60 rounded-3xl p-8 sm:p-12 text-center relative overflow-hidden shadow-inner">
+          <!-- YAZDIRILABİLİR SERTİFİKA ALANI (YATAY A4 TASARIMI) -->
+          <div id="certificate-print-area" class="bg-gradient-to-br from-amber-50/40 via-white to-amber-50/30 border-8 border-double border-amber-600/70 rounded-3xl p-6 sm:p-10 text-center relative overflow-hidden shadow-inner flex flex-col justify-between" style="min-height: 520px;">
             
-            <!-- Köşe Süslemeleri -->
-            <div class="absolute top-3 left-3 text-amber-400/40 text-3xl font-black">✦</div>
-            <div class="absolute top-3 right-3 text-amber-400/40 text-3xl font-black">✦</div>
-            <div class="absolute bottom-3 left-3 text-amber-400/40 text-3xl font-black">✦</div>
-            <div class="absolute bottom-3 right-3 text-amber-400/40 text-3xl font-black">✦</div>
+            <!-- Köşe Süslemeleri (Gold Ornaments) -->
+            <div class="absolute top-3 left-4 text-amber-500/50 text-3xl font-black select-none">✦</div>
+            <div class="absolute top-3 right-4 text-amber-500/50 text-3xl font-black select-none">✦</div>
+            <div class="absolute bottom-3 left-4 text-amber-500/50 text-3xl font-black select-none">✦</div>
+            <div class="absolute bottom-3 right-4 text-amber-500/50 text-3xl font-black select-none">✦</div>
 
-            <!-- Kurum Başlığı ve Logo -->
-            <div class="flex flex-col items-center justify-center mb-6">
-              ${logoUrl ? `
-                <div class="w-16 h-16 rounded-2xl overflow-hidden mb-3 border border-amber-200 shadow-sm p-1 bg-white">
-                  <img src="${logoUrl}" alt="Logo" class="w-full h-full object-contain"
-                    onerror="this.style.display='none'">
+            <!-- 1. ÜST BÖLÜM: Kurum Başlığı ve Logo -->
+            <div class="flex items-center justify-between gap-4 border-b border-amber-200/80 pb-4">
+              <!-- Sol: Kurum Logosu -->
+              <div class="w-20 sm:w-24 text-left">
+                ${logoUrl ? `
+                  <div class="w-16 h-16 rounded-2xl overflow-hidden border border-amber-200 shadow-sm p-1 bg-white inline-block">
+                    <img src="${logoUrl}" alt="Logo" class="w-full h-full object-contain"
+                      onerror="this.style.display='none'">
+                  </div>
+                ` : '<div class="text-3xl">🎓</div>'}
+              </div>
+
+              <!-- Orta: Resmi Kurum Anteti -->
+              <div class="flex-1 text-center">
+                <div class="text-xs sm:text-sm font-black tracking-widest uppercase text-amber-900/80">T.C. MİLLİ EĞİTİM BAKANLIĞI</div>
+                <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-950 mt-0.5 uppercase">
+                  ${instName}
+                </h1>
+                <div class="inline-block mt-2 px-5 py-1 rounded-full bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-black text-xs sm:text-sm uppercase tracking-widest shadow-xs">
+                  🏆 ÜSTÜN BAŞARI VE ONUR BELGESİ 🏆
                 </div>
-              ` : ''}
-              <div class="text-xs font-black tracking-widest uppercase text-amber-800/80">T.C. MİLLİ EĞİTİM BAKANLIĞI</div>
-              <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 mt-0.5">
-                ${instName}
-              </h1>
-              <div class="h-0.5 w-32 bg-gradient-to-r from-transparent via-amber-500 to-transparent my-3 mx-auto"></div>
-              <div class="inline-block px-4 py-1 rounded-full bg-amber-100/80 border border-amber-300 text-amber-900 font-black text-xs uppercase tracking-widest">
-                🏆 ÜSTÜN BAŞARI VE ONUR BELGESİ 🏆
+              </div>
+
+              <!-- Sağ: Seri No / Dengeleyici -->
+              <div class="w-20 sm:w-24 text-right">
+                <div class="text-[10px] font-bold text-slate-400 font-mono">SERİ NO: OA-${Date.now().toString().slice(-6)}</div>
               </div>
             </div>
 
-            <!-- Ana Tebrik Metni -->
-            <div class="space-y-4 max-w-xl mx-auto my-6">
-              <p class="text-xs sm:text-sm text-slate-500 font-medium">
-                Kurumumuzda gösterdiği fevkalade gayret, 5 vakit namaz cemaatine devamlılığı, oda/yatak intizamı ve derslerindeki üstün başarısıyla;
+            <!-- 2. ORTA BÖLÜM: Ana Tebrik, Öğrenci Adı ve Derece -->
+            <div class="my-4 sm:my-6 space-y-3 sm:space-y-4 max-w-3xl mx-auto">
+              <p class="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
+                Kurumumuz bünyesinde gösterdiği fevkalade gayret, 5 vakit namaz cemaatine devamlılığı, oda/yatak tertip düzeni ve derslerindeki üstün başarısıyla;
               </p>
 
-              <!-- Öğrenci Adı -->
-              <div class="py-2">
-                <div class="text-2xl sm:text-4xl font-black text-indigo-950 tracking-tight underline decoration-amber-400 decoration-wavy decoration-2">
+              <!-- Öğrenci Adı Soyadı -->
+              <div class="py-1">
+                <div class="text-3xl sm:text-5xl font-black text-indigo-950 tracking-tight underline decoration-amber-400 decoration-wavy decoration-2">
                   ${student.firstName} ${student.lastName}
                 </div>
-                <div class="text-xs font-bold text-slate-500 mt-1">
-                  ${className} • Okul / Kurs No: ${student.studentNo}
+                <div class="text-xs sm:text-sm font-bold text-slate-600 mt-1">
+                  ${className} Sınıfı • Okul / Kurs No: <strong class="font-mono text-slate-900">${student.studentNo}</strong>
                 </div>
               </div>
 
-              <!-- Derece ve Dönem -->
-              <div class="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 inline-block text-xs text-amber-950 font-bold">
-                ${periodLabel} döneminde toplam <strong>${totalScore} Puan</strong> toplayarak kendi kategorisinde 
-                <span class="text-amber-800 font-black text-sm">${rank === 1 ? 'BİRİNCİ' : rank + '. DERECE'}</span> olmuş ve 
-                <strong>${periodType}</strong> seçilmiştir.
+              <!-- Derece ve Puan Kutusu -->
+              <div class="p-3.5 bg-gradient-to-r from-amber-100/70 via-amber-50/90 to-amber-100/70 rounded-2xl border border-amber-300 inline-block text-xs sm:text-sm text-amber-950 font-bold shadow-xs">
+                ${periodLabel} döneminde toplam <strong class="text-amber-900 text-base font-black">${totalScore} Puan</strong> toplayarak kendi kategorisinde 
+                <span class="text-amber-900 font-black">${rank === 1 ? 'BİRİNCİ' : rank + '. DERECE'}</span> olmuş ve 
+                <strong class="text-amber-950 uppercase underline decoration-amber-500 decoration-2">${periodType}</strong> seçilmiştir.
               </div>
 
-              <p class="text-xs text-slate-500 italic">
-                "Talebemizi tebrik eder, başarılarının ve ahlaki faziletlerinin ömür boyu daim olmasını temenni ederiz."
+              <p class="text-xs text-slate-500 italic mt-1">
+                "Talebemizi azim ve ahlaki faziletlerinden ötürü tebrik eder, muvaffakiyetlerinin ömür boyu daim olmasını temenni ederiz."
               </p>
             </div>
 
-            <!-- Mühür & İmza -->
-            <div class="pt-8 mt-6 border-t border-amber-200/60 flex items-center justify-end text-xs max-w-lg mx-auto">
-              <div class="text-center min-w-[160px]">
+            <!-- 3. ALT BÖLÜM: Mühür & İmza -->
+            <div class="pt-4 border-t border-amber-200/80 flex items-center justify-between text-xs px-6 sm:px-10">
+              <div class="text-left">
+                <div class="text-[11px] text-slate-400 font-bold">Düzenlenme Tarihi:</div>
+                <div class="font-bold text-slate-700">${dateStr}</div>
+              </div>
+              <div class="text-center min-w-[180px]">
                 <div class="h-10"></div>
-                <div class="text-xs font-black text-slate-800 uppercase tracking-widest border-t border-slate-300 pt-1.5">
+                <div class="text-xs font-black text-slate-800 uppercase tracking-widest border-t-2 border-slate-300 pt-1">
                   Mühür & İmza
                 </div>
               </div>
