@@ -30,9 +30,74 @@
     .animate-marquee:hover {
       animation-play-state: paused;
     }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+    .animate-shake {
+      animation: shake 0.4s ease-in-out;
+    }
   </style>
 </head>
 <body class="h-full bg-slate-950 text-slate-100 flex flex-col justify-between overflow-hidden select-none font-sans">
+
+  <!-- YÖNETİCİ GÜVENLİK KİLİT EKRANI (ADMIN SECURITY LOCK) -->
+  <div id="pano-lock-screen" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 transition-all duration-300">
+    <div class="bg-slate-900/95 border border-slate-800 rounded-3xl p-7 sm:p-9 max-w-md w-full shadow-2xl text-center relative overflow-hidden">
+      <!-- Arka plan neon ışık efektleri -->
+      <div class="absolute -top-20 -left-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-20 -right-20 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- Kilit Simgesi -->
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-yellow-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center text-3xl mx-auto mb-4 shadow-lg shadow-amber-500/10">
+        🔒
+      </div>
+
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-black uppercase tracking-wider mb-2">
+        <span>👑 Sadece Kurum Yöneticisine Özel</span>
+      </div>
+
+      <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight mb-2">
+        Yönetici Doğrulaması
+      </h2>
+      <p class="text-xs text-slate-400 font-medium leading-relaxed mb-6">
+        Canlı Koridor & TV Panosu talebe verileri ve gizliliği nedeniyle <strong class="text-slate-200">yalnızca kurum yöneticisine</strong> açıktır. Panoyu başlatmak için yönetici şifrenizi giriniz.
+      </p>
+
+      <form onsubmit="PanoApp.handleAuthSubmit(event)" class="space-y-4 text-left">
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+            Yönetici Şifresi / PIN
+          </label>
+          <input type="password" id="pano-admin-pass" required autofocus placeholder="••••••••"
+            class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono text-center tracking-widest text-lg focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition shadow-inner">
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="pano-remember" class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-amber-500 cursor-pointer">
+          <label for="pano-remember" class="text-xs text-slate-400 cursor-pointer select-none">
+            Bu TV'de / Cihazda hatırla (Kiosk TV Modu)
+          </label>
+        </div>
+
+        <div id="pano-auth-error" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold text-center">
+        </div>
+
+        <button type="submit"
+          class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-2">
+          <span>Panoyu Başlat</span>
+          <span>→</span>
+        </button>
+      </form>
+
+      <div class="mt-6 pt-4 border-t border-slate-800/80">
+        <a href="index.html" class="text-xs text-slate-500 hover:text-slate-300 font-semibold transition inline-flex items-center gap-1.5">
+          <span>←</span> <span>Giriş Paneline Dön</span>
+        </a>
+      </div>
+    </div>
+  </div>
 
   <!-- 1. ÜST BİLGİ VE DURUM ÇUBUĞU (HEADER) -->
   <header class="bg-slate-900/90 border-b border-slate-800/80 px-6 py-3.5 flex items-center justify-between shadow-2xl backdrop-blur z-20">
@@ -98,6 +163,10 @@
           class="w-9 h-9 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center justify-center text-base font-bold transition">
           ⛶
         </button>
+        <button onclick="PanoApp.lockPano()" title="Panoyu Kilitle / Güvenli Çıkış"
+          class="h-9 px-2.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/50 flex items-center gap-1.5 text-xs font-bold transition">
+          <span>🔒</span> <span class="hidden sm:inline">Kilitle</span>
+        </button>
       </div>
     </div>
   </header>
@@ -128,8 +197,8 @@
   </footer>
 
   <!-- Store ve Leaderboard Modülleri -->
-  <script src="js/store.js?v=3.6"></script>
-  <script src="js/leaderboard.js?v=3.6"></script>
+  <script src="js/store.js"></script>
+  <script src="js/leaderboard.js"></script>
 
   <!-- Pano TV Yönetim Motoru -->
   <script>
@@ -141,28 +210,134 @@
       progressTimer: null,
       progressStartTime: 0,
       isPaused: false,
+      syncInterval: null,
+
+      // --- Yönetici Yetki Kontrolü ---
+      isAuthorized() {
+        // 1. Cihaz / Kiosk TV kalıcı veya oturum yetkisi
+        if (localStorage.getItem('pano_admin_authorized') === 'true' || sessionStorage.getItem('pano_admin_authorized') === 'true') {
+          return true;
+        }
+
+        // 2. Ana panelden giriş yapmış aktif yönetici oturumu
+        try {
+          const raw = sessionStorage.getItem('yoklama_active_session') || localStorage.getItem('yoklama_active_session');
+          if (raw) {
+            const session = JSON.parse(raw);
+            if (session) {
+              if (session.role === 'superadmin' || session.canManageStaff || session.staffId === 'stf_1') {
+                return true;
+              }
+              if (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')) {
+                return true;
+              }
+            }
+          }
+        } catch (e) {}
+
+        return false;
+      },
+
+      checkAuth() {
+        const lockEl = document.getElementById('pano-lock-screen');
+        if (this.isAuthorized()) {
+          if (lockEl) lockEl.classList.add('hidden');
+          return true;
+        } else {
+          if (lockEl) lockEl.classList.remove('hidden');
+          const passInput = document.getElementById('pano-admin-pass');
+          if (passInput) {
+            passInput.value = '';
+            setTimeout(() => passInput.focus(), 150);
+          }
+          return false;
+        }
+      },
+
+      handleAuthSubmit(e) {
+        if (e) e.preventDefault();
+        const passInput = document.getElementById('pano-admin-pass');
+        const rememberCheck = document.getElementById('pano-remember');
+        const errEl = document.getElementById('pano-auth-error');
+        if (!passInput) return;
+
+        const enteredPass = passInput.value.trim();
+        if (!enteredPass) return;
+
+        let isValid = false;
+
+        // 1. Store içindeki personel şifreleri (stf_1, Selim Bozkurt veya Yönetici rolü)
+        if (window.Store) {
+          try {
+            const staffList = window.Store.getStaff();
+            const adminStaff = staffList.find(s => 
+              s.id === 'stf_1' || 
+              (s.role && s.role.includes('Yönetici')) || 
+              (s.fullName && s.fullName.toUpperCase().includes('SELİM BOZKURT'))
+            );
+            if (adminStaff && (adminStaff.password || '123').toString().trim() === enteredPass) {
+              isValid = true;
+            }
+          } catch (err) {}
+        }
+
+        // 2. Master PIN / Varsayılan Yönetici Şifreleri (123 veya 1234)
+        if (enteredPass === '123' || enteredPass === '1234') {
+          isValid = true;
+        }
+
+        if (isValid) {
+          if (errEl) errEl.classList.add('hidden');
+          if (rememberCheck && rememberCheck.checked) {
+            localStorage.setItem('pano_admin_authorized', 'true');
+          } else {
+            sessionStorage.setItem('pano_admin_authorized', 'true');
+          }
+
+          const lockEl = document.getElementById('pano-lock-screen');
+          if (lockEl) lockEl.classList.add('hidden');
+
+          this.startSlides();
+        } else {
+          if (errEl) {
+            errEl.textContent = '❌ Hatalı yönetici şifresi! Bu pano yalnızca kurum yöneticilerine açıktır.';
+            errEl.classList.remove('hidden');
+          }
+          passInput.select();
+        }
+      },
+
+      lockPano() {
+        localStorage.removeItem('pano_admin_authorized');
+        sessionStorage.removeItem('pano_admin_authorized');
+        sessionStorage.removeItem('yoklama_active_session');
+
+        clearInterval(this.timer);
+        clearInterval(this.progressTimer);
+        if (this.syncInterval) clearInterval(this.syncInterval);
+
+        const slideContainer = document.getElementById('slide-container');
+        if (slideContainer) slideContainer.innerHTML = '';
+
+        const progressEl = document.getElementById('slide-progress');
+        if (progressEl) progressEl.style.width = '0%';
+
+        const lockEl = document.getElementById('pano-lock-screen');
+        if (lockEl) lockEl.classList.remove('hidden');
+        const passInput = document.getElementById('pano-admin-pass');
+        if (passInput) {
+          passInput.value = '';
+          setTimeout(() => passInput.focus(), 150);
+        }
+      },
 
       init() {
         this.updateClock();
         setInterval(() => this.updateClock(), 1000);
 
-        // Firebase canlı senkronizasyon (her 30 saniyede bir)
-        if (window.Store && window.Store.isCloudEnabled()) {
-          window.Store.syncFromCloud().then(() => this.renderCurrentSlide());
-          setInterval(() => {
-            window.Store.syncFromCloud().then(() => {
-              const statusEl = document.getElementById('sync-status');
-              if (statusEl) {
-                const now = new Date().toLocaleTimeString('tr-TR');
-                statusEl.textContent = `🟢 Güncellendi (${now})`;
-              }
-              this.renderCurrentSlide();
-            });
-          }, 30000);
-        }
-
         // Klavye kısayolları (TV kumandası / klavye desteği)
         window.addEventListener('keydown', (e) => {
+          if (!this.isAuthorized()) return;
           if (e.key === 'ArrowRight' || e.key === 'PageDown') this.nextSlide();
           if (e.key === 'ArrowLeft' || e.key === 'PageUp') this.prevSlide();
           if (e.key === ' ' || e.key === 'Enter') this.togglePause();
@@ -178,6 +353,33 @@
         if (settings.institutionLogo) {
           const logoEl = document.getElementById('pano-logo');
           if (logoEl) logoEl.src = settings.institutionLogo;
+        }
+
+        // Güvenlik doğrulaması: Yalnızca yetkili ise panoyu çalıştır
+        if (this.checkAuth()) {
+          this.startSlides();
+        }
+      },
+
+      startSlides() {
+        // Firebase canlı senkronizasyon (her 30 saniyede bir)
+        if (window.Store && window.Store.isCloudEnabled()) {
+          window.Store.syncFromCloud().then(() => {
+            if (this.isAuthorized()) this.renderCurrentSlide();
+          });
+          if (!this.syncInterval) {
+            this.syncInterval = setInterval(() => {
+              if (!this.isAuthorized()) return;
+              window.Store.syncFromCloud().then(() => {
+                const statusEl = document.getElementById('sync-status');
+                if (statusEl) {
+                  const now = new Date().toLocaleTimeString('tr-TR');
+                  statusEl.textContent = `🟢 Güncellendi (${now})`;
+                }
+                if (this.isAuthorized()) this.renderCurrentSlide();
+              });
+            }, 30000);
+          }
         }
 
         this.goToSlide(0);
@@ -220,6 +422,7 @@
       },
 
       goToSlide(index) {
+        if (!this.isAuthorized()) return;
         this.currentSlide = (index + this.totalSlides) % this.totalSlides;
         this.updateSlideButtons();
         this.renderCurrentSlide();
@@ -268,6 +471,7 @@
       },
 
       renderCurrentSlide() {
+        if (!this.isAuthorized()) return;
         const container = document.getElementById('slide-container');
         if (!container || !window.Store) return;
 
