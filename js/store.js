@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   ATTENDANCE: 'yoklama_attendance',
   PERFORMANCE: 'yoklama_performance',
   ACADEMIC_SCORES: 'yoklama_academic_scores',
+  TEST_RESULTS: 'yoklama_test_results_v1',
   LEAVE_CHECKOUT: 'yoklama_leave_checkout_v1',
   LEAVE_RETURN: 'yoklama_leave_returns_v1',
   BONUS_POINTS: 'yoklama_bonus_points_v1',
@@ -1124,7 +1125,79 @@ class DataStore {
       this.syncToCloud('kurs_data/academicScores', all);
     }
     return rec;
-  }
+  },
+
+  // --- Test Neticeleri & Etüt Soru Takibi ---
+  getTestResults() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.TEST_RESULTS);
+      const list = data ? JSON.parse(data) : [];
+      return Array.isArray(list) ? list.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  getTestResultById(id) {
+    const list = this.getTestResults();
+    return list.find(t => t.id === id) || null;
+  },
+
+  saveTestResult(testData) {
+    const list = this.getTestResults();
+    const id = testData.id || ('test_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5));
+    const nowIso = new Date().toISOString();
+
+    const record = {
+      ...testData,
+      id,
+      updatedAt: nowIso,
+      createdAt: testData.createdAt || nowIso
+    };
+
+    const idx = list.findIndex(t => t.id === id);
+    if (idx !== -1) {
+      list[idx] = record;
+    } else {
+      list.unshift(record);
+    }
+
+    localStorage.setItem(STORAGE_KEYS.TEST_RESULTS, JSON.stringify(list));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/testResults', list);
+    }
+    return record;
+  },
+
+  deleteTestResult(id) {
+    let list = this.getTestResults().filter(t => t.id !== id);
+    localStorage.setItem(STORAGE_KEYS.TEST_RESULTS, JSON.stringify(list));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/testResults', list);
+    }
+    return true;
+  },
+
+  getStudentTestResults(studentId) {
+    const list = this.getTestResults();
+    const results = [];
+    list.forEach(test => {
+      if (test.scores && test.scores[studentId]) {
+        results.push({
+          testId: test.id,
+          title: test.title || 'Etüt Testi',
+          subject: test.subject || 'Genel',
+          unit: test.unit || '',
+          topic: test.topic || '',
+          date: test.date,
+          totalQuestions: test.totalQuestions || 20,
+          wrongPenalty: test.wrongPenalty !== undefined ? test.wrongPenalty : 3,
+          ...test.scores[studentId]
+        });
+      }
+    });
+    return results.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  },
 
   normalizeStatusCode(code) {
     if (!code) return 'VAR';

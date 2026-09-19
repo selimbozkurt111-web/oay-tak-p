@@ -149,6 +149,7 @@ window.ParentPortal = {
     const stats = window.Store.getStudentStats(currentStudent.id);
     const attendanceRecords = window.Store.getAttendanceForStudent(currentStudent.id);
     const academicScores = window.Store.getAcademicScoresForStudent ? window.Store.getAcademicScoresForStudent(currentStudent.id) : [];
+    const testResults = window.Store.getStudentTestResults ? window.Store.getStudentTestResults(currentStudent.id) : [];
     const acadAvg = academicScores.length > 0
       ? Math.round(academicScores.reduce((sum, a) => sum + (Number(a.score) || 0), 0) / academicScores.length)
       : 0;
@@ -621,6 +622,96 @@ window.ParentPortal = {
                       <span class="text-[10px] px-2 py-0.5 rounded-full font-bold border ${badgeClass}">${label}</span>
                       <span class="px-2.5 py-1 rounded-xl bg-slate-900 text-white font-black text-xs">
                         ${a.score} / 100
+                      </span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        </div>
+
+        <!-- Detaylar: Etüt Test Neticeleri & Soru Takibi -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-6">
+          <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 text-lg font-black flex items-center justify-center shadow-xs">
+                📝
+              </div>
+              <div>
+                <h4 class="font-black text-slate-900 text-sm">Etüt Test Neticeleri & Soru Takibi</h4>
+                <p class="text-[11px] text-slate-400">Çözülen testlerin doğru, yanlış, net ve 100 üzerinden başarı notları</p>
+              </div>
+            </div>
+            <span class="text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-200 px-3 py-1 rounded-full">
+              ${testResults.length} Test
+            </span>
+          </div>
+
+          ${testResults.length === 0 ? `
+            <div class="text-center py-6 text-slate-400 text-xs font-bold bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              Henüz girilmiş bir test veya soru çözümü neticesi bulunmuyor.
+            </div>
+          ` : `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              ${testResults.map(t => {
+                let badgeClass = 'bg-rose-100 text-rose-800 border-rose-300';
+                let label = 'Gayret Etmeli';
+                if (t.score >= 85) {
+                  badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                  label = 'Pekiyi';
+                } else if (t.score >= 70) {
+                  badgeClass = 'bg-blue-100 text-blue-800 border-blue-300';
+                  label = 'İyi';
+                } else if (t.score >= 50) {
+                  badgeClass = 'bg-amber-100 text-amber-900 border-amber-300';
+                  label = 'Orta';
+                }
+
+                return `
+                  <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:shadow-xs transition space-y-2.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-800 font-black text-[10px] uppercase">
+                          ${t.subject}
+                        </span>
+                        <span class="font-black text-xs text-slate-900 line-clamp-1">${t.title}</span>
+                      </div>
+                      <span class="text-[10px] text-slate-400 font-bold font-mono">${t.date}</span>
+                    </div>
+
+                    ${t.unit || t.topic ? `
+                      <div class="text-[11px] text-slate-500">
+                        ${t.unit ? `<span class="font-bold text-slate-700">${t.unit}</span>` : ''}
+                        ${t.topic ? ` • <span>${t.topic}</span>` : ''}
+                      </div>
+                    ` : ''}
+
+                    <div class="grid grid-cols-4 gap-1.5 bg-white p-2 rounded-xl border border-slate-100 text-center text-xs">
+                      <div>
+                        <div class="text-[9px] text-slate-400 font-bold">TOPLAM</div>
+                        <div class="font-black text-slate-700">${t.totalQuestions}</div>
+                      </div>
+                      <div>
+                        <div class="text-[9px] text-emerald-600 font-bold">DOĞRU</div>
+                        <div class="font-black text-emerald-700">${t.correct}</div>
+                      </div>
+                      <div>
+                        <div class="text-[9px] text-rose-600 font-bold">YANLIŞ</div>
+                        <div class="font-black text-rose-700">${t.wrong}</div>
+                      </div>
+                      <div>
+                        <div class="text-[9px] text-blue-600 font-bold">NET</div>
+                        <div class="font-black text-blue-700 font-mono">${Number(t.net || 0).toFixed(1)}</div>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-1 text-xs">
+                      <span class="text-[10px] px-2 py-0.5 rounded-full font-bold border ${badgeClass}">
+                        ${label}
+                      </span>
+                      <span class="px-2.5 py-1 rounded-xl bg-slate-900 text-white font-black text-xs">
+                        ${t.score} / 100 Puan
                       </span>
                     </div>
                   </div>

@@ -317,6 +317,8 @@ window.App = {
     } else if (this.activeTab === 'akademi' || this.activeTab === 'performans') {
       const subj = (window.AkademiModule && window.AkademiModule.currentSubject) || 'Türkçe';
       activeTitle = `🎓 Akademi • ${subj}`;
+    } else if (this.activeTab === 'testler' || this.activeTab === 'test_sonuclari') {
+      activeTitle = '📝 Test Neticeleri & Etüt';
     } else if (this.activeTab === 'leaderboard') {
       activeTitle = '🏆 Haftanın & Ayın Talebesi';
     } else if (this.activeTab === 'izin_cikis') {
@@ -541,6 +543,26 @@ window.App = {
               <div>
                 <div class="text-xs font-black">Takviye Ders Notları</div>
                 <div class="text-[10px] text-slate-400 font-medium">Türkçe, Mat, Fen, Sosyal, İngilizce 100 puan</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+
+          <!-- Test Neticeleri & Etüt Soru Takibi -->
+          <button type="button" onclick="window.App.navigateFromDrawer('testler')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              (this.activeTab === 'testler' || this.activeTab === 'test_sonuclari')
+                ? 'bg-emerald-50 text-emerald-900 font-black border border-emerald-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">📝</span>
+              <div>
+                <div class="text-xs font-black flex items-center gap-1.5">
+                  <span>Test Neticeleri & Etüt</span>
+                  <span class="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Yeni</span>
+                </div>
+                <div class="text-[10px] text-slate-400 font-medium">Başlık, Ders, Ünite, Doğru, Yanlış, Net & 100 Notu</div>
               </div>
             </div>
             <span class="text-slate-300">→</span>
@@ -909,6 +931,11 @@ window.App = {
         window.AkademiModule.init();
       } else if (window.PerformanceModule) {
         window.PerformanceModule.init();
+      }
+    } else if (this.activeTab === 'testler' || this.activeTab === 'test_sonuclari') {
+      main.innerHTML = `<div id="test-results-container"></div>`;
+      if (window.TestResultsModule) {
+        window.TestResultsModule.init();
       }
     } else if (this.activeTab === 'leaderboard') {
       if (window.LeaderboardModule) {
