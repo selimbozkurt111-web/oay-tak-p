@@ -1125,7 +1125,7 @@ class DataStore {
       this.syncToCloud('kurs_data/academicScores', all);
     }
     return rec;
-  },
+  }
 
   // --- Test Neticeleri & Etüt Soru Takibi ---
   getTestResults() {
@@ -1136,12 +1136,12 @@ class DataStore {
     } catch {
       return [];
     }
-  },
+  }
 
   getTestResultById(id) {
     const list = this.getTestResults();
     return list.find(t => t.id === id) || null;
-  },
+  }
 
   saveTestResult(testData) {
     const list = this.getTestResults();
@@ -1167,7 +1167,7 @@ class DataStore {
       this.syncToCloud('kurs_data/testResults', list);
     }
     return record;
-  },
+  }
 
   deleteTestResult(id) {
     let list = this.getTestResults().filter(t => t.id !== id);
@@ -1176,7 +1176,7 @@ class DataStore {
       this.syncToCloud('kurs_data/testResults', list);
     }
     return true;
-  },
+  }
 
   getStudentTestResults(studentId) {
     const list = this.getTestResults();
@@ -1197,7 +1197,7 @@ class DataStore {
       }
     });
     return results.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  },
+  }
 
   normalizeStatusCode(code) {
     if (!code) return 'VAR';
