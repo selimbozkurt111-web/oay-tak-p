@@ -10,6 +10,7 @@ window.AkademiModule = {
   currentDate: new Date().toISOString().split('T')[0],
   selectedClasses: [],           // Boş ise Tüm Sınıflar
   searchQuery: '',
+  sortBy: 'score_desc',          // 'score_desc': Aldığı Nota / Ortalamaya Göre Sırala | 'name': İsim Sıralı
   saveTimers: {},
   selectedBadges: new Set(),
   shareStudentId: null,
@@ -77,8 +78,26 @@ window.AkademiModule = {
     this.renderMatrixTableBody();
   },
 
+  toggleSort() {
+    this.sortBy = this.sortBy === 'score_desc' ? 'name' : 'score_desc';
+    const btn = document.getElementById('btn-matrix-sort');
+    if (btn) {
+      btn.innerHTML = `<span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '🔤 İsim Sıralı'}</span>`;
+      btn.className = `px-2.5 py-1 rounded-xl text-[11px] font-black transition flex items-center gap-1 border shadow-2xs ${
+        this.sortBy === 'score_desc' 
+          ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
+          : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+      }`;
+    }
+    const thTalebe = document.getElementById('th-matrix-talebe');
+    if (thTalebe) {
+      thTalebe.innerHTML = `Talebe ${this.sortBy === 'score_desc' ? '(Derece)' : ''}`;
+    }
+    this.renderMatrixTableBody();
+  },
+
   setSearchQuery(query) {
-    this.searchQuery = query.toLowerCase().trim();
+    this.searchQuery = (query || '').toLowerCase().trim();
     this.renderMatrixTableBody();
   },
 
@@ -153,8 +172,51 @@ window.AkademiModule = {
       students = students.filter(s => 
         s.firstName.toLowerCase().includes(this.searchQuery) ||
         s.lastName.toLowerCase().includes(this.searchQuery) ||
-        (s.className && s.className.toLowerCase().includes(this.searchQuery))
+        (s.className && s.className.toLowerCase().includes(this.searchQuery)) ||
+        (s.studentNo && s.studentNo.toString().includes(this.searchQuery))
       );
+    }
+
+    // Skorları haritalayarak sıralamayı optimize et
+    const scores = window.Store.getAcademicScores();
+    const studentScoreInfo = {};
+    scores.forEach(s => {
+      if (s.date === this.currentDate) {
+        if (!studentScoreInfo[s.studentId]) {
+          studentScoreInfo[s.studentId] = [];
+        }
+        if (s.score !== null && s.score !== undefined && !isNaN(s.score) && s.score !== '') {
+          studentScoreInfo[s.studentId].push(Number(s.score));
+        }
+      }
+    });
+
+    if (this.sortBy === 'score_desc') {
+      students.sort((a, b) => {
+        const scoresA = studentScoreInfo[a.id] || [];
+        const scoresB = studentScoreInfo[b.id] || [];
+        const hasA = scoresA.length > 0;
+        const hasB = scoresB.length > 0;
+
+        // Notu girilen öğrenciler her zaman üstte
+        if (hasA && !hasB) return -1;
+        if (!hasA && hasB) return 1;
+
+        if (hasA && hasB) {
+          const avgA = scoresA.reduce((sum, v) => sum + v, 0) / scoresA.length;
+          const avgB = scoresB.reduce((sum, v) => sum + v, 0) / scoresB.length;
+          // 1. Kriter: Ortalama Puan (En yüksek puan ilk)
+          if (avgB !== avgA) return avgB - avgA;
+          // 2. Kriter: Değerlendirilen ders sayısı (Daha çok ders girilen üstte)
+          if (scoresB.length !== scoresA.length) return scoresB.length - scoresA.length;
+        }
+
+        // 3. Kriter: İsim Alfabetik Sıra
+        return (a.firstName || '').localeCompare(b.firstName || '', 'tr');
+      });
+    } else {
+      // İsim Alfabetik Sıra
+      students.sort((a, b) => (a.firstName || '').localeCompare(b.firstName || '', 'tr'));
     }
 
     return students;
@@ -164,7 +226,21 @@ window.AkademiModule = {
     const container = document.getElementById('performance-container') || document.getElementById('akademi-container');
     if (!container) return;
 
-    this.renderTakviyeMatrixView(container);
+    if (this.currentSubCategory === 'genel') {
+      this.renderGenelKarneView(container);
+    } else {
+      this.renderTakviyeMatrixView(container);
+    }
+  },
+
+  escapeHtml(str) {
+    if (!str) return '';
+    return str.toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   },
 
   // --- TAKVİYE DERS PERFORMANSI (ÇİZELGE / MATRİS TABLO GÖRÜNÜMÜ) ---
@@ -173,81 +249,83 @@ window.AkademiModule = {
     const dayName = this.getDayName(this.currentDate);
 
     container.innerHTML = `
-      <div class="space-y-4 animate-fade-in max-w-7xl mx-auto">
-        <!-- Kontrol Kartı: Tarih, Gün Adı, Çoklu Sınıf Filtresi & Renk Kılavuzu -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4 no-print">
-          <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+      <div class="space-y-3 sm:space-y-4 animate-fade-in max-w-7xl mx-auto pb-8 px-1 sm:px-2">
+        <!-- Kontrol Kartı: Tarih, Gün Adı, Çoklu Sınıf Filtresi, Sıralama & Renk Kılavuzu -->
+        <div class="bg-white rounded-2xl sm:rounded-3xl shadow-xs border border-slate-200 p-3 sm:p-5 space-y-3 sm:space-y-4 no-print">
+          <div class="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
             <!-- Tarih ve Gün Adı -->
-            <div class="flex flex-wrap items-center gap-2.5">
-              <span class="text-xs font-black text-slate-800 uppercase tracking-wide">
-                DEĞERLENDİRME TARİHİ:
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-[11px] sm:text-xs font-black text-slate-800 uppercase tracking-wide">
+                TARİH:
               </span>
               <input type="date" value="${this.currentDate}" 
-                class="px-3 py-1.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none transition shadow-2xs"
+                class="px-2.5 py-1.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none transition shadow-2xs"
                 onchange="window.AkademiModule.setDate(this.value)">
 
-              <div class="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-2xs">
+              <div class="px-2.5 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-black flex items-center gap-1 shadow-2xs">
                 <span>📅</span>
                 <span>${dayName}</span>
               </div>
             </div>
 
             <!-- Çıktı Alma, Resim İndirme & Canlı Kayıt Göstergesi -->
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
               <div id="matrix-save-indicator" class="h-6 flex items-center"></div>
 
-              <!-- Yazdır & Görüntü Al Butonları -->
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-1.5">
+                <!-- Veli Görseli / Çizelge Resmi İndir -->
+                <button type="button" onclick="window.AkademiModule.downloadTableImage()" id="btn-download-matrix-img"
+                  class="px-2.5 sm:px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[11px] sm:text-xs font-black shadow-xs flex items-center gap-1 transition cursor-pointer"
+                  title="Tüm sınıf not çizelgesini velilere göndermek için tek tıkla yüksek kaliteli resim (PNG) olarak indir">
+                  <span>📸</span>
+                  <span>Resim İndir</span>
+                </button>
+
+                <!-- Yazdır (A4) -->
                 <button type="button" onclick="window.AkademiModule.printMatrixTable()"
-                  class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                  class="px-2.5 sm:px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[11px] sm:text-xs font-black shadow-xs flex items-center gap-1 transition cursor-pointer"
                   title="Tüm sınıf not çizelgesini A4 formatında yazdır">
                   <span>🖨️</span>
-                  <span>Çizelgeyi Yazdır (A4)</span>
-                </button>
-                <button type="button" onclick="window.AkademiModule.downloadTableImage()" id="btn-download-matrix-img"
-                  class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
-                  title="Çizelge tablosunu yüksek çözünürlüklü resim (PNG) olarak indir">
-                  <span>📸</span>
-                  <span>Çizelge Resmi İndir</span>
+                  <span class="hidden xs:inline">Yazdır (A4)</span>
                 </button>
               </div>
             </div>
           </div>
 
           <!-- Renk Skalası Kılavuzu (Legend) -->
-          <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
-            <span class="font-black text-slate-700 text-[11px] uppercase tracking-wide flex items-center gap-1.5">
-              <span>🎨</span> Renk Kuralı:
+          <div class="flex flex-wrap items-center justify-between gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+            <span class="font-black text-slate-700 text-[10px] sm:text-[11px] uppercase tracking-wide flex items-center gap-1">
+              <span>🎨</span> Kural:
             </span>
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="px-2 py-0.5 rounded-lg bg-rose-100 text-rose-800 border border-rose-300 font-black text-[11px]">
-                &lt; 85 : Kırmızı
+            <div class="flex flex-wrap items-center gap-1 sm:gap-1.5 text-[10px] sm:text-[11px]">
+              <span class="px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 font-black">
+                &lt; 85: Kırmızı
               </span>
               <span class="text-slate-300 font-bold">→</span>
-              <span class="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-300 font-bold text-[11px]">
-                85 - 89 : Sarı/Geçiş
+              <span class="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 font-bold">
+                85-89: Sarı
               </span>
               <span class="text-slate-300 font-bold">→</span>
-              <span class="px-2 py-0.5 rounded-lg bg-lime-100 text-lime-800 border border-lime-300 font-bold text-[11px]">
-                90 - 94 : Fıstık Yeşili
+              <span class="px-1.5 py-0.5 rounded-md bg-lime-100 text-lime-800 border border-lime-300 font-bold">
+                90-94: Fıstık
               </span>
               <span class="text-slate-300 font-bold">→</span>
-              <span class="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px]">
-                95 - 99 : Zümrüt Yeşili
+              <span class="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold">
+                95-99: Zümrüt
               </span>
               <span class="text-slate-300 font-bold">→</span>
-              <span class="px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white border border-emerald-700 font-black text-[11px] shadow-2xs">
-                100 : Canlı Yeşil
+              <span class="px-2 py-0.5 rounded-md bg-emerald-600 text-white border border-emerald-700 font-black shadow-2xs">
+                100: Canlı Yeşil
               </span>
             </div>
           </div>
 
-          <!-- Çoklu Sınıf Filtresi & Öğrenci Arama -->
-          <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div class="flex flex-wrap items-center gap-1.5">
-              <span class="text-[11px] font-black text-slate-500 uppercase mr-1">SINIF:</span>
+          <!-- Çoklu Sınıf Filtresi, Sıralama Butonu & Öğrenci Arama -->
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <div class="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <span class="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase mr-1">SINIF:</span>
               <button type="button" onclick="window.AkademiModule.toggleAllClasses()"
-                class="px-3 py-1 rounded-xl text-xs font-black transition ${
+                class="px-2.5 py-1 rounded-xl text-[11px] font-black transition ${
                   this.selectedClasses.length === 0 
                     ? 'bg-slate-900 text-white shadow-sm' 
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -258,7 +336,7 @@ window.AkademiModule = {
                 const isChecked = this.selectedClasses.includes(c);
                 return `
                   <button type="button" onclick="window.AkademiModule.toggleClass('${c}')"
-                    class="px-2.5 py-1 rounded-xl text-xs font-black transition border flex items-center gap-1 ${
+                    class="px-2.5 py-1 rounded-xl text-[11px] font-black transition border flex items-center gap-1 ${
                       isChecked 
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
                         : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
@@ -268,57 +346,69 @@ window.AkademiModule = {
                   </button>
                 `;
               }).join('')}
+
+              <!-- ALDIĞI NOTA GÖRE SIRALA BUTONU -->
+              <button type="button" id="btn-matrix-sort" onclick="window.AkademiModule.toggleSort()"
+                title="Öğrencileri ders ortalamalarına göre sıralar (1. en üstte)"
+                class="px-2.5 py-1 rounded-xl text-[11px] font-black transition flex items-center gap-1 border shadow-2xs ${
+                  this.sortBy === 'score_desc' 
+                    ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
+                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                }">
+                <span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '🔤 İsim Sıralı'}</span>
+              </button>
             </div>
 
             <!-- Arama -->
-            <div class="w-full sm:w-60 relative">
-              <input type="text" placeholder="İsme göre öğrenci ara..." 
-                class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            <div class="w-full sm:w-56 relative ml-auto">
+              <input type="text" placeholder="İsme göre öğrenci ara..." value="${this.escapeHtml(this.searchQuery)}"
+                class="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
                 oninput="window.AkademiModule.setSearchQuery(this.value)">
-              <span class="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
+              <span class="absolute left-2.5 top-1.5 text-slate-400 text-xs">🔍</span>
             </div>
           </div>
         </div>
 
-        <!-- 3. MATRİS TABLO: SOLDA ÖĞRENCİLER, ÜSTTE 5 DERS, SAĞDA ÖĞRENCİ ORTALAMASI, ALTTA DERS ORTALAMALARI -->
-        <div id="takviye-matrix-table-container" class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden p-0 sm:p-1">
+        <!-- 3. MATRİS TABLO (SIFIR YATAY KAYDIRMA, MOBİL VE EKRAN GÖRÜNTÜSÜ UYUMLU) -->
+        <div id="takviye-matrix-table-container" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-0">
           
-          <!-- KURUMSAL YAZDIRMA ÜST BAŞLIĞI (Sadece Çıktıda Görünür) -->
-          <div class="print-only p-4 mb-2 text-center border-b-2 border-slate-800">
-            <div class="text-xs font-bold tracking-widest text-slate-600 uppercase">T.C. MİLLİ EĞİTİM BAKANLIĞI</div>
-            <div class="text-lg font-black text-slate-900 uppercase mt-0.5">ÖMER AVNİYEL AKADEMİ</div>
-            <div class="text-sm font-black text-slate-800 mt-1 uppercase">TAKVİYE DERSLERİ PERFORMANS VE NOT ÇİZELGESİ</div>
-            <div class="flex items-center justify-between text-xs font-bold text-slate-700 mt-3 pt-2 border-t border-slate-300">
-              <span>📅 Değerlendirme Tarihi: ${this.currentDate} (${dayName})</span>
-              <span>Sınıf: ${this.selectedClasses.length > 0 ? this.selectedClasses.join(', ') : 'Tüm Sınıflar'}</span>
-              <span>Toplam Öğrenci: ${this.getFilteredStudents().length}</span>
+          <!-- KURUMSAL YAZDIRMA & RESİM ÜST BAŞLIĞI -->
+          <div class="p-3 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between border-b border-slate-700">
+            <div class="truncate">
+              <div class="text-xs sm:text-sm font-black text-amber-300 truncate">
+                ${window.Store.getSettings().institutionName || 'Ömer Avniyel Akademi'}
+              </div>
+              <div class="text-[10px] text-slate-300 font-bold truncate">
+                Takviye Dersleri Not Çizelgesi • 5 Ana Ders
+              </div>
+            </div>
+            <div class="text-right flex-shrink-0 pl-2">
+              <div class="text-[10px] text-emerald-300 font-bold font-mono">${this.currentDate} (${dayName})</div>
+              <div class="text-[9px] text-slate-400 font-medium truncate">Sınıf: ${this.selectedClasses.length > 0 ? this.selectedClasses.join(', ') : 'Tüm Sınıflar'}</div>
             </div>
           </div>
 
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse min-w-[700px]">
+          <!-- SIFIR YATAY KAYDIRMA MOBİL & EKRAN GÖRÜNTÜSÜ TABLOSU (12-15 Kişi Tek Ekrana Sığar) -->
+          <div class="w-full overflow-hidden">
+            <table class="w-full text-left border-collapse table-fixed text-xs">
               <!-- Üst Başlıklar (Soldan Sağa: Öğrenci, 5 Ders, Öğrenci Ortalaması, Veli Paylaşım) -->
               <thead>
-                <tr class="bg-slate-900 text-white text-xs border-b border-slate-800">
-                  <th class="p-3.5 sm:p-4 font-black tracking-wide w-48 sm:w-56 sticky left-0 bg-slate-900 z-10 shadow-r">
-                    ÖĞRENCİ BİLGİSİ
+                <tr class="bg-slate-100 text-[10px] sm:text-[11px] font-black uppercase text-slate-600 border-b border-slate-200 h-8">
+                  <th id="th-matrix-talebe" class="py-1 pl-2.5 pr-1 text-slate-700 truncate">
+                    Talebe ${this.sortBy === 'score_desc' ? '(Derece)' : ''}
                   </th>
                   ${this.subjects.map(s => `
-                    <th class="p-3 text-center font-black tracking-wide w-24 sm:w-28 border-l border-slate-800">
-                      <div class="flex items-center justify-center gap-1">
-                        <span>${s.icon}</span>
-                        <span>${s.name}</span>
-                      </div>
-                      <div class="text-[10px] text-slate-400 font-normal">0 - 100</div>
+                    <th class="w-9 sm:w-11 py-1 px-0.5 text-center border-l border-slate-200">
+                      <div class="text-[11px] leading-tight">${s.icon}</div>
+                      <div class="text-[9px] font-black text-slate-600 leading-tight">${s.short}</div>
                     </th>
                   `).join('')}
-                  <th class="p-3.5 sm:p-4 text-center font-black tracking-wide w-32 border-l border-slate-800 bg-slate-950 text-amber-300">
-                    <div>ÖĞRENCİ ORT.</div>
-                    <div class="text-[10px] text-slate-400 font-normal">Dersler Ortalaması</div>
+                  <th class="w-11 sm:w-13 py-1 px-0.5 text-center border-l border-slate-200 bg-amber-50/70 text-amber-900">
+                    <div class="text-[11px] leading-tight">⭐</div>
+                    <div class="text-[9px] font-black leading-tight">ORT.</div>
                   </th>
-                  <th class="p-3.5 sm:p-4 text-center font-black tracking-wide w-28 border-l border-slate-800 no-print">
-                    <div>VELİ PAYLAŞ</div>
-                    <div class="text-[10px] text-slate-400 font-normal">Görüntü / WhatsApp</div>
+                  <th class="w-8 sm:w-10 py-1 px-0.5 text-center border-l border-slate-200 text-emerald-700 no-print">
+                    📱
                   </th>
                 </tr>
               </thead>
@@ -328,30 +418,31 @@ window.AkademiModule = {
                 <!-- renderMatrixTableBody ile doldurulacak -->
               </tbody>
 
-              <!-- En Alt Satır: DERS SINIF ORTALAMALARI VE GENEL ORTALAMA -->
-              <tfoot class="bg-slate-100 text-slate-900 font-black text-xs border-t-2 border-slate-300">
-                <tr>
-                  <td class="p-3.5 sm:p-4 font-black sticky left-0 bg-slate-100 z-10 shadow-r flex items-center gap-2">
-                    <span class="text-base">📈</span>
-                    <div>
-                      <div>DERS SINIF ORTALAMASI</div>
-                      <div class="text-[10px] text-slate-500 font-normal">Seçilen sınıfların ders puan ortalamaları</div>
+              <!-- EN ALT TABLO ÖZET SATIRI (DERS SINIF ORTALAMALARI VE GENEL ORTALAMA) -->
+              <tfoot class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white font-black text-[10px] sm:text-[11px] border-t-2 border-amber-400">
+                <tr class="h-9 sm:h-10">
+                  <td class="py-1.5 pl-2.5 pr-1 truncate">
+                    <div class="text-amber-300 font-black text-[10px] sm:text-[11px] flex items-center gap-1">
+                      <span>📊</span>
+                      <span>ORTALAMA</span>
+                    </div>
+                    <div id="footer-eval-count" class="text-[9px] text-slate-300 font-normal truncate">
+                      0 Talebe Notlandırıldı
                     </div>
                   </td>
                   ${this.subjects.map(s => `
-                    <td class="p-3 text-center border-l border-slate-200">
-                      <div id="col-avg-${s.key}">
-                        <span class="text-slate-400 font-bold">-</span>
+                    <td class="py-1 px-0.5 text-center border-l border-slate-800">
+                      <div id="col-avg-${s.key}" class="text-[11px] font-black text-white">
+                        -
                       </div>
                     </td>
                   `).join('')}
-                  <td class="p-3.5 sm:p-4 text-center border-l border-slate-200 bg-amber-50/70 text-slate-900">
-                    <div class="text-[10px] text-slate-500 font-bold mb-0.5 uppercase">GENEL ORTALAMA</div>
-                    <div id="overall-avg">
-                      <span class="text-slate-400 font-bold">-</span>
+                  <td class="py-1 px-0.5 text-center border-l border-slate-800 bg-amber-500/20">
+                    <div id="overall-avg" class="text-[11px] font-black text-amber-300">
+                      -
                     </div>
                   </td>
-                  <td class="p-3.5 sm:p-4 border-l border-slate-200 bg-slate-100 no-print"></td>
+                  <td class="py-1 px-0.5 text-center border-l border-slate-800 no-print"></td>
                 </tr>
               </tfoot>
             </table>
@@ -386,7 +477,7 @@ window.AkademiModule = {
 
     const students = this.getFilteredStudents();
     const scores = window.Store.getAcademicScores();
-    // Hizli erisim icin map: { `${studentId}_${subject}`: score }
+    // Hızlı erişim için map: { `${studentId}_${subject}`: score }
     const scoreMap = {};
     scores.forEach(s => {
       if (s.date === this.currentDate) {
@@ -397,7 +488,7 @@ window.AkademiModule = {
     if (students.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="${this.subjects.length + 3}" class="p-12 text-center text-slate-400 text-xs">
+          <td colspan="${this.subjects.length + 3}" class="py-8 text-center text-slate-400 font-bold text-xs">
             Seçilen kriterlere uygun öğrenci bulunamadı.
           </td>
         </tr>
@@ -409,6 +500,8 @@ window.AkademiModule = {
       });
       const overall = document.getElementById('overall-avg');
       if (overall) overall.innerHTML = `<span class="text-slate-400 font-bold">-</span>`;
+      const fCount = document.getElementById('footer-eval-count');
+      if (fCount) fCount.textContent = '0 Talebe Notlandırıldı';
       return;
     }
 
@@ -417,65 +510,77 @@ window.AkademiModule = {
       const studentScores = [];
       this.subjects.forEach(subj => {
         const val = scoreMap[`${st.id}_${subj.name}`];
-        if (val !== undefined && val !== null && !isNaN(val)) {
+        if (val !== undefined && val !== null && !isNaN(val) && val !== '') {
           studentScores.push(Number(val));
         }
       });
 
-      const rowAvg = studentScores.length > 0 
+      const hasScores = studentScores.length > 0;
+      const rowAvg = hasScores 
         ? Math.round((studentScores.reduce((a, b) => a + b, 0) / studentScores.length) * 10) / 10 
         : null;
 
       const avgStyle = this.getColorStyle(rowAvg);
 
+      // Sıralama Madalyası / Sıra Numarası (Nota göre sıralıyken)
+      let rankBadge = '';
+      if (this.sortBy === 'score_desc') {
+        if (hasScores) {
+          if (idx === 0) rankBadge = '<span class="text-xs">🥇</span>';
+          else if (idx === 1) rankBadge = '<span class="text-xs">🥈</span>';
+          else if (idx === 2) rankBadge = '<span class="text-xs">🥉</span>';
+          else rankBadge = `<span class="text-slate-500 font-mono text-[9px] font-bold">#${idx + 1}</span>`;
+        } else {
+          rankBadge = '<span class="text-slate-300 font-mono text-[9px]">-</span>';
+        }
+      } else {
+        rankBadge = `<span class="text-slate-400 font-mono text-[9px]">${idx + 1}</span>`;
+      }
+
       return `
-        <tr class="hover:bg-slate-50/80 transition-colors">
-          <!-- Soldaki Öğrenci Sütunu (Sticky Left) -->
-          <td class="p-3 sm:p-3.5 sticky left-0 bg-white hover:bg-slate-50 z-10 shadow-r">
-            <div class="flex items-center gap-2.5">
-              <span class="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 font-black text-[10px] flex items-center justify-center shrink-0">
-                ${idx + 1}
-              </span>
+        <tr class="hover:bg-slate-50/80 transition-colors h-8 sm:h-9">
+          <!-- 1. Derece, Talebe Adı & Sınıfı -->
+          <td class="py-1 pl-2 pr-1 truncate">
+            <div class="flex items-center gap-1 truncate">
+              ${rankBadge ? `<div class="w-4 text-center flex-shrink-0 leading-none">${rankBadge}</div>` : ''}
               <div class="truncate">
-                <div class="font-black text-slate-900 text-xs sm:text-sm truncate">
+                <div class="font-bold text-slate-900 text-[11px] sm:text-xs truncate">
                   ${st.firstName} ${st.lastName}
                 </div>
-                <div class="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
-                  <span class="font-bold text-slate-500">${st.className || '-'}</span>
-                  <span>•</span>
-                  <span class="font-mono">No: ${st.studentNo}</span>
+                <div class="text-[9px] text-slate-400 font-medium truncate leading-none mt-0.5">
+                  ${st.className || ''} ${st.studentNo ? '• No: ' + st.studentNo : ''}
                 </div>
               </div>
             </div>
           </td>
 
-          <!-- 5 Takviye Dersi Giriş Hücreleri -->
+          <!-- 2. 5 Takviye Dersi Giriş Hücreleri -->
           ${this.subjects.map(subj => {
             const rawScore = scoreMap[`${st.id}_${subj.name}`];
             const currentScore = (rawScore !== undefined && rawScore !== null) ? rawScore : '';
             const color = this.getColorStyle(currentScore);
 
             return `
-              <td class="p-2 text-center border-l border-slate-100">
+              <td class="py-0.5 px-0.5 text-center border-l border-slate-100">
                 <input type="number" min="0" max="100" 
                   id="cell-${st.id}-${subj.key}"
                   placeholder="-"
                   value="${currentScore}"
                   style="background-color: ${color.bg}; color: ${color.text}; border-color: ${color.border};"
-                  class="w-18 sm:w-20 text-center py-2 px-1 text-sm font-black rounded-xl border-2 transition-all shadow-2xs focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                  class="w-8 sm:w-10 h-7 text-center font-black rounded-lg border text-xs p-0 focus:outline-none focus:ring-1 focus:ring-blue-400"
                   oninput="window.AkademiModule.handleMatrixInput('${st.id}', '${subj.key}', this.value)"
                   onblur="window.AkademiModule.handleMatrixBlur('${st.id}', '${subj.key}', this.value)">
               </td>
             `;
           }).join('')}
 
-          <!-- Sağdaki Öğrenci Ortalaması Rozeti -->
-          <td class="p-3 text-center border-l border-slate-100 bg-slate-50/50">
+          <!-- 3. Sağdaki Öğrenci Ortalaması Rozeti -->
+          <td class="py-0.5 px-0.5 text-center border-l border-slate-100 bg-slate-50/50">
             <div id="row-avg-${st.id}">
               ${rowAvg === null ? `
                 <span class="text-slate-300 font-bold text-xs">-</span>
               ` : `
-                <span class="px-2.5 py-1 rounded-xl text-xs font-black border transition-all inline-block shadow-2xs ${avgStyle.badge}"
+                <span class="inline-block px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-xs border shadow-2xs ${avgStyle.badge}"
                   style="background-color: ${avgStyle.bg}; color: ${avgStyle.text}; border-color: ${avgStyle.border};">
                   ${rowAvg.toFixed(1)}
                 </span>
@@ -483,13 +588,12 @@ window.AkademiModule = {
             </div>
           </td>
 
-          <!-- Veli İle Paylaş Butonu (Görüntü Alma & WhatsApp) -->
-          <td class="p-2 text-center border-l border-slate-100 no-print">
+          <!-- 4. Veli İle Paylaş Butonu (Görüntü Alma & WhatsApp) -->
+          <td class="py-0.5 px-0.5 text-center border-l border-slate-100 no-print">
             <button type="button" onclick="window.AkademiModule.openShareModal('${st.id}')"
-              class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 hover:border-emerald-600 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1 mx-auto shadow-2xs group cursor-pointer"
-              title="Bu öğrencinin not karnesini görüntü olarak al veya WhatsApp ile veliye gönder">
-              <span class="group-hover:scale-110 transition-transform">📸</span>
-              <span>Veli ile Paylaş</span>
+              title="Veli Karnesi / WhatsApp"
+              class="w-6 h-6 rounded-md bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white inline-flex items-center justify-center text-xs border border-emerald-200 transition shadow-2xs group cursor-pointer">
+              📱
             </button>
           </td>
         </tr>
@@ -502,7 +606,7 @@ window.AkademiModule = {
 
   // --- HÜCREYE NOT YAZILDIĞINDA ANINDA CANLI HESAPLAMA & KAYIT ---
   handleMatrixInput(studentId, subjectKey, value) {
-    const cleanVal = value.trim();
+    const cleanVal = (value || '').toString().trim();
     const num = (cleanVal === '' || isNaN(cleanVal)) ? null : Math.min(100, Math.max(0, parseInt(cleanVal, 10)));
 
     // 1. Hücrenin renk ve stilini anında güncelle (85 altı kırmızı, 85-100 yeşile geçiş, 100 tam yeşil)
@@ -549,7 +653,7 @@ window.AkademiModule = {
   },
 
   handleMatrixBlur(studentId, subjectKey, value) {
-    const cleanVal = value.trim();
+    const cleanVal = (value || '').toString().trim();
     const num = (cleanVal === '' || isNaN(cleanVal)) ? null : Math.min(100, Math.max(0, parseInt(cleanVal, 10)));
     window.Store.saveSingleAcademicScore(
       studentId,
@@ -560,6 +664,16 @@ window.AkademiModule = {
     const cell = document.getElementById(`cell-${studentId}-${subjectKey}`);
     if (cell && num !== null) {
       cell.value = num;
+    }
+
+    // Eğer puana göre sıralıysa ve kullanıcı başka bir input kutusuna odaklanmadıysa listeyi yeniden sırala
+    if (this.sortBy === 'score_desc') {
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (!active || (active.tagName !== 'INPUT')) {
+          this.renderMatrixTableBody();
+        }
+      }, 300);
     }
   },
 
@@ -590,7 +704,7 @@ window.AkademiModule = {
     const rounded = Math.round(avg * 10) / 10;
     const st = this.getColorStyle(rounded);
     container.innerHTML = `
-      <span class="px-2.5 py-1 rounded-xl text-xs font-black border transition-all inline-block shadow-2xs ${st.badge}"
+      <span class="inline-block px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-xs border shadow-2xs ${st.badge}"
         style="background-color: ${st.bg}; color: ${st.text}; border-color: ${st.border};">
         ${rounded.toFixed(1)}
       </span>
@@ -599,7 +713,8 @@ window.AkademiModule = {
 
   calculateSubjectAverage(subjectKey, students) {
     const scores = [];
-    students.forEach(st => {
+    const stList = students || this.getFilteredStudents();
+    stList.forEach(st => {
       const inputEl = document.getElementById(`cell-${st.id}-${subjectKey}`);
       if (inputEl && inputEl.value !== '') {
         const v = parseFloat(inputEl.value);
@@ -610,8 +725,7 @@ window.AkademiModule = {
     return scores.reduce((sum, s) => sum + s, 0) / scores.length;
   },
 
-  updateSubjectColumnAverage(subjectKey) {
-    const students = this.getFilteredStudents();
+  updateSubjectColumnAverage(subjectKey, students) {
     const avg = this.calculateSubjectAverage(subjectKey, students);
     const container = document.getElementById(`col-avg-${subjectKey}`);
     if (!container) return;
@@ -622,27 +736,33 @@ window.AkademiModule = {
     }
 
     const rounded = Math.round(avg * 10) / 10;
-    const st = this.getColorStyle(rounded);
-    container.innerHTML = `
-      <div class="px-2.5 py-1 rounded-xl text-xs font-black border inline-block shadow-2xs ${st.badge}"
-        style="background-color: ${st.bg}; color: ${st.text}; border-color: ${st.border};">
-        ${rounded.toFixed(1)}
-      </div>
-    `;
+    container.innerHTML = `<span class="text-[11px] font-black text-white">${rounded.toFixed(1)}</span>`;
   },
 
-  updateOverallAverage() {
-    const students = this.getFilteredStudents();
+  updateOverallAverage(students) {
+    const stList = students || this.getFilteredStudents();
     const allScores = [];
-    students.forEach(st => {
+    let evaluatedCount = 0;
+
+    stList.forEach(st => {
+      let hasAny = false;
       this.subjects.forEach(subj => {
         const inputEl = document.getElementById(`cell-${st.id}-${subj.key}`);
         if (inputEl && inputEl.value !== '') {
           const v = parseFloat(inputEl.value);
-          if (!isNaN(v)) allScores.push(v);
+          if (!isNaN(v)) {
+            allScores.push(v);
+            hasAny = true;
+          }
         }
       });
+      if (hasAny) evaluatedCount++;
     });
+
+    const fCount = document.getElementById('footer-eval-count');
+    if (fCount) {
+      fCount.textContent = `${evaluatedCount} Talebe Notlandırıldı`;
+    }
 
     const container = document.getElementById('overall-avg');
     if (!container) return;
@@ -654,20 +774,15 @@ window.AkademiModule = {
 
     const overall = allScores.reduce((a, b) => a + b, 0) / allScores.length;
     const rounded = Math.round(overall * 10) / 10;
-    const st = this.getColorStyle(rounded);
-    container.innerHTML = `
-      <div class="px-3 py-1.5 rounded-xl text-sm font-black border inline-block shadow-sm ${st.badge}"
-        style="background-color: ${st.bg}; color: ${st.text}; border-color: ${st.border};">
-        ${rounded.toFixed(1)}
-      </div>
-    `;
+    container.innerHTML = `<span class="text-[11px] font-black text-amber-300">${rounded.toFixed(1)}</span>`;
   },
 
   recalculateAllColumnAverages(students) {
+    const stList = students || this.getFilteredStudents();
     this.subjects.forEach(s => {
-      this.updateSubjectColumnAverage(s.key);
+      this.updateSubjectColumnAverage(s.key, stList);
     });
-    this.updateOverallAverage();
+    this.updateOverallAverage(stList);
   },
 
   // --- VELİ İLE PAYLAŞIM, GÖRÜNTÜ ALMA (SNAPSHOT) VE ÇIKTI METODLARI ---
