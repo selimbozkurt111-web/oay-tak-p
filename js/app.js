@@ -2911,8 +2911,9 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
               </button>
             </td>
           </tr>
-        }).join('');
-      } catch (err) {
+        `;
+      }).join('');
+    } catch (err) {
         console.error('renderTableBody render error:', err);
         tbody.innerHTML = `
           <tr>
