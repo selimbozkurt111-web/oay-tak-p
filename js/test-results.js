@@ -1,5 +1,6 @@
 /**
- * test-results.js - Test Neticeleri & Etüt Soru Takip Modülü (Mobil & Ekran Görüntüsü Optimize)
+ * test-results.js - Test Neticeleri & Etüt Soru Takip Modülü (Mobil & Otomatik Not Sıralamalı)
+ * - Aldığı nota göre otomatik başarı sıralaması (1. 2. 3. madalyaları ve #sıra numaraları)
  * - Mobilde sıfır yatay kaydırma (sağa-sola kaydırmasız tam ekran uyumu)
  * - Tek ekranda en az 12-15 öğrenciyi sığdıran kompakt satır yüksekliği
  * - Tablonun en altında canlı Doğru, Yanlış, Boş, Net ve 100 Puan Sınıf Ortalamaları
@@ -10,6 +11,7 @@ window.TestResultsModule = {
   activeView: 'editor', // 'editor' | 'history'
   currentTestId: null,
   showTestDetails: false, // Mobilde ekranı kaplamasın diye varsayılan daraltılmış
+  sortBy: 'score_desc',   // 'score_desc': Notu En Yüksek İlk (1. -> Son) | 'name': İsim Sırası
   
   // Test Üst Bilgileri
   testMeta: {
@@ -69,6 +71,16 @@ window.TestResultsModule = {
     this.render();
   },
 
+  toggleSort() {
+    this.sortBy = this.sortBy === 'score_desc' ? 'name' : 'score_desc';
+    this.render();
+  },
+
+  applySort() {
+    this.sortBy = 'score_desc';
+    this.render();
+  },
+
   getCurrentlyDisplayedStudents() {
     let students = window.Store.getStudents();
     if (this.selectedClass !== 'ALL') {
@@ -82,6 +94,35 @@ window.TestResultsModule = {
         (s.studentNo && s.studentNo.toString().includes(q))
       );
     }
+
+    // --- ALDIĞI NOTA GÖRE OTOMATİK SIRALAMA ---
+    if (this.sortBy === 'score_desc') {
+      students.sort((a, b) => {
+        const scA = this.scores[a.id] || { score: 0, net: 0, correct: 0, wrong: 0 };
+        const scB = this.scores[b.id] || { score: 0, net: 0, correct: 0, wrong: 0 };
+        const hasA = (scA.correct > 0 || scA.wrong > 0);
+        const hasB = (scB.correct > 0 || scB.wrong > 0);
+
+        // Notu girilmiş öğrenciler her zaman üstte
+        if (hasA && !hasB) return -1;
+        if (!hasA && hasB) return 1;
+
+        // 1. Kriter: 100 Üzerinden Puan (En yüksek ilk)
+        if (scB.score !== scA.score) return scB.score - scA.score;
+        // 2. Kriter: Net Sayısı
+        if (scB.net !== scA.net) return scB.net - scA.net;
+        // 3. Kriter: Doğru Sayısı
+        if (scB.correct !== scA.correct) return scB.correct - scA.correct;
+        // 4. Kriter: Daha Az Yanlış
+        if (scA.wrong !== scB.wrong) return scA.wrong - scB.wrong;
+        // 5. Kriter: İsim Alfabetik
+        return (a.firstName || '').localeCompare(b.firstName || '', 'tr');
+      });
+    } else {
+      // İsim Sırası
+      students.sort((a, b) => (a.firstName || '').localeCompare(b.firstName || '', 'tr'));
+    }
+
     return students;
   },
 
@@ -162,6 +203,19 @@ window.TestResultsModule = {
     this.updateSummaryCounters();
   },
 
+  // Giriş tamamlanıp kutudan çıkıldığında (blur) listeyi puana göre yeniden dizer
+  handleInputBlur() {
+    if (this.sortBy === 'score_desc') {
+      // Hafif bir gecikmeyle başka bir kutuya tıklandıysa odağı bozmamak için
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (!active || (active.tagName !== 'INPUT')) {
+          this.render();
+        }
+      }, 300);
+    }
+  },
+
   getScoreBadgeClass(score) {
     if (score >= 85) {
       return 'bg-emerald-600 text-white border-emerald-700';
@@ -181,7 +235,7 @@ window.TestResultsModule = {
     return 'Gayret Etmeli ⚠️';
   },
 
-  // Hem üst istatistik kartlarını hem de en alt tablo ortalama satırını anında günceller
+  // Hem üst sayaçları hem de en alt ortalama satırını günceller
   updateSummaryCounters() {
     let totalCorrect = 0;
     let totalWrong = 0;
@@ -258,7 +312,7 @@ window.TestResultsModule = {
     }
   },
 
-  // 1. TEST GİRİŞ & DÜZENLEME EKRANI (MOBİL ODAKLI)
+  // 1. TEST GİRİŞ & DÜZENLEME EKRANI (MOBİL & NOT SIRALAMALI)
   renderEditorView(container) {
     const classes = window.Store.getClasses();
     const students = this.getCurrentlyDisplayedStudents();
@@ -266,7 +320,7 @@ window.TestResultsModule = {
     container.innerHTML = `
       <div class="space-y-3 sm:space-y-4 max-w-7xl mx-auto animate-fade-in pb-8 px-1 sm:px-2">
         
-        <!-- 1. Üst Hızlı Kontrol Barı (Mobilde az yer kaplar) -->
+        <!-- 1. Üst Hızlı Kontrol Barı -->
         <div class="bg-white p-3 sm:p-4 rounded-2xl shadow-xs border border-slate-200 flex items-center justify-between gap-2 no-print">
           <div class="flex items-center gap-2 truncate">
             <span class="text-xl sm:text-2xl">📝</span>
@@ -308,7 +362,7 @@ window.TestResultsModule = {
           </div>
         </div>
 
-        <!-- 2. Test Detayları Kartı (İsteğe bağlı açılır, varsayılan kapalı) -->
+        <!-- 2. Test Detayları Kartı (Açılır/Kapanır) -->
         ${this.showTestDetails ? `
           <div class="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-xs border-2 border-emerald-200/90 p-4 space-y-3 no-print animate-fade-in">
             <div class="flex items-center justify-between border-b border-emerald-100 pb-2">
@@ -365,9 +419,10 @@ window.TestResultsModule = {
           </div>
         ` : ''}
 
-        <!-- 3. Hızlı Sınıf Filtresi & Kaydet Butonu -->
+        <!-- 3. Hızlı Sınıf Filtresi, Sıralama Butonu & Kaydet -->
         <div class="flex flex-wrap items-center justify-between gap-2 bg-white p-2.5 rounded-2xl shadow-xs border border-slate-200 no-print">
           <div class="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
+            <!-- Sınıf Butonları -->
             <button type="button" onclick="window.TestResultsModule.filterClass('ALL')"
               class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${this.selectedClass === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
               Tümü
@@ -378,12 +433,23 @@ window.TestResultsModule = {
                 ${c}
               </button>
             `).join('')}
+
+            <!-- ALDIĞI NOTA GÖRE SIRALA BUTONU -->
+            <button type="button" onclick="window.TestResultsModule.toggleSort()"
+              title="Öğrencileri aldıkları nota göre sıralar (1. en üstte)"
+              class="px-2.5 py-1 rounded-xl text-[11px] font-black transition flex items-center gap-1 border shadow-2xs ${
+                this.sortBy === 'score_desc' 
+                  ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
+                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+              }">
+              <span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '🔤 İsim Sıralı'}</span>
+            </button>
           </div>
 
           <div class="flex items-center gap-1.5 ml-auto">
             <input type="text" placeholder="Talebe ara..." value="${this.escapeHtml(this.searchQuery)}"
               oninput="window.TestResultsModule.searchQuery = this.value; window.TestResultsModule.render();"
-              class="w-28 sm:w-36 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500">
+              class="w-24 sm:w-32 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500">
             
             <button type="button" onclick="window.TestResultsModule.saveCurrentTest();"
               class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1">
@@ -396,7 +462,7 @@ window.TestResultsModule = {
         <!-- 4. EKRAN GÖRÜNTÜSÜ VE VELİ PAYLAŞIM ALANI (TAM GENİŞLİK, SIFIR SAĞA-SOLA KAYDIRMA) -->
         <div id="test-capture-card" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           
-          <!-- Görsel Üst Başlığı: WhatsApp'ta Paylaşılınca Şık Duran Kurum Başlığı -->
+          <!-- Görsel Üst Başlığı -->
           <div class="p-3 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between border-b border-slate-700">
             <div class="truncate">
               <div class="text-xs sm:text-sm font-black text-amber-300 truncate">
@@ -417,8 +483,8 @@ window.TestResultsModule = {
             <table class="w-full text-left border-collapse table-fixed text-xs">
               <thead>
                 <tr class="bg-slate-100 text-[10px] sm:text-[11px] font-black uppercase text-slate-600 border-b border-slate-200 h-8">
-                  <!-- Öğrenci Adı (Geniş kalan tüm alan) -->
-                  <th class="py-1 pl-2.5 pr-1 text-slate-700">Talebe</th>
+                  <!-- Sıra & Öğrenci Adı -->
+                  <th class="py-1 pl-2.5 pr-1 text-slate-700">Talebe ${this.sortBy === 'score_desc' ? '(Derece)' : ''}</th>
                   <!-- Doğru (D) -->
                   <th class="w-10 sm:w-12 py-1 px-0.5 text-center text-emerald-700 bg-emerald-50/70">✅ D</th>
                   <!-- Yanlış (Y) -->
@@ -443,16 +509,35 @@ window.TestResultsModule = {
                 ` : students.map((st, idx) => {
                   const sc = this.scores[st.id] || this.calculateRow(st.id);
                   const badgeCls = this.getScoreBadgeClass(sc.score);
+                  const isEvaluated = (sc.correct > 0 || sc.wrong > 0);
+
+                  // Sıralama Madalyası / Sıra Numarası (Sadece nota göre sıralıyken)
+                  let rankBadge = '';
+                  if (this.sortBy === 'score_desc') {
+                    if (isEvaluated) {
+                      if (idx === 0) rankBadge = '<span class="text-xs">🥇</span>';
+                      else if (idx === 1) rankBadge = '<span class="text-xs">🥈</span>';
+                      else if (idx === 2) rankBadge = '<span class="text-xs">🥉</span>';
+                      else rankBadge = `<span class="text-slate-500 font-mono text-[9px] font-bold">#${idx + 1}</span>`;
+                    } else {
+                      rankBadge = '<span class="text-slate-300 font-mono text-[9px]">-</span>';
+                    }
+                  }
 
                   return `
                     <tr class="hover:bg-slate-50/80 transition-colors h-8 sm:h-9">
-                      <!-- 1. Talebe Adı & Sınıfı -->
-                      <td class="py-1 pl-2.5 pr-1 truncate">
-                        <div class="font-bold text-slate-900 text-[11px] sm:text-xs truncate">
-                          ${st.firstName} ${st.lastName}
-                        </div>
-                        <div class="text-[9px] text-slate-400 font-medium truncate leading-none mt-0.5">
-                          ${st.className || ''} ${st.studentNo ? '• No: ' + st.studentNo : ''}
+                      <!-- 1. Derece, Talebe Adı & Sınıfı -->
+                      <td class="py-1 pl-2 pr-1 truncate">
+                        <div class="flex items-center gap-1 truncate">
+                          ${rankBadge ? `<div class="w-4 text-center flex-shrink-0 leading-none">${rankBadge}</div>` : ''}
+                          <div class="truncate">
+                            <div class="font-bold text-slate-900 text-[11px] sm:text-xs truncate">
+                              ${st.firstName} ${st.lastName}
+                            </div>
+                            <div class="text-[9px] text-slate-400 font-medium truncate leading-none mt-0.5">
+                              ${st.className || ''} ${st.studentNo ? '• No: ' + st.studentNo : ''}
+                            </div>
+                          </div>
                         </div>
                       </td>
 
@@ -461,6 +546,7 @@ window.TestResultsModule = {
                         <input type="number" id="input-c-${st.id}" min="0" max="${this.testMeta.totalQuestions}" 
                           value="${sc.correct}"
                           oninput="window.TestResultsModule.handleInputChange('${st.id}', 'correct', this.value)"
+                          onblur="window.TestResultsModule.handleInputBlur()"
                           class="w-8 sm:w-10 h-7 text-center font-black text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 p-0">
                       </td>
 
@@ -469,6 +555,7 @@ window.TestResultsModule = {
                         <input type="number" id="input-w-${st.id}" min="0" max="${this.testMeta.totalQuestions}" 
                           value="${sc.wrong}"
                           oninput="window.TestResultsModule.handleInputChange('${st.id}', 'wrong', this.value)"
+                          onblur="window.TestResultsModule.handleInputBlur()"
                           class="w-8 sm:w-10 h-7 text-center font-black text-rose-800 bg-rose-50 border border-rose-300 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-rose-500 p-0">
                       </td>
 
@@ -551,18 +638,26 @@ window.TestResultsModule = {
 
         </div>
 
-        <!-- 6. Alt Bilgilendirme ve Ekran Görüntüsü İpucu -->
+        <!-- 6. Alt Bilgilendirme ve Sıralama İpucu -->
         <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 no-print">
           <div class="flex items-center gap-2">
             <span>💡</span>
-            <span>Mobilde sağa-sola kaydırma yapmadan tek ekranda <strong>12-15 talebeyi</strong> görüp ekran görüntüsü alabilirsiniz.</span>
+            <span>Öğrenciler aldıkları nota göre <strong>1. den sona doğru otomatik sıralanır</strong> (🥇, 🥈, 🥉 madalyalarıyla görünür).</span>
           </div>
 
-          <button type="button" onclick="window.TestResultsModule.saveCurrentTest();"
-            class="w-full sm:w-auto px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2">
-            <span>💾</span>
-            <span>Tüm Sonuçları Kaydet</span>
-          </button>
+          <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button type="button" onclick="window.TestResultsModule.applySort();"
+              class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1">
+              <span>🏆</span>
+              <span>Notları Hemen Sırala</span>
+            </button>
+
+            <button type="button" onclick="window.TestResultsModule.saveCurrentTest();"
+              class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1.5">
+              <span>💾</span>
+              <span>Kaydet</span>
+            </button>
+          </div>
         </div>
 
       </div>
