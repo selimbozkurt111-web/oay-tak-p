@@ -4,6 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ömer Avniyel Akademi</title>
+  <meta name="description" content="Öğrenci Bilgi ve Takip Portalı">
+  
+  <!-- WhatsApp ve Sosyal Medya Paylaşım Kartı (Open Graph) -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Ömer Avniyel Akademi">
+  <meta property="og:description" content="Öğrenci Bilgi ve Takip Portalı">
+  <meta property="og:site_name" content="Ömer Avniyel Akademi">
+  <meta property="og:image" content="icon.svg">
   
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#059669">
@@ -11,14 +19,15 @@
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- html2canvas CDN (Veli ile Paylaşım İçin Görüntü Alma Kütüphanesi) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <!-- html2canvas CDN (Veli ile Paylaşım İçin Görüntü Alma Kütüphanesi - Çift CDN Korumalı) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';"></script>
   
   <!-- Özel Stiller ve Yazdırma Kuralları -->
-  <link rel="stylesheet" href="css/custom.css?v=3.5">
+  <link rel="stylesheet" href="css/custom.css">
   
   <script>
-    tailwind.config = {
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = {
       theme: {
         extend: {
           colors: {
@@ -31,22 +40,44 @@
           }
         }
       }
-    }
-  </script>
-  <script>
+    };
+
+    // Global Hata Yakalayıcı
     window.addEventListener('error', function(e) {
+      if (e.target && (e.target.tagName === 'IMG' || e.target.tagName === 'LINK' || e.target.tagName === 'SCRIPT')) {
+        return;
+      }
+      var main = document.getElementById('main-content');
+      if (main && (!main.children || main.children.length === 0)) {
+        main.innerHTML = '<div style="max-width:640px;margin:40px auto;padding:24px;background:#fff1f2;border:2px solid #f43f5e;border-radius:20px;color:#9f1239;font-family:system-ui,sans-serif;box-shadow:0 10px 25px rgba(0,0,0,0.1);">' +
+          '<h3 style="font-weight:900;font-size:18px;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><span>⚠️</span> <span>Sistem Başlatma Uyarısı</span></h3>' +
+          '<p style="font-size:13px;margin-bottom:12px;color:#881337;">Sayfa çalışırken bir hata yakalandı:</p>' +
+          '<div style="background:#fff;padding:12px;border-radius:12px;border:1px solid #fecdd3;font-family:monospace;font-size:12px;word-break:break-all;color:#be123c;">' +
+          '<strong>' + (e.message || 'JavaScript Hatası') + '</strong><br><small style="color:#64748b;">Dosya: ' + (e.filename || 'Bilinmiyor') + ' | Satır: ' + (e.lineno || '?') + '</small></div>' +
+          '</div>';
+      }
+    });
+
+    // Dosya & Modül Yüklenme Kontrolü (Ağ gecikmelerini ve yanlış yerel çalıştırmaları güvenle yönetir)
+    window.addEventListener('load', function() {
       setTimeout(function() {
-        var main = document.getElementById('main-content');
-        if (main) {
-          main.innerHTML = '<div style="max-width:640px;margin:40px auto;padding:24px;background:#fff1f2;border:2px solid #f43f5e;border-radius:20px;color:#9f1239;font-family:sans-serif;box-shadow:0 10px 25px rgba(0,0,0,0.1);">' +
-            '<h3 style="font-weight:900;font-size:18px;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><span>⚠️</span> <span>Sistem Başlatma Hatası</span></h3>' +
-            '<p style="font-size:13px;margin-bottom:12px;color:#881337;">Sayfa çalışırken bir JavaScript hatası yakalandı:</p>' +
-            '<div style="background:#fff;padding:12px;border-radius:12px;border:1px solid #fecdd3;font-family:monospace;font-size:12px;word-break:break-all;color:#be123c;">' +
-            '<strong>' + (e.message || 'Hata') + '</strong><br><small style="color:#64748b;">Dosya: ' + (e.filename || 'Bilinmiyor') + ' | Satır: ' + (e.lineno || '?') + '</small></div>' +
-            '<p style="font-size:12px;margin-top:12px;color:#9f1239;">Bu hata mesajı ekranın boş kalmaması için otomatik gösterilmiştir.</p>' +
-            '</div>';
+        if (!window.App || !window.Store) {
+          var main = document.getElementById('main-content');
+          if (main && (!main.children || main.children.length === 0)) {
+            main.innerHTML = '<div style="max-width:600px;margin:40px auto;padding:30px;background:#ffffff;border:2px solid #f59e0b;border-radius:24px;box-shadow:0 15px 35px rgba(0,0,0,0.08);font-family:system-ui,sans-serif;text-align:center;">' +
+              '<div style="font-size:44px;margin-bottom:12px;">📁</div>' +
+              '<h2 style="font-size:19px;font-weight:900;color:#92400e;margin-bottom:10px;">JavaScript Modülleri Bulunamadı</h2>' +
+              '<p style="font-size:14px;color:#475569;line-height:1.6;margin-bottom:16px;">' +
+              'Bu sayfanın açılabilmesi için <strong>js/</strong> ve <strong>css/</strong> klasörlerinin <code>index.html</code> dosyasının yanında bulunması gerekir.' +
+              '</p>' +
+              '<div style="background:#fef3c7;padding:12px 16px;border-radius:14px;font-size:12px;color:#78350f;text-align:left;line-height:1.5;margin-bottom:14px;">' +
+              '💡 <strong>Çözüm:</strong> Eğer bu dosyayı Masaüstüne tek başına kopyaladıysanız, lütfen <code>okul-yoklama-performans</code> klasörünün tamamını açıp içindeki <code>baslat.bat</code> veya <code>index.html</code> dosyasına tıklayınız.' +
+              '</div>' +
+              '<button onclick="location.reload()" style="padding:10px 22px;background:#059669;color:#fff;font-weight:bold;border:none;border-radius:14px;cursor:pointer;font-size:13px;">Sayfayı Yeniden Yükle ⟳</button>' +
+              '</div>';
+          }
         }
-      }, 50);
+      }, 3000);
     });
   </script>
 </head>
@@ -62,12 +93,22 @@
     <!-- app.js renderMainContent() ile doldurulacak -->
   </main>
 
-
+  <!-- Alt Bilgi (Footer) -->
+  <footer class="no-print bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <strong>Kurs & Etüt Öğrenci Takip Sistemi</strong> • Ana Yönetici, Personel & Veli Ortak Portalı
+      </div>
+      <div class="text-[11px] text-slate-400">
+        Yoklama Durumları: <strong>Var</strong>, <strong>Yok</strong>, <strong>Geç</strong>, <strong>Takkesiz</strong>, <strong>İzinli</strong>
+      </div>
+    </div>
+  </footer>
 
   <!-- Toast Bildirim Konteyneri -->
   <div id="toast-container"></div>
 
-  <!-- Sağdan Kayar Menü Penceresi (Slide-Over Drawer) -->
+  <!-- Soldan Kayar Menü Penceresi (Slide-Over Drawer) -->
   <div id="side-drawer-container" class="fixed inset-0 z-50 pointer-events-none transition-all duration-300">
     <!-- Karartma Arka Planı -->
     <div id="side-drawer-backdrop" onclick="window.App.closeDrawer()" 
@@ -273,14 +314,16 @@
     </div>
   </div>
 
-  <!-- JavaScript Modülleri (Cache-Busting ile Her Zaman En Güncel Sürüm) -->
-  <script src="js/store.js?v=3.5"></script>
-  <script src="js/attendance.js?v=3.5"></script>
-  <script src="js/leave-tracker.js?v=3.5"></script>
-  <script src="js/leave-return.js?v=3.5"></script>
-  <script src="js/performance.js?v=3.5"></script>
-  <script src="js/leaderboard.js?v=3.5"></script>
-  <script src="js/parent-portal.js?v=3.5"></script>
-  <script src="js/app.js?v=3.5"></script>
+  <!-- JavaScript Modülleri -->
+  <script src="js/store.js"></script>
+  <script src="js/attendance.js"></script>
+  <script src="js/leave-tracker.js"></script>
+  <script src="js/leave-return.js"></script>
+  <script src="js/performance.js"></script>
+  <script src="js/test-results.js"></script>
+  <script src="js/leaderboard.js"></script>
+  <script src="js/parent-portal.js"></script>
+  <script src="js/student-excel.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

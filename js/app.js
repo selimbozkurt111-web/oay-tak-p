@@ -327,6 +327,8 @@ window.App = {
       activeTitle = '🧳 İzin Dönüşü Takibi';
     } else if (this.activeTab === 'ogrenciler') {
       activeTitle = '👥 Öğrenci Yönetimi';
+    } else if (this.activeTab === 'ogrenciler_excel') {
+      activeTitle = '📊 Canlı Excel Tablosu';
     } else if (this.activeTab === 'personel') {
       activeTitle = '👨‍🏫 Personel Yönetimi';
     } else if (this.activeTab === 'ayarlar') {
@@ -675,6 +677,26 @@ window.App = {
           <div class="space-y-1.5 pt-3 border-t border-slate-100">
             <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">YÖNETİCİ İŞLEMLERİ</div>
 
+            <!-- Canlı Excel Tablosu (Sadece Yönetici) -->
+            <button type="button" onclick="window.App.navigateFromDrawer('ogrenciler_excel')"
+              class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+                this.activeTab === 'ogrenciler_excel'
+                  ? 'bg-emerald-50 text-emerald-900 font-black border border-emerald-200 shadow-sm'
+                  : 'text-slate-700 hover:bg-slate-50 font-bold'
+              }">
+              <div class="flex items-center gap-3">
+                <span class="text-xl">📊</span>
+                <div>
+                  <div class="text-xs font-black flex items-center gap-1.5">
+                    <span>Canlı Excel Tablosu</span>
+                    <span class="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Yönetici</span>
+                  </div>
+                  <div class="text-[10px] text-slate-400 font-medium">Hücreden talebe bilgisi düzenleme & senkron</div>
+                </div>
+              </div>
+              <span class="text-slate-300">→</span>
+            </button>
+
             <!-- Personel & Şifre Yönetimi -->
             <button type="button" onclick="window.App.navigateFromDrawer('personel')"
               class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
@@ -954,6 +976,11 @@ window.App = {
     } else if (this.activeTab === 'ogrenciler') {
       main.innerHTML = `<div id="students-container"></div>`;
       this.renderStudentsView();
+    } else if (this.activeTab === 'ogrenciler_excel') {
+      main.innerHTML = `<div id="student-excel-container"></div>`;
+      if (window.StudentExcelModule) {
+        window.StudentExcelModule.init();
+      }
     } else if (this.activeTab === 'personel') {
       main.innerHTML = `<div id="staff-container"></div>`;
       this.renderStaffView();
@@ -1002,6 +1029,10 @@ window.App = {
 
           ${canEdit ? `
             <div class="flex items-center gap-2.5">
+              <button onclick="window.App.setTab('ogrenciler_excel')" 
+                class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer">
+                <span>📊 Canlı Excel Tablosu</span>
+              </button>
               <button onclick="window.App.openBulkImportModal()" 
                 class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
                 <span>📋 Excel'den Toplu Ekle</span>
