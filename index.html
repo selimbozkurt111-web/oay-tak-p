@@ -42,13 +42,13 @@
       }
     };
 
-    // Global Hata Yakalayıcı (Hataları ekranda açıkça gösterir)
+    // Global Hata Yakalayıcı
     window.addEventListener('error', function(e) {
-      if (e.target && (e.target.tagName === 'IMG' || e.target.tagName === 'LINK')) {
+      if (e.target && (e.target.tagName === 'IMG' || e.target.tagName === 'LINK' || e.target.tagName === 'SCRIPT')) {
         return;
       }
       var main = document.getElementById('main-content');
-      if (main) {
+      if (main && (!main.children || main.children.length === 0)) {
         main.innerHTML = '<div style="max-width:640px;margin:40px auto;padding:24px;background:#fff1f2;border:2px solid #f43f5e;border-radius:20px;color:#9f1239;font-family:system-ui,sans-serif;box-shadow:0 10px 25px rgba(0,0,0,0.1);">' +
           '<h3 style="font-weight:900;font-size:18px;margin-bottom:8px;display:flex;align-items:center;gap:8px;"><span>⚠️</span> <span>Sistem Başlatma Uyarısı</span></h3>' +
           '<p style="font-size:13px;margin-bottom:12px;color:#881337;">Sayfa çalışırken bir hata yakalandı:</p>' +
@@ -58,25 +58,26 @@
       }
     });
 
-    // Dosya & Modül Yüklenme Kontrolü (Ekranın asla boş kalmamasını garanti eder)
-    window.addEventListener('DOMContentLoaded', function() {
+    // Dosya & Modül Yüklenme Kontrolü (Ağ gecikmelerini ve yanlış yerel çalıştırmaları güvenle yönetir)
+    window.addEventListener('load', function() {
       setTimeout(function() {
         if (!window.App || !window.Store) {
           var main = document.getElementById('main-content');
-          if (main) {
+          if (main && (!main.children || main.children.length === 0)) {
             main.innerHTML = '<div style="max-width:600px;margin:40px auto;padding:30px;background:#ffffff;border:2px solid #f59e0b;border-radius:24px;box-shadow:0 15px 35px rgba(0,0,0,0.08);font-family:system-ui,sans-serif;text-align:center;">' +
               '<div style="font-size:44px;margin-bottom:12px;">📁</div>' +
               '<h2 style="font-size:19px;font-weight:900;color:#92400e;margin-bottom:10px;">JavaScript Modülleri Bulunamadı</h2>' +
               '<p style="font-size:14px;color:#475569;line-height:1.6;margin-bottom:16px;">' +
               'Bu sayfanın açılabilmesi için <strong>js/</strong> ve <strong>css/</strong> klasörlerinin <code>index.html</code> dosyasının yanında bulunması gerekir.' +
               '</p>' +
-              '<div style="background:#fef3c7;padding:12px 16px;border-radius:14px;font-size:12px;color:#78350f;text-align:left;line-height:1.5;">' +
-              '💡 <strong>Çözüm:</strong> Eğer bu dosyayı Masaüstüne tek başına kopyaladıysanız, lütfen <code>okul-yoklama-performans</code> klasörünün tamamını açıp içindeki <code>index.html</code> dosyasına tıklayınız.' +
+              '<div style="background:#fef3c7;padding:12px 16px;border-radius:14px;font-size:12px;color:#78350f;text-align:left;line-height:1.5;margin-bottom:14px;">' +
+              '💡 <strong>Çözüm:</strong> Eğer bu dosyayı Masaüstüne tek başına kopyaladıysanız, lütfen <code>okul-yoklama-performans</code> klasörünün tamamını açıp içindeki <code>baslat.bat</code> veya <code>index.html</code> dosyasına tıklayınız.' +
               '</div>' +
+              '<button onclick="location.reload()" style="padding:10px 22px;background:#059669;color:#fff;font-weight:bold;border:none;border-radius:14px;cursor:pointer;font-size:13px;">Sayfayı Yeniden Yükle ⟳</button>' +
               '</div>';
           }
         }
-      }, 400);
+      }, 3000);
     });
   </script>
 </head>
