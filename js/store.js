@@ -522,7 +522,9 @@ class DataStore {
     });
 
     if (matchedStaff) {
-      const isDirector = matchedStaff.id === 'stf_1' || (matchedStaff.fullName && matchedStaff.fullName.toUpperCase().includes('SELİM BOZKURT'));
+      const isDirector = matchedStaff.id === 'stf_1' || 
+                         (matchedStaff.fullName && matchedStaff.fullName.toUpperCase().includes('SELİM BOZKURT')) ||
+                         (matchedStaff.role && (matchedStaff.role.toLowerCase().includes('yönetici') || matchedStaff.role.toLowerCase().includes('müdür')));
       return {
         role: isDirector ? 'superadmin' : 'staff',
         staffId: matchedStaff.id,
@@ -1718,8 +1720,11 @@ class DataStore {
           onTimeCount++;
         } else if (ret.status === 'GEC') {
           lateCount++;
-          const penalty = Math.min(25, ret.diffMinutes || 0);
+          const penalty = Math.min(25, ret.lateMinutes || ret.diffMinutes || 0);
           izinPoints += Math.max(0, 25 - penalty);
+        } else if (ret.status === 'IZINLI') {
+          // İzinli olan talebeler puan alamaz (0 Puan), ceza da alamaz (0 Ceza)
+          // izinPoints artırılmaz, ceza kesilmez.
         }
       }
     });
