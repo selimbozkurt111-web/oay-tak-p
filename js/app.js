@@ -34,34 +34,65 @@ window.App = {
     this.renderHeader();
     this.renderMainContent();
 
-    // Bulut senkronizasyonu tamamlandığında ekranı sessizce tazele
+    // Bulut senkronizasyonu tamamlandığında ekranı sessizce ve kesintisiz tazele
     window.addEventListener('cloud-sync-done', () => {
       this.renderHeader();
       if (this.currentSession) {
-        this.renderMainContent();
+        if (this.activeTab === 'izin_donusu' && window.LeaveReturnModule) {
+          if (typeof window.LeaveReturnModule.refreshSettings === 'function') {
+            window.LeaveReturnModule.refreshSettings();
+          }
+          window.LeaveReturnModule.renderView();
+        } else if (this.activeTab === 'izin_cikis' && window.LeaveTrackerModule) {
+          window.LeaveTrackerModule.renderView();
+        } else if (this.activeTab === 'yoklama' && window.AttendanceModule) {
+          window.AttendanceModule.renderView();
+        } else if (this.activeTab !== 'ogrenciler_excel') {
+          this.renderMainContent();
+        }
       }
     });
 
-    // Eğer Firebase URL tanımlıysa sayfa açıldığında buluttan en güncel veriyi çek
+    // Başka sekmede/pencerede yapılan kayıtları anında algıla
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'yoklama_leave_returns_v1' || e.key === 'yoklama_settings' || e.key === 'yoklama_attendance') {
+        window.dispatchEvent(new CustomEvent('cloud-sync-done'));
+      }
+    });
+
+    // Eğer Firebase URL tanımlıysa sayfa açıldığında buluttan en güncel veriyi çek ve canlı dinleyiciyi başlat
     if (window.Store && window.Store.isCloudEnabled()) {
+      // 1. Canlı Gerçek Zamanlı SSE Dinleyiciyi Başlat (Anında Değişim)
+      if (typeof window.Store.initRealtimeListener === 'function') {
+        window.Store.initRealtimeListener();
+      }
+
+      // 2. İlk açılışta verileri çek
       window.Store.syncFromCloud().then(res => {
         if (res && res.success) {
           console.log('[CloudSync] İlk senkronizasyon başarılı:', res.message);
         }
       });
 
-      // Kullanıcı sayfaya geri döndüğünde (sekme değişiminde) ve her 60 saniyede bir eşitle
+      // 3. Kullanıcı sayfaya geri döndüğünde (sekme değişimi / ekran kilidi açılışı) hemen eşitle
       window.addEventListener('focus', () => {
         window.Store.syncFromCloud();
         this.checkAndTriggerYatakReminder();
       });
 
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && window.Store.isCloudEnabled()) {
+          window.Store.syncFromCloud();
+        }
+      });
+
+      // 4. Kesintisiz yedek kalp atışı (Her 10 saniyede bir hızlı kontrol)
       setInterval(() => {
         if (window.Store.isCloudEnabled()) {
           window.Store.syncFromCloud();
         }
         this.checkAndTriggerYatakReminder();
-      }, 60000);
+      }, 10000);
     }
 
     // Yatak kontrolü zamanlayıcısını sayfa açılışında da bir kez denetle

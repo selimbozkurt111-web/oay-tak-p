@@ -19,7 +19,24 @@ window.LeaveReturnModule = {
   activeExcuseStudentId: null,
 
   init() {
+    this.refreshSettings();
     this.renderView();
+  },
+
+  refreshSettings() {
+    if (window.Store) {
+      const s = window.Store.getSettings();
+      if (s.expectedSundayTime) {
+        this.expectedSundayTime = s.expectedSundayTime;
+        this.expectedReturnTime = s.expectedSundayTime;
+      }
+      if (s.expectedMondayTime) {
+        this.expectedMondayTime = s.expectedMondayTime;
+      }
+      if (s.leaveReturnDate) {
+        this.currentDate = s.leaveReturnDate;
+      }
+    }
   },
 
   // 0: Pazar, 1: Pazartesi, 2: Salı, ...
@@ -50,22 +67,22 @@ window.LeaveReturnModule = {
   setDate(dateStr) {
     if (!dateStr) return;
     this.currentDate = dateStr;
+    if (window.Store) {
+      window.Store.saveSettings({ leaveReturnDate: dateStr });
+    }
     this.renderView();
   },
 
   setToday() {
-    this.currentDate = new Date().toISOString().split('T')[0];
-    this.renderView();
+    this.setDate(new Date().toISOString().split('T')[0]);
   },
 
   prevDay() {
-    this.currentDate = this.getPreviousDayString(this.currentDate);
-    this.renderView();
+    this.setDate(this.getPreviousDayString(this.currentDate));
   },
 
   nextDay() {
-    this.currentDate = this.getNextDayString(this.currentDate);
-    this.renderView();
+    this.setDate(this.getNextDayString(this.currentDate));
   },
 
   // 5 veya 6. Sınıf kontrolü
@@ -94,10 +111,16 @@ window.LeaveReturnModule = {
     this.expectedReturnTime = timeStr;
     localStorage.setItem('yoklama_expected_sunday_time', timeStr);
     localStorage.setItem('yoklama_expected_return_time', timeStr);
+    if (window.Store) {
+      window.Store.saveSettings({ 
+        expectedSundayTime: timeStr,
+        expectedReturnTime: timeStr 
+      });
+    }
     this.recalculateCurrentDayReturns();
     this.renderView();
     if (window.App && window.App.showToast) {
-      window.App.showToast(`Pazar akşamı dönüş saati ${timeStr} olarak güncellendi.`, 'info');
+      window.App.showToast(`Pazar akşamı dönüş saati ${timeStr} olarak güncellendi ve tüm cihazlara eşitlendi.`, 'info');
     }
   },
 
@@ -105,10 +128,13 @@ window.LeaveReturnModule = {
     if (!timeStr) return;
     this.expectedMondayTime = timeStr;
     localStorage.setItem('yoklama_expected_monday_time', timeStr);
+    if (window.Store) {
+      window.Store.saveSettings({ expectedMondayTime: timeStr });
+    }
     this.recalculateCurrentDayReturns();
     this.renderView();
     if (window.App && window.App.showToast) {
-      window.App.showToast(`Pazartesi sabahı dönüş saati ${timeStr} olarak güncellendi.`, 'info');
+      window.App.showToast(`Pazartesi sabahı dönüş saati ${timeStr} olarak güncellendi ve tüm cihazlara eşitlendi.`, 'info');
     }
   },
 
@@ -396,6 +422,7 @@ window.LeaveReturnModule = {
   },
 
   renderView() {
+    this.refreshSettings();
     const container = document.getElementById('leave-return-container');
     if (!container) return;
 

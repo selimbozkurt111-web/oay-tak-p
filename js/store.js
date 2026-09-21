@@ -55,7 +55,10 @@ const DEFAULT_SETTINGS = {
   firebaseUrl: 'https://oay-takip-default-rtdb.firebaseio.com', // Canlı Bulut Veritabanı URL
   yatakReminderEnabled: true, // Otomatik yatak kontrolü hatırlatıcısı
   yatakReminderStartTime: '08:30', // Başlangıç saati (sabah 08:30)
-  yatakReminderIntervalMins: 30 // Kontrol edilmedikçe her 30 dakikada bir tekrar
+  yatakReminderIntervalMins: 30, // Kontrol edilmedikçe her 30 dakikada bir tekrar
+  expectedSundayTime: '18:00', // Pazar akşamı 7 ve 8. sınıflar için standart dönüş saati
+  expectedMondayTime: '08:00', // Pazartesi sabahı 5 ve 6. sınıflar için standart dönüş saati
+  leaveReturnDate: '' // Seçili izin dönüş tarihi (tüm cihazlarda ortak takip için)
 };
 
 // Sistemdeki Eğitmen / Hoca Kadrosu (İsim ve Şifreleri ile)
@@ -330,75 +333,7 @@ class DataStore {
         return { success: true, message: 'Bulutta henüz kayıtlı veri bulunmuyor.' };
       }
 
-      // 1. Yoklamaları birleştir
-      if (Array.isArray(cloudData.attendance)) {
-        const localAtt = this.getAttendance();
-        const attMap = new Map();
-        localAtt.forEach(a => { if (a && a.id) attMap.set(a.id, a); });
-        cloudData.attendance.forEach(a => {
-          if (a && a.id) {
-            const existing = attMap.get(a.id);
-            if (!existing || (a.recordedAt && (!existing.recordedAt || new Date(a.recordedAt) >= new Date(existing.recordedAt)))) {
-              attMap.set(a.id, a);
-            }
-          }
-        });
-        localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(Array.from(attMap.values())));
-      }
-
-      // 2. Performans notlarını birleştir
-      if (Array.isArray(cloudData.performance)) {
-        const localPerf = this.getPerformances();
-        const perfMap = new Map();
-        localPerf.forEach(p => { if (p && p.id) perfMap.set(p.id, p); });
-        cloudData.performance.forEach(p => { if (p && p.id) perfMap.set(p.id, p); });
-        localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(Array.from(perfMap.values())));
-      }
-
-      // 3. Takviye ders notlarını birleştir
-      if (Array.isArray(cloudData.academicScores)) {
-        const localAcad = this.getAcademicScores();
-        const acadMap = new Map();
-        localAcad.forEach(s => { if (s && s.studentId) acadMap.set(`${s.studentId}_${s.date}_${s.subject}`, s); });
-        cloudData.academicScores.forEach(s => {
-          if (s && s.studentId) acadMap.set(`${s.studentId}_${s.date}_${s.subject}`, s);
-        });
-        localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(Array.from(acadMap.values())));
-      }
-
-      // 4. Öğrenci listesi
-      if (Array.isArray(cloudData.students) && cloudData.students.length > 0) {
-        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(cloudData.students));
-      }
-
-      // 5. Hoca listesi
-      if (Array.isArray(cloudData.staff) && cloudData.staff.length > 0) {
-        localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(cloudData.staff));
-      }
-
-      // 6. İzin kapı çıkışları
-      if (cloudData.gateCheckouts && typeof cloudData.gateCheckouts === 'object') {
-        localStorage.setItem(STORAGE_KEYS.LEAVE_CHECKOUT, JSON.stringify(cloudData.gateCheckouts));
-      }
-
-      // 7. İzin dönüş kayıtları
-      if (cloudData.leaveReturns && typeof cloudData.leaveReturns === 'object') {
-        localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(cloudData.leaveReturns));
-      }
-
-      // 8. Hoca Takdir / Bonus Puanları
-      if (Array.isArray(cloudData.bonusPoints)) {
-        localStorage.setItem(STORAGE_KEYS.BONUS_POINTS, JSON.stringify(cloudData.bonusPoints));
-      }
-
-      // 9. Ayarlar
-      if (cloudData.settings) {
-        const localSettings = this.getSettings();
-        const merged = { ...localSettings, ...cloudData.settings };
-        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
-      }
-
-      window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: cloudData }));
+      this.applyFullCloudSync(cloudData);
       return { 
         success: true, 
         message: 'Buluttaki en güncel yoklama ve not kayıtları cihazınıza başarıyla aktarıldı.' 
@@ -407,7 +342,194 @@ class DataStore {
       console.warn('[CloudSync] Veri çekme hatası (çevrimdışı):', err);
       return { success: false, message: err.message };
     }
-  }
+  },
+
+  // Buluttan Gelen Verileri Yerel Hafıza ile Eksiksiz ve Akıllıca Birleştirme (Deep Merge)
+  applyFullCloudSync(cloudData) {
+    if (!cloudData || typeof cloudData !== 'object') return;
+
+    // 1. Yoklamaları birleştir
+    if (Array.isArray(cloudData.attendance)) {
+      const localAtt = this.getAttendance();
+      const attMap = new Map();
+      localAtt.forEach(a => { if (a && a.id) attMap.set(a.id, a); });
+      cloudData.attendance.forEach(a => {
+        if (a && a.id) {
+          const existing = attMap.get(a.id);
+          if (!existing || (a.recordedAt && (!existing.recordedAt || new Date(a.recordedAt) >= new Date(existing.recordedAt)))) {
+            attMap.set(a.id, a);
+          }
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(Array.from(attMap.values())));
+    }
+
+    // 2. Performans notlarını birleştir
+    if (Array.isArray(cloudData.performance)) {
+      const localPerf = this.getPerformances();
+      const perfMap = new Map();
+      localPerf.forEach(p => { if (p && p.id) perfMap.set(p.id, p); });
+      cloudData.performance.forEach(p => { if (p && p.id) perfMap.set(p.id, p); });
+      localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(Array.from(perfMap.values())));
+    }
+
+    // 3. Takviye ders notlarını birleştir
+    if (Array.isArray(cloudData.academicScores)) {
+      const localAcad = this.getAcademicScores();
+      const acadMap = new Map();
+      localAcad.forEach(s => { if (s && s.studentId) acadMap.set(`${s.studentId}_${s.date}_${s.subject}`, s); });
+      cloudData.academicScores.forEach(s => {
+        if (s && s.studentId) acadMap.set(`${s.studentId}_${s.date}_${s.subject}`, s);
+      });
+      localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(Array.from(acadMap.values())));
+    }
+
+    // 4. Öğrenci listesi
+    if (Array.isArray(cloudData.students) && cloudData.students.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(cloudData.students));
+    }
+
+    // 5. Hoca listesi
+    if (Array.isArray(cloudData.staff) && cloudData.staff.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(cloudData.staff));
+    }
+
+    // 6. İzin kapı çıkışları
+    if (cloudData.gateCheckouts && typeof cloudData.gateCheckouts === 'object') {
+      localStorage.setItem(STORAGE_KEYS.LEAVE_CHECKOUT, JSON.stringify(cloudData.gateCheckouts));
+    }
+
+    // 7. İzin dönüş kayıtları (Akıllı birleştirme: En güncel updatedAt kazanır)
+    if (cloudData.leaveReturns && typeof cloudData.leaveReturns === 'object') {
+      const localReturns = this.getAllLeaveReturns();
+      const mergedReturns = { ...localReturns };
+      Object.keys(cloudData.leaveReturns).forEach(dStr => {
+        if (!mergedReturns[dStr]) {
+          mergedReturns[dStr] = {};
+        }
+        const dayRecords = cloudData.leaveReturns[dStr];
+        if (dayRecords && typeof dayRecords === 'object') {
+          Object.keys(dayRecords).forEach(stId => {
+            const cloudRec = dayRecords[stId];
+            const localRec = mergedReturns[dStr][stId];
+            if (!localRec || !localRec.updatedAt || (cloudRec && cloudRec.updatedAt && new Date(cloudRec.updatedAt) >= new Date(localRec.updatedAt))) {
+              mergedReturns[dStr][stId] = cloudRec;
+            }
+          });
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(mergedReturns));
+    }
+
+    // 8. Hoca Takdir / Bonus Puanları
+    if (Array.isArray(cloudData.bonusPoints)) {
+      localStorage.setItem(STORAGE_KEYS.BONUS_POINTS, JSON.stringify(cloudData.bonusPoints));
+    }
+
+    // 9. Ayarlar (Tarih, Pazar/Pazartesi saatleri vb. ortak ayarlar)
+    if (cloudData.settings && typeof cloudData.settings === 'object') {
+      const localSettings = this.getSettings();
+      const merged = { ...localSettings, ...cloudData.settings };
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
+      if (window.LeaveReturnModule && typeof window.LeaveReturnModule.refreshSettings === 'function') {
+        window.LeaveReturnModule.refreshSettings();
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: cloudData }));
+  },
+
+  // Gerçek Zamanlı (Realtime SSE) Bulut Dinleyicisi - Anında Değişim
+  initRealtimeListener() {
+    const baseUrl = this.getFirebaseUrl();
+    if (!baseUrl || typeof EventSource === 'undefined') return;
+
+    if (this._eventSource) {
+      try { this._eventSource.close(); } catch (e) {}
+      this._eventSource = null;
+    }
+
+    try {
+      this._eventSource = new EventSource(`${baseUrl}/kurs_data.json`);
+
+      this._eventSource.addEventListener('put', (e) => {
+        if (!e || !e.data) return;
+        try {
+          const parsed = JSON.parse(e.data);
+          const path = (parsed.path || '').replace(/^\/+/, '');
+          const data = parsed.data;
+
+          if (!path || path === '') {
+            this.applyFullCloudSync(data);
+          } else if (path.startsWith('leaveReturns')) {
+            this.handleRealtimeLeaveReturn(path, data);
+          } else if (path.startsWith('settings')) {
+            this.handleRealtimeSettings(path, data);
+          } else {
+            this.syncFromCloud();
+          }
+        } catch (err) {
+          console.warn('[RealtimeSync] Ayrıştırma hatası:', err);
+        }
+      });
+
+      this._eventSource.onerror = () => {
+        // SSE bağlantısı koptuğunda arka planda otomatik yeniden dener
+      };
+    } catch (err) {
+      console.warn('[RealtimeSync] EventSource başlatılamadı:', err);
+    }
+  },
+
+  handleRealtimeLeaveReturn(path, data) {
+    try {
+      const parts = path.split('/');
+      const all = this.getAllLeaveReturns();
+      if (parts.length === 3) {
+        const dateStr = parts[1];
+        const studentId = parts[2];
+        if (!all[dateStr]) all[dateStr] = {};
+        if (data === null) {
+          delete all[dateStr][studentId];
+        } else {
+          all[dateStr][studentId] = data;
+        }
+      } else if (parts.length === 2) {
+        const dateStr = parts[1];
+        if (data === null) {
+          delete all[dateStr];
+        } else {
+          all[dateStr] = data;
+        }
+      } else if (parts.length === 1 && typeof data === 'object') {
+        Object.assign(all, data || {});
+      }
+      localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(all));
+      window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: { type: 'leaveReturns', path, data } }));
+    } catch (e) {
+      console.warn('[handleRealtimeLeaveReturn] Hata:', e);
+    }
+  },
+
+  handleRealtimeSettings(path, data) {
+    try {
+      const current = this.getSettings();
+      let merged;
+      const parts = path.split('/');
+      if (parts.length === 2) {
+        merged = { ...current, [parts[1]]: data };
+      } else {
+        merged = { ...current, ...(data || {}) };
+      }
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
+      if (window.LeaveReturnModule && typeof window.LeaveReturnModule.refreshSettings === 'function') {
+        window.LeaveReturnModule.refreshSettings();
+      }
+      window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: { type: 'settings', data: merged } }));
+    } catch (e) {
+      console.warn('[handleRealtimeSettings] Hata:', e);
+    }
+  },
 
   // --- Ana Yönetici E-posta Doğrulama Kodu (OTP) Üretimi ---
   generateAdminOtp(emailInput) {
