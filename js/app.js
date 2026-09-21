@@ -2520,7 +2520,8 @@ window.App = {
 // ========================================================
 // --- CANLI EXCEL TABLOSU YÖNETİM MODÜLÜ (GÜVENLİ FALLBACK) ---
 // ========================================================
-window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
+if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn !== 'function') {
+  window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
   selectedClass: 'ALL',
   selectedStatus: 'ALL', // 'ALL' | 'ACTIVE' | 'PASSIVE'
   searchQuery: '',
@@ -2657,12 +2658,19 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
 
       if (this.searchQuery) {
         const q = this.searchQuery;
+        const customCols = (window.Store && typeof window.Store.getCustomColumns === 'function')
+          ? window.Store.getCustomColumns()
+          : [];
         students = students.filter(s => {
-          const fullStr = [
+          const fullArr = [
             s.studentNo, s.firstName, s.lastName, s.className, s.school,
             s.etutHocasi, s.dahiliHoca, s.yatakhane, s.fatherName,
             s.parentPhone, s.fatherPhone, s.familyCode, s.password
-          ].filter(Boolean).join(' ').toLowerCase();
+          ];
+          customCols.forEach(col => {
+            if (s[col.key]) fullArr.push(s[col.key]);
+          });
+          const fullStr = fullArr.filter(Boolean).join(' ').toLowerCase();
           return fullStr.includes(q);
         });
       }
@@ -2786,6 +2794,41 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       }, 100);
     },
 
+    // Yeni Özel Sütun Ekle (Örn: Kan Grubu, TC Kimlik No, Servis, Memleket, Not)
+    addNewColumn() {
+      if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+        window.App.showToast('Yeni sütun ekleme yetkisi yalnızca Ana Yöneticidedir.', 'error');
+        return;
+      }
+      const label = prompt('Eklenecek yeni sütunun başlığını giriniz:\n(Örn: Kan Grubu, TC Kimlik No, Memleket, Servis, Özel Not)');
+      if (!label || !label.trim()) return;
+
+      const cleanLabel = label.trim();
+      if (cleanLabel.length > 40) {
+        window.App.showToast('Sütun başlığı 40 karakterden uzun olamaz!', 'warning');
+        return;
+      }
+
+      const col = window.Store.addCustomColumn(cleanLabel);
+      if (col) {
+        window.App.showToast(`"${cleanLabel}" sütunu başarıyla eklendi!`, 'success');
+        this.render();
+      }
+    },
+
+    // Özel Sütunu Kaldır / Sil
+    deleteColumn(colKey, colLabel) {
+      if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+        window.App.showToast('Sütun silme yetkisi yalnızca Ana Yöneticidedir.', 'error');
+        return;
+      }
+      if (confirm(`"${colLabel}" sütununu tablodan KALDIRMAK istediğinizden emin misiniz?\n\n(Talebelerdeki bu sütuna ait kayıtlar sistemde korunur ancak tablodan gizlenir.)`)) {
+        window.Store.deleteCustomColumn(colKey);
+        window.App.showToast(`"${colLabel}" sütunu kaldırıldı.`, 'info');
+        this.render();
+      }
+    },
+
     // Talebeyi Pasife veya Aktife Al
     togglePassive(id) {
       if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
@@ -2834,10 +2877,16 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
         return;
       }
 
+      const customColumns = (window.Store && typeof window.Store.getCustomColumns === 'function')
+        ? window.Store.getCustomColumns()
+        : [];
+
       const headers = [
         'Okul No', 'Adı', 'Soyadı', 'Sınıfı', 'Okulu', 'Seviye',
         'Etüt Hocası', 'Dahili Hocası', 'Yatakhane', 'Veli Adı',
-        'Veli Telefon', 'Veli Giriş Şifresi', 'Ortak Aile Kodu'
+        'Veli Telefon',
+        ...customColumns.map(c => c.label),
+        'Veli Giriş Şifresi', 'Ortak Aile Kodu'
       ];
 
       const escapeCsv = (val) => {
@@ -2861,6 +2910,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
           st.yatakhane || '',
           st.fatherName || '',
           st.parentPhone || st.fatherPhone || '',
+          ...customColumns.map(c => st[c.key] || ''),
           st.password || '123',
           st.familyCode || ''
         ];
@@ -2906,6 +2956,10 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       const activeCount = allStudentsList.filter(s => !s.isPassive && s.status !== 'passive').length;
       const passiveCount = allStudentsList.filter(s => s.isPassive === true || s.status === 'passive').length;
 
+      const customColumns = (window.Store && typeof window.Store.getCustomColumns === 'function')
+        ? window.Store.getCustomColumns()
+        : [];
+
       container.innerHTML = `
         <div class="space-y-4 max-w-[100vw] mx-auto animate-fade-in pb-12 px-1 sm:px-4">
           
@@ -2931,7 +2985,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                 </div>
               </div>
 
-              <!-- Sağ Butonlar: Canlı Kayıt, Yeni Satır, Excel İndir & Standart Liste -->
+              <!-- Sağ Butonlar: Canlı Kayıt, Yeni Satır, Yeni Sütun, Excel İndir & Standart Liste -->
               <div class="flex flex-wrap items-center gap-2">
                 <div id="excel-save-indicator" class="h-6 flex items-center mr-1"></div>
 
@@ -2941,6 +2995,14 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                   title="Tablonun altına hemen yeni bir boş öğrenci satırı ekler">
                   <span>➕</span>
                   <span>Yeni Satır Ekle</span>
+                </button>
+
+                <!-- + Yeni Sütun Ekle -->
+                <button type="button" onclick="window.StudentExcelModule.addNewColumn()"
+                  class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Tabloya yeni bir sütun ekler (Örn: Kan Grubu, TC Kimlik No, Servis, Memleket, Özel Not)">
+                  <span>📑</span>
+                  <span>Yeni Sütun Ekle</span>
                 </button>
 
                 <!-- Excel (CSV) İndir -->
@@ -3030,7 +3092,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
           <!-- EXCEL GRID TABLOSU -->
           <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="overflow-x-auto max-h-[75vh]">
-              <table class="w-full text-left border-collapse table-fixed text-xs min-w-[1280px]">
+              <table class="w-full text-left border-collapse table-fixed text-xs" style="min-width: ${Math.max(1280, 1280 + customColumns.length * 140)}px;">
                 <!-- Sütun Başlıkları -->
                 <thead class="sticky top-0 z-20 bg-slate-900 text-white shadow-sm">
                   <tr class="h-9 text-[11px] font-black uppercase tracking-wider divide-x divide-slate-800">
@@ -3053,6 +3115,18 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                     <th class="w-24 px-2">Yatakhane</th>
                     <th class="w-32 px-2">Veli Adı</th>
                     <th class="w-32 px-2">Veli Telefonu</th>
+                    ${customColumns.map(col => `
+                      <th class="w-36 px-2 group/col relative bg-indigo-950/70 text-indigo-200 hover:text-white transition">
+                        <div class="flex items-center justify-between">
+                          <span class="truncate cursor-pointer" onclick="window.StudentExcelModule.toggleSort('${col.key}')" title="${this.escapeHtml(col.label)} (Sıralamak için tıkla)">
+                            ${this.escapeHtml(col.label)} ↕
+                          </span>
+                          <button type="button" onclick="window.StudentExcelModule.deleteColumn('${col.key}', '${this.escapeHtml(col.label)}')" 
+                            class="opacity-60 group-hover/col:opacity-100 hover:text-rose-400 p-0.5 ml-1 rounded transition text-xs cursor-pointer" 
+                            title="Bu Sütunu Sil">✕</button>
+                        </div>
+                      </th>
+                    `).join('')}
                     <th class="w-24 px-2 text-center bg-amber-950/60 text-amber-300">Giriş Şifresi</th>
                     <th class="w-28 px-2">Ortak Aile Kodu</th>
                     <th class="w-20 text-center bg-slate-950">İşlem</th>
@@ -3106,6 +3180,10 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
         console.error('getFilteredStudents error:', err);
       }
 
+      const customColumns = (window.Store && typeof window.Store.getCustomColumns === 'function')
+        ? window.Store.getCustomColumns()
+        : [];
+
       const counterEl = document.getElementById('excel-total-counter');
       if (counterEl) {
         counterEl.textContent = `Toplam ${students.length} Talebe Listeleniyor`;
@@ -3114,7 +3192,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       if (!students || students.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="14" class="p-12 text-center text-slate-400 text-xs font-bold">
+            <td colspan="${14 + customColumns.length}" class="p-12 text-center text-slate-400 text-xs font-bold">
               Kriterlere uygun veya kayıtlı talebe bulunamadı.
               <button type="button" onclick="window.StudentExcelModule.resetFilterAndRestore()"
                 class="ml-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition cursor-pointer">
@@ -3252,26 +3330,44 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                 onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 10)">
             </td>
 
+            <!-- Dinamik Özel Sütunlar -->
+            ${customColumns.map((col, cIdx) => {
+              const cellColIdx = 11 + cIdx;
+              const colVal = st[col.key] != null ? st[col.key] : '';
+              return `
+                <td class="p-0 bg-indigo-50/20">
+                  <input type="text" value="${this.escapeHtml(colVal)}"
+                    id="excel-cell-${rowIdx}-${cellColIdx}"
+                    data-student-id="${st.id}" data-field="${col.key}"
+                    placeholder="Yazınız..."
+                    class="excel-input w-full h-8 px-2 bg-transparent text-slate-800 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    oninput="window.StudentExcelModule.handleCellInput('${st.id}', '${col.key}', this.value)"
+                    onblur="window.StudentExcelModule.handleCellBlur('${st.id}', '${col.key}', this.value)"
+                    onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, ${cellColIdx})">
+                </td>
+              `;
+            }).join('')}
+
             <!-- 11. Veli Giriş Şifresi -->
             <td class="p-0 ${isCustomPass ? 'bg-amber-100/60' : 'bg-slate-50/50'}">
               <input type="text" value="${this.escapeHtml(st.password || '123')}" 
-                id="excel-cell-${rowIdx}-11"
+                id="excel-cell-${rowIdx}-${11 + customColumns.length}"
                 data-student-id="${st.id}" data-field="password"
                 class="excel-input w-full h-8 px-2 text-center font-mono font-black text-xs ${isCustomPass ? 'text-amber-950' : 'text-slate-700'} focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 oninput="window.StudentExcelModule.handleCellInput('${st.id}', 'password', this.value)"
                 onblur="window.StudentExcelModule.handleCellBlur('${st.id}', 'password', this.value)"
-                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 11)">
+                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, ${11 + customColumns.length})">
             </td>
 
             <!-- 12. Ortak Aile Kodu -->
             <td class="p-0">
               <input type="text" value="${this.escapeHtml(st.familyCode || '')}" 
-                id="excel-cell-${rowIdx}-12"
+                id="excel-cell-${rowIdx}-${12 + customColumns.length}"
                 data-student-id="${st.id}" data-field="familyCode"
                 class="excel-input w-full h-8 px-2 bg-transparent text-indigo-950 font-mono font-bold text-xs uppercase focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 oninput="window.StudentExcelModule.handleCellInput('${st.id}', 'familyCode', this.value)"
                 onblur="window.StudentExcelModule.handleCellBlur('${st.id}', 'familyCode', this.value)"
-                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 12)">
+                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, ${12 + customColumns.length})">
             </td>
 
             <!-- 13. İşlem (Pasife/Aktife Al & Sil) -->
@@ -3304,7 +3400,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
         console.error('renderTableBody render error:', err);
         tbody.innerHTML = `
           <tr>
-            <td colspan="14" class="p-8 text-center text-rose-600 text-xs font-bold">
+            <td colspan="${14 + customColumns.length}" class="p-8 text-center text-rose-600 text-xs font-bold">
               Tablo yüklenirken bir sorun oluştu.
               <button type="button" onclick="window.StudentExcelModule.resetFilterAndRestore()"
                 class="ml-2 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold">
@@ -3316,6 +3412,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       }
     }
   });
+}
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
