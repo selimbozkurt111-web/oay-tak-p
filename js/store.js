@@ -560,6 +560,14 @@ class DataStore {
     };
   }
 
+  // Aktif yönetici giriş kodunu döner (Ekranda göster özelliği için)
+  getActiveAdminOtpCode() {
+    if (this.activeAdminOtp && Date.now() <= this.activeAdminOtp.expiresAt) {
+      return this.activeAdminOtp.code;
+    }
+    return null;
+  }
+
   verifyAdminOtp(enteredCode) {
     const clean = (enteredCode || '').trim();
     const isMaster = clean === '123' || clean === '123456' || (this.activeAdminOtp && this.activeAdminOtp.code.trim() === clean);
@@ -659,7 +667,7 @@ class DataStore {
     }
 
     // 2. Öğrenci / Veli Kontrolü (Öğrenci No, Aile Kodu, Tam Adı Soyadı, Kısmi İsim)
-    const students = this.getStudents();
+    const students = this.getAllStudents();
     const matchedStudent = students.find(s => {
       const stdNo = (s.studentNo || '').toString().trim();
       const stdFamNorm = this.normalizeSearchKey(s.familyCode);
@@ -770,8 +778,8 @@ class DataStore {
     return { success: true };
   }
 
-  // --- Öğrenci İşlemleri ---
-  getStudents() {
+  // --- Öğrenci İşlemleri (Aktif & Pasif Desteği) ---
+  getAllStudents() {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
       if (data) {
@@ -788,18 +796,30 @@ class DataStore {
     }
   }
 
+  // Varsayılan olarak sadece AKTİF öğrencileri getirir. includePassive=true verilirse tümünü getirir.
+  getStudents(includePassive = false) {
+    const list = this.getAllStudents();
+    if (includePassive) return list;
+    return list.filter(s => s && !s.isPassive && s.status !== 'passive');
+  }
+
+  // Sadece pasife alınmış öğrencileri listeler
+  getPassiveStudents() {
+    return this.getAllStudents().filter(s => s && (s.isPassive === true || s.status === 'passive'));
+  }
+
   getStudentById(id) {
-    return this.getStudents().find(s => s.id === id) || null;
+    return this.getAllStudents().find(s => s.id === id) || null;
   }
 
   getStudentByNo(no) {
-    return this.getStudents().find(s => s.studentNo.toString().trim() === no.toString().trim()) || null;
+    return this.getAllStudents().find(s => (s.studentNo || '').toString().trim() === no.toString().trim()) || null;
   }
 
   getStudentsByFamilyCode(code) {
     if (!code) return [];
     const cleanCode = code.trim().toUpperCase();
-    return this.getStudents().filter(s => (s.familyCode || '').trim().toUpperCase() === cleanCode);
+    return this.getAllStudents().filter(s => (s.familyCode || '').trim().toUpperCase() === cleanCode);
   }
 
   saveStudents(students) {
@@ -810,12 +830,15 @@ class DataStore {
   }
 
   addStudent(student) {
-    const students = this.getStudents();
+    const students = this.getAllStudents();
+    const isPassive = student.isPassive === true || student.status === 'passive';
     const newStudent = {
       ...student,
       id: 'std_' + Date.now() + '_' + Math.floor(Math.random()*1000),
       password: student.password || '123',
-      familyCode: (student.familyCode || (student.lastName ? student.lastName + '2026' : 'AILE2026')).trim().toUpperCase()
+      familyCode: (student.familyCode || (student.lastName ? student.lastName + '2026' : 'AILE2026')).trim().toUpperCase(),
+      isPassive: isPassive,
+      status: isPassive ? 'passive' : 'active'
     };
     students.push(newStudent);
     this.saveStudents(students);
@@ -823,12 +846,20 @@ class DataStore {
   }
 
   updateStudent(id, updatedData) {
-    const students = this.getStudents();
+    const students = this.getAllStudents();
     const index = students.findIndex(s => s.id === id);
     if (index !== -1) {
+      let isPassiveVal = students[index].isPassive;
+      if (updatedData.isPassive !== undefined) {
+        isPassiveVal = !!updatedData.isPassive;
+      } else if (updatedData.status !== undefined) {
+        isPassiveVal = updatedData.status === 'passive';
+      }
       students[index] = {
         ...students[index],
         ...updatedData,
+        isPassive: isPassiveVal,
+        status: isPassiveVal ? 'passive' : 'active',
         familyCode: (updatedData.familyCode || students[index].familyCode || '').trim().toUpperCase()
       };
       this.saveStudents(students);
@@ -838,12 +869,36 @@ class DataStore {
   }
 
   deleteStudent(id) {
-    let students = this.getStudents().filter(s => s.id !== id);
+    let students = this.getAllStudents().filter(s => s.id !== id);
     this.saveStudents(students);
   }
 
+  // Talebeyi Pasife veya Aktife Geçirme (Tek tıkla değiştirme)
+  toggleStudentPassive(id) {
+    const students = this.getAllStudents();
+    const s = students.find(st => st.id === id);
+    if (!s) return { success: false, message: 'Öğrenci bulunamadı.' };
+    const nowPassive = !(s.isPassive === true || s.status === 'passive');
+    s.isPassive = nowPassive;
+    s.status = nowPassive ? 'passive' : 'active';
+    s.updatedAt = new Date().toISOString();
+    this.saveStudents(students);
+    return { success: true, isPassive: nowPassive, student: s };
+  }
+
+  setStudentPassive(id, isPassive) {
+    const students = this.getAllStudents();
+    const s = students.find(st => st.id === id);
+    if (!s) return { success: false, message: 'Öğrenci bulunamadı.' };
+    s.isPassive = !!isPassive;
+    s.status = isPassive ? 'passive' : 'active';
+    s.updatedAt = new Date().toISOString();
+    this.saveStudents(students);
+    return { success: true, isPassive: s.isPassive, student: s };
+  }
+
   updateStudentPassword(id, newPassword) {
-    const list = this.getStudents();
+    const list = this.getAllStudents();
     const std = list.find(s => s.id === id);
     if (!std) return { success: false, message: 'Öğrenci bulunamadı.' };
     const cleanPass = (newPassword || '123').toString().trim();
@@ -859,13 +914,13 @@ class DataStore {
     return { success: true, count };
   }
 
-  getClasses() {
-    const list = this.getStudents();
+  getClasses(includePassive = false) {
+    const list = includePassive ? this.getAllStudents() : this.getStudents();
     return [...new Set(list.map(s => s && s.className).filter(Boolean))].sort();
   }
 
-  getEtutHocalari() {
-    const list = this.getStudents();
+  getEtutHocalari(includePassive = false) {
+    const list = includePassive ? this.getAllStudents() : this.getStudents();
     return [...new Set(list.map(s => s && s.etutHocasi).filter(Boolean))].sort();
   }
 

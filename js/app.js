@@ -9,13 +9,17 @@ window.App = {
   loginTab: 'parent', // 'parent' (Veli) veya 'staff' (Eğitmen)
   otpStep: 'request', // 'request' (mail yazma) veya 'verify' (kodu girme)
   adminEmailDraft: '',
+  showAdminOtpOnScreen: true, // Kodu ekranda gösterme tercihi
+  lastGeneratedAdminOtp: '',
   studentFilterClass: 'ALL',
+  studentFilterStatus: 'ALL', // 'ALL' | 'ACTIVE' | 'PASSIVE'
   studentSearchQuery: '',
 
   init() {
-    const saved = sessionStorage.getItem('yoklama_active_session');
+    const saved = sessionStorage.getItem('yoklama_active_session') || localStorage.getItem('yoklama_active_session');
     if (saved) {
       try {
+        sessionStorage.setItem('yoklama_active_session', saved);
         this.currentSession = JSON.parse(saved);
         if (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'stf_1' || (this.currentSession.name && this.currentSession.name.toUpperCase().includes('SELİM BOZKURT')))) {
           this.currentSession.role = 'superadmin';
@@ -201,6 +205,7 @@ window.App = {
 
     this.currentSession = session;
     sessionStorage.setItem('yoklama_active_session', JSON.stringify(session));
+    localStorage.setItem('yoklama_active_session', JSON.stringify(session));
 
     if (session.role === 'superadmin' || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) {
       this.activeTab = 'ogrenciler_excel';
@@ -254,31 +259,58 @@ window.App = {
     }
 
     this.adminEmailDraft = email;
+    this.lastGeneratedAdminOtp = res.code;
+    this.showAdminOtpOnScreen = true; // Kodu hemen ekranda da göster
     this.otpStep = 'verify';
 
-    this.showToast(`📩 6 haneli doğrulama kodunuz ${email} adresinize gönderildi. Lütfen e-postanızı kontrol ediniz.`, 'success');
+    this.showToast(`🔑 Giriş Kodunuz: ${res.code} (Ayrıca e-postanıza gönderildi)`, 'success');
     this.renderMainContent();
+  },
+
+  // Ekranda Kod Göster / Gizle Açma Kapama Anahtarı
+  toggleShowAdminOtp() {
+    this.showAdminOtpOnScreen = !this.showAdminOtpOnScreen;
+    this.renderMainContent();
+  },
+
+  // Tek Tıkla Kodu Doldur ve Sisteme Gir
+  fillAdminOtpAndSubmit(code) {
+    const activeCode = code || this.lastGeneratedAdminOtp || (window.Store && window.Store.getActiveAdminOtpCode()) || '';
+    const codeInput = document.getElementById('admin-otp-code-input');
+    if (codeInput && activeCode) {
+      codeInput.value = activeCode;
+    }
+    this.handleAdminOtpVerify();
   },
 
   // --- Ana Yönetici Kodu Doğrulama ve Giriş ---
   handleAdminOtpVerify(event) {
     if (event) event.preventDefault();
     const codeInput = document.getElementById('admin-otp-code-input');
-    if (!codeInput || !codeInput.value.trim()) return;
+    let code = (codeInput && codeInput.value ? codeInput.value : '').trim();
+    if (!code) {
+      code = (this.lastGeneratedAdminOtp || (window.Store && window.Store.getActiveAdminOtpCode()) || '').trim();
+    }
+    if (!code) {
+      this.showToast('Lütfen 6 haneli doğrulama kodunu giriniz.', 'warning');
+      if (codeInput) codeInput.focus();
+      return;
+    }
 
-    const code = codeInput.value.trim();
     const res = window.Store.verifyAdminOtp(code);
 
     if (!res.success) {
       this.showToast(res.message, 'error');
-      codeInput.select();
+      if (codeInput) codeInput.select();
       return;
     }
 
     this.currentSession = res.session;
     sessionStorage.setItem('yoklama_active_session', JSON.stringify(res.session));
+    localStorage.setItem('yoklama_active_session', JSON.stringify(res.session));
     this.loginMode = 'user';
     this.otpStep = 'request';
+    this.lastGeneratedAdminOtp = '';
     this.activeTab = 'ogrenciler_excel';
 
     this.showToast('E-posta doğrulaması başarılı! Ana Yönetici olarak giriş yapıldı.', 'success');
@@ -289,6 +321,7 @@ window.App = {
   logout() {
     this.currentSession = null;
     sessionStorage.removeItem('yoklama_active_session');
+    localStorage.removeItem('yoklama_active_session');
     localStorage.removeItem('pano_admin_authorized');
     this.loginMode = 'user';
     this.otpStep = 'request';
@@ -878,48 +911,95 @@ window.App = {
                     <p class="text-[11px] text-slate-400 text-left mt-1">Giriş doğrulama kodunuz bu e-posta adresine gönderilecektir.</p>
                   </div>
 
+                  <div class="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 text-left flex items-start gap-2.5">
+                    <span class="text-base">💡</span>
+                    <div class="text-[11px] text-amber-900 leading-snug">
+                      <strong>E-postayı beklemenize gerek yok:</strong> Kod üretildiği an hem mailinize gönderilecek hem de <strong>ekranda görünecektir</strong>.
+                    </div>
+                  </div>
+
                   <button type="submit" id="admin-otp-btn"
-                    class="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2">
-                    <span>Doğrulama Kodu Gönder</span>
+                    class="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer">
+                    <span>Doğrulama Kodu Üret & Gönder</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                     </svg>
                   </button>
                 </form>
-              ` : `
+              ` : (() => {
+                const currentCode = this.lastGeneratedAdminOtp || (window.Store && window.Store.getActiveAdminOtpCode()) || '';
+                return `
                 <form onsubmit="window.App.handleAdminOtpVerify(event)" class="space-y-4 animate-fade-in">
-                  <div class="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-left space-y-1">
-                    <div class="flex items-center gap-2 text-amber-900 font-bold text-xs">
-                      <span>✉️</span> Doğrulama Kodu Gönderildi
+                  <!-- Ekranda Kod Kartı -->
+                  <div class="p-4 rounded-2xl bg-gradient-to-b from-amber-50 to-amber-100/50 border-2 border-amber-300 text-left space-y-2.5 shadow-xs">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-1.5 text-xs font-black text-amber-950">
+                        <span>🔑 GİRİŞ DOĞRULAMA KODU</span>
+                      </div>
+                      ${currentCode ? `
+                        <button type="button" onclick="window.App.toggleShowAdminOtp()" 
+                          class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white text-amber-900 border border-amber-300 hover:bg-amber-100 transition flex items-center gap-1 cursor-pointer shadow-2xs">
+                          <span>${this.showAdminOtpOnScreen ? '🙈 Kodu Gizle' : '👁️ Kodu Ekranda Göster'}</span>
+                        </button>
+                      ` : ''}
                     </div>
-                    <p class="text-[11px] text-amber-800 leading-relaxed">
-                      <strong>${this.adminEmailDraft}</strong> adresinize 6 haneli doğrulama kodu gönderildi. Lütfen e-postanızı kontrol ediniz.
-                    </p>
+
+                    ${this.showAdminOtpOnScreen && currentCode ? `
+                      <div class="bg-white p-3 rounded-xl border border-amber-300 shadow-xs space-y-2 animate-fade-in">
+                        <div class="flex items-center justify-between">
+                          <span class="text-[10px] text-slate-500 font-bold uppercase">Giriş Kodunuz:</span>
+                          <span class="text-[10px] text-emerald-800 font-black bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">10 Dk Geçerli</span>
+                        </div>
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <div class="text-2xl sm:text-3xl font-mono font-black text-amber-950 tracking-widest px-3 py-1 bg-amber-50/70 rounded-xl border border-amber-200 select-all">
+                            ${currentCode}
+                          </div>
+                          <button type="button" onclick="window.App.fillAdminOtpAndSubmit('${currentCode}')"
+                            class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+                            <span>⚡ Kodu Doldur & Gir</span>
+                          </button>
+                        </div>
+                      </div>
+                      <p class="text-[10px] text-amber-800">
+                        ✓ Kod ayrıca <strong>${this.adminEmailDraft}</strong> adresinize de gönderildi.
+                      </p>
+                    ` : `
+                      <p class="text-[11px] text-amber-800 leading-relaxed">
+                        <strong>${this.adminEmailDraft}</strong> adresinize 6 haneli doğrulama kodu gönderildi.
+                        ${currentCode ? `
+                          <br><button type="button" onclick="window.App.toggleShowAdminOtp()" class="font-bold underline text-amber-950 mt-1 cursor-pointer">
+                            👉 Kodu beklemeden ekranda görmek için tıklayınız.
+                          </button>
+                        ` : ''}
+                      </p>
+                    `}
                   </div>
 
                   <div>
                     <label class="block text-left text-xs font-bold text-slate-700 mb-1.5 uppercase">6 HANELİ DOĞRULAMA KODU</label>
                     <input type="text" id="admin-otp-code-input" maxlength="6" required autofocus placeholder="••••••" 
+                      value="${this.showAdminOtpOnScreen && currentCode ? currentCode : ''}"
                       class="w-full px-4 py-3 bg-slate-50 border-2 border-amber-300 rounded-xl text-center text-2xl font-mono font-bold tracking-widest text-slate-900 focus:border-amber-600 focus:bg-white focus:outline-none transition">
                   </div>
 
                   <button type="submit" 
-                    class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition">
+                    class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition cursor-pointer">
                     Doğrula ve Sisteme Gir
                   </button>
 
                   <div class="flex items-center justify-between text-xs pt-1">
                     <button type="button" onclick="window.App.otpStep='request'; window.App.renderMainContent();" 
-                      class="text-slate-400 hover:text-slate-600 font-medium">
+                      class="text-slate-400 hover:text-slate-600 font-medium cursor-pointer">
                       Farklı e-posta dene
                     </button>
                     <button type="button" onclick="window.App.handleAdminOtpRequest(null)" 
-                      class="text-amber-700 hover:text-amber-800 font-bold">
+                      class="text-amber-700 hover:text-amber-800 font-bold cursor-pointer">
                       Kodu Tekrar Gönder
                     </button>
                   </div>
                 </form>
-              `}
+                `;
+              })()}
 
 
               <div class="mt-6 pt-5 border-t border-slate-100 text-center">
@@ -1051,20 +1131,40 @@ window.App = {
     }
   },
 
+  // Kurum Yöneticisi / Müdür Yetki Kontrolü (Talebe Ekleme, Silme, Pasife/Aktife Alma)
+  canManageStudents() {
+    const session = this.currentSession;
+    return !!(session && (
+      session.role === 'superadmin' ||
+      session.canEditStudents === true ||
+      session.canManageStaff === true ||
+      session.staffId === 'stf_1' ||
+      (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')) ||
+      (session.name && session.name.toUpperCase().includes('YÖNETİCİ')) ||
+      (session.name && session.name.toUpperCase().includes('MÜDÜR'))
+    ));
+  },
+
   // --- Öğrenci & Şifre Yönetimi Görünümü ---
   renderStudentsView() {
     const container = document.getElementById('students-container');
     if (!container) return;
 
     const session = this.currentSession;
-    const canEdit = session && (
-      session.canEditStudents ||
-      session.role === 'superadmin' ||
-      session.staffId === 'stf_1' ||
-      (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))
-    );
-    const classes = window.Store.getClasses();
-    let students = window.Store.getStudents();
+    const canEdit = this.canManageStudents();
+    const classes = window.Store.getClasses(true);
+    let allStudentsList = window.Store.getAllStudents ? window.Store.getAllStudents() : window.Store.getStudents(true);
+    const allCount = allStudentsList.length;
+    const activeCount = allStudentsList.filter(s => !s.isPassive && s.status !== 'passive').length;
+    const passiveCount = allStudentsList.filter(s => s.isPassive === true || s.status === 'passive').length;
+
+    let students = [...allStudentsList];
+
+    if (this.studentFilterStatus === 'ACTIVE') {
+      students = students.filter(s => !s.isPassive && s.status !== 'passive');
+    } else if (this.studentFilterStatus === 'PASSIVE') {
+      students = students.filter(s => s.isPassive === true || s.status === 'passive');
+    }
 
     if (this.studentFilterClass !== 'ALL') {
       students = students.filter(s => s.className === this.studentFilterClass);
@@ -1089,7 +1189,7 @@ window.App = {
               ${!canEdit ? '<span class="text-xs px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold">(Salt Okunur Liste)</span>' : ''}
             </h3>
             <p class="text-xs text-slate-500">
-              ${canEdit ? 'Öğrencileri ve velilerin giriş yapacağı şifreleri Ana Yönetici olarak buradan düzenleyebilirsiniz.' : 'Eğitmenler listeyi inceleyebilir; şifre ve öğrenci düzenleme yetkisi Ana Yöneticidedir.'}
+              ${canEdit ? 'Öğrencileri, aktif/pasif durumlarını ve velilerin giriş yapacağı şifreleri buradan yönetebilirsiniz.' : 'Eğitmenler listeyi inceleyebilir; düzenleme yetkisi Ana Yöneticidedir.'}
             </p>
           </div>
 
@@ -1112,7 +1212,7 @@ window.App = {
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3 pt-4">
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center gap-3">
             <div>
               <select onchange="window.App.studentFilterClass = this.value; window.App.renderStudentsView();"
                 class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 focus:outline-none">
@@ -1120,14 +1220,43 @@ window.App = {
                 ${classes.map(c => `<option value="${c}" ${this.studentFilterClass === c ? 'selected' : ''}>${c}</option>`).join('')}
               </select>
             </div>
+
+            <!-- Durum Filtresi (Tümü / Aktif / Pasif) -->
+            <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              <button type="button" onclick="window.App.studentFilterStatus = 'ALL'; window.App.renderStudentsView();"
+                class="px-2.5 py-1 rounded-lg text-xs font-black transition ${
+                  (this.studentFilterStatus || 'ALL') === 'ALL'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }">
+                Tümü (${allCount})
+              </button>
+              <button type="button" onclick="window.App.studentFilterStatus = 'ACTIVE'; window.App.renderStudentsView();"
+                class="px-2.5 py-1 rounded-lg text-xs font-black transition ${
+                  this.studentFilterStatus === 'ACTIVE'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-emerald-700 hover:bg-emerald-50'
+                }">
+                🟢 Aktif (${activeCount})
+              </button>
+              <button type="button" onclick="window.App.studentFilterStatus = 'PASSIVE'; window.App.renderStudentsView();"
+                class="px-2.5 py-1 rounded-lg text-xs font-black transition ${
+                  this.studentFilterStatus === 'PASSIVE'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-amber-800 hover:bg-amber-50'
+                }">
+                ⏸️ Pasif (${passiveCount})
+              </button>
+            </div>
+
             <div>
               <input type="text" placeholder="İsim, No veya Hoca ara..." 
                 value="${this.studentSearchQuery}"
                 oninput="window.App.studentSearchQuery = this.value.toLowerCase().trim(); window.App.renderStudentsView();"
-                class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-700 focus:outline-none w-72">
+                class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-700 focus:outline-none w-64">
             </div>
           </div>
-          <span class="text-xs font-bold text-slate-500">Toplam ${students.length} Öğrenci</span>
+          <span class="text-xs font-bold text-slate-500">Listelenen: ${students.length} Talebe</span>
         </div>
       </div>
 
@@ -1150,11 +1279,21 @@ window.App = {
               ${students.length === 0 ? `
                 <tr><td colspan="${canEdit ? 8 : 7}" class="py-12 text-center text-slate-400">Öğrenci bulunamadı.</td></tr>
               ` : students.map(s => {
+                const isPassive = s && (s.isPassive === true || s.status === 'passive');
                 return `
-                  <tr class="table-row-hover transition">
-                    <td class="py-3 px-4 text-center font-bold text-slate-700">${s.studentNo}</td>
+                  <tr class="transition ${isPassive ? 'bg-amber-50/40 text-slate-500' : 'table-row-hover'}">
+                    <td class="py-3 px-4 text-center font-bold text-slate-700">
+                      ${s.studentNo}
+                    </td>
                     <td class="py-3 px-4">
-                      <div class="font-bold text-slate-900">${s.firstName} ${s.lastName}</div>
+                      <div class="font-bold text-slate-900 flex items-center gap-1.5">
+                        <span>${s.firstName} ${s.lastName}</span>
+                        ${isPassive ? `
+                          <span class="px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 font-black text-[9px] uppercase tracking-wider">
+                            PASİF
+                          </span>
+                        ` : ''}
+                      </div>
                     </td>
                     <td class="py-3 px-4 text-xs font-bold text-slate-800">${s.className}</td>
                     <td class="py-3 px-4 text-xs text-slate-600">${s.etutHocasi || '-'}<br><span class="text-[10px] text-slate-400">${s.dahiliHoca || ''}</span></td>
@@ -1180,10 +1319,19 @@ window.App = {
                     ${canEdit ? `
                       <td class="py-3 px-4 text-right">
                         <div class="flex items-center justify-end gap-1.5">
+                          ${isPassive ? `
+                            <button onclick="window.App.toggleStudentPassive('${s.id}')"
+                              class="p-1 text-emerald-600 hover:text-emerald-800 transition text-sm" 
+                              title="Talebeyi Tekrar Aktife Al (Yoklamalara dahil et)">▶️</button>
+                          ` : `
+                            <button onclick="window.App.toggleStudentPassive('${s.id}')"
+                              class="p-1 text-amber-500 hover:text-amber-700 transition text-sm" 
+                              title="Talebeyi Pasife Al (Yoklamalardan gizle, verileri silinmez)">⏸️</button>
+                          `}
                           <button onclick="window.App.openStudentModal('${s.id}')"
                             class="p-1 text-slate-400 hover:text-slate-700 transition" title="Düzenle / Şifre Değiştir">✏️</button>
                           <button onclick="window.App.deleteStudent('${s.id}')"
-                            class="p-1 text-slate-400 hover:text-rose-600 transition" title="Sil">🗑️</button>
+                            class="p-1 text-slate-400 hover:text-rose-600 transition" title="Kalıcı Olarak Sil">🗑️</button>
                         </div>
                       </td>
                     ` : ''}
@@ -1202,16 +1350,7 @@ window.App = {
     const container = document.getElementById('student-excel-container');
     if (!container) return;
 
-    const session = this.currentSession;
-    const isManager = session && (
-      session.role === 'superadmin' ||
-      session.canEditStudents === true ||
-      session.canManageStaff === true ||
-      session.staffId === 'stf_1' ||
-      (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')) ||
-      (session.name && session.name.toUpperCase().includes('YÖNETİCİ')) ||
-      (session.name && session.name.toUpperCase().includes('MÜDÜR'))
-    );
+    const isManager = this.canManageStudents();
 
     if (!isManager) {
       container.innerHTML = `
@@ -2016,6 +2155,10 @@ window.App = {
 
   // --- Excel'den Toplu İçe Aktarma ---
   openBulkImportModal() {
+    if (!this.canManageStudents()) {
+      this.showToast('Toplu öğrenci yükleme yetkisi yalnızca Ana Yöneticidedir.', 'warning');
+      return;
+    }
     const modal = document.getElementById('bulk-import-modal');
     if (modal) modal.classList.remove('hidden');
   },
@@ -2026,6 +2169,10 @@ window.App = {
   },
 
   handleBulkPasteImport() {
+    if (!this.canManageStudents()) {
+      this.showToast('Yetkisiz işlem!', 'error');
+      return;
+    }
     const text = document.getElementById('bulk-paste-textarea').value.trim();
     if (!text) {
       this.showToast('Lütfen listeyi yapıştırınız.', 'warning');
@@ -2077,6 +2224,10 @@ window.App = {
 
   // --- Tekil Öğrenci Modal İşlemleri ---
   openStudentModal(studentId = null) {
+    if (!this.canManageStudents()) {
+      this.showToast('Öğrenci ekleme ve düzenleme yetkisi yalnızca Ana Yöneticidedir.', 'warning');
+      return;
+    }
     const modal = document.getElementById('student-modal');
     const title = document.getElementById('student-modal-title');
     const form = document.getElementById('student-form');
@@ -2101,6 +2252,11 @@ window.App = {
         document.getElementById('modal-student-yatakhane').value = student.yatakhane || '';
         document.getElementById('modal-student-father').value = student.fatherName || '';
         document.getElementById('modal-student-phone').value = student.parentPhone || '';
+        const statusEl = document.getElementById('modal-student-status');
+        if (statusEl) {
+          const isPassive = student.isPassive === true || student.status === 'passive';
+          statusEl.value = isPassive ? 'passive' : 'active';
+        }
       }
     } else {
       title.innerText = 'Yeni Öğrenci Ekle';
@@ -2108,6 +2264,8 @@ window.App = {
       const maxNo = students.reduce((max, s) => Math.max(max, parseInt(s.studentNo) || 0), 100);
       document.getElementById('modal-student-no').value = maxNo + 1;
       document.getElementById('modal-student-pass').value = '123';
+      const statusEl = document.getElementById('modal-student-status');
+      if (statusEl) statusEl.value = 'active';
     }
 
     modal.classList.remove('hidden');
@@ -2120,6 +2278,10 @@ window.App = {
 
   saveStudentFromModal(event) {
     event.preventDefault();
+    if (!this.canManageStudents()) {
+      this.showToast('Bu işlemi gerçekleştirme yetkiniz bulunmamaktadır.', 'error');
+      return;
+    }
     const id = document.getElementById('modal-student-id').value;
     const studentNo = document.getElementById('modal-student-no').value.trim();
     const firstName = document.getElementById('modal-student-fn').value.trim();
@@ -2132,12 +2294,28 @@ window.App = {
     const yatakhane = document.getElementById('modal-student-yatakhane').value.trim();
     const fatherName = document.getElementById('modal-student-father').value.trim();
     const parentPhone = document.getElementById('modal-student-phone').value.trim();
+    const statusEl = document.getElementById('modal-student-status');
+    const isPassive = statusEl ? statusEl.value === 'passive' : false;
 
     if (!familyCode) {
       familyCode = (lastName + '2026').toUpperCase();
     }
 
-    const payload = { studentNo, firstName, lastName, className, password, familyCode, etutHocasi, dahiliHoca, yatakhane, fatherName, parentPhone };
+    const payload = { 
+      studentNo, 
+      firstName, 
+      lastName, 
+      className, 
+      password, 
+      familyCode, 
+      etutHocasi, 
+      dahiliHoca, 
+      yatakhane, 
+      fatherName, 
+      parentPhone,
+      isPassive,
+      status: isPassive ? 'passive' : 'active'
+    };
 
     if (id) {
       window.Store.updateStudent(id, payload);
@@ -2149,12 +2327,46 @@ window.App = {
 
     this.closeStudentModal();
     this.renderStudentsView();
+    if (window.StudentExcelModule && typeof window.StudentExcelModule.renderTableBody === 'function') {
+      window.StudentExcelModule.renderTableBody();
+    }
+  },
+
+  // Talebeyi Pasife veya Aktife Al
+  toggleStudentPassive(id) {
+    if (!this.canManageStudents()) {
+      this.showToast('Talebeleri pasife veya aktife alma yetkisi yalnızca Ana Yöneticidedir.', 'warning');
+      return;
+    }
+    const s = window.Store.getStudentById(id);
+    if (!s) return;
+    const isCurrentlyPassive = s.isPassive === true || s.status === 'passive';
+    const fullName = `${s.firstName} ${s.lastName}`.trim();
+    const msg = isCurrentlyPassive
+      ? `"${fullName}" adlı talebeyi tekrar AKTİFE almak istiyor musunuz?\n\n(Talebe günlük yoklama ve izin listelerine tekrar dahil edilecektir.)`
+      : `"${fullName}" adlı talebeyi PASİFE almak istiyor musunuz?\n\n(Talebenin hiçbir geçmiş verisi silinmez; sadece günlük yoklama, izin ve puan listelerinden gizlenir.)`;
+
+    if (confirm(msg)) {
+      const res = window.Store.toggleStudentPassive(id);
+      if (res && res.success) {
+        if (res.isPassive) {
+          this.showToast(`⏸️ "${fullName}" pasife alındı. Günlük yoklamalardan gizlendi.`, 'warning');
+        } else {
+          this.showToast(`▶️ "${fullName}" tekrar aktife alındı. Yoklamalara dahil edildi.`, 'success');
+        }
+        this.renderStudentsView();
+      }
+    }
   },
 
   deleteStudent(id) {
+    if (!this.canManageStudents()) {
+      this.showToast('Talebe silme yetkisi yalnızca Ana Yöneticidedir.', 'error');
+      return;
+    }
     const s = window.Store.getStudentById(id);
     if (!s) return;
-    if (confirm(`"${s.firstName} ${s.lastName}" adlı öğrenciyi silmek istediğinizden emin misiniz?`)) {
+    if (confirm(`"${s.firstName} ${s.lastName}" adlı öğrenciyi sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!\n(Öğrencinin geçmişini kaybetmemek için bunun yerine ⏸️ Pasife Alabilirsiniz.)`)) {
       window.Store.deleteStudent(id);
       this.showToast('Öğrenci kaydı silindi.', 'info');
       this.renderStudentsView();
@@ -2232,6 +2444,7 @@ window.App = {
       session.password = p1;
       session.staffId = stf.id;
       sessionStorage.setItem('yoklama_active_session', JSON.stringify(session));
+      localStorage.setItem('yoklama_active_session', JSON.stringify(session));
       this.showToast(`Şifreniz başarıyla güncellendi! Yeni şifreniz: ${p1}`, 'success');
       this.closeStaffSelfPasswordModal();
       this.renderHeader();
@@ -2275,6 +2488,7 @@ window.App = {
 // ========================================================
 window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
   selectedClass: 'ALL',
+  selectedStatus: 'ALL', // 'ALL' | 'ACTIVE' | 'PASSIVE'
   searchQuery: '',
   saveTimers: {},
   sortField: 'studentNo',
@@ -2334,6 +2548,11 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       this.renderTableBody();
     },
 
+    setStatusFilter(s) {
+      this.selectedStatus = s || 'ALL';
+      this.render();
+    },
+
     setSearchQuery(q) {
       this.searchQuery = (q || '').toLowerCase().trim();
       this.renderTableBody();
@@ -2351,12 +2570,13 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
 
     resetFilterAndRestore() {
       this.selectedClass = 'ALL';
+      this.selectedStatus = 'ALL';
       this.searchQuery = '';
-      const students = window.Store.getStudents();
-      if (!students || students.length === 0) {
-        if (typeof SEED_STUDENTS !== 'undefined' && Array.isArray(SEED_STUDENTS)) {
-          window.Store.saveStudents(SEED_STUDENTS);
-        }
+      const fallbackList = (window.Store && typeof window.Store.getAllStudents === 'function' && window.Store.getAllStudents()) ||
+                           (window.Store && typeof window.Store.getStudents === 'function' && window.Store.getStudents(true)) ||
+                           window.SEED_STUDENTS || [];
+      if (fallbackList.length > 0 && window.Store && typeof window.Store.saveStudents === 'function') {
+        window.Store.saveStudents(fallbackList);
       }
       this.render();
     },
@@ -2364,7 +2584,11 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
     getFilteredStudents() {
       let students = [];
       try {
-        students = window.Store.getStudents();
+        if (window.Store && typeof window.Store.getAllStudents === 'function') {
+          students = window.Store.getAllStudents();
+        } else if (window.Store && typeof window.Store.getStudents === 'function') {
+          students = window.Store.getStudents(true);
+        }
       } catch (e) {
         console.warn('Store.getStudents error:', e);
       }
@@ -2385,6 +2609,13 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       }
 
       students = students.filter(s => s && typeof s === 'object');
+
+      // Durum Filtresi (Tümü / Sadece Aktifler / Sadece Pasifler)
+      if (this.selectedStatus === 'ACTIVE') {
+        students = students.filter(s => !s.isPassive && s.status !== 'passive');
+      } else if (this.selectedStatus === 'PASSIVE') {
+        students = students.filter(s => s.isPassive === true || s.status === 'passive');
+      }
 
       if (this.selectedClass && this.selectedClass !== 'ALL') {
         students = students.filter(s => (s.className || '').toString().trim() === this.selectedClass.trim());
@@ -2485,6 +2716,10 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
     },
 
     addNewRow() {
+      if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+        window.App.showToast('Yeni öğrenci ekleme yetkisi yalnızca Ana Yöneticidedir.', 'error');
+        return;
+      }
       const students = window.Store.getStudents() || [];
       const maxNo = students.reduce((max, s) => Math.max(max, parseInt(s?.studentNo, 10) || 0), 100);
       const newNo = (maxNo + 1).toString();
@@ -2517,13 +2752,44 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       }, 100);
     },
 
-    deleteRow(id) {
+    // Talebeyi Pasife veya Aktife Al
+    togglePassive(id) {
+      if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+        window.App.showToast('Talebeleri pasife veya aktife alma yetkisi yalnızca Ana Yöneticidedir.', 'error');
+        return;
+      }
       const st = window.Store.getStudentById(id);
-      const name = st ? `${st.firstName || ''} ${st.lastName || ''}`.trim() : 'Bu öğrenciyi';
-      if (confirm(`"${name}" kaydını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`)) {
+      if (!st) return;
+      const isCurrentlyPassive = st.isPassive === true || st.status === 'passive';
+      const fullName = `${st.firstName || ''} ${st.lastName || ''}`.trim();
+      const msg = isCurrentlyPassive
+        ? `"${fullName}" adlı talebeyi tekrar AKTİFE almak istiyor musunuz?\n\n(Talebe günlük yoklama ve izin listelerine tekrar dahil edilecektir.)`
+        : `"${fullName}" adlı talebeyi PASİFE almak istiyor musunuz?\n\n(Talebenin hiçbir geçmiş verisi silinmez; sadece günlük yoklama, izin ve puan listelerinden gizlenir.)`;
+
+      if (confirm(msg)) {
+        const res = window.Store.toggleStudentPassive(id);
+        if (res && res.success) {
+          if (res.isPassive) {
+            window.App.showToast(`⏸️ "${fullName}" pasife alındı. Günlük yoklamalardan gizlendi.`, 'warning');
+          } else {
+            window.App.showToast(`▶️ "${fullName}" tekrar aktife alındı. Yoklamalara dahil edildi.`, 'success');
+          }
+          this.render();
+        }
+      }
+    },
+
+    deleteRow(id) {
+      if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+        window.App.showToast('Talebe silme yetkisi yalnızca Ana Yöneticidedir.', 'error');
+        return;
+      }
+      const st = window.Store.getStudentById(id);
+      const name = st ? `${st.firstName || ''} ${st.lastName || ''}`.trim() : 'Bu talebeyi';
+      if (confirm(`"${name}" kaydını sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!\n(Öğrencinin geçmişini kaybetmemek için bunun yerine ⏸️ Pasife Alabilirsiniz.)`)) {
         window.Store.deleteStudent(id);
         window.App.showToast('Öğrenci kaydı silindi.', 'info');
-        this.renderTableBody();
+        this.render();
       }
     },
 
@@ -2588,7 +2854,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       let allHocalar = [];
       try {
         if (window.Store && typeof window.Store.getClasses === 'function') {
-          const c = window.Store.getClasses();
+          const c = window.Store.getClasses(true);
           if (Array.isArray(c) && c.length > 0) classes = c;
         }
       } catch (e) {}
@@ -2598,6 +2864,13 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
           if (Array.isArray(h)) allHocalar = h;
         }
       } catch (e) {}
+
+      const allStudentsList = (window.Store && typeof window.Store.getAllStudents === 'function')
+        ? window.Store.getAllStudents()
+        : ((window.Store && typeof window.Store.getStudents === 'function') ? window.Store.getStudents(true) : []);
+      const allCount = allStudentsList.length;
+      const activeCount = allStudentsList.filter(s => !s.isPassive && s.status !== 'passive').length;
+      const passiveCount = allStudentsList.filter(s => s.isPassive === true || s.status === 'passive').length;
 
       container.innerHTML = `
         <div class="space-y-4 max-w-[100vw] mx-auto animate-fade-in pb-12 px-1 sm:px-4">
@@ -2656,31 +2929,61 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
 
             <!-- FİLTRE VE ARAMA BARI -->
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <!-- Sınıf Hap Butonları -->
-              <div class="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
-                <span class="text-[11px] font-black text-slate-500 uppercase mr-1">SINIF:</span>
-                <button type="button" onclick="window.StudentExcelModule.setFilterClass('ALL')"
-                  class="px-3 py-1 rounded-xl text-xs font-black transition ${
-                    this.selectedClass === 'ALL'
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }">
-                  Tümü
-                </button>
-                ${classes.map(c => `
-                  <button type="button" onclick="window.StudentExcelModule.setFilterClass('${c}')"
-                    class="px-2.5 py-1 rounded-xl text-xs font-black transition border ${
-                      this.selectedClass === c
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+              <div class="flex flex-wrap items-center gap-3">
+                <!-- Sınıf Hap Butonları -->
+                <div class="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
+                  <span class="text-[11px] font-black text-slate-500 uppercase mr-1">SINIF:</span>
+                  <button type="button" onclick="window.StudentExcelModule.setFilterClass('ALL')"
+                    class="px-3 py-1 rounded-xl text-xs font-black transition ${
+                      this.selectedClass === 'ALL'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }">
-                    ${c}
+                    Tümü
                   </button>
-                `).join('')}
+                  ${classes.map(c => `
+                    <button type="button" onclick="window.StudentExcelModule.setFilterClass('${c}')"
+                      class="px-2.5 py-1 rounded-xl text-xs font-black transition border ${
+                        this.selectedClass === c
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }">
+                      ${c}
+                    </button>
+                  `).join('')}
+                </div>
+
+                <!-- Durum Filtresi: Tümü, Aktifler, Pasifler -->
+                <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                  <button type="button" onclick="window.StudentExcelModule.setStatusFilter('ALL')"
+                    class="px-2.5 py-1 rounded-lg text-xs font-black transition ${
+                      (this.selectedStatus || 'ALL') === 'ALL'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }">
+                    Tümü (${allCount})
+                  </button>
+                  <button type="button" onclick="window.StudentExcelModule.setStatusFilter('ACTIVE')"
+                    class="px-2.5 py-1 rounded-lg text-xs font-black transition ${
+                      this.selectedStatus === 'ACTIVE'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-emerald-700 hover:bg-emerald-50'
+                    }">
+                    🟢 Aktif (${activeCount})
+                  </button>
+                  <button type="button" onclick="window.StudentExcelModule.setStatusFilter('PASSIVE')"
+                    class="px-2.5 py-1 rounded-lg text-xs font-black transition ${
+                      this.selectedStatus === 'PASSIVE'
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'text-amber-800 hover:bg-amber-50'
+                    }">
+                    ⏸️ Pasif (${passiveCount})
+                  </button>
+                </div>
               </div>
 
               <!-- Canlı Arama Kutusu -->
-              <div class="w-full sm:w-72 relative">
+              <div class="w-full sm:w-64 relative">
                 <input type="text" placeholder="İsim, No, Hoca veya Telefon ara..." 
                   value="${this.escapeHtml(this.searchQuery)}"
                   class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
@@ -2718,7 +3021,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                     <th class="w-32 px-2">Veli Telefonu</th>
                     <th class="w-24 px-2 text-center bg-amber-950/60 text-amber-300">Giriş Şifresi</th>
                     <th class="w-28 px-2">Ortak Aile Kodu</th>
-                    <th class="w-12 text-center bg-slate-950">İşlem</th>
+                    <th class="w-20 text-center bg-slate-950">İşlem</th>
                   </tr>
                 </thead>
 
@@ -2792,9 +3095,10 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       try {
         tbody.innerHTML = students.map((st, rowIdx) => {
           const isCustomPass = st && st.password != null && st.password.toString().trim() !== '123';
+          const isPassive = st && (st.isPassive === true || st.status === 'passive');
 
           return `
-          <tr class="hover:bg-amber-50/40 transition-colors h-8 divide-x divide-slate-100 group">
+          <tr class="hover:bg-amber-50/40 transition-colors h-8 divide-x divide-slate-100 group ${isPassive ? 'bg-amber-50/30 opacity-80' : ''}">
             <!-- 0. Sıra No -->
             <td class="text-center font-mono text-[10px] text-slate-400 bg-slate-50/70 select-none font-bold">
               ${rowIdx + 1}
@@ -2802,13 +3106,16 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
 
             <!-- 1. Okul No -->
             <td class="p-0">
-              <input type="text" value="${this.escapeHtml(st.studentNo)}" 
-                id="excel-cell-${rowIdx}-1"
-                data-student-id="${st.id}" data-field="studentNo"
-                class="excel-input w-full h-8 px-2 bg-transparent text-slate-900 font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                oninput="window.StudentExcelModule.handleCellInput('${st.id}', 'studentNo', this.value)"
-                onblur="window.StudentExcelModule.handleCellBlur('${st.id}', 'studentNo', this.value)"
-                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 1)">
+              <div class="flex items-center">
+                <input type="text" value="${this.escapeHtml(st.studentNo || '')}" 
+                  id="excel-cell-${rowIdx}-1"
+                  data-student-id="${st.id}" data-field="studentNo"
+                  class="excel-input flex-1 h-8 px-2 bg-transparent text-slate-900 font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  oninput="window.StudentExcelModule.handleCellInput('${st.id}', 'studentNo', this.value)"
+                  onblur="window.StudentExcelModule.handleCellBlur('${st.id}', 'studentNo', this.value)"
+                  onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 1)">
+                ${isPassive ? `<span class="mr-1 px-1 py-0.5 rounded bg-amber-200 text-amber-950 font-black text-[9px] uppercase tracking-tighter" title="Bu talebe pasiftir (Yoklamalardan gizlidir)">PASİF</span>` : ''}
+              </div>
             </td>
 
             <!-- 2. Adı -->
@@ -2933,13 +3240,28 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                 onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 12)">
             </td>
 
-            <!-- 13. İşlem (Sil) -->
+            <!-- 13. İşlem (Pasife/Aktife Al & Sil) -->
             <td class="text-center p-0">
-              <button type="button" onclick="window.StudentExcelModule.deleteRow('${st.id}')"
-                class="w-7 h-7 inline-flex items-center justify-center text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                title="Öğrenciyi Sil">
-                🗑️
-              </button>
+              <div class="flex items-center justify-center gap-1">
+                ${isPassive ? `
+                  <button type="button" onclick="window.StudentExcelModule.togglePassive('${st.id}')"
+                    class="w-7 h-7 inline-flex items-center justify-center text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition text-xs font-bold"
+                    title="Talebeyi Tekrar Aktife Al (Yoklamalara dahil et)">
+                    ▶️
+                  </button>
+                ` : `
+                  <button type="button" onclick="window.StudentExcelModule.togglePassive('${st.id}')"
+                    class="w-7 h-7 inline-flex items-center justify-center text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition text-xs"
+                    title="Talebeyi Pasife Al (Yoklamalardan gizle, geçmiş verileri silinmez)">
+                    ⏸️
+                  </button>
+                `}
+                <button type="button" onclick="window.StudentExcelModule.deleteRow('${st.id}')"
+                  class="w-7 h-7 inline-flex items-center justify-center text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition text-xs"
+                  title="Talebeyi Sistemden Kalıcı Sil">
+                  🗑️
+                </button>
+              </div>
             </td>
           </tr>
         `;
