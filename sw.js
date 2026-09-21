@@ -1,5 +1,5 @@
 // sw.js - Ömer Avniyel Akademi PWA Service Worker
-const CACHE_NAME = 'oay-takip-cache-v1';
+const CACHE_NAME = 'oay-takip-cache-v3';
 
 // Statik temel dosyalar
 const STATIC_ASSETS = [
@@ -19,6 +19,12 @@ self.addEventListener('install', (event) => {
       });
     })
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (event) => {

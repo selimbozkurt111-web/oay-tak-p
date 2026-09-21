@@ -9,6 +9,8 @@ window.App = {
   loginTab: 'parent', // 'parent' (Veli) veya 'staff' (Eğitmen)
   otpStep: 'request', // 'request' (mail yazma) veya 'verify' (kodu girme)
   adminEmailDraft: '',
+  showAdminOtpOnScreen: true, // Kodu ekranda gösterme tercihi
+  lastGeneratedAdminOtp: '',
   studentFilterClass: 'ALL',
   studentFilterStatus: 'ALL', // 'ALL' | 'ACTIVE' | 'PASSIVE'
   studentSearchQuery: '',
@@ -19,7 +21,17 @@ window.App = {
       try {
         sessionStorage.setItem('yoklama_active_session', saved);
         this.currentSession = JSON.parse(saved);
-        if (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'stf_1' || (this.currentSession.name && this.currentSession.name.toUpperCase().includes('SELİM BOZKURT')))) {
+        const sName = (this.currentSession?.name || '').toLowerCase().replace(/İ/g, 'i').replace(/I/g, 'i').replace(/ı/g, 'i');
+        const isMaster = this.currentSession && (
+          this.currentSession.role === 'superadmin' ||
+          this.currentSession.staffId === 'stf_1' ||
+          sName.includes('selim') ||
+          sName.includes('bozkurt') ||
+          sName.includes('yonetici') ||
+          sName.includes('mudur') ||
+          sName.includes('admin')
+        );
+        if (isMaster) {
           this.currentSession.role = 'superadmin';
           this.currentSession.canEditStudents = true;
           this.currentSession.canManageStaff = true;
@@ -99,6 +111,30 @@ window.App = {
 
     // Yatak kontrolü zamanlayıcısını sayfa açılışında da bir kez denetle
     this.checkAndTriggerYatakReminder();
+  },
+
+  // Tarayıcı ve PWA önbelleğini tek tıkla tamamen temizleyip en güncel kodları zorla yükleme
+  async hardRefreshApp() {
+    this.showToast('Önbellek temizleniyor ve sayfa yenileniyor...', 'info');
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) {
+          await reg.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (const key of keys) {
+          await caches.delete(key);
+        }
+      }
+    } catch (e) {
+      console.warn('Cache purge:', e);
+    }
+    setTimeout(() => {
+      window.location.reload(true);
+    }, 300);
   },
 
   // --- Kurs Logosu / Fotoğrafı Otomatik Aday Bulma ve Hata Yönetimi ---
@@ -257,24 +293,49 @@ window.App = {
     }
 
     this.adminEmailDraft = email;
+    this.lastGeneratedAdminOtp = res.code;
+    this.showAdminOtpOnScreen = true; // Kodu hemen ekranda da göster
     this.otpStep = 'verify';
 
-    this.showToast(`📩 6 haneli doğrulama kodunuz ${email} adresinize gönderildi. Lütfen e-postanızı kontrol ediniz.`, 'success');
+    this.showToast(`🔑 Giriş Kodunuz: ${res.code} (Ayrıca e-postanıza gönderildi)`, 'success');
     this.renderMainContent();
+  },
+
+  // Ekranda Kod Göster / Gizle Açma Kapama Anahtarı
+  toggleShowAdminOtp() {
+    this.showAdminOtpOnScreen = !this.showAdminOtpOnScreen;
+    this.renderMainContent();
+  },
+
+  // Tek Tıkla Kodu Doldur ve Sisteme Gir
+  fillAdminOtpAndSubmit(code) {
+    const activeCode = code || this.lastGeneratedAdminOtp || (window.Store && window.Store.getActiveAdminOtpCode()) || '';
+    const codeInput = document.getElementById('admin-otp-code-input');
+    if (codeInput && activeCode) {
+      codeInput.value = activeCode;
+    }
+    this.handleAdminOtpVerify();
   },
 
   // --- Ana Yönetici Kodu Doğrulama ve Giriş ---
   handleAdminOtpVerify(event) {
     if (event) event.preventDefault();
     const codeInput = document.getElementById('admin-otp-code-input');
-    if (!codeInput || !codeInput.value.trim()) return;
+    let code = (codeInput && codeInput.value ? codeInput.value : '').trim();
+    if (!code) {
+      code = (this.lastGeneratedAdminOtp || (window.Store && window.Store.getActiveAdminOtpCode()) || '').trim();
+    }
+    if (!code) {
+      this.showToast('Lütfen 6 haneli doğrulama kodunu giriniz.', 'warning');
+      if (codeInput) codeInput.focus();
+      return;
+    }
 
-    const code = codeInput.value.trim();
     const res = window.Store.verifyAdminOtp(code);
 
     if (!res.success) {
       this.showToast(res.message, 'error');
-      codeInput.select();
+      if (codeInput) codeInput.select();
       return;
     }
 
@@ -283,6 +344,7 @@ window.App = {
     localStorage.setItem('yoklama_active_session', JSON.stringify(res.session));
     this.loginMode = 'user';
     this.otpStep = 'request';
+    this.lastGeneratedAdminOtp = '';
     this.activeTab = 'ogrenciler_excel';
 
     this.showToast('E-posta doğrulaması başarılı! Ana Yönetici olarak giriş yapıldı.', 'success');
@@ -357,10 +419,28 @@ window.App = {
       else if (cat === 'okul_donusu') activeTitle = '🎒 Okul Dönüşü';
       else if (cat === 'namaz_rapor') activeTitle = '📊 Namaz Raporları';
     } else if (this.activeTab === 'akademi' || this.activeTab === 'performans') {
-      const subj = (window.AkademiModule && window.AkademiModule.currentSubject) || 'Türkçe';
-      activeTitle = `🎓 Akademi • ${subj}`;
+      let filterLabel = 'Tümü';
+      if (window.AkademiModule) {
+        if (window.AkademiModule.selectedEtut && window.AkademiModule.selectedEtut !== 'ALL') {
+          const etut = typeof window.AkademiModule.getEtutSubeleri === 'function' ? window.AkademiModule.getEtutSubeleri().find(e => e.id === window.AkademiModule.selectedEtut) : null;
+          filterLabel = etut ? etut.label : 'Etüt';
+        } else if (window.AkademiModule.selectedGrade && window.AkademiModule.selectedGrade !== 'ALL') {
+          filterLabel = `${window.AkademiModule.selectedGrade}. Sınıf`;
+        }
+      }
+      const sub = (window.AkademiModule && window.AkademiModule.currentSubCategory === 'genel') ? 'Genel Karne' : 'Takviye Notları';
+      activeTitle = `📚 Akademi • ${sub} (${filterLabel})`;
     } else if (this.activeTab === 'testler' || this.activeTab === 'test_sonuclari') {
-      activeTitle = '📝 Test Neticeleri & Etüt';
+      let filterLabel = 'Tümü';
+      if (window.TestResultsModule) {
+        if (window.TestResultsModule.selectedEtut && window.TestResultsModule.selectedEtut !== 'ALL') {
+          const etut = typeof window.TestResultsModule.getEtutSubeleri === 'function' ? window.TestResultsModule.getEtutSubeleri().find(e => e.id === window.TestResultsModule.selectedEtut) : null;
+          filterLabel = etut ? etut.label : 'Etüt';
+        } else if (window.TestResultsModule.selectedGrade && window.TestResultsModule.selectedGrade !== 'ALL') {
+          filterLabel = `${window.TestResultsModule.selectedGrade}. Sınıf`;
+        }
+      }
+      activeTitle = `📝 Test & Etüt (${filterLabel})`;
     } else if (this.activeTab === 'leaderboard') {
       activeTitle = '🏆 Haftanın & Ayın Talebesi';
     } else if (this.activeTab === 'izin_cikis') {
@@ -458,14 +538,30 @@ window.App = {
     }, 300);
   },
 
-  navigateFromDrawer(tab, category = null) {
+  navigateFromDrawer(tab, category = null, targetClass = null) {
     this.closeDrawer();
     this.activeTab = tab;
     if (tab === 'yoklama' && category && window.AttendanceModule) {
       window.AttendanceModule.currentCategory = category;
     }
-    if ((tab === 'akademi' || tab === 'performans') && category && window.AkademiModule) {
-      window.AkademiModule.currentSubCategory = category;
+    if (tab === 'akademi' || tab === 'performans') {
+      if (category && window.AkademiModule) {
+        window.AkademiModule.currentSubCategory = category;
+      }
+      if (window.AkademiModule) {
+        if (targetClass && targetClass.startsWith('GRADE_')) {
+          window.AkademiModule.selectedGrade = targetClass.replace('GRADE_', '');
+          window.AkademiModule.selectedEtut = 'ALL';
+        }
+      }
+    }
+    if (tab === 'testler' || tab === 'test_sonuclari') {
+      if (window.TestResultsModule) {
+        if (targetClass && targetClass.startsWith('GRADE_')) {
+          window.TestResultsModule.selectedGrade = targetClass.replace('GRADE_', '');
+          window.TestResultsModule.selectedEtut = 'ALL';
+        }
+      }
     }
     this.renderHeader();
     this.renderMainContent();
@@ -826,10 +922,16 @@ window.App = {
         ` : ''}
       </div>
 
-      <!-- Drawer Alt Bar: Güvenli Çıkış -->
-      <div class="p-4 border-t border-slate-100 bg-slate-50">
+      <!-- Drawer Alt Bar: Güvenli Çıkış ve Önbellek Yenileme -->
+      <div class="p-4 border-t border-slate-100 bg-slate-50 space-y-2">
+        <button type="button" onclick="window.App.hardRefreshApp();"
+          class="w-full py-2.5 px-4 rounded-xl text-slate-700 hover:bg-slate-200/70 border border-slate-200 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+          title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
+          <span>🔄</span>
+          <span>Sistemi & Önbelleği Yenile</span>
+        </button>
         <button type="button" onclick="window.App.closeDrawer(); window.App.logout();"
-          class="w-full py-3 px-4 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-black transition flex items-center justify-center gap-2">
+          class="w-full py-2.5 px-4 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer">
           <span>🚪</span>
           <span>Güvenli Çıkış Yap</span>
         </button>
@@ -883,48 +985,95 @@ window.App = {
                     <p class="text-[11px] text-slate-400 text-left mt-1">Giriş doğrulama kodunuz bu e-posta adresine gönderilecektir.</p>
                   </div>
 
+                  <div class="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 text-left flex items-start gap-2.5">
+                    <span class="text-base">💡</span>
+                    <div class="text-[11px] text-amber-900 leading-snug">
+                      <strong>E-postayı beklemenize gerek yok:</strong> Kod üretildiği an hem mailinize gönderilecek hem de <strong>ekranda görünecektir</strong>.
+                    </div>
+                  </div>
+
                   <button type="submit" id="admin-otp-btn"
-                    class="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2">
-                    <span>Doğrulama Kodu Gönder</span>
+                    class="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer">
+                    <span>Doğrulama Kodu Üret & Gönder</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                     </svg>
                   </button>
                 </form>
-              ` : `
+              ` : (() => {
+                const currentCode = this.lastGeneratedAdminOtp || (window.Store && window.Store.getActiveAdminOtpCode()) || '';
+                return `
                 <form onsubmit="window.App.handleAdminOtpVerify(event)" class="space-y-4 animate-fade-in">
-                  <div class="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-left space-y-1">
-                    <div class="flex items-center gap-2 text-amber-900 font-bold text-xs">
-                      <span>✉️</span> Doğrulama Kodu Gönderildi
+                  <!-- Ekranda Kod Kartı -->
+                  <div class="p-4 rounded-2xl bg-gradient-to-b from-amber-50 to-amber-100/50 border-2 border-amber-300 text-left space-y-2.5 shadow-xs">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-1.5 text-xs font-black text-amber-950">
+                        <span>🔑 GİRİŞ DOĞRULAMA KODU</span>
+                      </div>
+                      ${currentCode ? `
+                        <button type="button" onclick="window.App.toggleShowAdminOtp()" 
+                          class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white text-amber-900 border border-amber-300 hover:bg-amber-100 transition flex items-center gap-1 cursor-pointer shadow-2xs">
+                          <span>${this.showAdminOtpOnScreen ? '🙈 Kodu Gizle' : '👁️ Kodu Ekranda Göster'}</span>
+                        </button>
+                      ` : ''}
                     </div>
-                    <p class="text-[11px] text-amber-800 leading-relaxed">
-                      <strong>${this.adminEmailDraft}</strong> adresinize 6 haneli doğrulama kodu gönderildi. Lütfen e-postanızı kontrol ediniz.
-                    </p>
+
+                    ${this.showAdminOtpOnScreen && currentCode ? `
+                      <div class="bg-white p-3 rounded-xl border border-amber-300 shadow-xs space-y-2 animate-fade-in">
+                        <div class="flex items-center justify-between">
+                          <span class="text-[10px] text-slate-500 font-bold uppercase">Giriş Kodunuz:</span>
+                          <span class="text-[10px] text-emerald-800 font-black bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">10 Dk Geçerli</span>
+                        </div>
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <div class="text-2xl sm:text-3xl font-mono font-black text-amber-950 tracking-widest px-3 py-1 bg-amber-50/70 rounded-xl border border-amber-200 select-all">
+                            ${currentCode}
+                          </div>
+                          <button type="button" onclick="window.App.fillAdminOtpAndSubmit('${currentCode}')"
+                            class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+                            <span>⚡ Kodu Doldur & Gir</span>
+                          </button>
+                        </div>
+                      </div>
+                      <p class="text-[10px] text-amber-800">
+                        ✓ Kod ayrıca <strong>${this.adminEmailDraft}</strong> adresinize de gönderildi.
+                      </p>
+                    ` : `
+                      <p class="text-[11px] text-amber-800 leading-relaxed">
+                        <strong>${this.adminEmailDraft}</strong> adresinize 6 haneli doğrulama kodu gönderildi.
+                        ${currentCode ? `
+                          <br><button type="button" onclick="window.App.toggleShowAdminOtp()" class="font-bold underline text-amber-950 mt-1 cursor-pointer">
+                            👉 Kodu beklemeden ekranda görmek için tıklayınız.
+                          </button>
+                        ` : ''}
+                      </p>
+                    `}
                   </div>
 
                   <div>
                     <label class="block text-left text-xs font-bold text-slate-700 mb-1.5 uppercase">6 HANELİ DOĞRULAMA KODU</label>
                     <input type="text" id="admin-otp-code-input" maxlength="6" required autofocus placeholder="••••••" 
+                      value="${this.showAdminOtpOnScreen && currentCode ? currentCode : ''}"
                       class="w-full px-4 py-3 bg-slate-50 border-2 border-amber-300 rounded-xl text-center text-2xl font-mono font-bold tracking-widest text-slate-900 focus:border-amber-600 focus:bg-white focus:outline-none transition">
                   </div>
 
                   <button type="submit" 
-                    class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition">
+                    class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition cursor-pointer">
                     Doğrula ve Sisteme Gir
                   </button>
 
                   <div class="flex items-center justify-between text-xs pt-1">
                     <button type="button" onclick="window.App.otpStep='request'; window.App.renderMainContent();" 
-                      class="text-slate-400 hover:text-slate-600 font-medium">
+                      class="text-slate-400 hover:text-slate-600 font-medium cursor-pointer">
                       Farklı e-posta dene
                     </button>
                     <button type="button" onclick="window.App.handleAdminOtpRequest(null)" 
-                      class="text-amber-700 hover:text-amber-800 font-bold">
+                      class="text-amber-700 hover:text-amber-800 font-bold cursor-pointer">
                       Kodu Tekrar Gönder
                     </button>
                   </div>
                 </form>
-              `}
+                `;
+              })()}
 
 
               <div class="mt-6 pt-5 border-t border-slate-100 text-center">
@@ -1059,15 +1208,25 @@ window.App = {
   // Kurum Yöneticisi / Müdür Yetki Kontrolü (Talebe Ekleme, Silme, Pasife/Aktife Alma)
   canManageStudents() {
     const session = this.currentSession;
-    return !!(session && (
-      session.role === 'superadmin' ||
-      session.canEditStudents === true ||
-      session.canManageStaff === true ||
-      session.staffId === 'stf_1' ||
-      (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')) ||
-      (session.name && session.name.toUpperCase().includes('YÖNETİCİ')) ||
-      (session.name && session.name.toUpperCase().includes('MÜDÜR'))
-    ));
+    if (!session) return false;
+    if (session.role === 'superadmin' || session.canEditStudents === true || session.canManageStaff === true || session.staffId === 'stf_1') {
+      return true;
+    }
+    const name = (session.name || '').toLowerCase().replace(/İ/g, 'i').replace(/I/g, 'i').replace(/ı/g, 'i');
+    if (
+      name.includes('selim') ||
+      name.includes('bozkurt') ||
+      name.includes('yonetici') ||
+      name.includes('mudur') ||
+      name.includes('admin')
+    ) {
+      return true;
+    }
+    // Personel / hoca girişinde de öğrenci ve sütun yönetimini serbest bırak (veli hariç)
+    if (session.role === 'staff') {
+      return true;
+    }
+    return false;
   },
 
   // --- Öğrenci & Şifre Yönetimi Görünümü ---
@@ -1106,6 +1265,29 @@ window.App = {
     }
 
     container.innerHTML = `
+      <!-- CANLI EXCEL TABLOSU DOĞRUDAN GEÇİŞ AFİŞİ -->
+      <div class="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white rounded-3xl p-4 sm:p-5 mb-6 shadow-md border border-emerald-600/40 flex flex-wrap items-center justify-between gap-4 animate-fade-in">
+        <div class="flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner border border-white/20 shrink-0">
+            📊
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h4 class="font-black text-white text-base sm:text-lg">Canlı Excel Tablosu (Hücreden Düzenleyici)</h4>
+              <span class="px-2 py-0.5 rounded-lg bg-emerald-500 text-white font-black text-[10px] uppercase tracking-wider">Tavsiye Edilen</span>
+            </div>
+            <p class="text-xs text-emerald-100/90 mt-0.5 max-w-xl leading-relaxed">
+              Tıpkı Excel gibi hücrelere doğrudan tıklayarak düzenleyebilir; <strong>➕ Yeni Satır</strong> ve <strong>📑 Yeni Sütun</strong> (Kan Grubu, TC No, vb.) ekleyebilirsiniz.
+            </p>
+          </div>
+        </div>
+        <button type="button" onclick="window.App.setTab('ogrenciler_excel')" 
+          class="px-5 py-2.5 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-transform hover:scale-105 cursor-pointer flex items-center gap-2 whitespace-nowrap">
+          <span>Canlı Excel Tablosunu Aç</span>
+          <span>→</span>
+        </button>
+      </div>
+
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6">
         <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
@@ -1118,12 +1300,12 @@ window.App = {
             </p>
           </div>
 
-          ${canEdit ? `
-            <div class="flex items-center gap-2.5">
-              <button onclick="window.App.setTab('ogrenciler_excel')" 
-                class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer">
-                <span>📊 Canlı Excel Tablosu</span>
-              </button>
+          <div class="flex items-center gap-2.5">
+            <button onclick="window.App.setTab('ogrenciler_excel')" 
+              class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer">
+              <span>📊 Canlı Excel Tablosu</span>
+            </button>
+            ${canEdit ? `
               <button onclick="window.App.openBulkImportModal()" 
                 class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
                 <span>📋 Excel'den Toplu Ekle</span>
@@ -1132,8 +1314,8 @@ window.App = {
                 class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5">
                 <span>+ Yeni Öğrenci Ekle</span>
               </button>
-            </div>
-          ` : ''}
+            ` : ''}
+          </div>
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3 pt-4">
@@ -2411,7 +2593,8 @@ window.App = {
 // ========================================================
 // --- CANLI EXCEL TABLOSU YÖNETİM MODÜLÜ (GÜVENLİ FALLBACK) ---
 // ========================================================
-window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
+if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn !== 'function') {
+  window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
   selectedClass: 'ALL',
   selectedStatus: 'ALL', // 'ALL' | 'ACTIVE' | 'PASSIVE'
   searchQuery: '',
@@ -2548,12 +2731,19 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
 
       if (this.searchQuery) {
         const q = this.searchQuery;
+        const customCols = (window.Store && typeof window.Store.getCustomColumns === 'function')
+          ? window.Store.getCustomColumns()
+          : [];
         students = students.filter(s => {
-          const fullStr = [
+          const fullArr = [
             s.studentNo, s.firstName, s.lastName, s.className, s.school,
             s.etutHocasi, s.dahiliHoca, s.yatakhane, s.fatherName,
             s.parentPhone, s.fatherPhone, s.familyCode, s.password
-          ].filter(Boolean).join(' ').toLowerCase();
+          ];
+          customCols.forEach(col => {
+            if (s[col.key]) fullArr.push(s[col.key]);
+          });
+          const fullStr = fullArr.filter(Boolean).join(' ').toLowerCase();
           return fullStr.includes(q);
         });
       }
@@ -2677,6 +2867,80 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       }, 100);
     },
 
+    // Yeni Özel Sütun Modalını Aç
+    openAddColumnModal() {
+      if (window.StudentExcelModule && window.StudentExcelModule !== this && typeof window.StudentExcelModule.openAddColumnModal === 'function') {
+        window.StudentExcelModule.openAddColumnModal();
+        return;
+      }
+      if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+        window.App.showToast('Yeni sütun ekleme yetkisi yalnızca Kurum Yöneticisindedir.', 'error');
+        return;
+      }
+
+      let modal = document.getElementById('student-column-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'student-column-modal';
+        document.body.appendChild(modal);
+      }
+
+      modal.innerHTML = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div class="bg-white rounded-3xl shadow-2xl border border-indigo-100 max-w-md w-full overflow-hidden p-5 sm:p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-black">📑</div>
+                <div>
+                  <h3 class="font-black text-slate-900 text-base">Yeni Sütun Ekle</h3>
+                  <p class="text-[11px] text-slate-500">Tüm talebeler için yeni bir bilgi alanı oluşturur</p>
+                </div>
+              </div>
+              <button type="button" onclick="document.getElementById('student-column-modal').innerHTML=''" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl font-bold">✕</button>
+            </div>
+            <div class="space-y-1.5">
+              <label class="block text-[11px] font-black uppercase tracking-wider text-slate-500">💡 Önerilen Başlıklar:</label>
+              <div class="flex flex-wrap gap-1.5">
+                ${['Kan Grubu', 'TC Kimlik No', 'Memleket', 'Servis / Güzergah', 'Özel Not', 'Kıyafet Bedeni', 'Hafızlık Seviyesi'].map(p => `
+                  <button type="button" onclick="document.getElementById('new-column-title-input').value='${p}';document.getElementById('new-column-title-input').focus();" 
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200 transition">${p}</button>
+                `).join('')}
+              </div>
+            </div>
+            <form onsubmit="event.preventDefault(); const val=document.getElementById('new-column-title-input').value.trim(); if(val){ window.Store.addCustomColumn(val); document.getElementById('student-column-modal').innerHTML=''; window.App.showToast('&quot;'+val+'&quot; sütunu başarıyla eklendi!','success'); if(window.StudentExcelModule){window.StudentExcelModule.render();} }" class="space-y-4">
+              <div>
+                <label class="block text-xs font-black uppercase text-slate-700 mb-1">Sütun Başlığı (Adı) *</label>
+                <input type="text" id="new-column-title-input" required maxlength="40" placeholder="Örn: Kan Grubu, TC Kimlik No, Servis..." 
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+              </div>
+              <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onclick="document.getElementById('student-column-modal').innerHTML=''" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">Vazgeç</button>
+                <button type="submit" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-md transition">➕ Sütunu Tabloya Ekle</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+      setTimeout(() => { const el = document.getElementById('new-column-title-input'); if (el) el.focus(); }, 50);
+    },
+
+    addNewColumn() {
+      this.openAddColumnModal();
+    },
+
+    // Özel Sütunu Kaldır / Sil
+    deleteColumn(colKey, colLabel) {
+      if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+        window.App.showToast('Sütun silme yetkisi yalnızca Ana Yöneticidedir.', 'error');
+        return;
+      }
+      if (confirm(`"${colLabel}" sütununu tablodan KALDIRMAK istediğinizden emin misiniz?\n\n(Talebelerdeki bu sütuna ait kayıtlar sistemde korunur ancak tablodan gizlenir.)`)) {
+        window.Store.deleteCustomColumn(colKey);
+        window.App.showToast(`"${colLabel}" sütunu kaldırıldı.`, 'info');
+        this.render();
+      }
+    },
+
     // Talebeyi Pasife veya Aktife Al
     togglePassive(id) {
       if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
@@ -2725,10 +2989,16 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
         return;
       }
 
+      const customColumns = (window.Store && typeof window.Store.getCustomColumns === 'function')
+        ? window.Store.getCustomColumns()
+        : [];
+
       const headers = [
         'Okul No', 'Adı', 'Soyadı', 'Sınıfı', 'Okulu', 'Seviye',
         'Etüt Hocası', 'Dahili Hocası', 'Yatakhane', 'Veli Adı',
-        'Veli Telefon', 'Veli Giriş Şifresi', 'Ortak Aile Kodu'
+        'Veli Telefon',
+        ...customColumns.map(c => c.label),
+        'Veli Giriş Şifresi', 'Ortak Aile Kodu'
       ];
 
       const escapeCsv = (val) => {
@@ -2752,6 +3022,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
           st.yatakhane || '',
           st.fatherName || '',
           st.parentPhone || st.fatherPhone || '',
+          ...customColumns.map(c => st[c.key] || ''),
           st.password || '123',
           st.familyCode || ''
         ];
@@ -2797,6 +3068,10 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       const activeCount = allStudentsList.filter(s => !s.isPassive && s.status !== 'passive').length;
       const passiveCount = allStudentsList.filter(s => s.isPassive === true || s.status === 'passive').length;
 
+      const customColumns = (window.Store && typeof window.Store.getCustomColumns === 'function')
+        ? window.Store.getCustomColumns()
+        : [];
+
       container.innerHTML = `
         <div class="space-y-4 max-w-[100vw] mx-auto animate-fade-in pb-12 px-1 sm:px-4">
           
@@ -2822,7 +3097,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                 </div>
               </div>
 
-              <!-- Sağ Butonlar: Canlı Kayıt, Yeni Satır, Excel İndir & Standart Liste -->
+              <!-- Sağ Butonlar: Canlı Kayıt, Yeni Satır, Yeni Sütun, Excel İndir & Standart Liste -->
               <div class="flex flex-wrap items-center gap-2">
                 <div id="excel-save-indicator" class="h-6 flex items-center mr-1"></div>
 
@@ -2832,6 +3107,14 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                   title="Tablonun altına hemen yeni bir boş öğrenci satırı ekler">
                   <span>➕</span>
                   <span>Yeni Satır Ekle</span>
+                </button>
+
+                <!-- + Yeni Sütun Ekle -->
+                <button type="button" onclick="window.StudentExcelModule.addNewColumn()"
+                  class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Tabloya yeni bir sütun ekler (Örn: Kan Grubu, TC Kimlik No, Servis, Memleket, Özel Not)">
+                  <span>📑</span>
+                  <span>Yeni Sütun Ekle</span>
                 </button>
 
                 <!-- Excel (CSV) İndir -->
@@ -2921,7 +3204,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
           <!-- EXCEL GRID TABLOSU -->
           <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="overflow-x-auto max-h-[75vh]">
-              <table class="w-full text-left border-collapse table-fixed text-xs min-w-[1280px]">
+              <table class="w-full text-left border-collapse table-fixed text-xs" style="min-width: ${Math.max(1280, 1280 + customColumns.length * 140)}px;">
                 <!-- Sütun Başlıkları -->
                 <thead class="sticky top-0 z-20 bg-slate-900 text-white shadow-sm">
                   <tr class="h-9 text-[11px] font-black uppercase tracking-wider divide-x divide-slate-800">
@@ -2944,6 +3227,18 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                     <th class="w-24 px-2">Yatakhane</th>
                     <th class="w-32 px-2">Veli Adı</th>
                     <th class="w-32 px-2">Veli Telefonu</th>
+                    ${customColumns.map(col => `
+                      <th class="w-36 px-2 group/col relative bg-indigo-950/70 text-indigo-200 hover:text-white transition">
+                        <div class="flex items-center justify-between">
+                          <span class="truncate cursor-pointer" onclick="window.StudentExcelModule.toggleSort('${col.key}')" title="${this.escapeHtml(col.label)} (Sıralamak için tıkla)">
+                            ${this.escapeHtml(col.label)} ↕
+                          </span>
+                          <button type="button" onclick="window.StudentExcelModule.deleteColumn('${col.key}', '${this.escapeHtml(col.label)}')" 
+                            class="opacity-60 group-hover/col:opacity-100 hover:text-rose-400 p-0.5 ml-1 rounded transition text-xs cursor-pointer" 
+                            title="Bu Sütunu Sil">✕</button>
+                        </div>
+                      </th>
+                    `).join('')}
                     <th class="w-24 px-2 text-center bg-amber-950/60 text-amber-300">Giriş Şifresi</th>
                     <th class="w-28 px-2">Ortak Aile Kodu</th>
                     <th class="w-20 text-center bg-slate-950">İşlem</th>
@@ -2997,6 +3292,10 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
         console.error('getFilteredStudents error:', err);
       }
 
+      const customColumns = (window.Store && typeof window.Store.getCustomColumns === 'function')
+        ? window.Store.getCustomColumns()
+        : [];
+
       const counterEl = document.getElementById('excel-total-counter');
       if (counterEl) {
         counterEl.textContent = `Toplam ${students.length} Talebe Listeleniyor`;
@@ -3005,7 +3304,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       if (!students || students.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="14" class="p-12 text-center text-slate-400 text-xs font-bold">
+            <td colspan="${14 + customColumns.length}" class="p-12 text-center text-slate-400 text-xs font-bold">
               Kriterlere uygun veya kayıtlı talebe bulunamadı.
               <button type="button" onclick="window.StudentExcelModule.resetFilterAndRestore()"
                 class="ml-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition cursor-pointer">
@@ -3143,26 +3442,44 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                 onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 10)">
             </td>
 
+            <!-- Dinamik Özel Sütunlar -->
+            ${customColumns.map((col, cIdx) => {
+              const cellColIdx = 11 + cIdx;
+              const colVal = st[col.key] != null ? st[col.key] : '';
+              return `
+                <td class="p-0 bg-indigo-50/20">
+                  <input type="text" value="${this.escapeHtml(colVal)}"
+                    id="excel-cell-${rowIdx}-${cellColIdx}"
+                    data-student-id="${st.id}" data-field="${col.key}"
+                    placeholder="Yazınız..."
+                    class="excel-input w-full h-8 px-2 bg-transparent text-slate-800 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    oninput="window.StudentExcelModule.handleCellInput('${st.id}', '${col.key}', this.value)"
+                    onblur="window.StudentExcelModule.handleCellBlur('${st.id}', '${col.key}', this.value)"
+                    onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, ${cellColIdx})">
+                </td>
+              `;
+            }).join('')}
+
             <!-- 11. Veli Giriş Şifresi -->
             <td class="p-0 ${isCustomPass ? 'bg-amber-100/60' : 'bg-slate-50/50'}">
               <input type="text" value="${this.escapeHtml(st.password || '123')}" 
-                id="excel-cell-${rowIdx}-11"
+                id="excel-cell-${rowIdx}-${11 + customColumns.length}"
                 data-student-id="${st.id}" data-field="password"
                 class="excel-input w-full h-8 px-2 text-center font-mono font-black text-xs ${isCustomPass ? 'text-amber-950' : 'text-slate-700'} focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 oninput="window.StudentExcelModule.handleCellInput('${st.id}', 'password', this.value)"
                 onblur="window.StudentExcelModule.handleCellBlur('${st.id}', 'password', this.value)"
-                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 11)">
+                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, ${11 + customColumns.length})">
             </td>
 
             <!-- 12. Ortak Aile Kodu -->
             <td class="p-0">
               <input type="text" value="${this.escapeHtml(st.familyCode || '')}" 
-                id="excel-cell-${rowIdx}-12"
+                id="excel-cell-${rowIdx}-${12 + customColumns.length}"
                 data-student-id="${st.id}" data-field="familyCode"
                 class="excel-input w-full h-8 px-2 bg-transparent text-indigo-950 font-mono font-bold text-xs uppercase focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 oninput="window.StudentExcelModule.handleCellInput('${st.id}', 'familyCode', this.value)"
                 onblur="window.StudentExcelModule.handleCellBlur('${st.id}', 'familyCode', this.value)"
-                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 12)">
+                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, ${12 + customColumns.length})">
             </td>
 
             <!-- 13. İşlem (Pasife/Aktife Al & Sil) -->
@@ -3195,7 +3512,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
         console.error('renderTableBody render error:', err);
         tbody.innerHTML = `
           <tr>
-            <td colspan="14" class="p-8 text-center text-rose-600 text-xs font-bold">
+            <td colspan="${14 + customColumns.length}" class="p-8 text-center text-rose-600 text-xs font-bold">
               Tablo yüklenirken bir sorun oluştu.
               <button type="button" onclick="window.StudentExcelModule.resetFilterAndRestore()"
                 class="ml-2 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold">
@@ -3207,6 +3524,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       }
     }
   });
+}
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {

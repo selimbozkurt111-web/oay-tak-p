@@ -334,23 +334,27 @@
     </div>
   </div>
 
-  <!-- JavaScript Modülleri -->
-  <script src="js/store.js"></script>
-  <script src="js/attendance.js"></script>
-  <script src="js/leave-tracker.js"></script>
-  <script src="js/leave-return.js"></script>
-  <script src="js/performance.js"></script>
-  <script src="js/test-results.js"></script>
-  <script src="js/leaderboard.js"></script>
-  <script src="js/parent-portal.js"></script>
-  <script src="js/student-excel.js"></script>
-  <script src="js/app.js"></script>
+  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v3 Sürüm İmzası) -->
+  <script src="js/store.js?v=3.0"></script>
+  <script src="js/attendance.js?v=3.0"></script>
+  <script src="js/leave-tracker.js?v=3.0"></script>
+  <script src="js/leave-return.js?v=3.0"></script>
+  <script src="js/performance.js?v=3.0"></script>
+  <script src="js/test-results.js?v=3.0"></script>
+  <script src="js/leaderboard.js?v=3.0"></script>
+  <script src="js/parent-portal.js?v=3.0"></script>
+  <script src="js/student-excel.js?v=3.0"></script>
+  <script src="js/app.js?v=3.0"></script>
 
   <!-- Service Worker Kaydı (Kısayol ve PWA Hızlı Başlatma) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./sw.js').catch(function(err) {
+        navigator.serviceWorker.register('./sw.js?v=3.0').then(function(reg) {
+          if (reg) {
+            reg.update();
+          }
+        }).catch(function(err) {
           console.warn('[PWA] Service Worker kaydı:', err);
         });
       });
