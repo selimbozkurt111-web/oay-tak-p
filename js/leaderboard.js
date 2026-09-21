@@ -232,6 +232,12 @@ window.LeaderboardModule = {
                 <p class="text-xs text-slate-400 mt-0.5">
                   Talebelerin namaz devamı, yatak intizamı, okul/izin dönüşü dakikliği ve ders başarı puanları
                 </p>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class="text-[11px] font-black px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200">
+                    📅 ${isWeekly ? `Haftalık Dönem: ${data.startDate} (Pazar) – ${data.endDate} (Cumartesi)` : `Aylık Dönem: ${data.startDate} – ${data.endDate}`}
+                  </span>
+                  ${isWeekly ? '<span class="text-[10px] text-slate-400 font-bold">• Pazar sabahı sıfırlanır</span>' : ''}
+                </div>
               </div>
             </div>
 

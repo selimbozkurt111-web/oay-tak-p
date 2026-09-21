@@ -985,24 +985,39 @@ class DataStore {
     }
   }
 
-  // --- Namaz Haftalık & Aylık Raporlama İşlemleri ---
+  // --- Namaz Haftalık & Aylık Raporlama & Haftanın Talebesi Dönemi ---
   getWeekRange(dateStr) {
-    const d = new Date(dateStr);
-    const day = d.getDay();
-    const diffToMon = (day === 0 ? -6 : 1) - day;
-    const monday = new Date(d);
-    monday.setDate(d.getDate() + diffToMon);
+    let parts;
+    if (typeof dateStr === 'string' && dateStr.includes('-')) {
+      parts = dateStr.split('-').map(Number);
+    } else {
+      const now = new Date();
+      parts = [now.getFullYear(), now.getMonth() + 1, now.getDate()];
+    }
+    // Yerel saat dilimi ile öğle saatinde (12:00) Date nesnesi (timezone kaymasını önler)
+    const d = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
+    const day = d.getDay(); // 0: Pazar, 1: Pazartesi, ..., 6: Cumartesi
+
+    // KURAL: Haftanın talebesi puan sistemi Pazar sabahı sıfırlanır.
+    // Bu sebeple haftalık döngü PAZAR (0) günü başlar ve CUMARTESİ (6) günü tamamlanır.
+    const sunday = new Date(d);
+    sunday.setDate(d.getDate() - day);
 
     const dates = [];
     for (let i = 0; i < 7; i++) {
-      const cur = new Date(monday);
-      cur.setDate(monday.getDate() + i);
-      dates.push(cur.toISOString().split('T')[0]);
+      const cur = new Date(sunday);
+      cur.setDate(sunday.getDate() + i);
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const dayNum = String(cur.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${dayNum}`);
     }
     return {
       startDate: dates[0],
       endDate: dates[dates.length - 1],
-      dates
+      dates,
+      startDayName: 'Pazar',
+      endDayName: 'Cumartesi'
     };
   }
 
