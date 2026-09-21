@@ -763,6 +763,9 @@ window.TestResultsModule = {
   filterClass(cls) {
     this.selectedClass = cls;
     this.render();
+    if (window.App && typeof window.App.renderHeader === 'function') {
+      window.App.renderHeader();
+    }
   },
 
   resetForm() {

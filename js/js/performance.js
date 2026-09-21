@@ -70,12 +70,70 @@ window.AkademiModule = {
     } else {
       this.selectedClasses.push(className);
     }
+    this.updateClassFilterButtons();
+    this.renderMatrixTableBody();
+  },
+
+  selectOnlyClass(className) {
+    if (this.selectedClasses.length === 1 && this.selectedClasses[0] === className) {
+      this.selectedClasses = [];
+    } else {
+      this.selectedClasses = [className];
+    }
+    this.updateClassFilterButtons();
     this.renderMatrixTableBody();
   },
 
   toggleAllClasses() {
     this.selectedClasses = [];
+    this.updateClassFilterButtons();
     this.renderMatrixTableBody();
+  },
+
+  renderClassFilterButtonsHtml(classes = window.Store.getClasses()) {
+    const isAll = this.selectedClasses.length === 0;
+    let html = `
+      <span class="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase mr-1">ŞUBE:</span>
+      <button type="button" onclick="window.AkademiModule.toggleAllClasses()"
+        class="px-2.5 py-1 rounded-xl text-[11px] font-black transition cursor-pointer ${
+          isAll 
+            ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-400/40' 
+            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+        }">
+        Tümü
+      </button>
+    `;
+
+    classes.forEach(c => {
+      const isChecked = this.selectedClasses.includes(c);
+      html += `
+        <button type="button" onclick="window.AkademiModule.toggleClass('${c}')"
+          class="px-2.5 py-1 rounded-xl text-[11px] font-black transition border flex items-center gap-1 cursor-pointer ${
+            isChecked 
+              ? 'bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-300/50' 
+              : 'bg-white text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-900'
+          }">
+          <span>${isChecked ? '✓' : '+'}</span>
+          <span>${c}</span>
+        </button>
+      `;
+    });
+
+    return html;
+  },
+
+  updateClassFilterButtons() {
+    const el = document.getElementById('matrix-class-buttons-container');
+    if (el) {
+      el.innerHTML = this.renderClassFilterButtonsHtml();
+    }
+    const label = document.getElementById('matrix-header-class-label');
+    if (label) {
+      label.textContent = `Sınıf: ${this.selectedClasses.length > 0 ? this.selectedClasses.join(', ') : 'Tüm Sınıflar'}`;
+    }
+    if (window.App && typeof window.App.renderHeader === 'function') {
+      window.App.renderHeader();
+    }
   },
 
   toggleSort() {
@@ -322,71 +380,50 @@ window.AkademiModule = {
 
           <!-- Çoklu Sınıf Filtresi, Sıralama Butonu & Öğrenci Arama -->
           <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <div class="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
-              <span class="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase mr-1">SINIF:</span>
-              <button type="button" onclick="window.AkademiModule.toggleAllClasses()"
-                class="px-2.5 py-1 rounded-xl text-[11px] font-black transition ${
-                  this.selectedClasses.length === 0 
-                    ? 'bg-slate-900 text-white shadow-sm' 
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }">
-                Tümü
-              </button>
-              ${classes.map(c => {
-                const isChecked = this.selectedClasses.includes(c);
-                return `
-                  <button type="button" onclick="window.AkademiModule.toggleClass('${c}')"
-                    class="px-2.5 py-1 rounded-xl text-[11px] font-black transition border flex items-center gap-1 ${
-                      isChecked 
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                    }">
-                    <span>${isChecked ? '✓' : '+'}</span>
-                    <span>${c}</span>
-                  </button>
-                `;
-              }).join('')}
-
-              <!-- ALDIĞI NOTA GÖRE SIRALA BUTONU -->
-              <button type="button" id="btn-matrix-sort" onclick="window.AkademiModule.toggleSort()"
-                title="Öğrencileri ders ortalamalarına göre sıralar (1. en üstte)"
-                class="px-2.5 py-1 rounded-xl text-[11px] font-black transition flex items-center gap-1 border shadow-2xs ${
-                  this.sortBy === 'score_desc' 
-                    ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
-                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-                }">
-                <span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '🔤 İsim Sıralı'}</span>
-              </button>
+            <div id="matrix-class-buttons-container" class="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
+              ${this.renderClassFilterButtonsHtml(classes)}
             </div>
 
-            <!-- Arama -->
-            <div class="w-full sm:w-56 relative ml-auto">
-              <input type="text" placeholder="İsme göre öğrenci ara..." value="${this.escapeHtml(this.searchQuery)}"
-                class="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                oninput="window.AkademiModule.setSearchQuery(this.value)">
-              <span class="absolute left-2.5 top-1.5 text-slate-400 text-xs">🔍</span>
-            </div>
+            <!-- ALDIĞI NOTA GÖRE SIRALA BUTONU -->
+            <button type="button" id="btn-matrix-sort" onclick="window.AkademiModule.toggleSort()"
+              title="Öğrencileri ders ortalamalarına göre sıralar (1. en üstte)"
+              class="px-2.5 py-1 rounded-xl text-[11px] font-black transition flex items-center gap-1 border shadow-2xs ${
+                this.sortBy === 'score_desc' 
+                  ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
+                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+              }">
+              <span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '🔤 İsim Sıralı'}</span>
+            </button>
+          </div>
+
+          <!-- Arama -->
+          <div class="w-full sm:w-56 relative ml-auto">
+            <input type="text" placeholder="İsme göre öğrenci ara..." value="${this.escapeHtml(this.searchQuery)}"
+              class="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              oninput="window.AkademiModule.setSearchQuery(this.value)">
+            <span class="absolute left-2.5 top-1.5 text-slate-400 text-xs">🔍</span>
           </div>
         </div>
+      </div>
 
-        <!-- 3. MATRİS TABLO (SIFIR YATAY KAYDIRMA, MOBİL VE EKRAN GÖRÜNTÜSÜ UYUMLU) -->
-        <div id="takviye-matrix-table-container" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-0">
-          
-          <!-- KURUMSAL YAZDIRMA & RESİM ÜST BAŞLIĞI -->
-          <div class="p-3 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between border-b border-slate-700">
-            <div class="truncate">
-              <div class="text-xs sm:text-sm font-black text-amber-300 truncate">
-                ${window.Store.getSettings().institutionName || 'Ömer Avniyel Akademi'}
-              </div>
-              <div class="text-[10px] text-slate-300 font-bold truncate">
-                Takviye Dersleri Not Çizelgesi • 5 Ana Ders
-              </div>
+      <!-- 3. MATRİS TABLO (SIFIR YATAY KAYDIRMA, MOBİL VE EKRAN GÖRÜNTÜSÜ UYUMLU) -->
+      <div id="takviye-matrix-table-container" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-0">
+        
+        <!-- KURUMSAL YAZDIRMA & RESİM ÜST BAŞLIĞI -->
+        <div class="p-3 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between border-b border-slate-700">
+          <div class="truncate">
+            <div class="text-xs sm:text-sm font-black text-amber-300 truncate">
+              ${window.Store.getSettings().institutionName || 'Ömer Avniyel Akademi'}
             </div>
-            <div class="text-right flex-shrink-0 pl-2">
-              <div class="text-[10px] text-emerald-300 font-bold font-mono">${this.currentDate} (${dayName})</div>
-              <div class="text-[9px] text-slate-400 font-medium truncate">Sınıf: ${this.selectedClasses.length > 0 ? this.selectedClasses.join(', ') : 'Tüm Sınıflar'}</div>
+            <div class="text-[10px] text-slate-300 font-bold truncate">
+              Takviye Dersleri Not Çizelgesi • 5 Ana Ders
             </div>
           </div>
+          <div class="text-right flex-shrink-0 pl-2">
+            <div class="text-[10px] text-emerald-300 font-bold font-mono">${this.currentDate} (${dayName})</div>
+            <div id="matrix-header-class-label" class="text-[9px] text-slate-400 font-medium truncate">Sınıf: ${this.selectedClasses.length > 0 ? this.selectedClasses.join(', ') : 'Tüm Sınıflar'}</div>
+          </div>
+        </div>
 
           <!-- SIFIR YATAY KAYDIRMA MOBİL & EKRAN GÖRÜNTÜSÜ TABLOSU (12-15 Kişi Tek Ekrana Sığar) -->
           <div class="w-full overflow-hidden">

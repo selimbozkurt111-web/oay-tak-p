@@ -97,6 +97,7 @@ window.ParentPortal = {
           }
         });
         sessionStorage.setItem('yoklama_active_session', JSON.stringify(session));
+        localStorage.setItem('yoklama_active_session', JSON.stringify(session));
       }
 
       this.isPasswordModalOpen = false;

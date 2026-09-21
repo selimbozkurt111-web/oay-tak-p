@@ -9,6 +9,7 @@
 
 window.StudentExcelModule = {
   selectedClass: 'ALL',
+  selectedStatus: 'ALL', // 'ALL' | 'ACTIVE' | 'PASSIVE'
   searchQuery: '',
   saveTimers: {},
   sortField: 'studentNo',
@@ -21,7 +22,9 @@ window.StudentExcelModule = {
       session.canEditStudents === true ||
       session.canManageStaff === true ||
       session.staffId === 'stf_1' ||
-      (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))
+      (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')) ||
+      (session.name && session.name.toUpperCase().includes('YÖNETİCİ')) ||
+      (session.name && session.name.toUpperCase().includes('MÜDÜR'))
     );
 
     const container = document.getElementById('student-excel-container');
@@ -52,7 +55,7 @@ window.StudentExcelModule = {
   },
 
   escapeHtml(str) {
-    if (!str) return '';
+    if (str == null) return '';
     return str.toString()
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -62,8 +65,13 @@ window.StudentExcelModule = {
   },
 
   setFilterClass(c) {
-    this.selectedClass = c;
+    this.selectedClass = c || 'ALL';
     this.renderTableBody();
+  },
+
+  setStatusFilter(s) {
+    this.selectedStatus = s || 'ALL';
+    this.render();
   },
 
   setSearchQuery(q) {
@@ -83,12 +91,13 @@ window.StudentExcelModule = {
 
   resetFilterAndRestore() {
     this.selectedClass = 'ALL';
+    this.selectedStatus = 'ALL';
     this.searchQuery = '';
-    const students = window.Store.getStudents();
-    if (!students || students.length === 0) {
-      if (typeof SEED_STUDENTS !== 'undefined' && Array.isArray(SEED_STUDENTS)) {
-        window.Store.saveStudents(SEED_STUDENTS);
-      }
+    const fallbackList = (window.Store && typeof window.Store.getAllStudents === 'function' && window.Store.getAllStudents()) ||
+                         (window.Store && typeof window.Store.getStudents === 'function' && window.Store.getStudents(true)) ||
+                         window.SEED_STUDENTS || [];
+    if (fallbackList.length > 0 && window.Store && typeof window.Store.saveStudents === 'function') {
+      window.Store.saveStudents(fallbackList);
     }
     this.render();
   },
@@ -96,17 +105,25 @@ window.StudentExcelModule = {
   getFilteredStudents() {
     let students = [];
     try {
-      students = window.Store.getStudents();
+      if (window.Store && typeof window.Store.getAllStudents === 'function') {
+        students = window.Store.getAllStudents();
+      } else if (window.Store && typeof window.Store.getStudents === 'function') {
+        students = window.Store.getStudents(true);
+      }
     } catch (e) {
       console.warn('Store.getStudents error:', e);
     }
 
     if (!Array.isArray(students) || students.length === 0) {
-      if (typeof SEED_STUDENTS !== 'undefined' && Array.isArray(SEED_STUDENTS)) {
+      const fallbackList = window.SEED_STUDENTS || 
+                           (typeof SEED_STUDENTS !== 'undefined' ? SEED_STUDENTS : []);
+      if (Array.isArray(fallbackList) && fallbackList.length > 0) {
         try {
-          window.Store.saveStudents(SEED_STUDENTS);
+          if (window.Store && typeof window.Store.saveStudents === 'function') {
+            window.Store.saveStudents(fallbackList);
+          }
         } catch (e) {}
-        students = [...SEED_STUDENTS];
+        students = [...fallbackList];
       } else {
         students = [];
       }
@@ -114,8 +131,15 @@ window.StudentExcelModule = {
 
     students = students.filter(s => s && typeof s === 'object');
 
+    // Durum Filtresi (Tümü / Sadece Aktifler / Sadece Pasifler)
+    if (this.selectedStatus === 'ACTIVE') {
+      students = students.filter(s => !s.isPassive && s.status !== 'passive');
+    } else if (this.selectedStatus === 'PASSIVE') {
+      students = students.filter(s => s.isPassive === true || s.status === 'passive');
+    }
+
     if (this.selectedClass && this.selectedClass !== 'ALL') {
-      students = students.filter(s => (s.className || '').trim() === this.selectedClass.trim());
+      students = students.filter(s => (s.className || '').toString().trim() === this.selectedClass.trim());
     }
 
     if (this.searchQuery) {
@@ -134,8 +158,8 @@ window.StudentExcelModule = {
     const field = this.sortField || 'studentNo';
     const asc = this.sortAsc !== false;
     students.sort((a, b) => {
-      let valA = a[field] ?? '';
-      let valB = b[field] ?? '';
+      let valA = a && a[field] != null ? a[field] : '';
+      let valB = b && b[field] != null ? b[field] : '';
 
       if (field === 'studentNo') {
         const numA = parseInt(valA, 10) || 0;
@@ -153,7 +177,7 @@ window.StudentExcelModule = {
 
   // Hücre içeriği değiştiğinde anında otomatik kayıt (Debounce 350ms)
   handleCellInput(studentId, field, rawValue) {
-    const val = rawValue.trim();
+    const val = (rawValue != null ? rawValue : '').toString().trim();
     const key = `${studentId}_${field}`;
     if (this.saveTimers[key]) clearTimeout(this.saveTimers[key]);
 
@@ -186,7 +210,7 @@ window.StudentExcelModule = {
   },
 
   handleCellBlur(studentId, field, rawValue) {
-    const val = rawValue.trim();
+    const val = (rawValue != null ? rawValue : '').toString().trim();
     window.Store.updateStudent(studentId, { [field]: val });
   },
 
@@ -218,6 +242,10 @@ window.StudentExcelModule = {
 
   // Yeni Öğrenci Satırı Ekle
   addNewRow() {
+    if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+      window.App.showToast('Yeni öğrenci ekleme yetkisi yalnızca Ana Yöneticidedir.', 'error');
+      return;
+    }
     const students = window.Store.getStudents();
     const maxNo = students.reduce((max, s) => Math.max(max, parseInt(s.studentNo, 10) || 0), 100);
     const newNo = (maxNo + 1).toString();
@@ -251,14 +279,45 @@ window.StudentExcelModule = {
     }, 100);
   },
 
-  // Öğrenci Satırını Sil
-  deleteRow(id) {
+  // Talebeyi Pasife veya Aktife Al
+  togglePassive(id) {
+    if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+      window.App.showToast('Talebeleri pasife veya aktife alma yetkisi yalnızca Ana Yöneticidedir.', 'error');
+      return;
+    }
     const st = window.Store.getStudentById(id);
-    const name = st ? `${st.firstName || ''} ${st.lastName || ''}`.trim() : 'Bu öğrenciyi';
-    if (confirm(`"${name}" kaydını silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`)) {
+    if (!st) return;
+    const isCurrentlyPassive = st.isPassive === true || st.status === 'passive';
+    const fullName = `${st.firstName || ''} ${st.lastName || ''}`.trim();
+    const msg = isCurrentlyPassive
+      ? `"${fullName}" adlı talebeyi tekrar AKTİFE almak istiyor musunuz?\n\n(Talebe günlük yoklama ve izin listelerine tekrar dahil edilecektir.)`
+      : `"${fullName}" adlı talebeyi PASİFE almak istiyor musunuz?\n\n(Talebenin hiçbir geçmiş verisi silinmez; sadece günlük yoklama, izin ve puan listelerinden gizlenir.)`;
+
+    if (confirm(msg)) {
+      const res = window.Store.toggleStudentPassive(id);
+      if (res && res.success) {
+        if (res.isPassive) {
+          window.App.showToast(`⏸️ "${fullName}" pasife alındı. Günlük yoklamalardan gizlendi.`, 'warning');
+        } else {
+          window.App.showToast(`▶️ "${fullName}" tekrar aktife alındı. Yoklamalara dahil edildi.`, 'success');
+        }
+        this.render();
+      }
+    }
+  },
+
+  // Öğrenci Satırını Kalıcı Olarak Sil
+  deleteRow(id) {
+    if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+      window.App.showToast('Talebe silme yetkisi yalnızca Ana Yöneticidedir.', 'error');
+      return;
+    }
+    const st = window.Store.getStudentById(id);
+    const name = st ? `${st.firstName || ''} ${st.lastName || ''}`.trim() : 'Bu talebeyi';
+    if (confirm(`"${name}" kaydını sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!\n(Öğrencinin geçmişini kaybetmemek için bunun yerine ⏸️ Pasife Alabilirsiniz.)`)) {
       window.Store.deleteStudent(id);
       window.App.showToast('Öğrenci kaydı silindi.', 'info');
-      this.renderTableBody();
+      this.render();
     }
   },
 
@@ -320,8 +379,27 @@ window.StudentExcelModule = {
     const container = document.getElementById('student-excel-container');
     if (!container) return;
 
-    const classes = window.Store.getClasses();
-    const allHocalar = window.Store.getAllHocalar();
+    let classes = ['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'];
+    let allHocalar = [];
+    try {
+      if (window.Store && typeof window.Store.getClasses === 'function') {
+        const c = window.Store.getClasses(true);
+        if (Array.isArray(c) && c.length > 0) classes = c;
+      }
+    } catch (e) {}
+    try {
+      if (window.Store && typeof window.Store.getAllHocalar === 'function') {
+        const h = window.Store.getAllHocalar();
+        if (Array.isArray(h)) allHocalar = h;
+      }
+    } catch (e) {}
+
+    const allStudentsList = (window.Store && typeof window.Store.getAllStudents === 'function')
+      ? window.Store.getAllStudents()
+      : ((window.Store && typeof window.Store.getStudents === 'function') ? window.Store.getStudents(true) : []);
+    const allCount = allStudentsList.length;
+    const activeCount = allStudentsList.filter(s => !s.isPassive && s.status !== 'passive').length;
+    const passiveCount = allStudentsList.filter(s => s.isPassive === true || s.status === 'passive').length;
 
     container.innerHTML = `
       <div class="space-y-4 max-w-[100vw] mx-auto animate-fade-in pb-12 px-1 sm:px-4">
@@ -380,31 +458,61 @@ window.StudentExcelModule = {
 
           <!-- FİLTRE VE ARAMA BARI -->
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <!-- Sınıf Hap Butonları -->
-            <div class="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
-              <span class="text-[11px] font-black text-slate-500 uppercase mr-1">SINIF:</span>
-              <button type="button" onclick="window.StudentExcelModule.setFilterClass('ALL')"
-                class="px-3 py-1 rounded-xl text-xs font-black transition ${
-                  this.selectedClass === 'ALL'
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }">
-                Tümü
-              </button>
-              ${classes.map(c => `
-                <button type="button" onclick="window.StudentExcelModule.setFilterClass('${c}')"
-                  class="px-2.5 py-1 rounded-xl text-xs font-black transition border ${
-                    this.selectedClass === c
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            <div class="flex flex-wrap items-center gap-3">
+              <!-- Sınıf Hap Butonları -->
+              <div class="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
+                <span class="text-[11px] font-black text-slate-500 uppercase mr-1">SINIF:</span>
+                <button type="button" onclick="window.StudentExcelModule.setFilterClass('ALL')"
+                  class="px-3 py-1 rounded-xl text-xs font-black transition ${
+                    this.selectedClass === 'ALL'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }">
-                  ${c}
+                  Tümü
                 </button>
-              `).join('')}
+                ${classes.map(c => `
+                  <button type="button" onclick="window.StudentExcelModule.setFilterClass('${c}')"
+                    class="px-2.5 py-1 rounded-xl text-xs font-black transition border ${
+                      this.selectedClass === c
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }">
+                    ${c}
+                  </button>
+                `).join('')}
+              </div>
+
+              <!-- Durum Filtresi: Tümü, Aktifler, Pasifler -->
+              <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                <button type="button" onclick="window.StudentExcelModule.setStatusFilter('ALL')"
+                  class="px-2.5 py-1 rounded-lg text-xs font-black transition ${
+                    (this.selectedStatus || 'ALL') === 'ALL'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }">
+                  Tümü (${allCount})
+                </button>
+                <button type="button" onclick="window.StudentExcelModule.setStatusFilter('ACTIVE')"
+                  class="px-2.5 py-1 rounded-lg text-xs font-black transition ${
+                    this.selectedStatus === 'ACTIVE'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-emerald-700 hover:bg-emerald-50'
+                  }">
+                  🟢 Aktif (${activeCount})
+                </button>
+                <button type="button" onclick="window.StudentExcelModule.setStatusFilter('PASSIVE')"
+                  class="px-2.5 py-1 rounded-lg text-xs font-black transition ${
+                    this.selectedStatus === 'PASSIVE'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-amber-800 hover:bg-amber-50'
+                  }">
+                  ⏸️ Pasif (${passiveCount})
+                </button>
+              </div>
             </div>
 
             <!-- Canlı Arama Kutusu -->
-            <div class="w-full sm:w-72 relative">
+            <div class="w-full sm:w-64 relative">
               <input type="text" placeholder="İsim, No, Hoca veya Telefon ara..." 
                 value="${this.escapeHtml(this.searchQuery)}"
                 class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
@@ -442,7 +550,7 @@ window.StudentExcelModule = {
                   <th class="w-32 px-2">Veli Telefonu</th>
                   <th class="w-24 px-2 text-center bg-amber-950/60 text-amber-300">Giriş Şifresi</th>
                   <th class="w-28 px-2">Ortak Aile Kodu</th>
-                  <th class="w-12 text-center bg-slate-950">İşlem</th>
+                  <th class="w-20 text-center bg-slate-950">İşlem</th>
                 </tr>
               </thead>
 
@@ -490,7 +598,13 @@ window.StudentExcelModule = {
     const tbody = document.getElementById('student-excel-tbody');
     if (!tbody) return;
 
-    const students = this.getFilteredStudents();
+    let students = [];
+    try {
+      students = this.getFilteredStudents();
+    } catch (err) {
+      console.error('getFilteredStudents error:', err);
+    }
+
     const counterEl = document.getElementById('excel-total-counter');
     if (counterEl) {
       counterEl.textContent = `Toplam ${students.length} Talebe Listeleniyor`;
@@ -511,26 +625,31 @@ window.StudentExcelModule = {
       return;
     }
 
-    tbody.innerHTML = students.map((st, rowIdx) => {
-      const isCustomPass = st.password && st.password.trim() !== '123';
+    try {
+      tbody.innerHTML = students.map((st, rowIdx) => {
+        const isCustomPass = st && st.password && st.password.toString().trim() !== '123';
+        const isPassive = st && (st.isPassive === true || st.status === 'passive');
 
-      return `
-        <tr class="hover:bg-amber-50/40 transition-colors h-8 divide-x divide-slate-100 group">
-          <!-- 0. Sıra No -->
-          <td class="text-center font-mono text-[10px] text-slate-400 bg-slate-50/70 select-none font-bold">
-            ${rowIdx + 1}
-          </td>
+        return `
+          <tr class="hover:bg-amber-50/40 transition-colors h-8 divide-x divide-slate-100 group ${isPassive ? 'bg-amber-50/30 opacity-80' : ''}">
+            <!-- 0. Sıra No -->
+            <td class="text-center font-mono text-[10px] text-slate-400 bg-slate-50/70 select-none font-bold">
+              ${rowIdx + 1}
+            </td>
 
-          <!-- 1. Okul No -->
-          <td class="p-0">
-            <input type="text" value="${this.escapeHtml(st.studentNo)}" 
-              id="excel-cell-${rowIdx}-1"
-              data-student-id="${st.id}" data-field="studentNo"
-              class="excel-input w-full h-8 px-2 bg-transparent text-slate-900 font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              oninput="window.StudentExcelModule.handleCellInput('${st.id}', 'studentNo', this.value)"
-              onblur="window.StudentExcelModule.handleCellBlur('${st.id}', 'studentNo', this.value)"
-              onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 1)">
-          </td>
+            <!-- 1. Okul No -->
+            <td class="p-0">
+              <div class="flex items-center">
+                <input type="text" value="${this.escapeHtml(st.studentNo || '')}" 
+                  id="excel-cell-${rowIdx}-1"
+                  data-student-id="${st.id}" data-field="studentNo"
+                  class="excel-input flex-1 h-8 px-2 bg-transparent text-slate-900 font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  oninput="window.StudentExcelModule.handleCellInput('${st.id}', 'studentNo', this.value)"
+                  onblur="window.StudentExcelModule.handleCellBlur('${st.id}', 'studentNo', this.value)"
+                  onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 1)">
+                ${isPassive ? `<span class="mr-1 px-1 py-0.5 rounded bg-amber-200 text-amber-950 font-black text-[9px] uppercase tracking-tighter" title="Bu talebe pasiftir (Yoklamalardan gizlidir)">PASİF</span>` : ''}
+              </div>
+            </td>
 
           <!-- 2. Adı -->
           <td class="p-0">
@@ -654,16 +773,44 @@ window.StudentExcelModule = {
               onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 12)">
           </td>
 
-          <!-- 13. İşlem (Sil) -->
+          <!-- 13. İşlem (Pasife/Aktife Al & Sil) -->
           <td class="text-center p-0">
-            <button type="button" onclick="window.StudentExcelModule.deleteRow('${st.id}')"
-              class="w-7 h-7 inline-flex items-center justify-center text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-              title="Öğrenciyi Sil">
-              🗑️
+            <div class="flex items-center justify-center gap-1">
+              ${isPassive ? `
+                <button type="button" onclick="window.StudentExcelModule.togglePassive('${st.id}')"
+                  class="w-7 h-7 inline-flex items-center justify-center text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition text-xs font-bold"
+                  title="Talebeyi Tekrar Aktife Al (Yoklamalara dahil et)">
+                  ▶️
+                </button>
+              ` : `
+                <button type="button" onclick="window.StudentExcelModule.togglePassive('${st.id}')"
+                  class="w-7 h-7 inline-flex items-center justify-center text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition text-xs"
+                  title="Talebeyi Pasife Al (Yoklamalardan gizle, geçmiş verileri silinmez)">
+                  ⏸️
+                </button>
+              `}
+              <button type="button" onclick="window.StudentExcelModule.deleteRow('${st.id}')"
+                class="w-7 h-7 inline-flex items-center justify-center text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition text-xs"
+                title="Talebeyi Sistemden Kalıcı Sil">
+                🗑️
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      console.error('renderTableBody render error:', err);
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="14" class="p-8 text-center text-rose-600 text-xs font-bold">
+            Tablo yüklenirken bir sorun oluştu.
+            <button type="button" onclick="window.StudentExcelModule.resetFilterAndRestore()"
+              class="ml-2 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold">
+              Yeniden Dene ⟳
             </button>
           </td>
         </tr>
       `;
-    }).join('');
+    }
   }
 };
