@@ -70,12 +70,171 @@ window.AkademiModule = {
     } else {
       this.selectedClasses.push(className);
     }
+    this.updateClassFilterButtons();
+    this.renderMatrixTableBody();
+  },
+
+  selectOnlyClass(className) {
+    this.selectBranch(className);
+  },
+
+  selectGrade(gradeNum) {
+    const classes = window.Store.getClasses();
+    const branches = classes.filter(c => 
+      c === `${gradeNum}. Sınıf` || 
+      c.startsWith(`${gradeNum}-`) || 
+      c.startsWith(`${gradeNum} `) ||
+      c === String(gradeNum)
+    );
+    
+    if (branches.length === 0) return;
+
+    const isCurrentlySelected = 
+      this.selectedClasses.length === branches.length &&
+      branches.every(c => this.selectedClasses.includes(c));
+
+    if (isCurrentlySelected) {
+      this.selectedClasses = [];
+    } else {
+      this.selectedClasses = [...branches];
+    }
+    this.updateClassFilterButtons();
+    this.renderMatrixTableBody();
+  },
+
+  selectBranch(branchName, event = null) {
+    if (event && (event.ctrlKey || event.metaKey || event.shiftKey)) {
+      this.toggleClass(branchName);
+      return;
+    }
+
+    if (this.selectedClasses.length === 1 && this.selectedClasses[0] === branchName) {
+      this.selectedClasses = [];
+    } else {
+      this.selectedClasses = [branchName];
+    }
+    this.updateClassFilterButtons();
     this.renderMatrixTableBody();
   },
 
   toggleAllClasses() {
     this.selectedClasses = [];
+    this.updateClassFilterButtons();
     this.renderMatrixTableBody();
+  },
+
+  renderClassFilterButtonsHtml(classes = window.Store.getClasses()) {
+    const isAll = !this.selectedClasses || this.selectedClasses.length === 0;
+
+    // Sınıf seviyelerine göre (5, 6, 7, 8) gruplama
+    const gradeGroups = {};
+    const otherClasses = [];
+
+    classes.forEach(c => {
+      const match = c.match(/^(\d+)/);
+      if (match) {
+        const g = match[1];
+        if (!gradeGroups[g]) gradeGroups[g] = [];
+        gradeGroups[g].push(c);
+      } else {
+        otherClasses.push(c);
+      }
+    });
+
+    let html = `
+      <span class="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase mr-0.5">ŞUBE:</span>
+      <!-- Tümü Butonu -->
+      <button type="button" onclick="window.AkademiModule.toggleAllClasses()"
+        class="px-2.5 py-1 rounded-xl text-[11px] font-black transition cursor-pointer ${
+          isAll 
+            ? 'bg-slate-900 text-white shadow-xs ring-2 ring-slate-400/40' 
+            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
+        }">
+        Tümü
+      </button>
+    `;
+
+    // Her seviye için (5, 6, 7, 8) küme butonu
+    const gradeKeys = Object.keys(gradeGroups).sort((a, b) => Number(a) - Number(b));
+    gradeKeys.forEach(g => {
+      const branches = gradeGroups[g];
+      const isGradeActive = !isAll && 
+        this.selectedClasses.length === branches.length &&
+        branches.every(b => this.selectedClasses.includes(b));
+
+      html += `
+        <div class="inline-flex items-center rounded-xl bg-slate-100/90 p-0.5 border border-slate-200 shadow-2xs">
+          <!-- Sınıf Seviyesi (Örn: 5. Sınıf Tümü) -->
+          <button type="button" onclick="window.AkademiModule.selectGrade('${g}')"
+            title="${g}. Sınıfın tüm şubelerini göster"
+            class="px-2 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+              isGradeActive 
+                ? 'bg-blue-600 text-white shadow-xs ring-1 ring-blue-400' 
+                : 'text-slate-700 hover:bg-white hover:text-blue-900'
+            }">
+            ${g}. Sınıf
+          </button>
+          
+          <div class="h-3.5 w-px bg-slate-300 mx-0.5"></div>
+          
+          <!-- Alt Şubeler (Örn: 5-A, 5-B) -->
+          ${branches.map(b => {
+            const isBranchActive = !isAll && this.selectedClasses.length === 1 && this.selectedClasses[0] === b;
+            return `
+              <button type="button" onclick="window.AkademiModule.selectBranch('${b}', event)"
+                title="Sadece ${b} şubesini göster (Çoklu seçim için Ctrl ile tıklayabilirsiniz)"
+                class="px-2 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                  isBranchActive 
+                    ? 'bg-blue-600 text-white shadow-xs ring-1 ring-blue-400' 
+                    : 'text-slate-600 hover:bg-white hover:text-blue-900'
+                }">
+                ${b}
+              </button>
+            `;
+          }).join('')}
+        </div>
+      `;
+    });
+
+    // Diğer sınıflar varsa
+    otherClasses.forEach(c => {
+      const isChecked = !isAll && this.selectedClasses.includes(c);
+      html += `
+        <button type="button" onclick="window.AkademiModule.selectBranch('${c}', event)"
+          class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition border cursor-pointer ${
+            isChecked 
+              ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-400' 
+              : 'bg-white text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-900'
+          }">
+          ${c}
+        </button>
+      `;
+    });
+
+    return html;
+  },
+
+  updateClassFilterButtons() {
+    const el = document.getElementById('matrix-class-buttons-container');
+    if (el) {
+      el.innerHTML = this.renderClassFilterButtonsHtml();
+    }
+    const label = document.getElementById('matrix-header-class-label');
+    if (label) {
+      let text = 'Tüm Sınıflar';
+      if (this.selectedClasses && this.selectedClasses.length > 0) {
+        const firstChar = this.selectedClasses[0].charAt(0);
+        if (this.selectedClasses.length === 2 && this.selectedClasses.every(c => c.startsWith(firstChar))) {
+          text = `${firstChar}. Sınıf (${this.selectedClasses.join(', ')})`;
+        } else {
+          text = this.selectedClasses.join(', ');
+        }
+      }
+      label.textContent = `Sınıf: ${text}`;
+    }
+    if (window.App && typeof window.App.renderHeader === 'function') {
+      window.App.renderHeader();
+    }
   },
 
   toggleSort() {
@@ -322,71 +481,50 @@ window.AkademiModule = {
 
           <!-- Çoklu Sınıf Filtresi, Sıralama Butonu & Öğrenci Arama -->
           <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <div class="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
-              <span class="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase mr-1">SINIF:</span>
-              <button type="button" onclick="window.AkademiModule.toggleAllClasses()"
-                class="px-2.5 py-1 rounded-xl text-[11px] font-black transition ${
-                  this.selectedClasses.length === 0 
-                    ? 'bg-slate-900 text-white shadow-sm' 
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }">
-                Tümü
-              </button>
-              ${classes.map(c => {
-                const isChecked = this.selectedClasses.includes(c);
-                return `
-                  <button type="button" onclick="window.AkademiModule.toggleClass('${c}')"
-                    class="px-2.5 py-1 rounded-xl text-[11px] font-black transition border flex items-center gap-1 ${
-                      isChecked 
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                    }">
-                    <span>${isChecked ? '✓' : '+'}</span>
-                    <span>${c}</span>
-                  </button>
-                `;
-              }).join('')}
-
-              <!-- ALDIĞI NOTA GÖRE SIRALA BUTONU -->
-              <button type="button" id="btn-matrix-sort" onclick="window.AkademiModule.toggleSort()"
-                title="Öğrencileri ders ortalamalarına göre sıralar (1. en üstte)"
-                class="px-2.5 py-1 rounded-xl text-[11px] font-black transition flex items-center gap-1 border shadow-2xs ${
-                  this.sortBy === 'score_desc' 
-                    ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
-                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-                }">
-                <span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '🔤 İsim Sıralı'}</span>
-              </button>
+            <div id="matrix-class-buttons-container" class="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
+              ${this.renderClassFilterButtonsHtml(classes)}
             </div>
 
-            <!-- Arama -->
-            <div class="w-full sm:w-56 relative ml-auto">
-              <input type="text" placeholder="İsme göre öğrenci ara..." value="${this.escapeHtml(this.searchQuery)}"
-                class="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                oninput="window.AkademiModule.setSearchQuery(this.value)">
-              <span class="absolute left-2.5 top-1.5 text-slate-400 text-xs">🔍</span>
-            </div>
+            <!-- ALDIĞI NOTA GÖRE SIRALA BUTONU -->
+            <button type="button" id="btn-matrix-sort" onclick="window.AkademiModule.toggleSort()"
+              title="Öğrencileri ders ortalamalarına göre sıralar (1. en üstte)"
+              class="px-2.5 py-1 rounded-xl text-[11px] font-black transition flex items-center gap-1 border shadow-2xs ${
+                this.sortBy === 'score_desc' 
+                  ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
+                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+              }">
+              <span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '🔤 İsim Sıralı'}</span>
+            </button>
+          </div>
+
+          <!-- Arama -->
+          <div class="w-full sm:w-56 relative ml-auto">
+            <input type="text" placeholder="İsme göre öğrenci ara..." value="${this.escapeHtml(this.searchQuery)}"
+              class="w-full pl-8 pr-3 py-1 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              oninput="window.AkademiModule.setSearchQuery(this.value)">
+            <span class="absolute left-2.5 top-1.5 text-slate-400 text-xs">🔍</span>
           </div>
         </div>
+      </div>
 
-        <!-- 3. MATRİS TABLO (SIFIR YATAY KAYDIRMA, MOBİL VE EKRAN GÖRÜNTÜSÜ UYUMLU) -->
-        <div id="takviye-matrix-table-container" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-0">
-          
-          <!-- KURUMSAL YAZDIRMA & RESİM ÜST BAŞLIĞI -->
-          <div class="p-3 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between border-b border-slate-700">
-            <div class="truncate">
-              <div class="text-xs sm:text-sm font-black text-amber-300 truncate">
-                ${window.Store.getSettings().institutionName || 'Ömer Avniyel Akademi'}
-              </div>
-              <div class="text-[10px] text-slate-300 font-bold truncate">
-                Takviye Dersleri Not Çizelgesi • 5 Ana Ders
-              </div>
+      <!-- 3. MATRİS TABLO (SIFIR YATAY KAYDIRMA, MOBİL VE EKRAN GÖRÜNTÜSÜ UYUMLU) -->
+      <div id="takviye-matrix-table-container" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-0">
+        
+        <!-- KURUMSAL YAZDIRMA & RESİM ÜST BAŞLIĞI -->
+        <div class="p-3 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between border-b border-slate-700">
+          <div class="truncate">
+            <div class="text-xs sm:text-sm font-black text-amber-300 truncate">
+              ${window.Store.getSettings().institutionName || 'Ömer Avniyel Akademi'}
             </div>
-            <div class="text-right flex-shrink-0 pl-2">
-              <div class="text-[10px] text-emerald-300 font-bold font-mono">${this.currentDate} (${dayName})</div>
-              <div class="text-[9px] text-slate-400 font-medium truncate">Sınıf: ${this.selectedClasses.length > 0 ? this.selectedClasses.join(', ') : 'Tüm Sınıflar'}</div>
+            <div class="text-[10px] text-slate-300 font-bold truncate">
+              Takviye Dersleri Not Çizelgesi • 5 Ana Ders
             </div>
           </div>
+          <div class="text-right flex-shrink-0 pl-2">
+            <div class="text-[10px] text-emerald-300 font-bold font-mono">${this.currentDate} (${dayName})</div>
+            <div id="matrix-header-class-label" class="text-[9px] text-slate-400 font-medium truncate">Sınıf: ${this.selectedClasses.length > 0 ? this.selectedClasses.join(', ') : 'Tüm Sınıflar'}</div>
+          </div>
+        </div>
 
           <!-- SIFIR YATAY KAYDIRMA MOBİL & EKRAN GÖRÜNTÜSÜ TABLOSU (12-15 Kişi Tek Ekrana Sığar) -->
           <div class="w-full overflow-hidden">

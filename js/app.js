@@ -385,10 +385,30 @@ window.App = {
       else if (cat === 'okul_donusu') activeTitle = '🎒 Okul Dönüşü';
       else if (cat === 'namaz_rapor') activeTitle = '📊 Namaz Raporları';
     } else if (this.activeTab === 'akademi' || this.activeTab === 'performans') {
-      const subj = (window.AkademiModule && window.AkademiModule.currentSubject) || 'Türkçe';
-      activeTitle = `🎓 Akademi • ${subj}`;
+      let selectedCls = 'Tümü';
+      if (window.AkademiModule && window.AkademiModule.selectedClasses) {
+        const sc = window.AkademiModule.selectedClasses;
+        if (sc.length === 1) {
+          selectedCls = sc[0];
+        } else if (sc.length === 2 && sc[0].charAt(0) === sc[1].charAt(0)) {
+          selectedCls = `${sc[0].charAt(0)}. Sınıf`;
+        } else if (sc.length > 1) {
+          selectedCls = `${sc.length} Şube`;
+        }
+      }
+      const sub = (window.AkademiModule && window.AkademiModule.currentSubCategory === 'genel') ? 'Genel Karne' : 'Takviye Notları';
+      activeTitle = `📚 Akademi • ${sub} (${selectedCls})`;
     } else if (this.activeTab === 'testler' || this.activeTab === 'test_sonuclari') {
-      activeTitle = '📝 Test Neticeleri & Etüt';
+      let selectedCls = 'Tümü';
+      if (window.TestResultsModule && window.TestResultsModule.selectedClass && window.TestResultsModule.selectedClass !== 'ALL') {
+        const tc = window.TestResultsModule.selectedClass;
+        if (tc.startsWith('GRADE_')) {
+          selectedCls = `${tc.replace('GRADE_', '')}. Sınıf`;
+        } else {
+          selectedCls = tc;
+        }
+      }
+      activeTitle = `📝 Test & Etüt (${selectedCls})`;
     } else if (this.activeTab === 'leaderboard') {
       activeTitle = '🏆 Haftanın & Ayın Talebesi';
     } else if (this.activeTab === 'izin_cikis') {
@@ -486,14 +506,31 @@ window.App = {
     }, 300);
   },
 
-  navigateFromDrawer(tab, category = null) {
+  navigateFromDrawer(tab, category = null, targetClass = null) {
     this.closeDrawer();
     this.activeTab = tab;
     if (tab === 'yoklama' && category && window.AttendanceModule) {
       window.AttendanceModule.currentCategory = category;
     }
-    if ((tab === 'akademi' || tab === 'performans') && category && window.AkademiModule) {
-      window.AkademiModule.currentSubCategory = category;
+    if (tab === 'akademi' || tab === 'performans') {
+      if (category && window.AkademiModule) {
+        window.AkademiModule.currentSubCategory = category;
+      }
+      if (targetClass && window.AkademiModule) {
+        if (targetClass.startsWith('GRADE_')) {
+          const g = targetClass.replace('GRADE_', '');
+          window.AkademiModule.selectedClasses = [`${g}-A`, `${g}-B`];
+        } else if (targetClass === 'ALL') {
+          window.AkademiModule.selectedClasses = [];
+        } else {
+          window.AkademiModule.selectedClasses = [targetClass];
+        }
+      }
+    }
+    if (tab === 'testler' || tab === 'test_sonuclari') {
+      if (targetClass && window.TestResultsModule) {
+        window.TestResultsModule.selectedClass = targetClass;
+      }
     }
     this.renderHeader();
     this.renderMainContent();
@@ -649,6 +686,62 @@ window.App = {
             </div>
             <span class="text-slate-300">→</span>
           </button>
+
+          <!-- Hızlı Sınıf & Şube Seçimi -->
+          <div class="bg-gradient-to-br from-blue-50/70 to-indigo-50/70 p-2.5 rounded-2xl border border-blue-100 shadow-2xs mt-1">
+            <div class="text-[10px] font-black text-blue-900 uppercase tracking-wider mb-2 flex items-center justify-between">
+              <span class="flex items-center gap-1">
+                <span>🎯</span>
+                <span>Sınıf & Şube Hızlı Filtre:</span>
+              </span>
+              <span class="text-[9px] bg-blue-600 text-white px-1.5 py-0.2 rounded font-black">5-A'dan 8-B'ye</span>
+            </div>
+
+            <!-- Genel Sınıf Seviyeleri (Tüm Şubeler) -->
+            <div class="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Genel Sınıf:</div>
+            <div class="grid grid-cols-4 gap-1.5 mb-2">
+              ${['5', '6', '7', '8'].map(g => {
+                const isGradeSelected = (this.activeTab === 'akademi' || this.activeTab === 'performans') && 
+                  window.AkademiModule && 
+                  window.AkademiModule.selectedClasses && 
+                  window.AkademiModule.selectedClasses.length === 2 &&
+                  window.AkademiModule.selectedClasses.includes(`${g}-A`) &&
+                  window.AkademiModule.selectedClasses.includes(`${g}-B`);
+                return `
+                  <button type="button" onclick="window.App.navigateFromDrawer('akademi', 'takviye', 'GRADE_${g}')"
+                    class="py-1 px-1 rounded-xl text-[11px] font-black text-center transition border ${
+                      isGradeSelected
+                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs ring-2 ring-indigo-400/50'
+                        : 'bg-white text-indigo-900 hover:bg-indigo-50 border-indigo-200 shadow-2xs'
+                    }">
+                    ${g}. Sınıf
+                  </button>
+                `;
+              }).join('')}
+            </div>
+
+            <!-- Ayrı Şube Butonları -->
+            <div class="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Ayrı Şubeler:</div>
+            <div class="grid grid-cols-4 gap-1.5">
+              ${['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'].map(cls => {
+                const isSelected = (this.activeTab === 'akademi' || this.activeTab === 'performans') && 
+                  window.AkademiModule && 
+                  window.AkademiModule.selectedClasses && 
+                  window.AkademiModule.selectedClasses.length === 1 && 
+                  window.AkademiModule.selectedClasses[0] === cls;
+                return `
+                  <button type="button" onclick="window.App.navigateFromDrawer('akademi', 'takviye', '${cls}')"
+                    class="py-1.5 px-1 rounded-xl text-xs font-black text-center transition border ${
+                      isSelected
+                        ? 'bg-blue-600 text-white border-blue-700 shadow-xs scale-102 ring-2 ring-blue-400/50'
+                        : 'bg-white text-slate-800 hover:bg-blue-600 hover:text-white border-slate-200 shadow-2xs'
+                    }">
+                    ${cls}
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          </div>
         </div>
 
         <!-- YARIŞMA & LİDERLİK TABLOSU -->
