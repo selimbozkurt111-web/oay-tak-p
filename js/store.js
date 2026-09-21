@@ -342,7 +342,7 @@ class DataStore {
       console.warn('[CloudSync] Veri çekme hatası (çevrimdışı):', err);
       return { success: false, message: err.message };
     }
-  },
+  }
 
   // Buluttan Gelen Verileri Yerel Hafıza ile Eksiksiz ve Akıllıca Birleştirme (Deep Merge)
   applyFullCloudSync(cloudData) {
@@ -437,7 +437,7 @@ class DataStore {
     }
 
     window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: cloudData }));
-  },
+  }
 
   // Gerçek Zamanlı (Realtime SSE) Bulut Dinleyicisi - Anında Değişim
   initRealtimeListener() {
@@ -479,7 +479,7 @@ class DataStore {
     } catch (err) {
       console.warn('[RealtimeSync] EventSource başlatılamadı:', err);
     }
-  },
+  }
 
   handleRealtimeLeaveReturn(path, data) {
     try {
@@ -509,7 +509,7 @@ class DataStore {
     } catch (e) {
       console.warn('[handleRealtimeLeaveReturn] Hata:', e);
     }
-  },
+  }
 
   handleRealtimeSettings(path, data) {
     try {
@@ -529,7 +529,7 @@ class DataStore {
     } catch (e) {
       console.warn('[handleRealtimeSettings] Hata:', e);
     }
-  },
+  }
 
   // --- Ana Yönetici E-posta Doğrulama Kodu (OTP) Üretimi ---
   generateAdminOtp(emailInput) {
