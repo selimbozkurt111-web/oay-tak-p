@@ -16,6 +16,14 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#059669">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="shortcut icon" href="icon.svg">
+
+  <!-- Apple iOS & Standalone Kısayol Desteği -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Ömer Avniyel Akademi">
+  <link rel="apple-touch-icon" href="icon.svg">
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -323,6 +331,18 @@
   <script src="js/test-results.js"></script>
   <script src="js/leaderboard.js"></script>
   <script src="js/parent-portal.js"></script>
+  <script src="js/student-excel.js"></script>
   <script src="js/app.js"></script>
+
+  <!-- Service Worker Kaydı (Kısayol ve PWA Hızlı Başlatma) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./sw.js').catch(function(err) {
+          console.warn('[PWA] Service Worker kaydı:', err);
+        });
+      });
+    }
+  </script>
 </body>
 </html>
