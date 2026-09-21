@@ -28,7 +28,9 @@ window.TestResultsModule = {
   scores: {},
 
   // Filtreler
-  selectedClass: 'ALL',
+  selectedGrade: 'ALL',          // 'ALL' | '5' | '6' | '7' | '8'
+  selectedEtut: 'ALL',           // 'ALL' | '5-A|YASİN EKİNCİ' vb.
+  selectedClass: 'ALL',          // Geriye dönük uyumluluk
   searchQuery: '',
 
   SUBJECT_OPTIONS: [
@@ -83,15 +85,47 @@ window.TestResultsModule = {
 
   getCurrentlyDisplayedStudents() {
     let students = window.Store.getStudents();
-    if (this.selectedClass !== 'ALL') {
-      students = students.filter(s => s.className === this.selectedClass);
+
+    // 1. Sınıf Filtresi (5, 6, 7, 8)
+    if (this.selectedGrade && this.selectedGrade !== 'ALL') {
+      students = students.filter(s => {
+        const cls = (s.className || '').trim();
+        return cls === `${this.selectedGrade}. Sınıf` ||
+               cls.startsWith(`${this.selectedGrade}-`) ||
+               cls.startsWith(`${this.selectedGrade} `) ||
+               cls === this.selectedGrade;
+      });
     }
+
+    // 2. Etüt Şubesi Filtresi
+    if (this.selectedEtut && this.selectedEtut !== 'ALL') {
+      const parts = this.selectedEtut.split('|');
+      const branchCode = parts[0]; // Örn: "5-A"
+      const hocaName = parts[1] ? parts[1].trim().toUpperCase() : ''; // Örn: "YASİN EKİNCİ"
+
+      students = students.filter(s => {
+        const sCls = (s.className || '').trim();
+        const sHoca = (s.etutHocasi || '').trim().toUpperCase();
+        const sDahili = (s.dahiliHoca || '').trim().toUpperCase();
+
+        if (branchCode && sCls === branchCode) return true;
+        if (hocaName && (sHoca === hocaName || sDahili === hocaName)) {
+          if (branchCode && branchCode.charAt(0) === sCls.charAt(0)) return true;
+          if (!branchCode) return true;
+        }
+        return false;
+      });
+    }
+
+    // 3. Arama Filtresi
     if (this.searchQuery) {
       const q = this.searchQuery.toLowerCase().trim();
       students = students.filter(s =>
         s.firstName.toLowerCase().includes(q) ||
         s.lastName.toLowerCase().includes(q) ||
-        (s.studentNo && s.studentNo.toString().includes(q))
+        (s.studentNo && s.studentNo.toString().includes(q)) ||
+        (s.className && s.className.toLowerCase().includes(q)) ||
+        (s.etutHocasi && s.etutHocasi.toLowerCase().includes(q))
       );
     }
 
@@ -422,17 +456,7 @@ window.TestResultsModule = {
         <!-- 3. Hızlı Sınıf Filtresi, Sıralama Butonu & Kaydet -->
         <div class="flex flex-wrap items-center justify-between gap-2 bg-white p-2.5 rounded-2xl shadow-xs border border-slate-200 no-print">
           <div class="flex flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar">
-            <!-- Sınıf Butonları -->
-            <button type="button" onclick="window.TestResultsModule.filterClass('ALL')"
-              class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${this.selectedClass === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
-              Tümü
-            </button>
-            ${classes.map(c => `
-              <button type="button" onclick="window.TestResultsModule.filterClass('${c}')"
-                class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${this.selectedClass === c ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
-                ${c}
-              </button>
-            `).join('')}
+            ${this.renderClassFilterButtonsHtml()}
 
             <!-- ALDIĞI NOTA GÖRE SIRALA BUTONU -->
             <button type="button" onclick="window.TestResultsModule.toggleSort()"
@@ -760,9 +784,161 @@ window.TestResultsModule = {
     `;
   },
 
-  filterClass(cls) {
-    this.selectedClass = cls;
+  getEtutSubeleri() {
+    return [
+      { id: '5-A|YASİN EKİNCİ', label: '5-A • Yasin Ekinci', grade: '5', branch: '5-A', hoca: 'YASİN EKİNCİ' },
+      { id: '5-B|AHMED MUBARİZ', label: '5-B • Ahmed Mubariz', grade: '5', branch: '5-B', hoca: 'AHMED MUBARİZ' },
+      { id: '6-A|ABDUSSAMED TAV', label: '6-A • Abdussamed Tav (Oda 201)', grade: '6', branch: '6-A', hoca: 'ABDUSSAMED TAV' },
+      { id: '6-B|ABDUSSAMED TAV', label: '6-B • Abdussamed Tav (Oda 202)', grade: '6', branch: '6-B', hoca: 'ABDUSSAMED TAV' },
+      { id: '7-A|EMİR TALHA TARIM', label: '7-A • Emir Talha Tarım', grade: '7', branch: '7-A', hoca: 'EMİR TALHA TARIM' },
+      { id: '7-B|BURAK BODUR', label: '7-B • Burak Bodur', grade: '7', branch: '7-B', hoca: 'BURAK BODUR' },
+      { id: '8-A|TUNAHAN TAŞKIN', label: '8-A • Tunahan Taşkın', grade: '8', branch: '8-A', hoca: 'TUNAHAN TAŞKIN' },
+      { id: '8-B|YAVUZ SELİM SEVEN', label: '8-B • Yavuz Selim Seven', grade: '8', branch: '8-B', hoca: 'YAVUZ SELİM SEVEN' }
+    ];
+  },
+
+  selectGrade(gradeNum) {
+    if (this.selectedGrade === gradeNum) {
+      this.selectedGrade = 'ALL';
+    } else {
+      this.selectedGrade = gradeNum;
+    }
+    if (this.selectedEtut !== 'ALL') {
+      const etut = this.getEtutSubeleri().find(e => e.id === this.selectedEtut);
+      if (etut && this.selectedGrade !== 'ALL' && etut.grade !== this.selectedGrade) {
+        this.selectedEtut = 'ALL';
+      }
+    }
     this.render();
+    if (window.App && typeof window.App.renderHeader === 'function') {
+      window.App.renderHeader();
+    }
+  },
+
+  setEtutFilter(etutId) {
+    this.selectedEtut = etutId;
+    if (etutId !== 'ALL') {
+      const etut = this.getEtutSubeleri().find(e => e.id === etutId);
+      if (etut) {
+        this.selectedGrade = etut.grade;
+      }
+    }
+    this.render();
+    if (window.App && typeof window.App.renderHeader === 'function') {
+      window.App.renderHeader();
+    }
+  },
+
+  toggleAll() {
+    this.selectedGrade = 'ALL';
+    this.selectedEtut = 'ALL';
+    this.selectedClass = 'ALL';
+    this.render();
+    if (window.App && typeof window.App.renderHeader === 'function') {
+      window.App.renderHeader();
+    }
+  },
+
+  getFilterHeaderLabel() {
+    if (this.selectedEtut && this.selectedEtut !== 'ALL') {
+      const etut = this.getEtutSubeleri().find(e => e.id === this.selectedEtut);
+      return etut ? `Etüt Şubesi: ${etut.label}` : 'Etüt Şubesi';
+    }
+    if (this.selectedGrade && this.selectedGrade !== 'ALL') {
+      return `Sınıf: ${this.selectedGrade}. Sınıf (Tüm Şubeler)`;
+    }
+    return 'Tüm Sınıflar & Etütler';
+  },
+
+  renderClassFilterButtonsHtml() {
+    const etutList = this.getEtutSubeleri();
+    const isAll = (!this.selectedGrade || this.selectedGrade === 'ALL') && 
+                  (!this.selectedEtut || this.selectedEtut === 'ALL');
+
+    let html = `
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- 1. Sınıf Seviyesi Seçimi -->
+        <div class="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200 shadow-2xs">
+          <button type="button" onclick="window.TestResultsModule.toggleAll()"
+            class="px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+              isAll 
+                ? 'bg-slate-900 text-white shadow-xs' 
+                : 'text-slate-700 hover:bg-white hover:text-slate-900'
+            }">
+            Tümü
+          </button>
+          ${['5', '6', '7', '8'].map(g => {
+            const isGActive = this.selectedGrade === g && (this.selectedEtut === 'ALL' || !this.selectedEtut);
+            return `
+              <button type="button" onclick="window.TestResultsModule.selectGrade('${g}')"
+                class="px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                  isGActive 
+                    ? 'bg-emerald-600 text-white shadow-xs ring-1 ring-emerald-400' 
+                    : 'text-slate-700 hover:bg-white hover:text-emerald-900'
+                }">
+                ${g}. Sınıf
+              </button>
+            `;
+          }).join('')}
+        </div>
+
+        <!-- 2. Etüt Şubesi Açılır Seçimi -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase flex items-center gap-1">
+            <span>📖</span>
+            <span>Etüt Şubesi:</span>
+          </span>
+          <select onchange="window.TestResultsModule.setEtutFilter(this.value)"
+            class="px-2.5 py-1 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs cursor-pointer">
+            <option value="ALL" ${(!this.selectedEtut || this.selectedEtut === 'ALL') ? 'selected' : ''}>
+              Tüm Etüt Şubeleri
+            </option>
+            ${['5', '6', '7', '8'].map(g => {
+              const subeler = etutList.filter(e => e.grade === g);
+              return `
+                <optgroup label="${g}. Sınıf Etüt Şubeleri">
+                  ${subeler.map(e => `
+                    <option value="${e.id}" ${this.selectedEtut === e.id ? 'selected' : ''}>
+                      ${e.label}
+                    </option>
+                  `).join('')}
+                </optgroup>
+              `;
+            }).join('')}
+          </select>
+        </div>
+
+        <!-- 3. Seçili Sınıfın Hızlı Etüt Butonları -->
+        ${this.selectedGrade && this.selectedGrade !== 'ALL' ? `
+          <div class="inline-flex items-center gap-1.5 bg-emerald-50/70 p-0.5 px-1.5 rounded-xl border border-emerald-200">
+            <span class="text-[10px] font-black text-emerald-900">${this.selectedGrade}. Sınıf Etütleri:</span>
+            ${etutList.filter(e => e.grade === this.selectedGrade).map(e => {
+              const isActive = this.selectedEtut === e.id;
+              return `
+                <button type="button" onclick="window.TestResultsModule.setEtutFilter('${e.id}')"
+                  class="px-2 py-0.5 rounded-lg text-[11px] font-bold transition border cursor-pointer ${
+                    isActive 
+                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs ring-1 ring-emerald-400' 
+                      : 'bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-600 hover:text-white'
+                  }">
+                  ${e.label}
+                </button>
+              `;
+            }).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    return html;
+  },
+
+  filterClass(cls) {
+    if (cls === 'ALL') {
+      this.toggleAll();
+    } else {
+      this.selectGrade(cls.replace('GRADE_', ''));
+    }
   },
 
   resetForm() {
