@@ -115,6 +115,10 @@ window.App = {
 
   // Tarayıcı ve PWA önbelleğini tek tıkla tamamen temizleyip en güncel kodları zorla yükleme
   async hardRefreshApp() {
+    if (typeof window.forcePurgeAppCache === 'function') {
+      window.forcePurgeAppCache();
+      return;
+    }
     this.showToast('Önbellek temizleniyor ve sayfa yenileniyor...', 'info');
     try {
       if ('serviceWorker' in navigator) {
@@ -133,8 +137,8 @@ window.App = {
       console.warn('Cache purge:', e);
     }
     setTimeout(() => {
-      window.location.reload(true);
-    }, 300);
+      window.location.href = window.location.pathname + '?reload=' + Date.now();
+    }, 250);
   },
 
   // --- Kurs Logosu / Fotoğrafı Otomatik Aday Bulma ve Hata Yönetimi ---
@@ -507,10 +511,10 @@ window.App = {
         <!-- 6. HER ZAMAN GÖRÜNÜR: SİSTEMİ & ÖNBELLEĞİ YENİLE BUTONU -->
         <div class="flex-shrink-0 ${(session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? 'ml-1.5' : 'ml-auto'}">
           <button type="button" onclick="window.App.hardRefreshApp()" 
-            class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-2xs border border-slate-200"
+            class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-sm border border-amber-500 active:scale-95"
             title="Sistemi ve önbelleği sıfırlayıp en güncel sürümü yükler">
             <span>🔄</span>
-            <span class="hidden sm:inline">Önbelleği Yenile</span>
+            <span class="inline">Önbelleği Yenile</span>
           </button>
         </div>
       </div>
@@ -1161,10 +1165,10 @@ window.App = {
             <!-- Sayfa & Önbellek Yenileme Butonu -->
             <div class="mt-4 text-center">
               <button type="button" onclick="window.App.hardRefreshApp();"
-                class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-300 transition inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                class="w-full py-2.5 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-black border-2 border-amber-300 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
                 title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
-                <span>🔄</span>
-                <span>Sistemi & Önbelleği Yenile</span>
+                <span class="text-sm">🔄</span>
+                <span>Sistemi & Önbelleği Sıfırla (v3.5)</span>
               </button>
             </div>
           </div>

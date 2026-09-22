@@ -1,10 +1,8 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker
-const CACHE_NAME = 'oay-takip-cache-v3.3';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v3.5 - Agresif Önbellek Kırıcı & Canlı Ağ Öncelikli)
+const CACHE_NAME = 'oay-takip-cache-v3.5';
 
-// Statik temel dosyalar
+// Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/icon.svg',
   '/css/custom.css'
@@ -15,7 +13,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('[SW] Önbellek yükleme uyarısı:', err);
+        console.warn('[SW] Önbellek yükleme:', err);
       });
     })
   );
@@ -24,6 +22,11 @@ self.addEventListener('install', (event) => {
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+  if (event.data && event.data.type === 'FORCE_PURGE') {
+    caches.keys().then((keys) => {
+      keys.forEach((k) => caches.delete(k));
+    });
   }
 });
 
@@ -37,13 +40,13 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Network-First stratejisi (Canlı veri öncelikli, bağlantı yoksa veya yavaşsa önbellekten hızlı açılış)
+// Network-First stratejisi (Canlı veri öncelikli, HTML ve JS asla bayat önbellekten açılmaz)
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = event.request.url;
 
-  // Firebase Realtime SSE, Firebase DB veya Harici Form servislerini önbelleğe alma
+  // Firebase Realtime, Formsubmit, CDN servislerini SW karışmasın
   if (
     url.includes('firebasedatabase.app') ||
     url.includes('formsubmit.co') ||
@@ -53,10 +56,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // HTML navigasyonları ve JS dosyaları için DAİMA doğrudan ağa git
+  if (event.request.mode === 'navigate' || url.endsWith('.html') || url.includes('/js/')) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-cache' })
+        .then((networkResponse) => {
+          return networkResponse;
+        })
+        .catch(() => {
+          // Yalnızca internet tamamen kesilmişse önbelleğe bak
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // Diğer statik varlıklar (resimler, css vb.)
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        // Başarılı cevabı arka planda önbelleğe güncelle
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -66,10 +84,7 @@ self.addEventListener('fetch', (event) => {
         return networkResponse;
       })
       .catch(() => {
-        // Çevrimdışıysa veya internet kesildiyse önbellekten aç
-        return caches.match(event.request).then((cached) => {
-          return cached || (event.request.mode === 'navigate' ? caches.match('/index.html') : null);
-        });
+        return caches.match(event.request);
       })
   );
 });
