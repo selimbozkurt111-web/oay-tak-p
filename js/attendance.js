@@ -13,6 +13,8 @@ window.AttendanceModule = {
   selectedClasses: [], // Boş ise 'Tüm Sınıflar'
   currentHoca: 'ALL',
   searchQuery: '',
+  statusFilter: 'ALL', // 'ALL' | 'YOK' | 'VAR' | 'GEC' | 'TAKKESIZ' | 'IZINLI'
+  reportAbsentOnly: false, // Namaz raporlarında sadece eksiği/yoku olanları filtreleme
   draftAttendance: {},
 
   // Rapor Parametreleri
@@ -245,7 +247,65 @@ window.AttendanceModule = {
     this.renderSummary();
   },
 
-  getFilteredStudents() {
+  saveAllCurrentView() {
+    const allStudents = this.getAllStudentsForCurrentView();
+    if (!allStudents || allStudents.length === 0) return;
+
+    const defaultStatus = this.getDefaultStatus();
+    const subKey = this.currentCategory === 'namaz' ? this.currentPrayer : this.currentCategory;
+
+    const records = allStudents.map(s => {
+      const draft = this.draftAttendance[s.id];
+      const status = draft ? draft.status : defaultStatus;
+      this.draftAttendance[s.id] = { status };
+      return {
+        studentId: s.id,
+        date: this.currentDate,
+        subKey: subKey,
+        status: status,
+        category: this.currentCategory
+      };
+    });
+
+    window.Store.saveAttendanceBatch(records);
+    this.renderSummary();
+    this.renderStudentRows();
+
+    const label = this.currentCategory === 'namaz' ? `${this.currentPrayer} Namazı` : (this.currentCategory === 'yatak' ? 'Yatak Yoklaması' : 'Okul Dönüşü');
+    if (window.App && typeof window.App.showToast === 'function') {
+      window.App.showToast(`✅ ${label} başarıyla tamamlandı ve kaydedildi! (${records.length} Talebe)`, 'success');
+    }
+  },
+
+  markAllAsDefault() {
+    const allStudents = this.getAllStudentsForCurrentView();
+    if (!allStudents || allStudents.length === 0) return;
+
+    const defaultStatus = this.getDefaultStatus();
+    const subKey = this.currentCategory === 'namaz' ? this.currentPrayer : this.currentCategory;
+
+    const records = allStudents.map(s => {
+      this.draftAttendance[s.id] = { status: defaultStatus };
+      return {
+        studentId: s.id,
+        date: this.currentDate,
+        subKey: subKey,
+        status: defaultStatus,
+        category: this.currentCategory
+      };
+    });
+
+    window.Store.saveAttendanceBatch(records);
+    this.renderSummary();
+    this.renderStudentRows();
+
+    const statusLabel = defaultStatus === 'VAR' ? 'Var' : (defaultStatus === 'IYI' ? 'İyi' : 'Geldi');
+    if (window.App && typeof window.App.showToast === 'function') {
+      window.App.showToast(`✅ Tüm talebeler "${statusLabel}" olarak kaydedildi! (${records.length} Talebe)`, 'success');
+    }
+  },
+
+  getAllStudentsForCurrentView() {
     let students = window.Store.getStudents();
 
     if (this.selectedClasses && this.selectedClasses.length > 0) {
@@ -266,6 +326,67 @@ window.AttendanceModule = {
     }
 
     return students;
+  },
+
+  getFilteredStudents() {
+    let students = this.getAllStudentsForCurrentView();
+
+    if (this.statusFilter && this.statusFilter !== 'ALL') {
+      const defaultStatus = this.getDefaultStatus();
+      students = students.filter(s => {
+        const draft = this.draftAttendance[s.id];
+        const status = draft ? draft.status : defaultStatus;
+        if (this.statusFilter === 'YOK') {
+          return status === 'YOK';
+        }
+        if (this.statusFilter === 'VAR') {
+          return status === 'VAR';
+        }
+        if (this.statusFilter === 'GEC') {
+          return status === 'GEC' || status === 'GEC_TAKKESIZ';
+        }
+        if (this.statusFilter === 'TAKKESIZ') {
+          return status === 'TAKKESIZ' || status === 'GEC_TAKKESIZ';
+        }
+        if (this.statusFilter === 'IZINLI') {
+          return status === 'IZINLI';
+        }
+        if (this.statusFilter === 'GEC_TAKKESIZ') {
+          return status === 'GEC_TAKKESIZ';
+        }
+        return status === this.statusFilter;
+      });
+    }
+
+    return students;
+  },
+
+  setStatusFilter(statusCode) {
+    if (this.statusFilter === statusCode) {
+      this.statusFilter = 'ALL';
+    } else {
+      this.statusFilter = statusCode;
+    }
+    this.renderSummary();
+    this.renderStudentRows();
+
+    if (window.App && typeof window.App.showToast === 'function') {
+      if (this.statusFilter === 'YOK') {
+        window.App.showToast('🔴 Sadece Namazda Olmayan (Yok) talebeler filtrelendi.', 'info');
+      } else if (this.statusFilter === 'ALL') {
+        window.App.showToast('Tüm talebeler gösteriliyor.', 'info');
+      } else {
+        window.App.showToast(`Durum filtresi: ${this.statusFilter}`, 'info');
+      }
+    }
+  },
+
+  toggleReportAbsentOnly() {
+    this.reportAbsentOnly = !this.reportAbsentOnly;
+    this.renderView();
+    if (window.App && typeof window.App.showToast === 'function') {
+      window.App.showToast(this.reportAbsentOnly ? 'Sadece namazda eksiği (Yok) olan talebeler filtrelendi.' : 'Tüm talebeler gösteriliyor.', 'info');
+    }
   },
 
   renderView() {
@@ -781,8 +902,18 @@ window.AttendanceModule = {
                   oninput="window.AttendanceModule.setSearchQuery(this.value)">
               </div>
 
-              <div class="text-xs text-slate-400">
-                💡 <em>Dokunduğunuz an yoklama anında kaydedilir.</em>
+              <div class="flex items-center gap-2 flex-wrap">
+                <button type="button" onclick="window.AttendanceModule.saveAllCurrentView()"
+                  class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer hover:scale-102 active:scale-95"
+                  title="Bu yoklamayı tüm talebeler için kesinleştirir ve puanları günceller">
+                  <span>✓</span>
+                  <span>Yoklamayı Tamamla (Tümünü Kaydet)</span>
+                </button>
+                <button type="button" onclick="window.AttendanceModule.markAllAsDefault()"
+                  class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold border border-slate-300/80 transition cursor-pointer hover:scale-102 active:scale-95"
+                  title="Tüm talebeleri tek tıkla varsayılan yapar">
+                  <span>⚡ Tümünü ${this.currentCategory === 'namaz' ? 'Var Yap' : (this.currentCategory === 'yatak' ? 'İyi Yap' : 'Geldi Yap')}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -815,7 +946,7 @@ window.AttendanceModule = {
     const summaryContainer = document.getElementById('attendance-summary-bar');
     if (!summaryContainer) return;
 
-    const students = this.getFilteredStudents();
+    const allStudents = this.getAllStudentsForCurrentView();
     const currentStatuses = this.statusConfigs[this.currentCategory] || this.statusConfigs.namaz;
     const counts = {};
     currentStatuses.forEach(st => { counts[st.code] = 0; });
@@ -823,7 +954,7 @@ window.AttendanceModule = {
 
     const defaultStatus = this.getDefaultStatus();
 
-    students.forEach(s => {
+    allStudents.forEach(s => {
       const draft = this.draftAttendance[s.id];
       const status = draft ? draft.status : defaultStatus;
       if (status === 'GEC_TAKKESIZ') {
@@ -837,23 +968,87 @@ window.AttendanceModule = {
       }
     });
 
+    const yokCount = counts['YOK'] || 0;
+    const isNamaz = this.currentCategory === 'namaz';
+
     summaryContainer.innerHTML = `
-      <div class="flex flex-wrap items-center gap-2 text-xs">
-        <span class="font-black text-slate-600 mr-1 uppercase text-[11px]">Durum Özeti:</span>
-        ${currentStatuses.map(st => `
-          <div class="px-3 py-1 rounded-xl font-bold flex items-center gap-1.5 border shadow-2xs"
-            style="background-color: ${st.bg}15; color: ${st.bg}; border-color: ${st.border}30;">
-            <span>${st.label}:</span>
-            <span class="font-black">${counts[st.code] || 0}</span>
-          </div>
-        `).join('')}
-        ${this.currentCategory === 'namaz' && gecTakkesizCount > 0 ? `
-          <div class="px-3 py-1 rounded-xl font-bold flex items-center gap-1.5 border border-fuchsia-300 bg-fuchsia-50 text-fuchsia-900 shadow-2xs">
-            <span>⚡ Geç + Takkesiz:</span>
-            <span class="font-black">${gecTakkesizCount}</span>
+      <div class="space-y-2.5">
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          <span class="font-black text-slate-600 mr-1 uppercase text-[11px]">DURUM FİLTRESİ:</span>
+          
+          <!-- Tümü Butonu -->
+          <button type="button" onclick="window.AttendanceModule.setStatusFilter('ALL')"
+            class="px-3 py-1.5 rounded-xl font-black text-xs transition border cursor-pointer ${
+              this.statusFilter === 'ALL'
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+            }">
+            Tümü (${allStudents.length})
+          </button>
+
+          <!-- Durum Butonları (Her biri tıklanabilir filtre) -->
+          ${currentStatuses.map(st => {
+            const isActive = this.statusFilter === st.code;
+            const isYokBtn = st.code === 'YOK';
+            const count = counts[st.code] || 0;
+            return `
+              <button type="button" onclick="window.AttendanceModule.setStatusFilter('${st.code}')"
+                class="px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 border transition cursor-pointer ${
+                  isActive 
+                    ? 'ring-2 ring-offset-1 shadow-md scale-105 font-black' 
+                    : 'hover:opacity-85'
+                } ${isYokBtn && count > 0 && !isActive ? 'ring-2 ring-rose-300 animate-pulse' : ''}"
+                style="background-color: ${isActive ? st.bg : st.bg + '18'}; color: ${isActive ? '#ffffff' : st.bg}; border-color: ${st.border}${isActive ? 'ff' : '40'};"
+                title="${st.label} durumundaki talebeleri filtrele">
+                <span>${isYokBtn ? '🔴' : (st.code === 'VAR' ? '🟢' : (st.code === 'GEC' ? '🟡' : (st.code === 'TAKKESIZ' ? '🟣' : '🔵')))}</span>
+                <span>${st.label}:</span>
+                <span class="font-black">${count}</span>
+              </button>
+            `;
+          }).join('')}
+
+          ${isNamaz && gecTakkesizCount > 0 ? `
+            <button type="button" onclick="window.AttendanceModule.setStatusFilter('GEC_TAKKESIZ')"
+              class="px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 border border-fuchsia-300 transition cursor-pointer ${
+                this.statusFilter === 'GEC_TAKKESIZ'
+                  ? 'bg-fuchsia-600 text-white shadow-md ring-2 ring-fuchsia-300'
+                  : 'bg-fuchsia-50 text-fuchsia-900 hover:bg-fuchsia-100'
+              }">
+              <span>⚡ Geç + Takkesiz:</span>
+              <span class="font-black">${gecTakkesizCount}</span>
+            </button>
+          ` : ''}
+
+          <!-- OLMAYANLARI LİSTELE VE İNCELE BUTONU -->
+          ${(isNamaz && yokCount > 0) ? `
+            <button type="button" onclick="window.AttendanceModule.openAbsentListModal()"
+              class="ml-auto px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-1.5 transition cursor-pointer hover:scale-105 active:scale-95"
+              title="Namazda olmayan talebelerin oda ve hoca listesini aç">
+              <span>🚨</span>
+              <span>Olmayanları İncele (${yokCount}) ↗</span>
+            </button>
+          ` : (isNamaz ? `
+            <span class="ml-auto text-emerald-700 font-bold text-[11px] flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
+              <span>✓</span> <span>Tüm Talebeler Namazda Mevcut</span>
+            </span>
+          ` : '')}
+        </div>
+
+        ${this.statusFilter !== 'ALL' ? `
+          <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900 text-white text-xs font-bold animate-fade-in">
+            <span class="flex items-center gap-2">
+              <span>🔍 Aktif Filtre:</span>
+              <span class="px-2 py-0.5 rounded-md bg-emerald-500 text-slate-950 font-black">
+                ${this.statusFilter === 'YOK' ? '🔴 SADECE NAMAZDA OLMAYANLAR (YOK)' : this.statusFilter}
+              </span>
+              <span class="text-[11px] text-slate-300 font-normal">(${this.getFilteredStudents().length} Talebe Listeleniyor)</span>
+            </span>
+            <button type="button" onclick="window.AttendanceModule.setStatusFilter('ALL')" 
+              class="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-black transition cursor-pointer">
+              ✕ Filtreyi Kaldır (Tümünü Göster)
+            </button>
           </div>
         ` : ''}
-        <span class="text-slate-400 font-bold ml-auto text-[11px]">Toplam: ${students.length} Öğrenci</span>
       </div>
     `;
   },
@@ -868,8 +1063,14 @@ window.AttendanceModule = {
 
     if (students.length === 0) {
       container.innerHTML = `
-        <div class="py-12 text-center text-slate-400 text-sm font-semibold">
-          Filtreye uygun öğrenci bulunamadı.
+        <div class="py-12 text-center text-slate-400 text-sm font-semibold space-y-2">
+          <div>Seçilen kriter ve duruma uygun öğrenci bulunamadı.</div>
+          ${this.statusFilter !== 'ALL' ? `
+            <button type="button" onclick="window.AttendanceModule.setStatusFilter('ALL')"
+              class="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition cursor-pointer">
+              Tüm Talebeleri Göster
+            </button>
+          ` : ''}
         </div>
       `;
       return;
@@ -878,29 +1079,57 @@ window.AttendanceModule = {
     container.innerHTML = students.map(s => {
       const draft = this.draftAttendance[s.id] || { status: defaultStatus };
       const currentStatus = draft.status || defaultStatus;
+      const isYok = (currentStatus === 'YOK');
+      const isOkulYok = (this.currentCategory === 'okul_donusu' && currentStatus === 'GELMEDI');
+      const isHighlightedAbsent = isYok || isOkulYok;
 
       return `
-        <div class="p-3 sm:px-5 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
-          <!-- 1. Öğrenci Bilgisi -->
-          <div class="min-w-0">
+        <div class="p-3 sm:px-5 hover:bg-slate-50/90 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 ${
+          isHighlightedAbsent ? 'bg-rose-50/60 border-l-4 border-rose-500' : ''
+        }">
+          <!-- 1. Öğrenci Bilgisi (Tıklanabilir) -->
+          <div class="min-w-0 cursor-pointer group" onclick="window.AttendanceModule.openStudentQuickModal('${s.id}')" title="Talebe detayları ve hızlı durum için tıkla">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="font-black text-slate-900 text-sm sm:text-base leading-tight truncate">
+              <span class="font-black text-slate-900 text-sm sm:text-base leading-tight truncate group-hover:text-emerald-700 transition">
                 ${s.firstName} ${s.lastName}
               </span>
               <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold text-[10px] shrink-0">
                 ${s.className}
               </span>
+              ${this.currentCategory === 'namaz' && isYok ? `
+                <span class="px-2 py-0.5 rounded-md bg-rose-600 text-white font-black text-[10px] shrink-0 flex items-center gap-1 shadow-2xs animate-pulse">
+                  <span>🔴</span> <span>NAMAZDA YOK</span>
+                </span>
+              ` : ''}
+              ${this.currentCategory === 'okul_donusu' && isOkulYok ? `
+                <span class="px-2 py-0.5 rounded-md bg-rose-600 text-white font-black text-[10px] shrink-0 flex items-center gap-1 shadow-2xs animate-pulse">
+                  <span>🎒</span> <span>GELMEDİ</span>
+                </span>
+              ` : ''}
               ${this.currentCategory === 'namaz' && currentStatus === 'GEC_TAKKESIZ' ? `
                 <span class="px-2 py-0.5 rounded-md bg-fuchsia-100 text-fuchsia-900 border border-fuchsia-300 font-black text-[10px] shrink-0 flex items-center gap-1 shadow-2xs">
                   <span>⚡</span> <span>Geç + Takkesiz</span>
                 </span>
               ` : ''}
             </div>
-            ${this.currentCategory === 'yatak' && s.yatakhane ? `
-              <div class="text-[11px] text-indigo-700 font-bold mt-0.5">
-                🛏️ ${s.yatakhane}
-              </div>
-            ` : ''}
+            
+            <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+              ${s.yatakhane ? `
+                <span class="text-indigo-800 font-bold inline-flex items-center gap-0.5 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100">
+                  🛏️ ${s.yatakhane}
+                </span>
+              ` : ''}
+              ${s.etutHocasi || s.dahiliHoca ? `
+                <span class="text-slate-500">
+                  👨‍🏫 ${s.etutHocasi || s.dahiliHoca}
+                </span>
+              ` : ''}
+              ${s.parentPhone || s.fatherPhone ? `
+                <span class="text-emerald-700 font-medium">
+                  📞 ${s.parentPhone || s.fatherPhone}
+                </span>
+              ` : ''}
+            </div>
           </div>
 
           <!-- 2. Kategoriye Özel Kelimeli Butonlar -->
@@ -922,7 +1151,7 @@ window.AttendanceModule = {
               return `
                 <button type="button" 
                   onclick="window.AttendanceModule.setStatus('${s.id}', '${st.code}')"
-                  class="flex-1 sm:flex-none py-2 px-2.5 sm:px-3 rounded-xl text-xs font-black transition-all ${
+                  class="flex-1 sm:flex-none py-2 px-2.5 sm:px-3 rounded-xl text-xs font-black transition-all cursor-pointer ${
                     isSelected 
                       ? st.activeClass + ' scale-105' 
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200/80'
@@ -935,5 +1164,362 @@ window.AttendanceModule = {
         </div>
       `;
     }).join('');
+  },
+
+  // --- NAMAZDA OLMAYANLAR (ABSENT) MODALI ---
+  openAbsentListModal() {
+    const allStudents = this.getAllStudentsForCurrentView();
+    const defaultStatus = this.getDefaultStatus();
+    const absentStudents = allStudents.filter(s => {
+      const draft = this.draftAttendance[s.id];
+      const status = draft ? draft.status : defaultStatus;
+      return status === 'YOK';
+    });
+
+    if (absentStudents.length === 0) {
+      if (window.App && typeof window.App.showToast === 'function') {
+        window.App.showToast('Harika! Bu namaz vaktinde kayıtlı tüm talebeler mevcuttur (Yok olan talebe bulunmuyor).', 'success');
+      }
+      return;
+    }
+
+    let modal = document.getElementById('absent-list-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'absent-list-modal';
+      document.body.appendChild(modal);
+    }
+
+    this.renderAbsentModalContent(modal, absentStudents);
+  },
+
+  closeAbsentListModal() {
+    const modal = document.getElementById('absent-list-modal');
+    if (modal) {
+      modal.innerHTML = '';
+    }
+  },
+
+  renderAbsentModalContent(modalEl, absentStudents) {
+    const dayName = this.getDayName(this.currentDate);
+    const prayerLabel = this.currentCategory === 'namaz' ? `${this.currentPrayer} Namazı` : 'Yoklama';
+
+    modalEl.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
+        <div class="bg-white rounded-3xl shadow-2xl border border-rose-200 max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scale-up">
+          
+          <!-- Modal Başlığı -->
+          <div class="p-4 sm:p-5 bg-gradient-to-r from-rose-700 via-rose-800 to-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-2xl font-black shadow-inner border border-white/20 shrink-0">
+                🚨
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-black text-base sm:text-lg text-white leading-tight">
+                    Namazda Olmayan Talebeler (${absentStudents.length})
+                  </h3>
+                  <span class="px-2 py-0.5 rounded-md bg-rose-500 text-white font-black text-[10px] uppercase">YOK</span>
+                </div>
+                <p class="text-xs text-rose-100/90 mt-0.5 font-medium">
+                  ${this.currentDate} ${dayName} • <strong>${prayerLabel}</strong>
+                </p>
+              </div>
+            </div>
+            <button type="button" onclick="window.AttendanceModule.closeAbsentListModal()" 
+              class="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-sm font-bold transition cursor-pointer">
+              ✕
+            </button>
+          </div>
+
+          <!-- Bilgilendirme Çubuğu -->
+          <div class="px-5 py-2.5 bg-rose-50 border-b border-rose-100 flex flex-wrap items-center justify-between gap-2 text-xs text-rose-900">
+            <span class="font-bold flex items-center gap-1.5">
+              <span>ℹ️</span>
+              <span>Odalara gidilip talebe bulunduğunda tek tıkla durumu güncelleyebilirsiniz:</span>
+            </span>
+            <span class="font-black bg-white px-2 py-0.5 rounded-md border border-rose-200">
+              Toplam: ${absentStudents.length} Talebe
+            </span>
+          </div>
+
+          <!-- Olmayan Talebeler Kart Listesi -->
+          <div class="flex-1 overflow-y-auto p-3 sm:p-5 space-y-2.5 divide-y divide-slate-100">
+            ${absentStudents.map((st, idx) => `
+              <div class="pt-2.5 first:pt-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl hover:bg-slate-50 border border-slate-100 transition">
+                <div class="flex items-start gap-3">
+                  <span class="w-6 h-6 rounded-lg bg-rose-100 text-rose-800 font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    ${idx + 1}
+                  </span>
+                  <div>
+                    <div class="font-black text-slate-900 text-sm flex items-center gap-2">
+                      <span>${st.firstName} ${st.lastName}</span>
+                      <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-bold text-[10px]">${st.className}</span>
+                      <span class="text-[10px] font-mono text-slate-400">No: ${st.studentNo}</span>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 text-xs mt-1 text-slate-600">
+                      ${st.yatakhane ? `
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800 font-bold text-[11px] border border-indigo-100">
+                          <span>🛏️</span>
+                          <span>${st.yatakhane}</span>
+                        </span>
+                      ` : ''}
+                      ${st.etutHocasi || st.dahiliHoca ? `
+                        <span class="text-[11px] text-slate-500 font-medium">
+                          👨‍🏫 Hoca: <strong>${st.etutHocasi || st.dahiliHoca}</strong>
+                        </span>
+                      ` : ''}
+                      ${st.parentPhone || st.fatherPhone ? `
+                        <a href="tel:${st.parentPhone || st.fatherPhone}" class="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:underline font-bold">
+                          <span>📞</span>
+                          <span>${st.parentPhone || st.fatherPhone}</span>
+                        </a>
+                      ` : ''}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Hızlı Durum Değiştirme Butonları -->
+                <div class="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                  <button type="button" 
+                    onclick="window.AttendanceModule.quickChangeStatus('${st.id}', 'VAR')"
+                    class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer"
+                    title="Mescide geldi / Var yap">
+                    <span>✓</span>
+                    <span>Var</span>
+                  </button>
+                  <button type="button" 
+                    onclick="window.AttendanceModule.quickChangeStatus('${st.id}', 'GEC')"
+                    class="px-2 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer"
+                    title="Geç kaldı olarak işaretle">
+                    <span>Geç</span>
+                  </button>
+                  <button type="button" 
+                    onclick="window.AttendanceModule.quickChangeStatus('${st.id}', 'TAKKESIZ')"
+                    class="px-2 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer"
+                    title="Takkesiz olarak işaretle">
+                    <span>Takkesiz</span>
+                  </button>
+                  <button type="button" 
+                    onclick="window.AttendanceModule.quickChangeStatus('${st.id}', 'IZINLI')"
+                    class="px-2 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer"
+                    title="İzinli / Raporlu yap">
+                    <span>İzinli</span>
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- Alt Çubuk: Kopyala, WhatsApp & Kapat -->
+          <div class="p-4 border-t border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" onclick="window.AttendanceModule.copyAbsentList()"
+                class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm cursor-pointer">
+                <span>📋</span>
+                <span>Listeyi Kopyala</span>
+              </button>
+              <button type="button" onclick="window.AttendanceModule.shareAbsentListWhatsApp()"
+                class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-sm cursor-pointer">
+                <span>💬</span>
+                <span>WhatsApp'ta Paylaş</span>
+              </button>
+            </div>
+
+            <button type="button" onclick="window.AttendanceModule.closeAbsentListModal()" 
+              class="px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-200/60 rounded-xl text-xs font-bold transition cursor-pointer">
+              Kapat
+            </button>
+          </div>
+
+        </div>
+      </div>
+    `;
+  },
+
+  quickChangeStatus(studentId, newStatusCode) {
+    this.setStatus(studentId, newStatusCode);
+    const modal = document.getElementById('absent-list-modal');
+    if (modal) {
+      const allStudents = this.getAllStudentsForCurrentView();
+      const defaultStatus = this.getDefaultStatus();
+      const absentStudents = allStudents.filter(s => {
+        const draft = this.draftAttendance[s.id];
+        const status = draft ? draft.status : defaultStatus;
+        return status === 'YOK';
+      });
+
+      if (absentStudents.length === 0) {
+        modal.innerHTML = `
+          <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
+            <div class="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center space-y-4">
+              <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-3xl font-black mx-auto">
+                ✓
+              </div>
+              <h3 class="font-black text-slate-900 text-lg">Tüm Talebeler Tamamlandı!</h3>
+              <p class="text-xs text-slate-500">Namazda olmayan tüm talebeler mevcuda alındı. Listede yoklama eksiği kalmadı.</p>
+              <button type="button" onclick="window.AttendanceModule.closeAbsentListModal()" 
+                class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black shadow transition cursor-pointer">
+                Harika, Kapat
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        this.renderAbsentModalContent(modal, absentStudents);
+      }
+    }
+  },
+
+  getFormattedAbsentText() {
+    const allStudents = this.getAllStudentsForCurrentView();
+    const defaultStatus = this.getDefaultStatus();
+    const absentStudents = allStudents.filter(s => {
+      const draft = this.draftAttendance[s.id];
+      const status = draft ? draft.status : defaultStatus;
+      return status === 'YOK';
+    });
+
+    const dayName = this.getDayName(this.currentDate);
+    const prayerLabel = this.currentCategory === 'namaz' ? `${this.currentPrayer} Namazı` : 'Yoklama';
+
+    let text = `🕌 Ömer Avniyel Akademi\n`;
+    text += `📅 ${this.currentDate} ${dayName} • ${prayerLabel} Yoklaması\n`;
+    text += `🚨 Namazda Olmayan Talebeler (${absentStudents.length} Talebe):\n\n`;
+
+    absentStudents.forEach((st, idx) => {
+      const room = st.yatakhane ? ` • Oda: ${st.yatakhane}` : '';
+      const hoca = (st.etutHocasi || st.dahiliHoca) ? ` • Hoca: ${st.etutHocasi || st.dahiliHoca}` : '';
+      text += `${idx + 1}. ${st.firstName} ${st.lastName} (${st.className || '-'}${room}${hoca})\n`;
+    });
+
+    text += `\nToplam: ${absentStudents.length} Talebe Yok.`;
+    return text;
+  },
+
+  copyAbsentList() {
+    const text = this.getFormattedAbsentText();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        if (window.App && typeof window.App.showToast === 'function') {
+          window.App.showToast('Namazda olmayanlar listesi kopyalandı! WhatsApp grubuna yapıştırabilirsiniz.', 'success');
+        }
+      }).catch(() => {
+        if (window.App && typeof window.App.showToast === 'function') {
+          window.App.showToast('Liste kopyalandı.', 'info');
+        }
+      });
+    } else {
+      alert(text);
+    }
+  },
+
+  shareAbsentListWhatsApp() {
+    const text = this.getFormattedAbsentText();
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  },
+
+  // --- TALEBEYE ÖZEL HIZLI BİLGİ VE DURUM DEĞİŞTİRME PENCERESİ ---
+  openStudentQuickModal(studentId) {
+    const st = window.Store.getStudentById(studentId);
+    if (!st) return;
+
+    const defaultStatus = this.getDefaultStatus();
+    const draft = this.draftAttendance[st.id] || { status: defaultStatus };
+    const currentStatus = draft.status || defaultStatus;
+    const currentCfg = window.STATUS_CONFIG[currentStatus] || window.STATUS_CONFIG['VAR'];
+
+    let modal = document.getElementById('student-quick-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'student-quick-modal';
+      document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
+        <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden p-6 space-y-4 animate-scale-up">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-2xl flex items-center justify-center text-xl font-black shadow-inner text-white"
+                style="background-color: ${currentCfg.bg};">
+                ${currentStatus === 'YOK' ? '🔴' : (currentStatus === 'VAR' ? '🟢' : '🕌')}
+              </div>
+              <div>
+                <h3 class="font-black text-slate-900 text-base leading-tight">${st.firstName} ${st.lastName}</h3>
+                <p class="text-xs text-slate-500">${st.className} • No: ${st.studentNo}</p>
+              </div>
+            </div>
+            <button type="button" onclick="document.getElementById('student-quick-modal').innerHTML=''" 
+              class="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-100 transition font-bold text-sm cursor-pointer">✕</button>
+          </div>
+
+          <div class="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 text-xs">
+            <div class="flex items-center justify-between">
+              <span class="text-slate-500 font-bold">Mevcut Durumu:</span>
+              <span class="px-2.5 py-1 rounded-lg text-white font-black text-xs" style="background-color: ${currentCfg.bg};">
+                ${currentCfg.label}
+              </span>
+            </div>
+            ${st.yatakhane ? `
+              <div class="flex items-center justify-between">
+                <span class="text-slate-500 font-bold">Yatakhane / Oda:</span>
+                <span class="font-black text-indigo-950">🛏️ ${st.yatakhane}</span>
+              </div>
+            ` : ''}
+            ${st.etutHocasi || st.dahiliHoca ? `
+              <div class="flex items-center justify-between">
+                <span class="text-slate-500 font-bold">Etüt & Dahili Hoca:</span>
+                <span class="font-bold text-slate-800">${st.etutHocasi || st.dahiliHoca}</span>
+              </div>
+            ` : ''}
+            ${st.parentPhone || st.fatherPhone ? `
+              <div class="flex items-center justify-between">
+                <span class="text-slate-500 font-bold">Veli Telefonu:</span>
+                <a href="tel:${st.parentPhone || st.fatherPhone}" class="font-mono font-bold text-emerald-700 hover:underline">
+                  📞 ${st.parentPhone || st.fatherPhone}
+                </a>
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Durumu Değiştir Butonları -->
+          <div class="space-y-1.5">
+            <label class="block text-[11px] font-black uppercase text-slate-500">Yoklama Durumunu Değiştir:</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" onclick="window.AttendanceModule.setStatus('${st.id}', 'VAR'); document.getElementById('student-quick-modal').innerHTML='';"
+                class="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
+                <span>✓</span> <span>Var (Kıldı)</span>
+              </button>
+              <button type="button" onclick="window.AttendanceModule.setStatus('${st.id}', 'YOK'); document.getElementById('student-quick-modal').innerHTML='';"
+                class="py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
+                <span>✕</span> <span>Yok (Katılmadı)</span>
+              </button>
+              <button type="button" onclick="window.AttendanceModule.setStatus('${st.id}', 'GEC'); document.getElementById('student-quick-modal').innerHTML='';"
+                class="py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
+                <span>⏳</span> <span>Geç Kaldı</span>
+              </button>
+              <button type="button" onclick="window.AttendanceModule.setStatus('${st.id}', 'TAKKESIZ'); document.getElementById('student-quick-modal').innerHTML='';"
+                class="py-2 px-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-black shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
+                <span>🟣</span> <span>Takkesiz</span>
+              </button>
+              <button type="button" onclick="window.AttendanceModule.setStatus('${st.id}', 'IZINLI'); document.getElementById('student-quick-modal').innerHTML='';"
+                class="col-span-2 py-2 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-black shadow transition flex items-center justify-center gap-1.5 cursor-pointer">
+                <span>📋</span> <span>İzinli / Raporlu</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-100 flex justify-end">
+            <button type="button" onclick="document.getElementById('student-quick-modal').innerHTML=''"
+              class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer">
+              Kapat
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
   }
 };

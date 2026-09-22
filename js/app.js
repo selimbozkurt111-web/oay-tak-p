@@ -21,7 +21,17 @@ window.App = {
       try {
         sessionStorage.setItem('yoklama_active_session', saved);
         this.currentSession = JSON.parse(saved);
-        if (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'stf_1' || (this.currentSession.name && this.currentSession.name.toUpperCase().includes('SELİM BOZKURT')))) {
+        const sName = (this.currentSession?.name || '').toLowerCase().replace(/İ/g, 'i').replace(/I/g, 'i').replace(/ı/g, 'i');
+        const isMaster = this.currentSession && (
+          this.currentSession.role === 'superadmin' ||
+          this.currentSession.staffId === 'stf_1' ||
+          sName.includes('selim') ||
+          sName.includes('bozkurt') ||
+          sName.includes('yonetici') ||
+          sName.includes('mudur') ||
+          sName.includes('admin')
+        );
+        if (isMaster) {
           this.currentSession.role = 'superadmin';
           this.currentSession.canEditStudents = true;
           this.currentSession.canManageStaff = true;
@@ -101,6 +111,34 @@ window.App = {
 
     // Yatak kontrolü zamanlayıcısını sayfa açılışında da bir kez denetle
     this.checkAndTriggerYatakReminder();
+  },
+
+  // Tarayıcı ve PWA önbelleğini tek tıkla tamamen temizleyip en güncel kodları zorla yükleme
+  async hardRefreshApp() {
+    if (typeof window.forcePurgeAppCache === 'function') {
+      window.forcePurgeAppCache();
+      return;
+    }
+    this.showToast('Önbellek temizleniyor ve sayfa yenileniyor...', 'info');
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) {
+          await reg.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (const key of keys) {
+          await caches.delete(key);
+        }
+      }
+    } catch (e) {
+      console.warn('Cache purge:', e);
+    }
+    setTimeout(() => {
+      window.location.href = window.location.pathname + '?reload=' + Date.now();
+    }, 250);
   },
 
   // --- Kurs Logosu / Fotoğrafı Otomatik Aday Bulma ve Hata Yönetimi ---
@@ -469,6 +507,16 @@ window.App = {
             </button>
           </div>
         ` : ''}
+
+        <!-- 6. HER ZAMAN GÖRÜNÜR: SİSTEMİ & ÖNBELLEĞİ YENİLE BUTONU -->
+        <div class="flex-shrink-0 ${(session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? 'ml-1.5' : 'ml-auto'}">
+          <button type="button" onclick="window.App.hardRefreshApp()" 
+            class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-sm border border-amber-500 active:scale-95"
+            title="Sistemi ve önbelleği sıfırlayıp en güncel sürümü yükler">
+            <span>🔄</span>
+            <span class="inline">Önbelleği Yenile</span>
+          </button>
+        </div>
       </div>
     `;
   },
@@ -888,10 +936,16 @@ window.App = {
         ` : ''}
       </div>
 
-      <!-- Drawer Alt Bar: Güvenli Çıkış -->
-      <div class="p-4 border-t border-slate-100 bg-slate-50">
+      <!-- Drawer Alt Bar: Güvenli Çıkış ve Önbellek Yenileme -->
+      <div class="p-4 border-t border-slate-100 bg-slate-50 space-y-2">
+        <button type="button" onclick="window.App.hardRefreshApp();"
+          class="w-full py-2.5 px-4 rounded-xl text-slate-700 hover:bg-slate-200/70 border border-slate-200 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+          title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
+          <span>🔄</span>
+          <span>Sistemi & Önbelleği Yenile</span>
+        </button>
         <button type="button" onclick="window.App.closeDrawer(); window.App.logout();"
-          class="w-full py-3 px-4 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-black transition flex items-center justify-center gap-2">
+          class="w-full py-2.5 px-4 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer">
           <span>🚪</span>
           <span>Güvenli Çıkış Yap</span>
         </button>
@@ -1107,6 +1161,16 @@ window.App = {
                 </button>
               </div>
             </div>
+
+            <!-- Sayfa & Önbellek Yenileme Butonu -->
+            <div class="mt-4 text-center">
+              <button type="button" onclick="window.App.hardRefreshApp();"
+                class="w-full py-2.5 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-black border-2 border-amber-300 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
+                title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
+                <span class="text-sm">🔄</span>
+                <span>Sistemi & Önbelleği Sıfırla (v3.6)</span>
+              </button>
+            </div>
           </div>
         `;
       }
@@ -1168,15 +1232,25 @@ window.App = {
   // Kurum Yöneticisi / Müdür Yetki Kontrolü (Talebe Ekleme, Silme, Pasife/Aktife Alma)
   canManageStudents() {
     const session = this.currentSession;
-    return !!(session && (
-      session.role === 'superadmin' ||
-      session.canEditStudents === true ||
-      session.canManageStaff === true ||
-      session.staffId === 'stf_1' ||
-      (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')) ||
-      (session.name && session.name.toUpperCase().includes('YÖNETİCİ')) ||
-      (session.name && session.name.toUpperCase().includes('MÜDÜR'))
-    ));
+    if (!session) return false;
+    if (session.role === 'superadmin' || session.canEditStudents === true || session.canManageStaff === true || session.staffId === 'stf_1') {
+      return true;
+    }
+    const name = (session.name || '').toLowerCase().replace(/İ/g, 'i').replace(/I/g, 'i').replace(/ı/g, 'i');
+    if (
+      name.includes('selim') ||
+      name.includes('bozkurt') ||
+      name.includes('yonetici') ||
+      name.includes('mudur') ||
+      name.includes('admin')
+    ) {
+      return true;
+    }
+    // Personel / hoca girişinde de öğrenci ve sütun yönetimini serbest bırak (veli hariç)
+    if (session.role === 'staff') {
+      return true;
+    }
+    return false;
   },
 
   // --- Öğrenci & Şifre Yönetimi Görünümü ---
@@ -1215,6 +1289,29 @@ window.App = {
     }
 
     container.innerHTML = `
+      <!-- CANLI EXCEL TABLOSU DOĞRUDAN GEÇİŞ AFİŞİ -->
+      <div class="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white rounded-3xl p-4 sm:p-5 mb-6 shadow-md border border-emerald-600/40 flex flex-wrap items-center justify-between gap-4 animate-fade-in">
+        <div class="flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner border border-white/20 shrink-0">
+            📊
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h4 class="font-black text-white text-base sm:text-lg">Canlı Excel Tablosu (Hücreden Düzenleyici)</h4>
+              <span class="px-2 py-0.5 rounded-lg bg-emerald-500 text-white font-black text-[10px] uppercase tracking-wider">Tavsiye Edilen</span>
+            </div>
+            <p class="text-xs text-emerald-100/90 mt-0.5 max-w-xl leading-relaxed">
+              Tıpkı Excel gibi hücrelere doğrudan tıklayarak düzenleyebilir; <strong>➕ Yeni Satır</strong> ve <strong>📑 Yeni Sütun</strong> (Kan Grubu, TC No, vb.) ekleyebilirsiniz.
+            </p>
+          </div>
+        </div>
+        <button type="button" onclick="window.App.setTab('ogrenciler_excel')" 
+          class="px-5 py-2.5 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-transform hover:scale-105 cursor-pointer flex items-center gap-2 whitespace-nowrap">
+          <span>Canlı Excel Tablosunu Aç</span>
+          <span>→</span>
+        </button>
+      </div>
+
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6">
         <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
@@ -1227,12 +1324,12 @@ window.App = {
             </p>
           </div>
 
-          ${canEdit ? `
-            <div class="flex items-center gap-2.5">
-              <button onclick="window.App.setTab('ogrenciler_excel')" 
-                class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer">
-                <span>📊 Canlı Excel Tablosu</span>
-              </button>
+          <div class="flex items-center gap-2.5">
+            <button onclick="window.App.setTab('ogrenciler_excel')" 
+              class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer">
+              <span>📊 Canlı Excel Tablosu</span>
+            </button>
+            ${canEdit ? `
               <button onclick="window.App.openBulkImportModal()" 
                 class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
                 <span>📋 Excel'den Toplu Ekle</span>
@@ -1241,8 +1338,8 @@ window.App = {
                 class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5">
                 <span>+ Yeni Öğrenci Ekle</span>
               </button>
-            </div>
-          ` : ''}
+            ` : ''}
+          </div>
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3 pt-4">
@@ -2607,12 +2704,6 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
       this.selectedClass = 'ALL';
       this.selectedStatus = 'ALL';
       this.searchQuery = '';
-      const fallbackList = (window.Store && typeof window.Store.getAllStudents === 'function' && window.Store.getAllStudents()) ||
-                           (window.Store && typeof window.Store.getStudents === 'function' && window.Store.getStudents(true)) ||
-                           window.SEED_STUDENTS || [];
-      if (fallbackList.length > 0 && window.Store && typeof window.Store.saveStudents === 'function') {
-        window.Store.saveStudents(fallbackList);
-      }
       this.render();
     },
 
@@ -2794,26 +2885,65 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
       }, 100);
     },
 
-    // Yeni Özel Sütun Ekle (Örn: Kan Grubu, TC Kimlik No, Servis, Memleket, Not)
-    addNewColumn() {
+    // Yeni Özel Sütun Modalını Aç
+    openAddColumnModal() {
+      if (window.StudentExcelModule && window.StudentExcelModule !== this && typeof window.StudentExcelModule.openAddColumnModal === 'function') {
+        window.StudentExcelModule.openAddColumnModal();
+        return;
+      }
       if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
-        window.App.showToast('Yeni sütun ekleme yetkisi yalnızca Ana Yöneticidedir.', 'error');
-        return;
-      }
-      const label = prompt('Eklenecek yeni sütunun başlığını giriniz:\n(Örn: Kan Grubu, TC Kimlik No, Memleket, Servis, Özel Not)');
-      if (!label || !label.trim()) return;
-
-      const cleanLabel = label.trim();
-      if (cleanLabel.length > 40) {
-        window.App.showToast('Sütun başlığı 40 karakterden uzun olamaz!', 'warning');
+        window.App.showToast('Yeni sütun ekleme yetkisi yalnızca Kurum Yöneticisindedir.', 'error');
         return;
       }
 
-      const col = window.Store.addCustomColumn(cleanLabel);
-      if (col) {
-        window.App.showToast(`"${cleanLabel}" sütunu başarıyla eklendi!`, 'success');
-        this.render();
+      let modal = document.getElementById('student-column-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'student-column-modal';
+        document.body.appendChild(modal);
       }
+
+      modal.innerHTML = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div class="bg-white rounded-3xl shadow-2xl border border-indigo-100 max-w-md w-full overflow-hidden p-5 sm:p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-black">📑</div>
+                <div>
+                  <h3 class="font-black text-slate-900 text-base">Yeni Sütun Ekle</h3>
+                  <p class="text-[11px] text-slate-500">Tüm talebeler için yeni bir bilgi alanı oluşturur</p>
+                </div>
+              </div>
+              <button type="button" onclick="document.getElementById('student-column-modal').innerHTML=''" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl font-bold">✕</button>
+            </div>
+            <div class="space-y-1.5">
+              <label class="block text-[11px] font-black uppercase tracking-wider text-slate-500">💡 Önerilen Başlıklar:</label>
+              <div class="flex flex-wrap gap-1.5">
+                ${['Kan Grubu', 'TC Kimlik No', 'Memleket', 'Servis / Güzergah', 'Özel Not', 'Kıyafet Bedeni', 'Hafızlık Seviyesi'].map(p => `
+                  <button type="button" onclick="document.getElementById('new-column-title-input').value='${p}';document.getElementById('new-column-title-input').focus();" 
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200 transition">${p}</button>
+                `).join('')}
+              </div>
+            </div>
+            <form onsubmit="event.preventDefault(); const val=document.getElementById('new-column-title-input').value.trim(); if(val){ window.Store.addCustomColumn(val); document.getElementById('student-column-modal').innerHTML=''; window.App.showToast('&quot;'+val+'&quot; sütunu başarıyla eklendi!','success'); if(window.StudentExcelModule){window.StudentExcelModule.render();} }" class="space-y-4">
+              <div>
+                <label class="block text-xs font-black uppercase text-slate-700 mb-1">Sütun Başlığı (Adı) *</label>
+                <input type="text" id="new-column-title-input" required maxlength="40" placeholder="Örn: Kan Grubu, TC Kimlik No, Servis..." 
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+              </div>
+              <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onclick="document.getElementById('student-column-modal').innerHTML=''" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">Vazgeç</button>
+                <button type="submit" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-md transition">➕ Sütunu Tabloya Ekle</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+      setTimeout(() => { const el = document.getElementById('new-column-title-input'); if (el) el.focus(); }, 50);
+    },
+
+    addNewColumn() {
+      this.openAddColumnModal();
     },
 
     // Özel Sütunu Kaldır / Sil

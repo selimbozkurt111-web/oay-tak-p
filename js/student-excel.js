@@ -17,15 +17,9 @@ window.StudentExcelModule = {
 
   init() {
     const session = window.App?.currentSession;
-    const isManager = session && (
-      session.role === 'superadmin' ||
-      session.canEditStudents === true ||
-      session.canManageStaff === true ||
-      session.staffId === 'stf_1' ||
-      (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')) ||
-      (session.name && session.name.toUpperCase().includes('YÖNETİCİ')) ||
-      (session.name && session.name.toUpperCase().includes('MÜDÜR'))
-    );
+    const isManager = window.App && typeof window.App.canManageStudents === 'function'
+      ? window.App.canManageStudents()
+      : (session && session.role !== 'parent');
 
     const container = document.getElementById('student-excel-container');
     if (!container) return;
@@ -93,12 +87,6 @@ window.StudentExcelModule = {
     this.selectedClass = 'ALL';
     this.selectedStatus = 'ALL';
     this.searchQuery = '';
-    const fallbackList = (window.Store && typeof window.Store.getAllStudents === 'function' && window.Store.getAllStudents()) ||
-                         (window.Store && typeof window.Store.getStudents === 'function' && window.Store.getStudents(true)) ||
-                         window.SEED_STUDENTS || [];
-    if (fallbackList.length > 0 && window.Store && typeof window.Store.saveStudents === 'function') {
-      window.Store.saveStudents(fallbackList);
-    }
     this.render();
   },
 
@@ -286,26 +274,171 @@ window.StudentExcelModule = {
     }, 100);
   },
 
-  // Yeni Özel Sütun Ekle (Örn: Kan Grubu, TC Kimlik No, Servis, Memleket, Not)
-  addNewColumn() {
+  // Yeni Özel Sütun Modalını Aç (Tarayıcı popup engelleyicisine takılmayan garantili yerleşik pencere)
+  openAddColumnModal() {
     if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
-      window.App.showToast('Yeni sütun ekleme yetkisi yalnızca Ana Yöneticidedir.', 'error');
+      window.App.showToast('Yeni sütun ekleme yetkisi yalnızca Kurum Yöneticisindedir.', 'error');
       return;
     }
-    const label = prompt('Eklenecek yeni sütunun başlığını giriniz:\n(Örn: Kan Grubu, TC Kimlik No, Memleket, Servis, Özel Not)');
-    if (!label || !label.trim()) return;
 
-    const cleanLabel = label.trim();
-    if (cleanLabel.length > 40) {
+    let modal = document.getElementById('student-column-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'student-column-modal';
+      document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+        <div class="bg-white rounded-3xl shadow-2xl border border-indigo-100 max-w-md w-full overflow-hidden p-5 sm:p-6 space-y-4">
+          
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-black shadow-inner">
+                📑
+              </div>
+              <div>
+                <h3 class="font-black text-slate-900 text-base">Yeni Sütun Ekle</h3>
+                <p class="text-[11px] text-slate-500">Tüm talebeler için yeni bir bilgi alanı oluşturur</p>
+              </div>
+            </div>
+            <button type="button" onclick="window.StudentExcelModule.closeAddColumnModal()" 
+              class="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-100 transition cursor-pointer font-bold text-sm">
+              ✕
+            </button>
+          </div>
+
+          <!-- Hızlı Öneri Hapları -->
+          <div class="space-y-1.5">
+            <label class="block text-[11px] font-black uppercase tracking-wider text-slate-500">
+              💡 Önerilen Başlıklar (Tek Tıkla Seç):
+            </label>
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" onclick="window.StudentExcelModule.pickColumnPreset('Kan Grubu')" 
+                class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 transition cursor-pointer">
+                🩸 Kan Grubu
+              </button>
+              <button type="button" onclick="window.StudentExcelModule.pickColumnPreset('TC Kimlik No')" 
+                class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 transition cursor-pointer">
+                🆔 TC Kimlik No
+              </button>
+              <button type="button" onclick="window.StudentExcelModule.pickColumnPreset('Memleket')" 
+                class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 transition cursor-pointer">
+                📍 Memleket
+              </button>
+              <button type="button" onclick="window.StudentExcelModule.pickColumnPreset('Servis / Güzergah')" 
+                class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 transition cursor-pointer">
+                🚌 Servis
+              </button>
+              <button type="button" onclick="window.StudentExcelModule.pickColumnPreset('Özel Not')" 
+                class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 transition cursor-pointer">
+                📝 Özel Not
+              </button>
+              <button type="button" onclick="window.StudentExcelModule.pickColumnPreset('Kıyafet Bedeni')" 
+                class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 transition cursor-pointer">
+                👕 Beden
+              </button>
+              <button type="button" onclick="window.StudentExcelModule.pickColumnPreset('Hafızlık Seviyesi')" 
+                class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 border border-slate-200 transition cursor-pointer">
+                📖 Hafızlık
+              </button>
+            </div>
+          </div>
+
+          <!-- Sütun Başlığı Girişi Formu -->
+          <form onsubmit="window.StudentExcelModule.submitNewColumn(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-black uppercase text-slate-700 mb-1">
+                Sütun Başlığı (Adı) *
+              </label>
+              <input type="text" id="new-column-title-input" required maxlength="40" 
+                placeholder="Örn: Kan Grubu, TC Kimlik No, Servis..." 
+                class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+              <p class="text-[11px] text-slate-400 mt-1">
+                Sütun eklendiğinde tablonun sağına yerleşir ve Firebase bulutuna anında kaydedilir.
+              </p>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button type="button" onclick="window.StudentExcelModule.closeAddColumnModal()" 
+                class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer">
+                Vazgeç
+              </button>
+              <button type="submit" 
+                class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-md transition cursor-pointer flex items-center gap-1.5">
+                <span>➕</span>
+                <span>Sütunu Tabloya Ekle</span>
+              </button>
+            </div>
+          </form>
+
+        </div>
+      </div>
+    `;
+
+    setTimeout(() => {
+      const input = document.getElementById('new-column-title-input');
+      if (input) {
+        input.focus();
+      }
+    }, 50);
+  },
+
+  closeAddColumnModal() {
+    const modal = document.getElementById('student-column-modal');
+    if (modal) {
+      modal.innerHTML = '';
+    }
+  },
+
+  pickColumnPreset(preset) {
+    const input = document.getElementById('new-column-title-input');
+    if (input) {
+      input.value = preset;
+      input.focus();
+    }
+  },
+
+  submitNewColumn(event) {
+    if (event && event.preventDefault) event.preventDefault();
+
+    if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+      window.App.showToast('Yeni sütun ekleme yetkisi yalnızca Kurum Yöneticisindedir.', 'error');
+      return;
+    }
+
+    const input = document.getElementById('new-column-title-input');
+    const label = input ? input.value.trim() : '';
+
+    if (!label) {
+      window.App.showToast('Lütfen geçerli bir sütun başlığı giriniz!', 'warning');
+      return;
+    }
+
+    if (label.length > 40) {
       window.App.showToast('Sütun başlığı 40 karakterden uzun olamaz!', 'warning');
       return;
     }
 
-    const col = window.Store.addCustomColumn(cleanLabel);
+    const col = window.Store.addCustomColumn(label);
+    this.closeAddColumnModal();
+
     if (col) {
-      window.App.showToast(`"${cleanLabel}" sütunu başarıyla eklendi!`, 'success');
+      window.App.showToast(`"${label}" sütunu başarıyla eklendi!`, 'success');
       this.render();
+
+      // Tabloyu sağa kaydırarak yeni eklenen sütunu ekranda doğrudan göster
+      setTimeout(() => {
+        const scrollContainer = document.getElementById('student-excel-scroll-container');
+        if (scrollContainer) {
+          scrollContainer.scrollTo({ left: scrollContainer.scrollWidth, behavior: 'smooth' });
+        }
+      }, 150);
     }
+  },
+
+  addNewColumn() {
+    this.openAddColumnModal();
   },
 
   // Özel Sütunu Kaldır / Sil
@@ -585,7 +718,7 @@ window.StudentExcelModule = {
 
         <!-- EXCEL GRID TABLOSU -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div class="overflow-x-auto max-h-[75vh]">
+          <div id="student-excel-scroll-container" class="overflow-x-auto max-h-[75vh]">
             <table class="w-full text-left border-collapse table-fixed text-xs" style="min-width: ${Math.max(1280, 1280 + customColumns.length * 140)}px;">
               <!-- Sütun Başlıkları -->
               <thead class="sticky top-0 z-20 bg-slate-900 text-white shadow-sm">
@@ -610,13 +743,16 @@ window.StudentExcelModule = {
                   <th class="w-32 px-2">Veli Adı</th>
                   <th class="w-32 px-2">Veli Telefonu</th>
                   ${customColumns.map(col => `
-                    <th class="w-36 px-2 group/col relative bg-indigo-950/70 text-indigo-200 hover:text-white transition">
+                    <th class="w-36 px-2 group/col relative bg-indigo-900 text-indigo-100 hover:text-white transition border-x border-indigo-800" data-custom-col-key="${col.key}">
                       <div class="flex items-center justify-between">
-                        <span class="truncate cursor-pointer" onclick="window.StudentExcelModule.toggleSort('${col.key}')" title="${this.escapeHtml(col.label)} (Sıralamak için tıkla)">
-                          ${this.escapeHtml(col.label)} ↕
-                        </span>
+                        <div class="flex flex-col truncate">
+                          <span class="text-[9px] uppercase tracking-wider text-indigo-300 font-bold">ÖZEL SÜTUN</span>
+                          <span class="truncate cursor-pointer font-black" onclick="window.StudentExcelModule.toggleSort('${col.key}')" title="${this.escapeHtml(col.label)} (Sıralamak için tıkla)">
+                            ${this.escapeHtml(col.label)} ↕
+                          </span>
+                        </div>
                         <button type="button" onclick="window.StudentExcelModule.deleteColumn('${col.key}', '${this.escapeHtml(col.label)}')" 
-                          class="opacity-60 group-hover/col:opacity-100 hover:text-rose-400 p-0.5 ml-1 rounded transition text-xs cursor-pointer" 
+                          class="opacity-70 group-hover/col:opacity-100 hover:text-rose-300 p-1 ml-1 rounded transition text-xs cursor-pointer bg-indigo-950/50" 
                           title="Bu Sütunu Sil">✕</button>
                       </div>
                     </th>
@@ -833,12 +969,12 @@ window.StudentExcelModule = {
             const cellColIdx = 11 + cIdx;
             const colVal = st[col.key] != null ? st[col.key] : '';
             return `
-              <td class="p-0 bg-indigo-50/20">
+              <td class="p-0 bg-indigo-50/40 border-x border-indigo-100">
                 <input type="text" value="${this.escapeHtml(colVal)}"
                   id="excel-cell-${rowIdx}-${cellColIdx}"
                   data-student-id="${st.id}" data-field="${col.key}"
                   placeholder="Yazınız..."
-                  class="excel-input w-full h-8 px-2 bg-transparent text-slate-800 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  class="excel-input w-full h-8 px-2 bg-transparent text-indigo-950 font-bold text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   oninput="window.StudentExcelModule.handleCellInput('${st.id}', '${col.key}', this.value)"
                   onblur="window.StudentExcelModule.handleCellBlur('${st.id}', '${col.key}', this.value)"
                   onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, ${cellColIdx})">

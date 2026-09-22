@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v3.5 - Agresif Önbellek Kırıcı & Canlı Ağ Öncelikli)
-const CACHE_NAME = 'oay-takip-cache-v3.5';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v3.6 - Pasif Talebe Kalıcılık & Canlı Ağ Öncelikli)
+const CACHE_NAME = 'oay-takip-cache-v3.6';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [
