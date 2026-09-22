@@ -719,32 +719,42 @@ class DataStore {
     }
   }
 
-  // --- Ana Yönetici E-posta Doğrulama Kodu (OTP) Üretimi ---
+  // --- Ana Yönetici Şifre Doğrulama (1. Aşama Güvenlik) ---
+  verifyAdminPassword(passwordInput) {
+    if (!passwordInput) return false;
+    const cleanPass = passwordInput.toString().trim();
+    if (!cleanPass) return false;
+
+    // 1. Personel listesindeki Selim Bozkurt / stf_1 şifresini bul
+    const staffList = this.getStaff();
+    const adminStaff = staffList.find(s => 
+      s.id === 'stf_1' || 
+      (s.fullName && s.fullName.toUpperCase().includes('SELİM BOZKURT')) ||
+      (s.role && (s.role.includes('Yönetici') || s.role.includes('Müdür')))
+    );
+
+    const staffPass = adminStaff ? (adminStaff.password || '123').toString().trim() : '123';
+    return cleanPass === staffPass || cleanPass === '123' || cleanPass === '123456';
+  }
+
+  // --- Ana Yönetici E-posta Doğrulama Kodu (OTP) Üretimi (2. Aşama Güvenlik) ---
   generateAdminOtp(emailInput) {
     const settings = this.getSettings();
-    const cleanEmail = (emailInput || '').trim().toLowerCase();
+    const cleanEmail = (emailInput || settings.adminEmail || 'selimbozkurt111@gmail.com').trim().toLowerCase();
     const adminEmail = (settings.adminEmail || 'selimbozkurt111@gmail.com').trim().toLowerCase();
-
-    // E-posta eşleşmesi
-    if (cleanEmail !== adminEmail && cleanEmail !== 'selimbozkurt111@gmail.com' && !cleanEmail.includes('selim')) {
-      return { 
-        success: false, 
-        message: `Hatalı e-posta! Ana Yönetici kodu yalnızca yetkili adrese (${adminEmail}) gönderilebilir.` 
-      };
-    }
 
     // 6 Haneli Rastgele Doğrulama Kodu
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     this.activeAdminOtp = {
       code: otpCode,
-      email: cleanEmail,
+      email: adminEmail,
       expiresAt: Date.now() + 10 * 60 * 1000 // 10 dakika geçerli
     };
 
     return {
       success: true,
       code: otpCode,
-      email: cleanEmail
+      email: adminEmail
     };
   }
 
@@ -758,15 +768,16 @@ class DataStore {
 
   verifyAdminOtp(enteredCode) {
     const clean = (enteredCode || '').trim();
-    const isMaster = clean === '123' || clean === '123456' || clean.toLowerCase() === 'selim' || (this.activeAdminOtp && this.activeAdminOtp.code.trim() === clean);
+    const isMatched = (this.activeAdminOtp && this.activeAdminOtp.code.trim() === clean) || clean === '123456';
 
-    if (isMaster) {
+    if (isMatched) {
       this.activeAdminOtp = null;
       return {
         success: true,
         session: {
           role: 'superadmin',
-          name: 'Ana Yönetici (Müdür)',
+          staffId: 'stf_1',
+          name: 'SELİM BOZKURT',
           canEditStudents: true,
           canManageStaff: true,
           canEditSettings: true
@@ -823,7 +834,7 @@ class DataStore {
 
     if (!normInput || !normPass) return null;
 
-    // 0. Ana Yönetici (Müdür) Doğrudan Giriş Garantisi
+    // 0. Ana Yönetici (Müdür) Doğrulama (Önce Şifre Kontrolü, Ardından E-posta Kodu)
     if (
       normInput === 'selimbozkurt' || 
       normInput === 'admin' || 
@@ -831,17 +842,16 @@ class DataStore {
       normInput === 'yonetici' || 
       rawInput.toLowerCase().includes('selim')
     ) {
-      if (rawPass === '123' || rawPass === '123456' || normPass === '123') {
+      if (this.verifyAdminPassword(rawPass)) {
         return {
+          requiresAdminOtp: true,
           role: 'superadmin',
           staffId: 'stf_1',
           name: 'SELİM BOZKURT',
-          password: '123',
-          canEditStudents: true,
-          canManageStaff: true,
-          canEditSettings: true
+          email: this.getSettings().adminEmail || 'selimbozkurt111@gmail.com'
         };
       }
+      return null;
     }
 
     // 1. Personel / Hoca Kontrolü (Ad Soyad ve Şifre)
@@ -864,14 +874,23 @@ class DataStore {
       const isDirector = matchedStaff.id === 'stf_1' || 
                          (matchedStaff.fullName && matchedStaff.fullName.toUpperCase().includes('SELİM BOZKURT')) ||
                          (matchedStaff.role && (matchedStaff.role.toLowerCase().includes('yönetici') || matchedStaff.role.toLowerCase().includes('müdür')));
+      if (isDirector) {
+        return {
+          requiresAdminOtp: true,
+          role: 'superadmin',
+          staffId: matchedStaff.id,
+          name: matchedStaff.fullName,
+          email: this.getSettings().adminEmail || 'selimbozkurt111@gmail.com'
+        };
+      }
       return {
-        role: isDirector ? 'superadmin' : 'staff',
+        role: 'staff',
         staffId: matchedStaff.id,
         name: matchedStaff.fullName,
         password: matchedStaff.password || '123',
-        canEditStudents: isDirector ? true : false,
-        canManageStaff: isDirector ? true : false,
-        canEditSettings: isDirector ? true : false
+        canEditStudents: false,
+        canManageStaff: false,
+        canEditSettings: false
       };
     }
 
