@@ -205,8 +205,8 @@
   </footer>
 
   <!-- Store ve Leaderboard Modülleri -->
-  <script src="js/store.js"></script>
-  <script src="js/leaderboard.js"></script>
+  <script src="js/store.js?v=3.2"></script>
+  <script src="js/leaderboard.js?v=3.2"></script>
 
   <!-- Pano TV Yönetim Motoru -->
   <script>
@@ -626,67 +626,158 @@
         `;
       },
 
-      // SLAYT 1: 🎓 SINIF ŞAMPİYONLARI (5, 6, 7 ve 8. Sınıf Birincileri)
+      // SLAYT 1: 🎓 SINIF SEVİYESİ ŞAMPİYONLARI (Şube Fark Etmeksizin Tek Sınıf: 5, 6, 7, 8)
       renderSlideClassChampions(container, data) {
-        const classes = ['5. Sınıf', '6. Sınıf', '7. Sınıf', '8. Sınıf'];
-        const classLeaders = classes.map(c => {
-          const cData = window.Store.getLeaderboard('haftalik', new Date().toISOString().split('T')[0], c);
+        const allClasses = (window.Store && typeof window.Store.getClasses === 'function') 
+          ? window.Store.getClasses() 
+          : ['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'];
+
+        // Şube fark etmeksizin temel sınıf seviyelerini (5, 6, 7, 8 vb.) tespit et ve şubelerini topla
+        const gradeMap = new Map();
+
+        allClasses.forEach(cls => {
+          if (!cls) return;
+          const match = cls.match(/^\d+/);
+          if (match) {
+            const digit = match[0];
+            if (!gradeMap.has(digit)) {
+              gradeMap.set(digit, {
+                digit: digit,
+                label: `${digit}. Sınıflar`,
+                branches: []
+              });
+            }
+            if (!gradeMap.get(digit).branches.includes(cls)) {
+              gradeMap.get(digit).branches.push(cls);
+            }
+          } else {
+            // Rakam içermeyen özel sınıf tanımları (Örn: Hazırlık, Lise vb.)
+            if (!gradeMap.has(cls)) {
+              gradeMap.set(cls, {
+                digit: cls,
+                label: cls,
+                branches: [cls]
+              });
+            }
+          }
+        });
+
+        // Sınıf kaydı henüz yoksa standart 5, 6, 7, 8 seviyelerini ekle
+        if (gradeMap.size === 0) {
+          ['5', '6', '7', '8'].forEach(d => {
+            gradeMap.set(d, {
+              digit: d,
+              label: `${d}. Sınıflar`,
+              branches: [`${d}-A`, `${d}-B`]
+            });
+          });
+        }
+
+        // Seviye sırasına göre sırala (5, 6, 7, 8)
+        const sortedGrades = Array.from(gradeMap.values()).sort((a, b) => {
+          const numA = parseInt(a.digit, 10);
+          const numB = parseInt(b.digit, 10);
+          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+          return a.label.localeCompare(b.label, 'tr');
+        });
+
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        // Her bir sınıf seviyesinin tüm şubeler (A & B) genelindeki liderini ve takipçisini bul
+        const gradeLeaders = sortedGrades.map(g => {
+          const gData = window.Store.getLeaderboard('haftalik', todayStr, `${g.digit}. Sınıf`);
+          const ranking = (gData && gData.ranking) ? gData.ranking : [];
           return {
-            className: c,
-            leader: cData.ranking[0] || null
+            gradeInfo: g,
+            leader: ranking[0] || null,
+            runnerUp: ranking[1] || null,
+            totalStudents: ranking.length
           };
         });
 
         container.innerHTML = `
-          <div class="space-y-6 animate-fade-in max-w-6xl mx-auto w-full">
+          <div class="space-y-5 animate-fade-in max-w-6xl mx-auto w-full">
             <div class="text-center">
-              <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-black text-xs uppercase tracking-widest mb-1">
-                <span>🎓</span> SINIF BAZLI ŞAMPİYONLAR <span>🎓</span>
+              <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-black text-xs uppercase tracking-widest mb-1 shadow-lg">
+                <span>🎓</span> SINIF BAZLI ŞAMPİYONLAR (ŞUBELER BİRLEŞİK) <span>🎓</span>
               </div>
               <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                Her Sınıfın Haftalık Zirvedeki Talebeleri
+                Her Sınıf Seviyesinin Haftalık Zirvedeki Liderleri
               </h2>
               <p class="text-xs text-slate-400 font-medium">
-                Kendi akranları arasında en yüksek puanı toplayan sınıf birincileri
+                Şube fark etmeksizin (A ve B şubeleri tek sınıf olarak) kendi akranları arasında en yüksek puanı toplayan sınıf şampiyonları
               </p>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 pt-4">
-              ${classLeaders.map(item => {
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 pt-3">
+              ${gradeLeaders.map(item => {
                 const l = item.leader;
+                const r = item.runnerUp;
+                const branchesText = item.gradeInfo.branches.length > 1 
+                  ? item.gradeInfo.branches.join(' & ') + ' Ortak'
+                  : item.gradeInfo.label;
+
                 return `
-                  <div class="bg-slate-900/90 rounded-3xl border-2 border-slate-800 hover:border-amber-400/60 p-6 text-center shadow-xl relative overflow-hidden transition">
-                    <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
+                  <div class="bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 rounded-3xl border-2 border-slate-800 hover:border-amber-400/70 p-5 sm:p-6 text-center shadow-xl relative overflow-hidden transition flex flex-col justify-between group">
+                    <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-400 via-indigo-500 to-purple-500"></div>
                     
-                    <div class="inline-block px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-black text-xs mb-3 uppercase">
-                      ${item.className}
+                    <div>
+                      <!-- Sınıf Rozeti & Şube Bilgisi -->
+                      <div class="flex items-center justify-between gap-1.5 mb-2">
+                        <span class="px-2.5 py-1 rounded-xl bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-black text-xs uppercase">
+                          ${item.gradeInfo.label}
+                        </span>
+                        <span class="text-[10px] font-bold text-slate-400 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800/80">
+                          ${branchesText}
+                        </span>
+                      </div>
+
+                      ${l ? `
+                        <div class="relative inline-block my-2">
+                          <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-black text-3xl flex items-center justify-center shadow-lg mx-auto">
+                            🥇
+                          </div>
+                          <span class="absolute -top-2 -right-1 text-base">👑</span>
+                        </div>
+
+                        <h3 class="text-lg font-black text-white truncate group-hover:text-amber-300 transition">
+                          ${l.student.firstName} ${l.student.lastName}
+                        </h3>
+
+                        <!-- Şubesi ve Numarası -->
+                        <div class="flex items-center justify-center gap-2 text-xs font-bold mt-1 mb-3">
+                          <span class="px-2 py-0.5 rounded-md bg-amber-400/20 text-amber-300 border border-amber-400/30 font-black">
+                            ${l.student.className}
+                          </span>
+                          <span class="text-slate-400 font-mono">No: ${l.student.studentNo}</span>
+                        </div>
+
+                        <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 mb-3 shadow-inner">
+                          <div class="text-[10px] font-bold text-amber-400 uppercase tracking-wider">ŞAMPİYONLUK PUANI</div>
+                          <div class="text-3xl font-black text-white my-0.5">${l.totalScore}</div>
+                          <div class="text-[10px] text-slate-400">Genel Seviye 1.'si</div>
+                        </div>
+
+                        <div class="text-[11px] text-slate-400 space-y-1 text-left bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 mb-3">
+                          <div class="flex justify-between"><span>🕌 Namaz:</span> <strong class="text-emerald-400">+${l.namaz.points}</strong></div>
+                          <div class="flex justify-between"><span>🛏️ Yatak:</span> <strong class="text-teal-400">+${l.yatak.points}</strong></div>
+                          <div class="flex justify-between"><span>🎒 Okul:</span> <strong class="text-blue-400">+${l.okul.points}</strong></div>
+                          <div class="flex justify-between"><span>📚 Akademi:</span> <strong class="text-sky-400">+${l.akademi.points}</strong></div>
+                        </div>
+
+                        ${r ? `
+                          <div class="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+                            <span class="truncate">🥈 <strong>${r.student.firstName} ${r.student.lastName}</strong> (${r.student.className})</span>
+                            <span class="text-amber-400 font-bold shrink-0 ml-1">${r.totalScore} P</span>
+                          </div>
+                        ` : ''}
+
+                      ` : `
+                        <div class="py-14 text-slate-500 text-xs font-bold">
+                          Bu seviyede henüz puan kaydı bulunmuyor.
+                        </div>
+                      `}
                     </div>
-
-                    ${l ? `
-                      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-black text-2xl flex items-center justify-center shadow-md mx-auto mb-3">
-                        🥇
-                      </div>
-                      <h3 class="text-lg font-black text-white truncate">
-                        ${l.student.firstName} ${l.student.lastName}
-                      </h3>
-                      <div class="text-xs text-slate-400 mb-3">No: ${l.student.studentNo}</div>
-
-                      <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 mb-3">
-                        <div class="text-[10px] font-bold text-slate-400 uppercase">SINIF 1.'Sİ PUANI</div>
-                        <div class="text-3xl font-black text-amber-400">${l.totalScore}</div>
-                      </div>
-
-                      <div class="text-[11px] text-slate-400 space-y-1 text-left bg-slate-950/40 p-2.5 rounded-xl border border-slate-800">
-                        <div class="flex justify-between"><span>🕌 Namaz:</span> <strong class="text-emerald-400">+${l.namaz.points}</strong></div>
-                        <div class="flex justify-between"><span>🛏️ Yatak:</span> <strong class="text-teal-400">+${l.yatak.points}</strong></div>
-                        <div class="flex justify-between"><span>🎒 Okul:</span> <strong class="text-blue-400">+${l.okul.points}</strong></div>
-                        <div class="flex justify-between"><span>📚 Akademi:</span> <strong class="text-sky-400">+${l.akademi.points}</strong></div>
-                      </div>
-                    ` : `
-                      <div class="py-12 text-slate-500 text-xs font-bold">
-                        Puan Kaydı Bekleniyor
-                      </div>
-                    `}
                   </div>
                 `;
               }).join('')}

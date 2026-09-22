@@ -2130,7 +2130,22 @@ class DataStore {
 
     let students = this.getStudents();
     if (classFilter && classFilter !== 'ALL') {
-      students = students.filter(s => s.className === classFilter);
+      const cf = String(classFilter).trim();
+      students = students.filter(s => {
+        if (!s || !s.className) return false;
+        const sc = s.className.trim();
+        // 1. Birebir eşitlik (örn: '5-A' === '5-A')
+        if (sc.toLowerCase() === cf.toLowerCase()) return true;
+
+        // 2. Şube fark etmeksizin sınıf seviyesi eşleme (örn: '5', '5. Sınıf', '5. Sınıflar' -> '5-A' ve '5-B'yi kapsar)
+        const filterDigit = cf.match(/^\d+/);
+        const studentDigit = sc.match(/^\d+/);
+        if (filterDigit && studentDigit && filterDigit[0] === studentDigit[0]) {
+          const isGenericGrade = /^\d+(\.|\s*sınıf|\s*sinif|\s*ler|\s*lar)*$/i.test(cf);
+          if (isGenericGrade) return true;
+        }
+        return false;
+      });
     }
 
     const leaderboard = students.map(st => {
