@@ -4,6 +4,7 @@
 
 const STORAGE_KEYS = {
   STUDENTS: 'yoklama_students',
+  DELETED_STUDENT_IDS: 'yoklama_deleted_student_ids_v1',
   PASSIVE_STUDENT_IDS: 'yoklama_passive_student_ids_v1',
   STAFF: 'yoklama_staff',
   ATTENDANCE: 'yoklama_attendance',
@@ -196,8 +197,18 @@ class DataStore {
       const list = JSON.parse(raw);
       if (!Array.isArray(list) || list.length === 0) return;
 
+      const deletedMap = this.getDeletedStudentIds();
       let changed = false;
-      const updatedList = list.map(s => {
+      const filteredList = list.filter(s => {
+        if (!s || !s.id) return false;
+        if (deletedMap[s.id] && deletedMap[s.id].isDeleted) {
+          changed = true;
+          return false;
+        }
+        return true;
+      });
+
+      const updatedList = filteredList.map(s => {
         if (!s) return s;
         const currentClass = (s.className || '').trim();
         // Zaten 5-A, 5-B gibi şube formatındaysa koru
@@ -347,6 +358,7 @@ class DataStore {
       bonusPoints: this.getAllBonusPoints(),
       customColumns: this.getCustomColumns(),
       passive_student_ids: this.getPassiveStudentIds(),
+      deleted_student_ids: this.getDeletedStudentIds(),
       lastSyncedAt: new Date().toISOString()
     };
 
@@ -464,14 +476,63 @@ class DataStore {
       localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify(mergedPassiveMap));
     }
 
-    // 5. Öğrenci listesi (Akıllı Birleştirme: Pasif Durumunu ve Yerel Düzenlemeleri Asla Ezmez!)
+    // 4b. Silinenler Sicili (CloudSync Tombstone - Silinen talebelerin cihazlar arasında hortlamasını %100 engeller)
+    let currentDeletedMap = this.getDeletedStudentIds();
+    if (cloudData.deleted_student_ids && typeof cloudData.deleted_student_ids === 'object') {
+      const mergedDeletedMap = { ...currentDeletedMap };
+      Object.keys(cloudData.deleted_student_ids).forEach(stId => {
+        const cloudRec = cloudData.deleted_student_ids[stId];
+        const localRec = currentDeletedMap[stId];
+        if (cloudRec && cloudRec.isDeleted) {
+          mergedDeletedMap[stId] = cloudRec;
+        } else if (localRec && localRec.isDeleted) {
+          mergedDeletedMap[stId] = localRec;
+        }
+      });
+      currentDeletedMap = mergedDeletedMap;
+      localStorage.setItem(STORAGE_KEYS.DELETED_STUDENT_IDS, JSON.stringify(mergedDeletedMap));
+
+      // Yerel hafızadaki öğrencileri de anında silinenlerden arındır
+      try {
+        const localRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+        if (localRaw) {
+          const parsed = JSON.parse(localRaw);
+          if (Array.isArray(parsed)) {
+            const purged = parsed.filter(s => s && s.id && (!mergedDeletedMap[s.id] || !mergedDeletedMap[s.id].isDeleted));
+            if (purged.length !== parsed.length) {
+              localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(purged));
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 5. Öğrenci listesi (Akıllı Birleştirme: Silinenleri Ayıklar, Pasif Durumunu ve Yerel Düzenlemeleri Asla Ezmez!)
     if (Array.isArray(cloudData.students) && cloudData.students.length > 0) {
-      const localStudents = this.getAllStudents();
+      const deletedMap = currentDeletedMap;
       const passiveMap = this.getPassiveStudentIds();
+
+      // Buluttan gelenler içinden silinmişleri temizle
+      const validCloudStudents = cloudData.students.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+
+      // Yerel listeden de silinmişleri temizle
+      let localStudents = [];
+      try {
+        const localRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+        if (localRaw) {
+          const parsed = JSON.parse(localRaw);
+          if (Array.isArray(parsed)) {
+            localStudents = parsed.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+          }
+        }
+      } catch (e) {
+        localStudents = this.getAllStudents();
+      }
+
       const localStudentMap = new Map();
       localStudents.forEach(s => { if (s && s.id) localStudentMap.set(s.id, s); });
 
-      const mergedStudents = cloudData.students.map(cloudSt => {
+      const mergedStudents = validCloudStudents.map(cloudSt => {
         if (!cloudSt || !cloudSt.id) return cloudSt;
         const localSt = localStudentMap.get(cloudSt.id);
         
@@ -497,14 +558,16 @@ class DataStore {
         };
       });
 
-      // Bulutta henüz olmayan yerel yeni eklenmiş öğrenciler varsa onları da koru
+      // Bulutta henüz olmayan yerel yeni eklenmiş öğrenciler varsa onları da koru (AMA SİLİNENLERİ ASLA EKLEME!)
       localStudents.forEach(localSt => {
-        if (localSt && localSt.id && !mergedStudents.some(s => s.id === localSt.id)) {
+        if (localSt && localSt.id && (!deletedMap[localSt.id] || !deletedMap[localSt.id].isDeleted) && !mergedStudents.some(s => s.id === localSt.id)) {
           mergedStudents.push(localSt);
         }
       });
 
-      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(mergedStudents));
+      // Silinenler siciline göre son kez arındır
+      const finalCleanList = mergedStudents.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(finalCleanList));
       this.autoMigrateStudentClasses();
     }
 
@@ -951,20 +1014,50 @@ class DataStore {
     return !!(map[studentId] && map[studentId].isPassive === true);
   }
 
-  // --- Öğrenci İşlemleri (Aktif & Pasif Desteği) ---
+  // --- Silinenler Sicili Metodları (Tombstone - Cihazlar ve Sürümler Arası Hortlamayı %100 Engeller) ---
+  getDeletedStudentIds() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.DELETED_STUDENT_IDS);
+      return data ? JSON.parse(data) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  saveDeletedStudentIds(map) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.DELETED_STUDENT_IDS, JSON.stringify(map));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/deleted_student_ids', map);
+      }
+    } catch (e) {
+      console.error('saveDeletedStudentIds error:', e);
+    }
+  }
+
+  isStudentDeleted(studentId) {
+    if (!studentId) return false;
+    const map = this.getDeletedStudentIds();
+    return !!(map[studentId] && map[studentId].isDeleted === true);
+  }
+
+  // --- Öğrenci İşlemleri (Aktif & Pasif & Kalıcı Silinme Korumalı) ---
   getAllStudents() {
     try {
+      const deletedMap = this.getDeletedStudentIds();
       const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
       let list = [];
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          list = parsed.filter(s => s && typeof s === 'object');
+          list = parsed.filter(s => s && typeof s === 'object' && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
         }
       }
       if (!list || list.length === 0) {
-        list = [...SEED_STUDENTS];
-        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(list));
+        list = SEED_STUDENTS.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+        if (list.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(list));
+        }
       }
 
       // Pasif öğrenci sicilini uygula:
@@ -1006,7 +1099,8 @@ class DataStore {
 
       return list;
     } catch {
-      return SEED_STUDENTS;
+      const deletedMap = this.getDeletedStudentIds();
+      return SEED_STUDENTS.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
     }
   }
 
@@ -1038,10 +1132,15 @@ class DataStore {
 
   saveStudents(students) {
     if (!Array.isArray(students)) return;
+    const deletedMap = this.getDeletedStudentIds();
+
+    // Silinmiş sicilinde olan öğrencileri ASLA tekrar kaydetme!
+    const sanitizedStudents = students.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+
     const passiveMap = this.getPassiveStudentIds();
     let mapChanged = false;
 
-    students.forEach(s => {
+    sanitizedStudents.forEach(s => {
       if (!s || !s.id) return;
       if (passiveMap[s.id] && passiveMap[s.id].isPassive === true) {
         s.isPassive = true;
@@ -1059,18 +1158,26 @@ class DataStore {
       }
     }
 
-    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(sanitizedStudents));
     if (this.isCloudEnabled()) {
-      this.syncToCloud('kurs_data/students', students);
+      this.syncToCloud('kurs_data/students', sanitizedStudents);
     }
   }
 
   addStudent(student) {
+    // Eğer aynı ID daha önce silinmişler sicilindeyse, sicilden çıkar (yeniden kayda izin ver)
+    if (student.id) {
+      const deletedMap = this.getDeletedStudentIds();
+      if (deletedMap[student.id]) {
+        delete deletedMap[student.id];
+        this.saveDeletedStudentIds(deletedMap);
+      }
+    }
     const students = this.getAllStudents();
     const isPassive = student.isPassive === true || student.status === 'passive';
     const newStudent = {
       ...student,
-      id: 'std_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+      id: student.id || ('std_' + Date.now() + '_' + Math.floor(Math.random()*1000)),
       password: student.password || '123',
       familyCode: (student.familyCode || (student.lastName ? student.lastName + '2026' : 'AILE2026')).trim().toUpperCase(),
       isPassive: isPassive,
@@ -1132,14 +1239,118 @@ class DataStore {
     return null;
   }
 
+  // Silinen öğrenciye ait artık ve hayalet kayıtları temizle
+  cleanupStudentRecords(studentId) {
+    if (!studentId) return;
+    try {
+      // 1. Yoklama kayıtlarını temizle
+      const att = this.getAttendance().filter(a => a && a.studentId !== studentId);
+      localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(att));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/attendance', att);
+      }
+
+      // 2. Performans kayıtlarını temizle
+      const perf = this.getPerformances().filter(p => p && p.studentId !== studentId);
+      localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(perf));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/performance', perf);
+      }
+
+      // 3. Takviye ders notlarını temizle
+      const acad = this.getAcademicScores().filter(s => s && s.studentId !== studentId);
+      localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(acad));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/academicScores', acad);
+      }
+
+      // 4. İzin kapı çıkışlarını temizle
+      const checkouts = this.getAllGateCheckouts();
+      if (checkouts[studentId]) {
+        delete checkouts[studentId];
+        localStorage.setItem(STORAGE_KEYS.LEAVE_CHECKOUT, JSON.stringify(checkouts));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/gateCheckouts', checkouts);
+        }
+      }
+
+      // 5. İzin dönüşlerini temizle
+      const returns = this.getAllLeaveReturns();
+      let returnChanged = false;
+      Object.keys(returns).forEach(d => {
+        if (returns[d] && returns[d][studentId]) {
+          delete returns[d][studentId];
+          returnChanged = true;
+        }
+      });
+      if (returnChanged) {
+        localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(returns));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/leaveReturns', returns);
+        }
+      }
+
+      // 6. Bonus takdir puanlarını temizle
+      const bonus = this.getAllBonusPoints().filter(b => b && b.studentId !== studentId);
+      localStorage.setItem(STORAGE_KEYS.BONUS_POINTS, JSON.stringify(bonus));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/bonusPoints', bonus);
+      }
+    } catch (e) {
+      console.warn('[cleanupStudentRecords] Hata:', e);
+    }
+  }
+
+  // Öğrenciyi Kalıcı Olarak Silme (Tombstone + Bulut + Yerel Sicil)
   deleteStudent(id) {
-    let students = this.getAllStudents().filter(s => s.id !== id);
+    if (!id) return;
+    const nowIso = new Date().toISOString();
+
+    // 1. Silinenler Sicili'ne (Tombstone) kaydet
+    const deletedMap = this.getDeletedStudentIds();
+    deletedMap[id] = { isDeleted: true, deletedAt: nowIso };
+    this.saveDeletedStudentIds(deletedMap);
+
+    // 2. Pasif Sicilinden çıkar
     const passiveMap = this.getPassiveStudentIds();
     if (passiveMap[id]) {
       delete passiveMap[id];
       this.savePassiveStudentIds(passiveMap);
     }
-    this.saveStudents(students);
+
+    // 3. Öğrenciler listesinden tamamen çıkar
+    let rawStudents = [];
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) rawStudents = parsed;
+      }
+    } catch (e) {}
+
+    const cleanStudents = rawStudents.filter(s => s && s.id !== id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(cleanStudents));
+
+    // 4. Bulut Veritabanı ile eşitle
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/students', cleanStudents);
+      this.syncToCloud('kurs_data/deleted_student_ids', deletedMap);
+
+      const baseUrl = this.getFirebaseUrl();
+      if (baseUrl) {
+        try {
+          fetch(`${baseUrl}/kurs_data/students/${id}.json`, { method: 'DELETE' }).catch(() => {});
+        } catch (e) {}
+      }
+    }
+
+    // 5. Öğrenciye ait artık kayıtları temizle
+    this.cleanupStudentRecords(id);
+
+    // 6. Global event bildir (Açık ekranların anında haberdar olması için)
+    try {
+      window.dispatchEvent(new CustomEvent('student-deleted', { detail: { studentId: id } }));
+    } catch (e) {}
   }
 
   // Talebeyi Pasife veya Aktife Geçirme (Tek tıkla değiştirme)
@@ -2449,6 +2660,7 @@ class DataStore {
       bonusPoints: this.getAllBonusPoints(),
       customColumns: this.getCustomColumns(),
       passive_student_ids: this.getPassiveStudentIds(),
+      deleted_student_ids: this.getDeletedStudentIds(),
       settings: this.getSettings()
     }, null, 2);
   }
@@ -2459,6 +2671,9 @@ class DataStore {
       if (!parsed.students) throw new Error('Geçersiz format.');
       if (parsed.passive_student_ids) {
         localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify(parsed.passive_student_ids));
+      }
+      if (parsed.deleted_student_ids) {
+        localStorage.setItem(STORAGE_KEYS.DELETED_STUDENT_IDS, JSON.stringify(parsed.deleted_student_ids));
       }
       this.saveStudents(parsed.students);
       if (parsed.staff) this.saveStaff(parsed.staff);

@@ -3,8 +3,69 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Ömer Avniyel Akademi</title>
   <meta name="description" content="Öğrenci Bilgi ve Takip Portalı">
+
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v3.8) -->
+  <script>
+    (function() {
+      var CURRENT_BUILD = '20260922_v3.8_PERMANENT_DELETE_FIX';
+      var savedBuild = localStorage.getItem('oay_app_build_version');
+
+      // Kullanıcının dilediğinde manuel de tetikleyebileceği evrensel sıfırlama fonksiyonu
+      window.forcePurgeAppCache = function() {
+        if (window.App && window.App.showToast) {
+          window.App.showToast('Önbellek siliniyor, en güncel sistem yükleniyor...', 'info');
+        }
+        try {
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              names.forEach(function(name) { caches.delete(name); });
+            });
+          }
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              regs.forEach(function(r) { r.unregister(); });
+            });
+          }
+          localStorage.setItem('oay_app_build_version', CURRENT_BUILD);
+        } catch (e) {
+          console.warn('Cache purge error:', e);
+        }
+        setTimeout(function() {
+          window.location.href = window.location.pathname + '?reload=' + Date.now();
+        }, 250);
+      };
+
+      // Cihaz eski sürümde kalmışsa KULLANICIYA HİÇBİR ŞEY SORMADAN VE BUTON BEKLEMEDEN OTOMATİK SIFIRLA!
+      if (savedBuild !== CURRENT_BUILD) {
+        console.log('[Auto-Purge] Eski önbellek tespit edildi, otomatik temizleniyor:', savedBuild, '->', CURRENT_BUILD);
+        localStorage.setItem('oay_app_build_version', CURRENT_BUILD);
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            return Promise.all(names.map(function(n) { return caches.delete(n); }));
+          }).then(function() {
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                return Promise.all(regs.map(function(r) { return r.unregister(); }));
+              }).then(function() {
+                if (savedBuild) {
+                  window.location.href = window.location.pathname + '?v=' + Date.now();
+                }
+              });
+            } else if (savedBuild) {
+              window.location.href = window.location.pathname + '?v=' + Date.now();
+            }
+          });
+        } else if (savedBuild) {
+          window.location.href = window.location.pathname + '?v=' + Date.now();
+        }
+      }
+    })();
+  </script>
   
   <!-- WhatsApp ve Sosyal Medya Paylaşım Kartı (Open Graph) -->
   <meta property="og:type" content="website">
@@ -16,6 +77,14 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#059669">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="shortcut icon" href="icon.svg">
+
+  <!-- Apple iOS & Standalone Kısayol Desteği -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Ömer Avniyel Akademi">
+  <link rel="apple-touch-icon" href="icon.svg">
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -248,6 +317,18 @@
           </div>
         </div>
 
+        <!-- Kayıt Durumu: Aktif / Pasif -->
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <label class="block text-xs font-bold text-slate-700 mb-1">KAYIT DURUMU (AKTİF / PASİF)</label>
+          <select id="modal-student-status" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 focus:outline-none">
+            <option value="active">🟢 Aktif (Tüm günlük yoklama ve listelerde görünür)</option>
+            <option value="passive">⏸️ Pasif (Geçmiş kayıtlar silinmez, yoklama listelerinden gizlenir)</option>
+          </select>
+          <p class="text-[11px] text-slate-500 mt-1">
+            💡 Pasife alınan talebelerin geçmiş yoklama ve puan verileri korunur, ancak yeni yoklamalara çıkarılmaz.
+          </p>
+        </div>
+
         <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
           <button type="button" onclick="window.App.closeStudentModal()" 
             class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition">
@@ -314,16 +395,41 @@
     </div>
   </div>
 
-  <!-- JavaScript Modülleri -->
-  <script src="js/store.js"></script>
-  <script src="js/attendance.js"></script>
-  <script src="js/leave-tracker.js"></script>
-  <script src="js/leave-return.js"></script>
-  <script src="js/performance.js"></script>
-  <script src="js/test-results.js"></script>
-  <script src="js/leaderboard.js"></script>
-  <script src="js/parent-portal.js"></script>
-  <script src="js/student-excel.js"></script>
-  <script src="js/app.js"></script>
+  <!-- Doğrudan HTML'e Gömülü Acil Önbellek & Sürüm Sıfırlama Butonu (Her Durumda, Giriş Yapılmasa Bile %100 Görünür) -->
+  <div id="quick-cache-clear-bar" class="no-print fixed bottom-3 right-3 z-50">
+    <button type="button" onclick="window.forcePurgeAppCache()" 
+      class="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-slate-900/95 hover:bg-slate-900 text-amber-300 hover:text-amber-200 border-2 border-amber-400 shadow-2xl text-xs font-black backdrop-blur transition-all active:scale-95 cursor-pointer"
+      title="Eski önbelleği temizleyip en yeni sistemi zorla yükler">
+      <span class="text-sm">🔄</span>
+      <span>Önbelleği Temizle (v3.8)</span>
+    </button>
+  </div>
+
+  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v3.8 Sürüm İmzası) -->
+  <script src="js/store.js?v=3.8"></script>
+  <script src="js/attendance.js?v=3.8"></script>
+  <script src="js/leave-tracker.js?v=3.8"></script>
+  <script src="js/leave-return.js?v=3.8"></script>
+  <script src="js/performance.js?v=3.8"></script>
+  <script src="js/test-results.js?v=3.8"></script>
+  <script src="js/leaderboard.js?v=3.8"></script>
+  <script src="js/parent-portal.js?v=3.8"></script>
+  <script src="js/student-excel.js?v=3.8"></script>
+  <script src="js/app.js?v=3.8"></script>
+
+  <!-- Service Worker Kaydı (Kısayol ve PWA Hızlı Başlatma) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./sw.js?v=3.8').then(function(reg) {
+          if (reg) {
+            reg.update();
+          }
+        }).catch(function(err) {
+          console.warn('[PWA] Service Worker kaydı:', err);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

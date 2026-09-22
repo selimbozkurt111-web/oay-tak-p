@@ -2499,8 +2499,11 @@ window.App = {
     if (!s) return;
     if (confirm(`"${s.firstName} ${s.lastName}" adlı öğrenciyi sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!\n(Öğrencinin geçmişini kaybetmemek için bunun yerine ⏸️ Pasife Alabilirsiniz.)`)) {
       window.Store.deleteStudent(id);
-      this.showToast('Öğrenci kaydı silindi.', 'info');
+      this.showToast('Öğrenci kaydı kalıcı olarak silindi ve bulutla eşitlendi.', 'info');
       this.renderStudentsView();
+      if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
+        window.StudentExcelModule.render();
+      }
     }
   },
 
@@ -2720,8 +2723,11 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
       }
 
       if (!Array.isArray(students) || students.length === 0) {
-        const fallbackList = window.SEED_STUDENTS || 
+        const rawFallback = window.SEED_STUDENTS || 
                              (typeof SEED_STUDENTS !== 'undefined' ? SEED_STUDENTS : []);
+        const fallbackList = (window.Store && typeof window.Store.isStudentDeleted === 'function')
+          ? rawFallback.filter(s => s && s.id && !window.Store.isStudentDeleted(s.id))
+          : rawFallback;
         if (Array.isArray(fallbackList) && fallbackList.length > 0) {
           try {
             if (window.Store && typeof window.Store.saveStudents === 'function') {
@@ -2995,8 +3001,11 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
       const name = st ? `${st.firstName || ''} ${st.lastName || ''}`.trim() : 'Bu talebeyi';
       if (confirm(`"${name}" kaydını sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!\n(Öğrencinin geçmişini kaybetmemek için bunun yerine ⏸️ Pasife Alabilirsiniz.)`)) {
         window.Store.deleteStudent(id);
-        window.App.showToast('Öğrenci kaydı silindi.', 'info');
+        window.App.showToast('Öğrenci kaydı kalıcı olarak silindi.', 'info');
         this.render();
+        if (window.App && typeof window.App.renderStudentsView === 'function') {
+          window.App.renderStudentsView();
+        }
       }
     },
 
