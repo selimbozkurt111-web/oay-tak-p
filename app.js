@@ -503,6 +503,16 @@ window.App = {
             </button>
           </div>
         ` : ''}
+
+        <!-- 6. HER ZAMAN GÖRÜNÜR: SİSTEMİ & ÖNBELLEĞİ YENİLE BUTONU -->
+        <div class="flex-shrink-0 ${(session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? 'ml-1.5' : 'ml-auto'}">
+          <button type="button" onclick="window.App.hardRefreshApp()" 
+            class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-2xs border border-slate-200"
+            title="Sistemi ve önbelleği sıfırlayıp en güncel sürümü yükler">
+            <span>🔄</span>
+            <span class="hidden sm:inline">Önbelleği Yenile</span>
+          </button>
+        </div>
       </div>
     `;
   },
@@ -1146,6 +1156,16 @@ window.App = {
                   <span>→</span>
                 </button>
               </div>
+            </div>
+
+            <!-- Sayfa & Önbellek Yenileme Butonu -->
+            <div class="mt-4 text-center">
+              <button type="button" onclick="window.App.hardRefreshApp();"
+                class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-300 transition inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
+                <span>🔄</span>
+                <span>Sistemi & Önbelleği Yenile</span>
+              </button>
             </div>
           </div>
         `;
