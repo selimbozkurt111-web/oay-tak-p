@@ -1255,16 +1255,26 @@ class DataStore {
     const overallCounts = { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 };
     const totalSlots = dates.length * 5;
 
+    // Kurs genelinde hangi vakitlerin yoklaması yapılmış tespit et
+    const takenPrayersMap = {};
+    dates.forEach(d => { takenPrayersMap[d] = {}; });
+    allAtt.filter(a => dates.includes(a.date) && (a.category || 'namaz') === 'namaz').forEach(a => {
+      const p = a.prayerTime || 'Sabah';
+      if (takenPrayersMap[a.date]) takenPrayersMap[a.date][p] = true;
+    });
+
     dates.forEach(d => {
       prayers.forEach(p => {
-        const st = grid[d][p];
-        if (st) {
-          prayerStats[p][st] = (prayerStats[p][st] || 0) + 1;
-          overallCounts[st] = (overallCounts[st] || 0) + 1;
-        } else {
+        const wasTaken = takenPrayersMap[d] && takenPrayersMap[d][p];
+        if (!wasTaken) {
           prayerStats[p].GIRILMEDI = (prayerStats[p].GIRILMEDI || 0) + 1;
           overallCounts.GIRILMEDI = (overallCounts.GIRILMEDI || 0) + 1;
+          return;
         }
+
+        const st = grid[d][p] || 'VAR'; // Yoklama yapıldı ve devamsız yazılmadıysa mevcut (VAR)
+        prayerStats[p][st] = (prayerStats[p][st] || 0) + 1;
+        overallCounts[st] = (overallCounts[st] || 0) + 1;
       });
     });
 
@@ -1934,11 +1944,21 @@ class DataStore {
     const namazGrid = {};
     dates.forEach(d => { namazGrid[d] = {}; });
     
-    studentAtt.filter(a => a.category === 'namaz').forEach(a => {
+    studentAtt.filter(a => (a.category || 'namaz') === 'namaz').forEach(a => {
       const pTime = a.prayerTime || 'Sabah';
       const st = this.normalizeStatusCode(a.status);
       if (namazGrid[a.date]) {
         namazGrid[a.date][pTime] = st;
+      }
+    });
+
+    // Kurs genelinde hangi vakitlerin yoklaması yapılmış tespit et
+    const takenPrayersMap = {};
+    dates.forEach(d => { takenPrayersMap[d] = {}; });
+    allAtt.filter(a => dates.includes(a.date) && (a.category || 'namaz') === 'namaz').forEach(a => {
+      const pTime = a.prayerTime || 'Sabah';
+      if (takenPrayersMap[a.date]) {
+        takenPrayersMap[a.date][pTime] = true;
       }
     });
 
@@ -1954,9 +1974,21 @@ class DataStore {
     dates.forEach(d => {
       let dayAttendedPrayers = 0;
       let dayHasYok = false;
+      let dayPrayersTakenCount = 0;
+
       prayers.forEach(p => {
-        const st = namazGrid[d] ? namazGrid[d][p] : null;
-        if (!st) return;
+        const wasTaken = takenPrayersMap[d] && takenPrayersMap[d][p];
+        if (!wasTaken) return; // Bu vakit yoklaması henüz alınmamış / kılınmamış
+
+        dayPrayersTakenCount++;
+
+        // Talebenin bu vakit için özel durumu var mı?
+        let st = namazGrid[d] ? namazGrid[d][p] : null;
+        // Yoklama alındığı halde devamsız yazılmadıysa mevcut (VAR)
+        if (!st) {
+          st = 'VAR';
+        }
+
         if (st === 'VAR') {
           namazPoints += 10;
           varCount++;
@@ -1981,8 +2013,8 @@ class DataStore {
         }
       });
 
-      // Eğer o gün 5 vakit namaz kılınmışsa (ve hiç 'YOK' yoksa) -> +15 Günlük Tam İbadet Bonusu
-      if (dayAttendedPrayers === 5 && !dayHasYok) {
+      // Eğer o gün 5 vakit namaz kılınmışsa ve talebe hepsine katılmışsa -> +15 Günlük Tam İbadet Bonusu
+      if (dayPrayersTakenCount === 5 && dayAttendedPrayers === 5 && !dayHasYok) {
         fullBonusCount++;
       }
     });
@@ -1991,12 +2023,24 @@ class DataStore {
     const totalNamazPoints = namazPoints + fullBonusPoints;
 
     // 2. Yatak Düzeni Puanı
+    // Yatak yoklaması yapılan günleri tespit et
+    const takenYatakDays = new Set();
+    allAtt.filter(a => dates.includes(a.date) && a.category === 'yatak').forEach(a => {
+      takenYatakDays.add(a.date);
+    });
+
+    const studentYatakMap = {};
+    studentAtt.filter(a => a.category === 'yatak').forEach(a => {
+      studentYatakMap[a.date] = this.normalizeStatusCode(a.status);
+    });
+
     let yatakPoints = 0;
     let iyiCount = 0;
     let ortaCount = 0;
     let kotuCount = 0;
-    studentAtt.filter(a => a.category === 'yatak').forEach(a => {
-      const st = this.normalizeStatusCode(a.status);
+
+    takenYatakDays.forEach(d => {
+      const st = studentYatakMap[d] || 'IYI';
       if (st === 'IYI' || st === 'VAR') {
         yatakPoints += 15;
         iyiCount++;
@@ -2009,12 +2053,24 @@ class DataStore {
     });
 
     // 3. Okul Dönüşü Puanı
+    // Okul dönüşü yoklaması yapılan günleri tespit et
+    const takenOkulDays = new Set();
+    allAtt.filter(a => dates.includes(a.date) && a.category === 'okul_donusu').forEach(a => {
+      takenOkulDays.add(a.date);
+    });
+
+    const studentOkulMap = {};
+    studentAtt.filter(a => a.category === 'okul_donusu').forEach(a => {
+      studentOkulMap[a.date] = this.normalizeStatusCode(a.status);
+    });
+
     let okulPoints = 0;
     let geldiCount = 0;
     let okulGecCount = 0;
     let gelmediCount = 0;
-    studentAtt.filter(a => a.category === 'okul_donusu').forEach(a => {
-      const st = this.normalizeStatusCode(a.status);
+
+    takenOkulDays.forEach(d => {
+      const st = studentOkulMap[d] || 'GELDI';
       if (st === 'GELDI' || st === 'VAR') {
         okulPoints += 10;
         geldiCount++;
@@ -2044,18 +2100,33 @@ class DataStore {
           const penalty = Math.min(25, ret.lateMinutes || ret.diffMinutes || 0);
           izinPoints += Math.max(0, 25 - penalty);
         } else if (ret.status === 'IZINLI') {
-          // İzinli olan talebeler puan alamaz (0 Puan), ceza da alamaz (0 Ceza)
-          // izinPoints artırılmaz, ceza kesilmez.
+          // İzinli: 0 Puan, 0 Ceza
         }
       }
     });
 
-    // 5. Takviye Ders Notları Puanı
+    // 5. Takviye Ders Notları & Test Neticeleri Puanı
     const allAcad = this.getAcademicScores();
     const studentAcad = allAcad.filter(s => s.studentId === studentId && dates.includes(s.date));
     let akademiPoints = 0;
     studentAcad.forEach(s => {
       const score = Number(s.score) || 0;
+      if (score >= 100) {
+        akademiPoints += 50;
+      } else if (score >= 90) {
+        akademiPoints += 40;
+      } else if (score >= 85) {
+        akademiPoints += 30;
+      } else {
+        akademiPoints += Math.round(score / 3);
+      }
+    });
+
+    // Test Neticeleri modülünden gelen haftalık sınav puanları
+    const allTests = (this.getTestResults && typeof this.getTestResults === 'function') ? this.getTestResults() : [];
+    const studentTests = allTests.filter(t => dates.includes(t.date) && t.scores && t.scores[studentId] && t.scores[studentId].score !== undefined);
+    studentTests.forEach(t => {
+      const score = Number(t.scores[studentId].score) || 0;
       if (score >= 100) {
         akademiPoints += 50;
       } else if (score >= 90) {

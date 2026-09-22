@@ -247,6 +247,64 @@ window.AttendanceModule = {
     this.renderSummary();
   },
 
+  saveAllCurrentView() {
+    const allStudents = this.getAllStudentsForCurrentView();
+    if (!allStudents || allStudents.length === 0) return;
+
+    const defaultStatus = this.getDefaultStatus();
+    const subKey = this.currentCategory === 'namaz' ? this.currentPrayer : this.currentCategory;
+
+    const records = allStudents.map(s => {
+      const draft = this.draftAttendance[s.id];
+      const status = draft ? draft.status : defaultStatus;
+      this.draftAttendance[s.id] = { status };
+      return {
+        studentId: s.id,
+        date: this.currentDate,
+        subKey: subKey,
+        status: status,
+        category: this.currentCategory
+      };
+    });
+
+    window.Store.saveAttendanceBatch(records);
+    this.renderSummary();
+    this.renderStudentRows();
+
+    const label = this.currentCategory === 'namaz' ? `${this.currentPrayer} Namazı` : (this.currentCategory === 'yatak' ? 'Yatak Yoklaması' : 'Okul Dönüşü');
+    if (window.App && typeof window.App.showToast === 'function') {
+      window.App.showToast(`✅ ${label} başarıyla tamamlandı ve kaydedildi! (${records.length} Talebe)`, 'success');
+    }
+  },
+
+  markAllAsDefault() {
+    const allStudents = this.getAllStudentsForCurrentView();
+    if (!allStudents || allStudents.length === 0) return;
+
+    const defaultStatus = this.getDefaultStatus();
+    const subKey = this.currentCategory === 'namaz' ? this.currentPrayer : this.currentCategory;
+
+    const records = allStudents.map(s => {
+      this.draftAttendance[s.id] = { status: defaultStatus };
+      return {
+        studentId: s.id,
+        date: this.currentDate,
+        subKey: subKey,
+        status: defaultStatus,
+        category: this.currentCategory
+      };
+    });
+
+    window.Store.saveAttendanceBatch(records);
+    this.renderSummary();
+    this.renderStudentRows();
+
+    const statusLabel = defaultStatus === 'VAR' ? 'Var' : (defaultStatus === 'IYI' ? 'İyi' : 'Geldi');
+    if (window.App && typeof window.App.showToast === 'function') {
+      window.App.showToast(`✅ Tüm talebeler "${statusLabel}" olarak kaydedildi! (${records.length} Talebe)`, 'success');
+    }
+  },
+
   getAllStudentsForCurrentView() {
     let students = window.Store.getStudents();
 
@@ -844,8 +902,18 @@ window.AttendanceModule = {
                   oninput="window.AttendanceModule.setSearchQuery(this.value)">
               </div>
 
-              <div class="text-xs text-slate-400">
-                💡 <em>Dokunduğunuz an yoklama anında kaydedilir.</em>
+              <div class="flex items-center gap-2 flex-wrap">
+                <button type="button" onclick="window.AttendanceModule.saveAllCurrentView()"
+                  class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer hover:scale-102 active:scale-95"
+                  title="Bu yoklamayı tüm talebeler için kesinleştirir ve puanları günceller">
+                  <span>✓</span>
+                  <span>Yoklamayı Tamamla (Tümünü Kaydet)</span>
+                </button>
+                <button type="button" onclick="window.AttendanceModule.markAllAsDefault()"
+                  class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold border border-slate-300/80 transition cursor-pointer hover:scale-102 active:scale-95"
+                  title="Tüm talebeleri tek tıkla varsayılan yapar">
+                  <span>⚡ Tümünü ${this.currentCategory === 'namaz' ? 'Var Yap' : (this.currentCategory === 'yatak' ? 'İyi Yap' : 'Geldi Yap')}</span>
+                </button>
               </div>
             </div>
           </div>

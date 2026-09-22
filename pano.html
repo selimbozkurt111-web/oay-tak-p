@@ -205,8 +205,8 @@
   </footer>
 
   <!-- Store ve Leaderboard Modülleri -->
-  <script src="js/store.js?v=3.2"></script>
-  <script src="js/leaderboard.js?v=3.2"></script>
+  <script src="js/store.js?v=3.3"></script>
+  <script src="js/leaderboard.js?v=3.3"></script>
 
   <!-- Pano TV Yönetim Motoru -->
   <script>
@@ -544,10 +544,11 @@
                       <div class="text-3xl font-black text-slate-200">${top2.totalScore}</div>
                     </div>
 
-                    <div class="grid grid-cols-3 gap-1.5 text-[10px] text-slate-400">
-                      <div class="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800">🕌 +${top2.namaz.points}</div>
-                      <div class="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800">🛏️ +${top2.yatak.points}</div>
-                      <div class="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800">📚 +${top2.akademi.points}</div>
+                    <div class="grid grid-cols-4 gap-1 text-[10px] text-slate-400">
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🕌 +${top2.namaz.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🛏️ +${top2.yatak.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🎒 +${top2.okul.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">📚 +${top2.akademi.points}</div>
                     </div>
                   </div>
                 ` : '<div class="text-center text-slate-600">2. Bekleniyor</div>'}
@@ -612,10 +613,11 @@
                       <div class="text-3xl font-black text-slate-200">${top3.totalScore}</div>
                     </div>
 
-                    <div class="grid grid-cols-3 gap-1.5 text-[10px] text-slate-400">
-                      <div class="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800">🕌 +${top3.namaz.points}</div>
-                      <div class="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800">🛏️ +${top3.yatak.points}</div>
-                      <div class="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800">📚 +${top3.akademi.points}</div>
+                    <div class="grid grid-cols-4 gap-1 text-[10px] text-slate-400">
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🕌 +${top3.namaz.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🛏️ +${top3.yatak.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🎒 +${top3.okul.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">📚 +${top3.akademi.points}</div>
                     </div>
                   </div>
                 ` : '<div class="text-center text-slate-600">3. Bekleniyor</div>'}
@@ -821,19 +823,20 @@
               <table class="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr class="bg-slate-950/80 text-[11px] font-black uppercase text-slate-400 border-b border-slate-800">
-                    <th class="p-3 text-center w-16">SIRA</th>
+                    <th class="p-3 text-center w-14">SIRA</th>
                     <th class="p-3">TALEBE ADI & SINIFI</th>
-                    <th class="p-3 text-center">🕌 NAMAZ</th>
-                    <th class="p-3 text-center">🛏️ YATAK</th>
-                    <th class="p-3 text-center">🎒 OKUL</th>
-                    <th class="p-3 text-center">📚 AKADEMİ</th>
-                    <th class="p-3 text-center">🌟 TAKDİR</th>
+                    <th class="p-2.5 text-center">🕌 NAMAZ</th>
+                    <th class="p-2.5 text-center">🛏️ YATAK</th>
+                    <th class="p-2.5 text-center">🎒 OKUL</th>
+                    <th class="p-2.5 text-center">🏠 İZİN</th>
+                    <th class="p-2.5 text-center">📚 AKADEMİ</th>
+                    <th class="p-2.5 text-center">🌟 TAKDİR</th>
                     <th class="p-3 text-center font-black">TOPLAM PUAN</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-800/80">
                   ${items.length === 0 ? `
-                    <tr><td colspan="8" class="p-8 text-center text-slate-500">Bu grupta henüz öğrenci yok.</td></tr>
+                    <tr><td colspan="9" class="p-8 text-center text-slate-500">Bu grupta henüz öğrenci yok.</td></tr>
                   ` : items.map(i => {
                     let rankBadge = `<span class="font-bold text-slate-400">#${i.rank}</span>`;
                     let rowBg = 'hover:bg-slate-800/50';
@@ -855,11 +858,12 @@
                           <div class="font-black text-sm text-white">${i.student.firstName} ${i.student.lastName}</div>
                           <div class="text-[10px] text-slate-400 font-medium">${i.student.className} • No: ${i.student.studentNo}</div>
                         </td>
-                        <td class="p-3 text-center font-bold text-emerald-400">+${i.namaz.points}</td>
-                        <td class="p-3 text-center font-bold text-teal-400">+${i.yatak.points}</td>
-                        <td class="p-3 text-center font-bold text-blue-400">+${i.okul.points}</td>
-                        <td class="p-3 text-center font-bold text-sky-400">+${i.akademi.points}</td>
-                        <td class="p-3 text-center font-bold text-amber-400">+${i.bonus.points}</td>
+                        <td class="p-2.5 text-center font-bold text-emerald-400">+${i.namaz.points}</td>
+                        <td class="p-2.5 text-center font-bold text-teal-400">+${i.yatak.points}</td>
+                        <td class="p-2.5 text-center font-bold text-blue-400">+${i.okul.points}</td>
+                        <td class="p-2.5 text-center font-bold text-indigo-400">+${i.izinDonus ? i.izinDonus.points : 0}</td>
+                        <td class="p-2.5 text-center font-bold text-sky-400">+${i.akademi.points}</td>
+                        <td class="p-2.5 text-center font-bold text-amber-400">+${i.bonus.points}</td>
                         <td class="p-3 text-center">
                           <span class="px-3.5 py-1 rounded-xl bg-slate-950 text-amber-300 border border-amber-500/40 font-black text-sm shadow-inner">
                             ${i.totalScore} Puan
