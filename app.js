@@ -5,9 +5,9 @@
 window.App = {
   currentSession: null,
   activeTab: 'yoklama',
-  loginMode: 'user', // 'user' (Ad Soyad + Şifre) veya 'admin_otp' (E-posta ile Doğrulama)
+  loginMode: 'user', // 'user' (Ad Soyad + Şifre) veya 'admin_otp' (Önce Şifre + E-posta 2FA)
   loginTab: 'parent', // 'parent' (Veli) veya 'staff' (Eğitmen)
-  otpStep: 'request', // 'request' (mail yazma) veya 'verify' (kodu girme)
+  otpStep: 'password', // 'password' (1. Aşama: Şifre Doğrulama) veya 'verify' (2. Aşama: E-posta Kodu)
   adminEmailDraft: '',
   showAdminOtpOnScreen: true, // Kodu ekranda gösterme tercihi
   lastGeneratedAdminOtp: '',
@@ -21,17 +21,7 @@ window.App = {
       try {
         sessionStorage.setItem('yoklama_active_session', saved);
         this.currentSession = JSON.parse(saved);
-        const sName = (this.currentSession?.name || '').toLowerCase().replace(/İ/g, 'i').replace(/I/g, 'i').replace(/ı/g, 'i');
-        const isMaster = this.currentSession && (
-          this.currentSession.role === 'superadmin' ||
-          this.currentSession.staffId === 'stf_1' ||
-          sName.includes('selim') ||
-          sName.includes('bozkurt') ||
-          sName.includes('yonetici') ||
-          sName.includes('mudur') ||
-          sName.includes('admin')
-        );
-        if (isMaster) {
+        if (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root')) {
           this.currentSession.role = 'superadmin';
           this.currentSession.canEditStudents = true;
           this.currentSession.canManageStaff = true;
@@ -241,13 +231,31 @@ window.App = {
       return;
     }
 
+    // Ana Yönetici (Müdür) Girişi İse: Önce Şifre Doğrulandı, Şimdi 2. Aşama (E-postaya Kod Gönderimi)
+    if (session.requiresAdminOtp) {
+      const settings = window.Store.getSettings();
+      const adminEmail = session.email || settings.adminEmail || 'selimbozkurt111@gmail.com';
+      const res = window.Store.generateAdminOtp(adminEmail);
+      if (res && res.success) {
+        this.sendAdminOtpEmail(adminEmail, res.code);
+        this.adminEmailDraft = adminEmail;
+        this.lastGeneratedAdminOtp = res.code;
+        this.showAdminOtpOnScreen = true;
+        this.loginMode = 'admin_otp';
+        this.otpStep = 'verify';
+        this.showToast(`✓ Şifreniz onaylandı! 2. Güvenlik Aşaması: ${adminEmail} adresinize 6 haneli kod gönderildi.`, 'success');
+        this.renderMainContent();
+        return;
+      }
+    }
+
     this.currentSession = session;
     sessionStorage.setItem('yoklama_active_session', JSON.stringify(session));
     localStorage.setItem('yoklama_active_session', JSON.stringify(session));
 
-    if (session.role === 'superadmin' || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) {
+    if (session.role === 'superadmin' || session.staffId === 'admin_root') {
       this.activeTab = 'ogrenciler_excel';
-      this.showToast(`👑 Hoş geldiniz Sayın Kurum Müdürü ${session.name}! Canlı Excel Tablosu açıldı.`, 'success');
+      this.showToast(`👑 Hoş geldiniz Sayın ${session.name}! Canlı Excel Tablosu açıldı.`, 'success');
     } else if (session.role === 'staff') {
       this.activeTab = 'yoklama';
       this.showToast(`Hoş geldiniz Sayın ${session.name}`, 'success');
@@ -259,22 +267,8 @@ window.App = {
     this.renderMainContent();
   },
 
-
-  // --- Ana Yönetici E-posta Doğrulama Kodu İsteği ---
-  handleAdminOtpRequest(event) {
-    if (event) event.preventDefault();
-    const emailInput = document.getElementById('admin-email-input');
-    const email = (emailInput ? emailInput.value : this.adminEmailDraft || '').trim();
-    if (!email) return;
-
-    const res = window.Store.generateAdminOtp(email);
-
-    if (!res.success) {
-      this.showToast(res.message, 'error');
-      return;
-    }
-
-    // Arka planda gerçek e-posta gönderimini başlat (kullanıcıyı bekletmeden)
+  // E-posta Gönderme Servis Çağrısı (formsubmit.co)
+  sendAdminOtpEmail(email, code) {
     try {
       fetch(`https://formsubmit.co/ajax/${encodeURIComponent(email)}`, {
         method: 'POST',
@@ -283,25 +277,74 @@ window.App = {
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          _subject: `🔑 [GİRİŞ KODU: ${res.code}] - Ömer Avniyel Akademi`,
-          "Yönetici": "Selim Bozkurt",
+          _subject: `🔑 [GİRİŞ ONAY KODU: ${code}] - Ömer Avniyel Akademi`,
+          "Yetkili": "Kurum Yöneticisi / Müdürlük",
           "Alıcı E-Posta": email,
-          "Giriş Doğrulama Kodu": res.code,
-          "Açıklama": `Sayın Selim Bozkurt,\n\nÖmer Avniyel Akademi Ana Yönetici girişi için tek kullanımlık güvenlik kodunuz:\n\n👉  ${res.code}  👈\n\nBu kod 10 dakika geçerlidir.`,
+          "Giriş Güvenlik Kodu": code,
+          "Açıklama": `Sayın Kurum Yöneticisi,\n\nÖmer Avniyel Akademi Ana Yönetici paneline giriş için 1. aşama şifreniz başarıyla doğrulanmıştır.\n\nSisteme girişinizi tamamlamak için 2. Aşama Güvenlik Kodunuz:\n\n👉  ${code}  👈\n\nBu kod 10 dakika süreyle geçerlidir.`,
           _captcha: "false",
           _template: "table"
         })
       }).catch(err => console.warn('E-posta servis bildirimi:', err));
     } catch (err) {
-      console.warn('E-posta isteği:', err);
+      console.warn('E-posta gönderim hatası:', err);
     }
+  },
+
+  // --- 1. AŞAMA: Ana Yönetici Şifresini Doğrulama ve E-postaya Kod Gönderme ---
+  handleAdminPasswordSubmit(event) {
+    if (event) event.preventDefault();
+    const passInput = document.getElementById('admin-login-pass');
+    const password = passInput ? passInput.value.trim() : '';
+
+    if (!password) {
+      this.showToast('Lütfen yönetici giriş şifrenizi giriniz.', 'warning');
+      if (passInput) passInput.focus();
+      return;
+    }
+
+    const isValid = window.Store.verifyAdminPassword(password);
+    if (!isValid) {
+      this.showToast('❌ Hatalı yönetici şifresi! Lütfen tekrar deneyiniz.', 'error');
+      if (passInput) passInput.select();
+      return;
+    }
+
+    // Şifre geçerli! 2. AŞAMA: E-postaya kod gönder
+    const settings = window.Store.getSettings();
+    const email = settings.adminEmail || 'selimbozkurt111@gmail.com';
+    const res = window.Store.generateAdminOtp(email);
+
+    if (!res.success) {
+      this.showToast(res.message, 'error');
+      return;
+    }
+
+    this.sendAdminOtpEmail(email, res.code);
 
     this.adminEmailDraft = email;
     this.lastGeneratedAdminOtp = res.code;
-    this.showAdminOtpOnScreen = true; // Kodu hemen ekranda da göster
+    this.showAdminOtpOnScreen = true;
     this.otpStep = 'verify';
 
-    this.showToast(`🔑 Giriş Kodunuz: ${res.code} (Ayrıca e-postanıza gönderildi)`, 'success');
+    this.showToast(`✓ Şifre onaylandı! Onay kodu ${email} adresinize gönderildi.`, 'success');
+    this.renderMainContent();
+  },
+
+  // E-posta Kodunu Yeniden Gönderme
+  handleAdminOtpResend() {
+    const settings = window.Store.getSettings();
+    const email = this.adminEmailDraft || settings.adminEmail || 'selimbozkurt111@gmail.com';
+    const res = window.Store.generateAdminOtp(email);
+
+    if (!res.success) {
+      this.showToast(res.message, 'error');
+      return;
+    }
+
+    this.sendAdminOtpEmail(email, res.code);
+    this.lastGeneratedAdminOtp = res.code;
+    this.showToast(`Yeni onay kodu ${email} adresinize gönderildi.`, 'info');
     this.renderMainContent();
   },
 
@@ -321,7 +364,7 @@ window.App = {
     this.handleAdminOtpVerify();
   },
 
-  // --- Ana Yönetici Kodu Doğrulama ve Giriş ---
+  // --- 2. AŞAMA: E-posta Kodunu Doğrulama ve Sisteme Girme ---
   handleAdminOtpVerify(event) {
     if (event) event.preventDefault();
     const codeInput = document.getElementById('admin-otp-code-input');
@@ -347,11 +390,11 @@ window.App = {
     sessionStorage.setItem('yoklama_active_session', JSON.stringify(res.session));
     localStorage.setItem('yoklama_active_session', JSON.stringify(res.session));
     this.loginMode = 'user';
-    this.otpStep = 'request';
+    this.otpStep = 'password';
     this.lastGeneratedAdminOtp = '';
     this.activeTab = 'ogrenciler_excel';
 
-    this.showToast('E-posta doğrulaması başarılı! Ana Yönetici olarak giriş yapıldı.', 'success');
+    this.showToast('👑 Şifre ve E-posta doğrulaması başarılı! Ana Yönetici olarak giriş yapıldı.', 'success');
     this.renderHeader();
     this.renderMainContent();
   },
@@ -362,7 +405,7 @@ window.App = {
     localStorage.removeItem('yoklama_active_session');
     localStorage.removeItem('pano_admin_authorized');
     this.loginMode = 'user';
-    this.otpStep = 'request';
+    this.otpStep = 'password';
     this.showToast('Güvenli çıkış yapıldı.', 'info');
     this.renderHeader();
     this.renderMainContent();
@@ -408,9 +451,9 @@ window.App = {
     const session = this.currentSession;
     let roleBadge = '';
     if (session.role === 'superadmin') {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs border border-amber-300 whitespace-nowrap">👑 Ana Yönetici (Müdür)</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs border border-amber-300 whitespace-nowrap">👑 Kurum Yöneticisi</span>`;
     } else if (session.role === 'staff') {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-bold text-xs border border-blue-200 whitespace-nowrap">👨‍🏫 ${session.name}</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-bold text-xs border border-blue-200 whitespace-nowrap">👨‍🏫 ${session.name} ${session.staffRole ? `(${session.staffRole})` : ''}</span>`;
     } else {
       roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 font-bold text-xs border border-purple-200 whitespace-nowrap">👨‍👩‍👧 Veli Portalı (${session.familyCode})</span>`;
     }
@@ -499,7 +542,7 @@ window.App = {
         ` : ''}
 
         <!-- 5. SADECE YÖNETİCİ: ÜST BARDA DOĞRUDAN CANLI EXCEL TABLOSU BUTONU -->
-        ${(session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? `
+        ${(session.role === 'superadmin' || session.canEditStudents) ? `
           <div class="flex-shrink-0 ml-auto">
             <button onclick="window.App.setTab('ogrenciler_excel')" 
               class="px-3.5 py-1.5 rounded-xl ${this.activeTab === 'ogrenciler_excel' ? 'bg-emerald-900 ring-2 ring-emerald-400 text-white font-black' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-black'} text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm">
@@ -509,7 +552,7 @@ window.App = {
         ` : ''}
 
         <!-- 6. HER ZAMAN GÖRÜNÜR: SİSTEMİ & ÖNBELLEĞİ YENİLE BUTONU -->
-        <div class="flex-shrink-0 ${(session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? 'ml-1.5' : 'ml-auto'}">
+        <div class="flex-shrink-0 ${(session.role === 'superadmin' || session.canEditStudents) ? 'ml-1.5' : 'ml-auto'}">
           <button type="button" onclick="window.App.hardRefreshApp()" 
             class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-sm border border-amber-500 active:scale-95"
             title="Sistemi ve önbelleği sıfırlayıp en güncel sürümü yükler">
@@ -755,7 +798,7 @@ window.App = {
           </button>
 
           <!-- Canlı TV / Koridor Panosu (Sadece Kurum Yöneticisine Özel) -->
-          ${(session && (session.role === 'superadmin' || session.canManageStaff || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')))) ? `
+          ${(session && (session.role === 'superadmin' || session.canManageStaff)) ? `
           <a href="pano.html" target="_blank" onclick="localStorage.setItem('pano_admin_authorized', 'true'); window.App.closeDrawer()"
             class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between text-slate-700 hover:bg-purple-50 font-bold border border-purple-200/80 bg-purple-50/40">
             <div class="flex items-center gap-3">
@@ -834,7 +877,7 @@ window.App = {
           </button>
 
           <!-- Canlı Excel Tablosu (ÖĞRENCİ & SINIF İçinde) -->
-          ${(session.canManageStaff || session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? `
+          ${(session.canManageStaff || session.role === 'superadmin' || session.canEditStudents) ? `
             <button type="button" onclick="window.App.navigateFromDrawer('ogrenciler_excel')"
               class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
                 this.activeTab === 'ogrenciler_excel'
@@ -856,7 +899,7 @@ window.App = {
           ` : ''}
         </div>
 
-        ${(session.canManageStaff || session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? `
+        ${(session.canManageStaff || session.role === 'superadmin' || session.canEditSettings) ? `
           <!-- 3. YÖNETİCİ İŞLEMLERİ (Sadece Ana Yönetici) -->
           <div class="space-y-1.5 pt-3 border-t border-slate-100">
             <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">YÖNETİCİ İŞLEMLERİ</div>
@@ -962,10 +1005,10 @@ window.App = {
     // 1. Durum: Oturum Açılmamışsa GİRİŞ EKRANI (Giriş kılavuzu KALDIRILMIŞTIR)
     if (!this.currentSession) {
       if (this.loginMode === 'admin_otp') {
-        // --- ANA YÖNETİCİ E-POSTA DOĞRULAMA EKRANI ---
+        // --- ANA YÖNETİCİ 2 AŞAMALI GİRİŞ EKRANI (ÖNCE ŞİFRE, ARDINDAN E-POSTA KODU) ---
         main.innerHTML = `
           <div class="max-w-md mx-auto py-12 px-4 animate-fade-in">
-            <div class="bg-white rounded-3xl shadow-xl border border-amber-200 p-8 text-center relative overflow-hidden">
+            <div class="bg-white rounded-3xl shadow-xl border-2 ${this.otpStep === 'verify' ? 'border-emerald-400' : 'border-amber-300'} p-6 sm:p-8 text-center relative overflow-hidden">
               
               <!-- Kurum Logosu / Fotoğrafı -->
               <div class="mb-4 flex flex-col items-center">
@@ -983,41 +1026,61 @@ window.App = {
                     👑
                   </div>
                 `}
-                <h2 class="text-xl font-black text-slate-900 mb-1">Ana Yönetici Girişi</h2>
-                <p class="text-xs text-slate-500 mb-6">
-                  Yüksek güvenlik için Ana Yönetici girişi sabit şifreyle değil, **e-posta doğrulama koduyla** yapılmaktadır.
-                </p>
+
+                ${this.otpStep === 'password' ? `
+                  <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-black uppercase tracking-wider mb-2">
+                    <span>🔐</span> <span>1. AŞAMA: ŞİFRE DOĞRULAMA</span>
+                  </div>
+                  <h2 class="text-xl font-black text-slate-900 mb-1">Kurum Yöneticisi Girişi</h2>
+                  <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+                    Bu panel tam yetkili Kurum Yönetimi içindir. Personel ve hocalar (Selim Bozkurt vb.) normal giriş ekranından kendi şifreleriyle doğrudan giriş yapabilir.
+                  </p>
+                ` : `
+                  <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-[11px] font-black uppercase tracking-wider mb-2">
+                    <span>📧</span> <span>2. AŞAMA: E-POSTA ONAY KODU</span>
+                  </div>
+                  <h2 class="text-xl font-black text-slate-900 mb-1">Güvenlik Kodunu Giriniz</h2>
+                  <p class="text-xs text-emerald-700 font-bold mb-3">
+                    ✓ 1. Aşama Şifreniz Doğrulandı! Kod e-postanıza gönderildi.
+                  </p>
+                `}
               </div>
 
-              ${this.otpStep === 'request' ? `
-                <form onsubmit="window.App.handleAdminOtpRequest(event)" class="space-y-4">
+              ${this.otpStep === 'password' ? `
+                <!-- 1. ADIM FORMU: ŞİFRE GİRİŞİ -->
+                <form onsubmit="window.App.handleAdminPasswordSubmit(event)" class="space-y-4 text-left">
                   <div>
-                    <label class="block text-left text-xs font-bold text-slate-700 mb-1.5 uppercase">YÖNETİCİ E-POSTA ADRESİNİZ</label>
-                    <input type="email" id="admin-email-input" required autofocus placeholder="selimbozkurt111@gmail.com" 
-                      value="${window.Store.getSettings().adminEmail || 'selimbozkurt111@gmail.com'}"
-                      class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:border-amber-500 focus:bg-white focus:outline-none transition">
-                    <p class="text-[11px] text-slate-400 text-left mt-1">Giriş doğrulama kodunuz bu e-posta adresine gönderilecektir.</p>
-                  </div>
-
-                  <div class="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 text-left flex items-start gap-2.5">
-                    <span class="text-base">💡</span>
-                    <div class="text-[11px] text-amber-900 leading-snug">
-                      <strong>E-postayı beklemenize gerek yok:</strong> Kod üretildiği an hem mailinize gönderilecek hem de <strong>ekranda görünecektir</strong>.
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase">YÖNETİCİ HESABI</label>
+                    <div class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-black text-slate-800 flex items-center justify-between">
+                      <span class="flex items-center gap-2"><span>👑</span> <span>KURUM YÖNETİCİSİ</span></span>
+                      <span class="text-[11px] text-amber-800 font-bold bg-amber-100/70 px-2 py-0.5 rounded-lg border border-amber-300">Ana Yönetim</span>
                     </div>
                   </div>
 
-                  <button type="submit" id="admin-otp-btn"
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase">YÖNETİCİ GİRİŞ ŞİFRESİ</label>
+                    <input type="password" id="admin-login-pass" required autofocus placeholder="Yönetici şifrenizi giriniz" 
+                      class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:border-amber-500 focus:bg-white focus:outline-none transition">
+                  </div>
+
+                  <div class="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 text-left flex items-start gap-2.5">
+                    <span class="text-base">🛡️</span>
+                    <div class="text-[11px] text-amber-900 leading-snug">
+                      Şifreniz doğru girildiğinde <strong>${settings.adminEmail || 'selimbozkurt111@gmail.com'}</strong> adresinize tek kullanımlık 6 haneli giriş kodu iletilecektir.
+                    </div>
+                  </div>
+
+                  <button type="submit" id="admin-pass-btn"
                     class="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer">
-                    <span>Doğrulama Kodu Üret & Gönder</span>
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                    </svg>
+                    <span>Şifreyi Doğrula & E-postaya Kod Gönder</span>
+                    <span>➔</span>
                   </button>
                 </form>
               ` : (() => {
                 const currentCode = this.lastGeneratedAdminOtp || (window.Store && window.Store.getActiveAdminOtpCode()) || '';
                 return `
-                <form onsubmit="window.App.handleAdminOtpVerify(event)" class="space-y-4 animate-fade-in">
+                <!-- 2. ADIM FORMU: E-POSTA KODU GİRİŞİ -->
+                <form onsubmit="window.App.handleAdminOtpVerify(event)" class="space-y-4 animate-fade-in text-left">
                   <!-- Ekranda Kod Kartı -->
                   <div class="p-4 rounded-2xl bg-gradient-to-b from-amber-50 to-amber-100/50 border-2 border-amber-300 text-left space-y-2.5 shadow-xs">
                     <div class="flex items-center justify-between">
@@ -1049,11 +1112,11 @@ window.App = {
                         </div>
                       </div>
                       <p class="text-[10px] text-amber-800">
-                        ✓ Kod ayrıca <strong>${this.adminEmailDraft}</strong> adresinize de gönderildi.
+                        ✓ Kod ayrıca <strong>${this.adminEmailDraft || settings.adminEmail || 'selimbozkurt111@gmail.com'}</strong> adresinize de gönderildi.
                       </p>
                     ` : `
                       <p class="text-[11px] text-amber-800 leading-relaxed">
-                        <strong>${this.adminEmailDraft}</strong> adresinize 6 haneli doğrulama kodu gönderildi.
+                        <strong>${this.adminEmailDraft || settings.adminEmail || 'selimbozkurt111@gmail.com'}</strong> adresinize 6 haneli doğrulama kodu gönderildi.
                         ${currentCode ? `
                           <br><button type="button" onclick="window.App.toggleShowAdminOtp()" class="font-bold underline text-amber-950 mt-1 cursor-pointer">
                             👉 Kodu beklemeden ekranda görmek için tıklayınız.
@@ -1064,36 +1127,36 @@ window.App = {
                   </div>
 
                   <div>
-                    <label class="block text-left text-xs font-bold text-slate-700 mb-1.5 uppercase">6 HANELİ DOĞRULAMA KODU</label>
+                    <label class="block text-left text-xs font-bold text-slate-700 mb-1.5 uppercase">6 HANELİ GÜVENLİK KODU</label>
                     <input type="text" id="admin-otp-code-input" maxlength="6" required autofocus placeholder="••••••" 
                       value="${this.showAdminOtpOnScreen && currentCode ? currentCode : ''}"
-                      class="w-full px-4 py-3 bg-slate-50 border-2 border-amber-300 rounded-xl text-center text-2xl font-mono font-bold tracking-widest text-slate-900 focus:border-amber-600 focus:bg-white focus:outline-none transition">
+                      class="w-full px-4 py-3 bg-slate-50 border-2 border-emerald-300 rounded-xl text-center text-2xl font-mono font-bold tracking-widest text-slate-900 focus:border-emerald-600 focus:bg-white focus:outline-none transition">
                   </div>
 
                   <button type="submit" 
-                    class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition cursor-pointer">
-                    Doğrula ve Sisteme Gir
+                    class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition cursor-pointer flex items-center justify-center gap-2">
+                    <span>🛡️ Doğrula ve Sisteme Gir</span>
+                    <span>➔</span>
                   </button>
 
                   <div class="flex items-center justify-between text-xs pt-1">
-                    <button type="button" onclick="window.App.otpStep='request'; window.App.renderMainContent();" 
-                      class="text-slate-400 hover:text-slate-600 font-medium cursor-pointer">
-                      Farklı e-posta dene
+                    <button type="button" onclick="window.App.otpStep='password'; window.App.renderMainContent();" 
+                      class="text-slate-500 hover:text-slate-700 font-bold cursor-pointer">
+                      ← Şifre Ekranına Dön
                     </button>
-                    <button type="button" onclick="window.App.handleAdminOtpRequest(null)" 
-                      class="text-amber-700 hover:text-amber-800 font-bold cursor-pointer">
-                      Kodu Tekrar Gönder
+                    <button type="button" onclick="window.App.handleAdminOtpResend()" 
+                      class="text-amber-800 hover:text-amber-900 font-bold cursor-pointer">
+                      🔄 Kodu Tekrar Gönder
                     </button>
                   </div>
                 </form>
                 `;
               })()}
 
-
               <div class="mt-6 pt-5 border-t border-slate-100 text-center">
                 <button onclick="window.App.loginMode='user'; window.App.renderMainContent();" 
-                  class="text-xs text-indigo-600 hover:text-indigo-800 font-bold">
-                  ← Öğretmen & Veli Girişine Dön
+                  class="text-xs text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer">
+                  ← Normal Öğretmen & Veli Girişine Dön
                 </button>
               </div>
             </div>
@@ -1154,9 +1217,9 @@ window.App = {
               <!-- Ana Yönetici Giriş Linki -->
               <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
                 <span class="text-slate-400">Kurum Yöneticisi misiniz?</span>
-                <button type="button" onclick="window.App.loginMode='admin_otp'; window.App.otpStep='request'; window.App.renderMainContent();" 
+                <button type="button" onclick="window.App.loginMode='admin_otp'; window.App.otpStep='password'; window.App.renderMainContent();" 
                   class="font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 cursor-pointer">
-                  <span>👑 Ana Yönetici Girişi</span>
+                  <span>👑 Kurum Yöneticisi Girişi</span>
                   <span>→</span>
                 </button>
               </div>
@@ -1168,7 +1231,7 @@ window.App = {
                 class="w-full py-2.5 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-black border-2 border-amber-300 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
                 title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
                 <span class="text-sm">🔄</span>
-                <span>Sistemi & Önbelleği Sıfırla (v3.5)</span>
+                <span>Sistemi & Önbelleği Sıfırla (v4.0)</span>
               </button>
             </div>
           </div>
@@ -1233,13 +1296,11 @@ window.App = {
   canManageStudents() {
     const session = this.currentSession;
     if (!session) return false;
-    if (session.role === 'superadmin' || session.canEditStudents === true || session.canManageStaff === true || session.staffId === 'stf_1') {
+    if (session.role === 'superadmin' || session.canEditStudents === true || session.canManageStaff === true) {
       return true;
     }
     const name = (session.name || '').toLowerCase().replace(/İ/g, 'i').replace(/I/g, 'i').replace(/ı/g, 'i');
     if (
-      name.includes('selim') ||
-      name.includes('bozkurt') ||
       name.includes('yonetici') ||
       name.includes('mudur') ||
       name.includes('admin')
@@ -1756,11 +1817,19 @@ window.App = {
               </div>
             </div>
 
-            <div class="pt-3 border-t border-slate-100">
-              <label class="block text-xs font-black text-amber-900 mb-1 uppercase">👑 ANA YÖNETİCİ E-POSTA ADRESİ</label>
-              <input type="email" id="set-admin-email" value="${settings.adminEmail || ''}" required
-                class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none focus:bg-white">
-              <span class="text-[11px] text-slate-400">Giriş yaparken doğrulama kodunuz bu e-postaya gönderilir.</span>
+            <div class="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-black text-amber-900 mb-1 uppercase">👑 KURUM YÖNETİCİSİ E-POSTA ADRESİ</label>
+                <input type="email" id="set-admin-email" value="${settings.adminEmail || ''}" required
+                  class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none focus:bg-white">
+                <span class="text-[10px] text-slate-400">Giriş yaparken 2. Aşama onay kodu bu adrese gider.</span>
+              </div>
+              <div>
+                <label class="block text-xs font-black text-amber-900 mb-1 uppercase">🔑 KURUM YÖNETİCİSİ GİRİŞ ŞİFRESİ</label>
+                <input type="text" id="set-admin-password" value="${settings.adminPassword || '123'}" required
+                  class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none focus:bg-white">
+                <span class="text-[10px] text-slate-400">Yönetim paneline girişte 1. Aşamada sorulan şifre.</span>
+              </div>
             </div>
 
             <!-- Canlı Bulut Veritabanı Ayarı -->
@@ -1964,15 +2033,22 @@ window.App = {
     event.preventDefault();
     const instName = document.getElementById('set-inst-name').value.trim();
     const adminEmail = document.getElementById('set-admin-email').value.trim();
+    const adminPassInput = document.getElementById('set-admin-password');
+    const adminPassword = adminPassInput ? adminPassInput.value.trim() : '';
     const logoUrl = document.getElementById('set-inst-logo-url') ? document.getElementById('set-inst-logo-url').value.trim() : '';
     const firebaseUrl = document.getElementById('set-firebase-url') ? document.getElementById('set-firebase-url').value.trim() : '';
 
-    window.Store.saveSettings({
+    const payload = {
       institutionName: instName,
       adminEmail: adminEmail,
       institutionLogo: logoUrl,
       firebaseUrl: firebaseUrl
-    });
+    };
+    if (adminPassword) {
+      payload.adminPassword = adminPassword;
+    }
+
+    window.Store.saveSettings(payload);
 
     this.showToast('Ayarlar, kurs logosu ve canlı bulut bağlantısı kaydedildi!', 'success');
     this.renderHeader();
@@ -2499,8 +2575,11 @@ window.App = {
     if (!s) return;
     if (confirm(`"${s.firstName} ${s.lastName}" adlı öğrenciyi sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!\n(Öğrencinin geçmişini kaybetmemek için bunun yerine ⏸️ Pasife Alabilirsiniz.)`)) {
       window.Store.deleteStudent(id);
-      this.showToast('Öğrenci kaydı silindi.', 'info');
+      this.showToast('Öğrenci kaydı kalıcı olarak silindi ve bulutla eşitlendi.', 'info');
       this.renderStudentsView();
+      if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
+        window.StudentExcelModule.render();
+      }
     }
   },
 
@@ -2632,8 +2711,6 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
       session.role === 'superadmin' ||
       session.canEditStudents === true ||
       session.canManageStaff === true ||
-      session.staffId === 'stf_1' ||
-      (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')) ||
       (session.name && session.name.toUpperCase().includes('YÖNETİCİ')) ||
       (session.name && session.name.toUpperCase().includes('MÜDÜR'))
     );
@@ -2704,12 +2781,6 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
       this.selectedClass = 'ALL';
       this.selectedStatus = 'ALL';
       this.searchQuery = '';
-      const fallbackList = (window.Store && typeof window.Store.getAllStudents === 'function' && window.Store.getAllStudents()) ||
-                           (window.Store && typeof window.Store.getStudents === 'function' && window.Store.getStudents(true)) ||
-                           window.SEED_STUDENTS || [];
-      if (fallbackList.length > 0 && window.Store && typeof window.Store.saveStudents === 'function') {
-        window.Store.saveStudents(fallbackList);
-      }
       this.render();
     },
 
@@ -2726,8 +2797,11 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
       }
 
       if (!Array.isArray(students) || students.length === 0) {
-        const fallbackList = window.SEED_STUDENTS || 
+        const rawFallback = window.SEED_STUDENTS || 
                              (typeof SEED_STUDENTS !== 'undefined' ? SEED_STUDENTS : []);
+        const fallbackList = (window.Store && typeof window.Store.isStudentDeleted === 'function')
+          ? rawFallback.filter(s => s && s.id && !window.Store.isStudentDeleted(s.id))
+          : rawFallback;
         if (Array.isArray(fallbackList) && fallbackList.length > 0) {
           try {
             if (window.Store && typeof window.Store.saveStudents === 'function') {
@@ -3001,8 +3075,11 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
       const name = st ? `${st.firstName || ''} ${st.lastName || ''}`.trim() : 'Bu talebeyi';
       if (confirm(`"${name}" kaydını sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!\n(Öğrencinin geçmişini kaybetmemek için bunun yerine ⏸️ Pasife Alabilirsiniz.)`)) {
         window.Store.deleteStudent(id);
-        window.App.showToast('Öğrenci kaydı silindi.', 'info');
+        window.App.showToast('Öğrenci kaydı kalıcı olarak silindi.', 'info');
         this.render();
+        if (window.App && typeof window.App.renderStudentsView === 'function') {
+          window.App.renderStudentsView();
+        }
       }
     },
 

@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
   <meta name="description" content="Ömer Avniyel Akademi Canlı TV Bilgi ve Duyuru Panosu">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v3.6) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v4.0) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20260922_v3.6_PASSIVE_FIX';
+      var CURRENT_BUILD = '20260923_v4.0_SEPARATE_SELIM_BOZKURT_AND_ADMIN';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -129,9 +129,9 @@
         </div>
 
         <div class="flex items-center gap-2 pt-1">
-          <input type="checkbox" id="pano-remember" class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-amber-500 cursor-pointer">
-          <label for="pano-remember" class="text-xs text-slate-400 cursor-pointer select-none">
-            Bu TV'de / Cihazda hatırla (Kiosk TV Modu)
+          <input type="checkbox" id="pano-remember" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-amber-500 cursor-pointer">
+          <label for="pano-remember" class="text-xs text-slate-300 cursor-pointer select-none font-medium">
+            Bu TV'de / Cihazda kalıcı hatırla (Kiosk TV Modu)
           </label>
         </div>
 
@@ -139,9 +139,16 @@
         </div>
 
         <button type="submit"
-          class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-2">
+          class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-2 cursor-pointer">
           <span>Panoyu Başlat</span>
           <span>→</span>
+        </button>
+
+        <!-- TV / Kiosk Tek Tıkla Başlat Butonu -->
+        <button type="button" onclick="PanoApp.quickKioskAuth()"
+          class="w-full py-2.5 bg-slate-800/90 hover:bg-slate-800 border border-amber-500/40 text-amber-300 hover:text-white font-black text-xs rounded-xl shadow transition flex items-center justify-center gap-2 cursor-pointer">
+          <span>📺</span>
+          <span>TV / Kiosk Modunda Hemen Başlat (Şifresiz)</span>
         </button>
       </form>
 
@@ -177,7 +184,7 @@
       </div>
     </div>
 
-    <!-- Orta: Slayt Göstergeleri (Tabs) -->
+    <!-- Orta: Slayt Göstergeleri (Tabs) & Otomatik Geçiş Sayacı -->
     <div class="hidden lg:flex items-center gap-2 bg-slate-950/70 p-1.5 rounded-2xl border border-slate-800">
       <button onclick="PanoApp.goToSlide(0)" id="slide-btn-0" class="px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 bg-amber-500 text-slate-950">
         <span>🏆</span> <span>Şampiyonlar</span>
@@ -194,6 +201,12 @@
       <button onclick="PanoApp.goToSlide(4)" id="slide-btn-4" class="px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 text-slate-400 hover:text-white">
         <span>🕌</span> <span>Günün İbadeti</span>
       </button>
+
+      <!-- Otomatik Geçiş Geri Sayım Rozeti -->
+      <div id="slide-timer-badge" class="ml-2 px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-black font-mono flex items-center gap-1.5" title="Sonraki slayta kalan süre">
+        <span id="slide-timer-icon" class="animate-spin text-[10px]">⏳</span>
+        <span id="slide-timer-text">15s</span>
+      </div>
     </div>
 
     <!-- Sağ: Dijital Saat, Tarih & Tam Ekran -->
@@ -209,16 +222,25 @@
 
       <!-- TV Kontrolleri -->
       <div class="flex items-center gap-1.5 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
-        <button onclick="PanoApp.togglePause()" id="pause-btn" title="Durdur / Oynat"
-          class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold transition">
-          ⏸
+        <button onclick="PanoApp.prevSlide()" title="Önceki Slayt (Sol Ok Tuşu)"
+          class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold transition cursor-pointer">
+          ⏮
+        </button>
+        <button onclick="PanoApp.togglePause()" id="pause-btn" title="Otomatik Geçişi Durdur / Başlat (Boşluk Tuşu)"
+          class="px-2.5 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-black gap-1.5 transition cursor-pointer">
+          <span id="pause-icon">⏸</span>
+          <span id="pause-text" class="hidden sm:inline">Otomatik</span>
+        </button>
+        <button onclick="PanoApp.nextSlide()" title="Sonraki Slayt (Sağ Ok Tuşu)"
+          class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold transition cursor-pointer">
+          ⏭
         </button>
         <button onclick="PanoApp.toggleFullscreen()" title="Tam Ekran (F11)"
-          class="w-9 h-9 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center justify-center text-base font-bold transition">
+          class="w-9 h-9 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center justify-center text-base font-bold transition cursor-pointer">
           ⛶
         </button>
         <button onclick="PanoApp.lockPano()" title="Panoyu Kilitle / Güvenli Çıkış"
-          class="h-9 px-2.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/50 flex items-center gap-1.5 text-xs font-bold transition">
+          class="h-9 px-2.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/50 flex items-center gap-1.5 text-xs font-bold transition cursor-pointer">
           <span>🔒</span> <span class="hidden sm:inline">Kilitle</span>
         </button>
       </div>
@@ -226,8 +248,8 @@
   </header>
 
   <!-- İlerleme Çubuğu (Progress Bar for next slide) -->
-  <div class="w-full h-1 bg-slate-900 relative">
-    <div id="slide-progress" class="h-full bg-gradient-to-r from-amber-500 to-yellow-300 transition-all duration-300 w-0"></div>
+  <div class="w-full h-1.5 bg-slate-900 relative">
+    <div id="slide-progress" class="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 transition-all duration-300 w-0 shadow-sm shadow-amber-500/50"></div>
   </div>
 
   <!-- 2. ANA SLAYT İÇERİK ALANI -->
@@ -254,28 +276,36 @@
   <div class="fixed bottom-10 right-4 z-40 opacity-70 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-3 py-1.5 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[11px] font-black shadow-lg flex items-center gap-1.5 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v3.6)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v4.0)</span>
     </button>
   </div>
 
   <!-- Store ve Leaderboard Modülleri -->
-  <script src="js/store.js?v=3.6"></script>
-  <script src="js/leaderboard.js?v=3.6"></script>
+  <script src="js/store.js?v=4.0"></script>
+  <script src="js/leaderboard.js?v=4.0"></script>
 
-  <!-- Pano TV Yönetim Motoru -->
+  <!-- Pano TV Yönetim Motoru (v4.0) -->
   <script>
     const PanoApp = {
       currentSlide: 0,
       totalSlides: 5,
-      slideDuration: 18000, // 18 saniye
-      timer: null,
-      progressTimer: null,
-      progressStartTime: 0,
+      slideSecondsDuration: 15, // 15 saniye (TV / Kiosk için ideal süre)
+      slideSecondsLeft: 15,     // Kalan saniye sayacı
+      heartbeatTimer: null,     // 1 saniyelik kesintisiz ana kalp atışı
       isPaused: false,
       syncInterval: null,
 
       // --- Yönetici Yetki Kontrolü ---
       isAuthorized() {
+        // URL parametresi ile otomatik Kiosk/TV başlatma (?kiosk=1 veya ?pin=123 veya ?tv=1 veya ?autostart=1)
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          if (urlParams.get('kiosk') === '1' || urlParams.get('tv') === '1' || urlParams.get('autostart') === '1' || urlParams.get('pin') === '123' || urlParams.get('pin') === '1234') {
+            localStorage.setItem('pano_admin_authorized', 'true');
+            return true;
+          }
+        } catch (e) {}
+
         // 1. Cihaz / Kiosk TV kalıcı veya oturum yetkisi
         if (localStorage.getItem('pano_admin_authorized') === 'true' || sessionStorage.getItem('pano_admin_authorized') === 'true') {
           return true;
@@ -287,10 +317,7 @@
           if (raw) {
             const session = JSON.parse(raw);
             if (session) {
-              if (session.role === 'superadmin' || session.canManageStaff || session.staffId === 'stf_1') {
-                return true;
-              }
-              if (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')) {
+              if (session.role === 'superadmin' || session.canManageStaff || session.staffId === 'admin_root') {
                 return true;
               }
             }
@@ -298,6 +325,13 @@
         } catch (e) {}
 
         return false;
+      },
+
+      quickKioskAuth() {
+        localStorage.setItem('pano_admin_authorized', 'true');
+        const lockEl = document.getElementById('pano-lock-screen');
+        if (lockEl) lockEl.classList.add('hidden');
+        this.startSlides();
       },
 
       checkAuth() {
@@ -328,16 +362,12 @@
 
         let isValid = false;
 
-        // 1. Store içindeki personel şifreleri (stf_1, Selim Bozkurt veya Yönetici rolü)
+        // 1. Store içindeki Kurum Yönetici şifresi kontrolü
         if (window.Store) {
           try {
-            const staffList = window.Store.getStaff();
-            const adminStaff = staffList.find(s => 
-              s.id === 'stf_1' || 
-              (s.role && s.role.includes('Yönetici')) || 
-              (s.fullName && s.fullName.toUpperCase().includes('SELİM BOZKURT'))
-            );
-            if (adminStaff && (adminStaff.password || '123').toString().trim() === enteredPass) {
+            const settings = window.Store.getSettings();
+            const adminPass = (settings.adminPassword || '123').toString().trim();
+            if (enteredPass === adminPass) {
               isValid = true;
             }
           } catch (err) {}
@@ -374,8 +404,7 @@
         sessionStorage.removeItem('pano_admin_authorized');
         sessionStorage.removeItem('yoklama_active_session');
 
-        clearInterval(this.timer);
-        clearInterval(this.progressTimer);
+        if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
         if (this.syncInterval) clearInterval(this.syncInterval);
 
         const slideContainer = document.getElementById('slide-container');
@@ -397,12 +426,18 @@
         this.updateClock();
         setInterval(() => this.updateClock(), 1000);
 
-        // Klavye kısayolları (TV kumandası / klavye desteği)
+        // Klavye / TV Kumandası kısayolları (TV'de Enter tuşu OK olduğundan pause YAPMAZ!)
         window.addEventListener('keydown', (e) => {
           if (!this.isAuthorized()) return;
+          // Sağ Ok veya PageDown -> Sonraki slayt
           if (e.key === 'ArrowRight' || e.key === 'PageDown') this.nextSlide();
+          // Sol Ok veya PageUp -> Önceki slayt
           if (e.key === 'ArrowLeft' || e.key === 'PageUp') this.prevSlide();
-          if (e.key === ' ' || e.key === 'Enter') this.togglePause();
+          // Yalnızca Boşluk tuşu (Space) veya TV Media tuşları duraklatır
+          if (e.key === ' ' || e.key === 'MediaPlayPause') {
+            e.preventDefault();
+            this.togglePause();
+          }
           if (e.key === 'f' || e.key === 'F11') this.toggleFullscreen();
         });
 
@@ -424,11 +459,17 @@
       },
 
       startSlides() {
+        this.isPaused = false;
+        this.slideSecondsLeft = this.slideSecondsDuration;
+
         // Firebase canlı senkronizasyon (her 30 saniyede bir)
         if (window.Store && window.Store.isCloudEnabled()) {
           window.Store.syncFromCloud().then(() => {
-            if (this.isAuthorized()) this.renderCurrentSlide();
-          });
+            if (this.isAuthorized()) {
+              try { this.renderCurrentSlide(); } catch (e) {}
+            }
+          }).catch(() => {});
+
           if (!this.syncInterval) {
             this.syncInterval = setInterval(() => {
               if (!this.isAuthorized()) return;
@@ -438,13 +479,76 @@
                   const now = new Date().toLocaleTimeString('tr-TR');
                   statusEl.textContent = `🟢 Güncellendi (${now})`;
                 }
-                if (this.isAuthorized()) this.renderCurrentSlide();
-              });
+                if (this.isAuthorized()) {
+                  try { this.renderCurrentSlide(); } catch (e) {}
+                }
+              }).catch(() => {});
             }, 30000);
           }
         }
 
+        // İlk slaytı aç ve saniye saniye işleyen Kalp Atışı motorunu başlat
         this.goToSlide(0);
+        this.startHeartbeat();
+      },
+
+      startHeartbeat() {
+        if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+
+        // Her saniye çalışan kesintisiz kalp atışı (Smart TV uykuya girip uyansa dahi kaldığı yerden devam eder)
+        this.heartbeatTimer = setInterval(() => {
+          if (!this.isAuthorized()) return;
+          if (this.isPaused) {
+            this.updateProgressUI(true);
+            return;
+          }
+
+          this.slideSecondsLeft--;
+
+          if (this.slideSecondsLeft <= 0) {
+            this.slideSecondsLeft = this.slideSecondsDuration;
+            this.nextSlide();
+          } else {
+            this.updateProgressUI(false);
+          }
+        }, 1000);
+      },
+
+      updateProgressUI(isPaused = false) {
+        const progressEl = document.getElementById('slide-progress');
+        const badgeEl = document.getElementById('slide-timer-badge');
+        const timerTextEl = document.getElementById('slide-timer-text');
+        const timerIconEl = document.getElementById('slide-timer-icon');
+
+        if (isPaused) {
+          if (timerTextEl) timerTextEl.textContent = 'Duraklatıldı';
+          if (timerIconEl) {
+            timerIconEl.textContent = '⏸';
+            timerIconEl.classList.remove('animate-spin');
+          }
+          if (badgeEl) {
+            badgeEl.className = 'ml-2 px-2.5 py-1 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-black font-mono flex items-center gap-1.5';
+          }
+          return;
+        }
+
+        const elapsed = this.slideSecondsDuration - this.slideSecondsLeft;
+        const pct = Math.min(100, Math.max(0, (elapsed / this.slideSecondsDuration) * 100));
+
+        if (progressEl) {
+          progressEl.style.width = pct + '%';
+        }
+
+        if (timerTextEl) {
+          timerTextEl.textContent = `${this.slideSecondsLeft}s`;
+        }
+        if (timerIconEl) {
+          timerIconEl.textContent = '⏳';
+          timerIconEl.classList.add('animate-spin');
+        }
+        if (badgeEl) {
+          badgeEl.className = 'ml-2 px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-black font-mono flex items-center gap-1.5';
+        }
       },
 
       updateClock() {
@@ -463,32 +567,27 @@
         }
       },
 
-      startSlideTimer() {
-        clearInterval(this.timer);
-        clearInterval(this.progressTimer);
-        if (this.isPaused) return;
-
-        this.progressStartTime = Date.now();
-        const progressEl = document.getElementById('slide-progress');
-
-        this.progressTimer = setInterval(() => {
-          if (this.isPaused) return;
-          const elapsed = Date.now() - this.progressStartTime;
-          const pct = Math.min(100, (elapsed / this.slideDuration) * 100);
-          if (progressEl) progressEl.style.width = pct + '%';
-        }, 100);
-
-        this.timer = setTimeout(() => {
-          this.nextSlide();
-        }, this.slideDuration);
-      },
-
       goToSlide(index) {
         if (!this.isAuthorized()) return;
         this.currentSlide = (index + this.totalSlides) % this.totalSlides;
+        this.slideSecondsLeft = this.slideSecondsDuration;
         this.updateSlideButtons();
-        this.renderCurrentSlide();
-        this.startSlideTimer();
+        this.updateProgressUI(this.isPaused);
+        try {
+          this.renderCurrentSlide();
+        } catch (err) {
+          console.error('[Pano Error] Slayt render hatası:', err);
+          const container = document.getElementById('slide-container');
+          if (container) {
+            container.innerHTML = `
+              <div class="text-center p-8 bg-slate-900 rounded-3xl border border-slate-800 max-w-md mx-auto">
+                <div class="text-3xl mb-2">⚠️</div>
+                <div class="text-lg font-bold text-amber-400">Slayt yükleniyor...</div>
+                <div class="text-xs text-slate-400 mt-1">Sonraki slayta geçiliyor (${this.slideSecondsLeft}s)...</div>
+              </div>
+            `;
+          }
+        }
       },
 
       nextSlide() {
@@ -502,13 +601,20 @@
       togglePause() {
         this.isPaused = !this.isPaused;
         const btn = document.getElementById('pause-btn');
-        if (btn) btn.textContent = this.isPaused ? '▶' : '⏸';
-        if (!this.isPaused) {
-          this.startSlideTimer();
+        const icon = document.getElementById('pause-icon');
+        const text = document.getElementById('pause-text');
+
+        if (this.isPaused) {
+          if (icon) icon.textContent = '▶';
+          if (text) text.textContent = 'Başlat';
+          if (btn) btn.className = 'px-2.5 h-9 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center text-xs font-black gap-1.5 transition shadow-lg cursor-pointer';
         } else {
-          clearInterval(this.timer);
-          clearInterval(this.progressTimer);
+          this.slideSecondsLeft = this.slideSecondsDuration;
+          if (icon) icon.textContent = '⏸';
+          if (text) text.textContent = 'Otomatik';
+          if (btn) btn.className = 'px-2.5 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-black gap-1.5 transition cursor-pointer';
         }
+        this.updateProgressUI(this.isPaused);
       },
 
       toggleFullscreen() {
@@ -524,9 +630,9 @@
           const btn = document.getElementById(`slide-btn-${i}`);
           if (btn) {
             if (i === this.currentSlide) {
-              btn.className = 'px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 bg-amber-500 text-slate-950 shadow-md';
+              btn.className = 'px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 bg-amber-500 text-slate-950 shadow-md cursor-pointer';
             } else {
-              btn.className = 'px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 text-slate-400 hover:text-white';
+              btn.className = 'px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 text-slate-400 hover:text-white cursor-pointer';
             }
           }
         }
@@ -537,25 +643,31 @@
         const container = document.getElementById('slide-container');
         if (!container || !window.Store) return;
 
-        const data = window.Store.getLeaderboard('haftalik', new Date().toISOString().split('T')[0], 'ALL');
-        const ranking = data.ranking || [];
+        try {
+          const data = window.Store.getLeaderboard('haftalik', new Date().toISOString().split('T')[0], 'ALL');
+          const ranking = (data && data.ranking) ? data.ranking : [];
 
-        switch (this.currentSlide) {
-          case 0:
-            this.renderSlidePodium(container, ranking, data);
-            break;
-          case 1:
-            this.renderSlideClassChampions(container, data);
-            break;
-          case 2:
-            this.renderSlideLeaderboardTop10(container, ranking, data);
-            break;
-          case 3:
-            this.renderSlideLeaderboard11To20(container, ranking, data);
-            break;
-          case 4:
-            this.renderSlideDailyPrayerQuote(container);
-            break;
+          switch (this.currentSlide) {
+            case 0:
+              this.renderSlidePodium(container, ranking, data);
+              break;
+            case 1:
+              this.renderSlideClassChampions(container, data);
+              break;
+            case 2:
+              this.renderSlideLeaderboardTop10(container, ranking, data);
+              break;
+            case 3:
+              this.renderSlideLeaderboard11To20(container, ranking, data);
+              break;
+            case 4:
+              this.renderSlideDailyPrayerQuote(container);
+              break;
+            default:
+              this.renderSlidePodium(container, ranking, data);
+          }
+        } catch (err) {
+          console.error('[Pano Error] renderCurrentSlide hatası:', err);
         }
       },
 
@@ -564,6 +676,27 @@
         const top1 = ranking[0] || null;
         const top2 = ranking[1] || null;
         const top3 = ranking[2] || null;
+
+        const s1 = (top1 && top1.student) || { firstName: '1. Talebe', lastName: '', className: '', studentNo: '' };
+        const n1 = (top1 && top1.namaz) || { points: 0, fullBonusCount: 0 };
+        const y1 = (top1 && top1.yatak) || { points: 0 };
+        const o1 = (top1 && top1.okul) || { points: 0 };
+        const a1 = (top1 && top1.akademi) || { points: 0 };
+        const score1 = (top1 && top1.totalScore) || 0;
+
+        const s2 = (top2 && top2.student) || { firstName: '2. Talebe', lastName: '', className: '', studentNo: '' };
+        const n2 = (top2 && top2.namaz) || { points: 0 };
+        const y2 = (top2 && top2.yatak) || { points: 0 };
+        const o2 = (top2 && top2.okul) || { points: 0 };
+        const a2 = (top2 && top2.akademi) || { points: 0 };
+        const score2 = (top2 && top2.totalScore) || 0;
+
+        const s3 = (top3 && top3.student) || { firstName: '3. Talebe', lastName: '', className: '', studentNo: '' };
+        const n3 = (top3 && top3.namaz) || { points: 0 };
+        const y3 = (top3 && top3.yatak) || { points: 0 };
+        const o3 = (top3 && top3.okul) || { points: 0 };
+        const a3 = (top3 && top3.akademi) || { points: 0 };
+        const score3 = (top3 && top3.totalScore) || 0;
 
         container.innerHTML = `
           <div class="space-y-4 animate-fade-in">
@@ -575,7 +708,7 @@
                 Ömer Avniyel Akademi Şampiyonlar Kürsüsü
               </h2>
               <p class="text-xs text-slate-400 font-medium">
-                Dönem: ${data.startDate} – ${data.endDate} • Tüm Kurs Genel Başarı Puanları
+                Dönem: ${data.startDate || ''} – ${data.endDate || ''} • Tüm Kurs Genel Başarı Puanları
               </p>
             </div>
 
@@ -589,20 +722,20 @@
                     <div class="text-4xl mb-1">🥈</div>
                     <div class="text-[11px] font-black uppercase text-slate-400 tracking-wider">2. SIRA • GÜMÜŞ</div>
                     <h3 class="text-xl font-black text-white mt-1 truncate">
-                      ${top2.student.firstName} ${top2.student.lastName}
+                      ${s2.firstName} ${s2.lastName}
                     </h3>
-                    <div class="text-xs text-slate-400 font-bold mb-3">${top2.student.className} • No: ${top2.student.studentNo}</div>
+                    <div class="text-xs text-slate-400 font-bold mb-3">${s2.className} • No: ${s2.studentNo}</div>
 
                     <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 mb-3">
                       <div class="text-[10px] font-bold text-slate-400 uppercase">TOPLAM PUAN</div>
-                      <div class="text-3xl font-black text-slate-200">${top2.totalScore}</div>
+                      <div class="text-3xl font-black text-slate-200">${score2}</div>
                     </div>
 
                     <div class="grid grid-cols-4 gap-1 text-[10px] text-slate-400">
-                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🕌 +${top2.namaz.points}</div>
-                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🛏️ +${top2.yatak.points}</div>
-                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🎒 +${top2.okul.points}</div>
-                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">📚 +${top2.akademi.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🕌 +${n2.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🛏️ +${y2.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🎒 +${o2.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">📚 +${a2.points}</div>
                     </div>
                   </div>
                 ` : '<div class="text-center text-slate-600">2. Bekleniyor</div>'}
@@ -626,25 +759,25 @@
                     </div>
 
                     <h3 class="text-2xl sm:text-3xl font-black text-amber-300 mt-2 truncate tracking-tight">
-                      ${top1.student.firstName} ${top1.student.lastName}
+                      ${s1.firstName} ${s1.lastName}
                     </h3>
-                    <div class="text-sm font-bold text-slate-300 mb-4">${top1.student.className} • No: ${top1.student.studentNo}</div>
+                    <div class="text-sm font-bold text-slate-300 mb-4">${s1.className} • No: ${s1.studentNo}</div>
 
                     <div class="p-4 bg-slate-950/90 rounded-2xl border-2 border-amber-400/80 mb-4 shadow-inner">
                       <div class="text-[11px] font-black uppercase text-amber-400 tracking-wider">ŞAMPİYONLUK PUANI</div>
-                      <div class="text-5xl font-black text-white my-1">${top1.totalScore}</div>
-                      ${top1.namaz.fullBonusCount > 0 ? `
+                      <div class="text-5xl font-black text-white my-1">${score1}</div>
+                      ${n1.fullBonusCount > 0 ? `
                         <div class="text-[11px] font-black text-emerald-400 mt-1">
-                          ⭐ ${top1.namaz.fullBonusCount} Gün 5 Vakit Tam İbadet Bonusu!
+                          ⭐ ${n1.fullBonusCount} Gün 5 Vakit Tam İbadet Bonusu!
                         </div>
                       ` : ''}
                     </div>
 
                     <div class="grid grid-cols-4 gap-2 text-xs font-bold">
-                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-emerald-400">🕌 +${top1.namaz.points}</div>
-                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-teal-400">🛏️ +${top1.yatak.points}</div>
-                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-blue-400">🎒 +${top1.okul.points}</div>
-                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-sky-400">📚 +${top1.akademi.points}</div>
+                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-emerald-400">🕌 +${n1.points}</div>
+                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-teal-400">🛏️ +${y1.points}</div>
+                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-blue-400">🎒 +${o1.points}</div>
+                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-sky-400">📚 +${a1.points}</div>
                     </div>
                   </div>
                 ` : '<div class="text-center text-slate-600">1. Bekleniyor</div>'}
@@ -658,20 +791,20 @@
                     <div class="text-4xl mb-1">🥉</div>
                     <div class="text-[11px] font-black uppercase text-amber-500 tracking-wider">3. SIRA • BRONZ</div>
                     <h3 class="text-xl font-black text-white mt-1 truncate">
-                      ${top3.student.firstName} ${top3.student.lastName}
+                      ${s3.firstName} ${s3.lastName}
                     </h3>
-                    <div class="text-xs text-slate-400 font-bold mb-3">${top3.student.className} • No: ${top3.student.studentNo}</div>
+                    <div class="text-xs text-slate-400 font-bold mb-3">${s3.className} • No: ${s3.studentNo}</div>
 
                     <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 mb-3">
                       <div class="text-[10px] font-bold text-slate-400 uppercase">TOPLAM PUAN</div>
-                      <div class="text-3xl font-black text-slate-200">${top3.totalScore}</div>
+                      <div class="text-3xl font-black text-slate-200">${score3}</div>
                     </div>
 
                     <div class="grid grid-cols-4 gap-1 text-[10px] text-slate-400">
-                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🕌 +${top3.namaz.points}</div>
-                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🛏️ +${top3.yatak.points}</div>
-                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🎒 +${top3.okul.points}</div>
-                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">📚 +${top3.akademi.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🕌 +${n3.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🛏️ +${y3.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">🎒 +${o3.points}</div>
+                      <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">📚 +${a3.points}</div>
                     </div>
                   </div>
                 ` : '<div class="text-center text-slate-600">3. Bekleniyor</div>'}
@@ -773,6 +906,16 @@
                   ? item.gradeInfo.branches.join(' & ') + ' Ortak'
                   : item.gradeInfo.label;
 
+                const ls = (l && l.student) || { firstName: '1. Talebe', lastName: '', className: '', studentNo: '' };
+                const ln = (l && l.namaz) || { points: 0 };
+                const ly = (l && l.yatak) || { points: 0 };
+                const lo = (l && l.okul) || { points: 0 };
+                const la = (l && l.akademi) || { points: 0 };
+                const lScore = (l && l.totalScore) || 0;
+
+                const rs = (r && r.student) || { firstName: '2. Talebe', lastName: '', className: '', studentNo: '' };
+                const rScore = (r && r.totalScore) || 0;
+
                 return `
                   <div class="bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 rounded-3xl border-2 border-slate-800 hover:border-amber-400/70 p-5 sm:p-6 text-center shadow-xl relative overflow-hidden transition flex flex-col justify-between group">
                     <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-400 via-indigo-500 to-purple-500"></div>
@@ -797,34 +940,34 @@
                         </div>
 
                         <h3 class="text-lg font-black text-white truncate group-hover:text-amber-300 transition">
-                          ${l.student.firstName} ${l.student.lastName}
+                          ${ls.firstName} ${ls.lastName}
                         </h3>
 
                         <!-- Şubesi ve Numarası -->
                         <div class="flex items-center justify-center gap-2 text-xs font-bold mt-1 mb-3">
                           <span class="px-2 py-0.5 rounded-md bg-amber-400/20 text-amber-300 border border-amber-400/30 font-black">
-                            ${l.student.className}
+                            ${ls.className}
                           </span>
-                          <span class="text-slate-400 font-mono">No: ${l.student.studentNo}</span>
+                          <span class="text-slate-400 font-mono">No: ${ls.studentNo}</span>
                         </div>
 
                         <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 mb-3 shadow-inner">
                           <div class="text-[10px] font-bold text-amber-400 uppercase tracking-wider">ŞAMPİYONLUK PUANI</div>
-                          <div class="text-3xl font-black text-white my-0.5">${l.totalScore}</div>
+                          <div class="text-3xl font-black text-white my-0.5">${lScore}</div>
                           <div class="text-[10px] text-slate-400">Genel Seviye 1.'si</div>
                         </div>
 
                         <div class="text-[11px] text-slate-400 space-y-1 text-left bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 mb-3">
-                          <div class="flex justify-between"><span>🕌 Namaz:</span> <strong class="text-emerald-400">+${l.namaz.points}</strong></div>
-                          <div class="flex justify-between"><span>🛏️ Yatak:</span> <strong class="text-teal-400">+${l.yatak.points}</strong></div>
-                          <div class="flex justify-between"><span>🎒 Okul:</span> <strong class="text-blue-400">+${l.okul.points}</strong></div>
-                          <div class="flex justify-between"><span>📚 Akademi:</span> <strong class="text-sky-400">+${l.akademi.points}</strong></div>
+                          <div class="flex justify-between"><span>🕌 Namaz:</span> <strong class="text-emerald-400">+${ln.points}</strong></div>
+                          <div class="flex justify-between"><span>🛏️ Yatak:</span> <strong class="text-teal-400">+${ly.points}</strong></div>
+                          <div class="flex justify-between"><span>🎒 Okul:</span> <strong class="text-blue-400">+${lo.points}</strong></div>
+                          <div class="flex justify-between"><span>📚 Akademi:</span> <strong class="text-sky-400">+${la.points}</strong></div>
                         </div>
 
                         ${r ? `
                           <div class="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
-                            <span class="truncate">🥈 <strong>${r.student.firstName} ${r.student.lastName}</strong> (${r.student.className})</span>
-                            <span class="text-amber-400 font-bold shrink-0 ml-1">${r.totalScore} P</span>
+                            <span class="truncate">🥈 <strong>${rs.firstName} ${rs.lastName}</strong> (${rs.className})</span>
+                            <span class="text-amber-400 font-bold shrink-0 ml-1">${rScore} P</span>
                           </div>
                         ` : ''}
 
@@ -892,15 +1035,25 @@
                   ${items.length === 0 ? `
                     <tr><td colspan="9" class="p-8 text-center text-slate-500">Bu grupta henüz öğrenci yok.</td></tr>
                   ` : items.map(i => {
-                    let rankBadge = `<span class="font-bold text-slate-400">#${i.rank}</span>`;
+                    const st = (i && i.student) || { firstName: 'Talebe', lastName: '', className: '', studentNo: '' };
+                    const nPts = (i && i.namaz && i.namaz.points) || 0;
+                    const yPts = (i && i.yatak && i.yatak.points) || 0;
+                    const oPts = (i && i.okul && i.okul.points) || 0;
+                    const izPts = (i && i.izinDonus && i.izinDonus.points) || 0;
+                    const aPts = (i && i.akademi && i.akademi.points) || 0;
+                    const bPts = (i && i.bonus && i.bonus.points) || 0;
+                    const totScore = (i && i.totalScore) || 0;
+                    const rankNum = (i && i.rank) || '-';
+
+                    let rankBadge = `<span class="font-bold text-slate-400">#${rankNum}</span>`;
                     let rowBg = 'hover:bg-slate-800/50';
-                    if (i.rank === 1) {
+                    if (rankNum === 1) {
                       rankBadge = `<span class="w-7 h-7 rounded-xl bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center mx-auto shadow-md">🥇 1</span>`;
                       rowBg = 'bg-amber-500/10 hover:bg-amber-500/20';
-                    } else if (i.rank === 2) {
+                    } else if (rankNum === 2) {
                       rankBadge = `<span class="w-7 h-7 rounded-xl bg-slate-300 text-slate-950 font-black text-xs flex items-center justify-center mx-auto shadow-md">🥈 2</span>`;
                       rowBg = 'bg-slate-500/10 hover:bg-slate-500/20';
-                    } else if (i.rank === 3) {
+                    } else if (rankNum === 3) {
                       rankBadge = `<span class="w-7 h-7 rounded-xl bg-amber-700 text-white font-black text-xs flex items-center justify-center mx-auto shadow-md">🥉 3</span>`;
                       rowBg = 'bg-amber-700/10 hover:bg-amber-700/20';
                     }
@@ -909,18 +1062,18 @@
                       <tr class="${rowBg} transition">
                         <td class="p-3 text-center">${rankBadge}</td>
                         <td class="p-3">
-                          <div class="font-black text-sm text-white">${i.student.firstName} ${i.student.lastName}</div>
-                          <div class="text-[10px] text-slate-400 font-medium">${i.student.className} • No: ${i.student.studentNo}</div>
+                          <div class="font-black text-sm text-white">${st.firstName} ${st.lastName}</div>
+                          <div class="text-[10px] text-slate-400 font-medium">${st.className} • No: ${st.studentNo}</div>
                         </td>
-                        <td class="p-2.5 text-center font-bold text-emerald-400">+${i.namaz.points}</td>
-                        <td class="p-2.5 text-center font-bold text-teal-400">+${i.yatak.points}</td>
-                        <td class="p-2.5 text-center font-bold text-blue-400">+${i.okul.points}</td>
-                        <td class="p-2.5 text-center font-bold text-indigo-400">+${i.izinDonus ? i.izinDonus.points : 0}</td>
-                        <td class="p-2.5 text-center font-bold text-sky-400">+${i.akademi.points}</td>
-                        <td class="p-2.5 text-center font-bold text-amber-400">+${i.bonus.points}</td>
+                        <td class="p-2.5 text-center font-bold text-emerald-400">+${nPts}</td>
+                        <td class="p-2.5 text-center font-bold text-teal-400">+${yPts}</td>
+                        <td class="p-2.5 text-center font-bold text-blue-400">+${oPts}</td>
+                        <td class="p-2.5 text-center font-bold text-indigo-400">+${izPts}</td>
+                        <td class="p-2.5 text-center font-bold text-sky-400">+${aPts}</td>
+                        <td class="p-2.5 text-center font-bold text-amber-400">+${bPts}</td>
                         <td class="p-3 text-center">
                           <span class="px-3.5 py-1 rounded-xl bg-slate-950 text-amber-300 border border-amber-500/40 font-black text-sm shadow-inner">
-                            ${i.totalScore} Puan
+                            ${totScore} Puan
                           </span>
                         </td>
                       </tr>
