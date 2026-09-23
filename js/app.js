@@ -21,17 +21,7 @@ window.App = {
       try {
         sessionStorage.setItem('yoklama_active_session', saved);
         this.currentSession = JSON.parse(saved);
-        const sName = (this.currentSession?.name || '').toLowerCase().replace(/İ/g, 'i').replace(/I/g, 'i').replace(/ı/g, 'i');
-        const isMaster = this.currentSession && (
-          this.currentSession.role === 'superadmin' ||
-          this.currentSession.staffId === 'stf_1' ||
-          sName.includes('selim') ||
-          sName.includes('bozkurt') ||
-          sName.includes('yonetici') ||
-          sName.includes('mudur') ||
-          sName.includes('admin')
-        );
-        if (isMaster) {
+        if (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root')) {
           this.currentSession.role = 'superadmin';
           this.currentSession.canEditStudents = true;
           this.currentSession.canManageStaff = true;
@@ -263,9 +253,9 @@ window.App = {
     sessionStorage.setItem('yoklama_active_session', JSON.stringify(session));
     localStorage.setItem('yoklama_active_session', JSON.stringify(session));
 
-    if (session.role === 'superadmin' || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) {
+    if (session.role === 'superadmin' || session.staffId === 'admin_root') {
       this.activeTab = 'ogrenciler_excel';
-      this.showToast(`👑 Hoş geldiniz Sayın Kurum Müdürü ${session.name}! Canlı Excel Tablosu açıldı.`, 'success');
+      this.showToast(`👑 Hoş geldiniz Sayın ${session.name}! Canlı Excel Tablosu açıldı.`, 'success');
     } else if (session.role === 'staff') {
       this.activeTab = 'yoklama';
       this.showToast(`Hoş geldiniz Sayın ${session.name}`, 'success');
@@ -288,10 +278,10 @@ window.App = {
         },
         body: JSON.stringify({
           _subject: `🔑 [GİRİŞ ONAY KODU: ${code}] - Ömer Avniyel Akademi`,
-          "Yetkili": "Selim Bozkurt (Ana Yönetici / Kurum Müdürü)",
+          "Yetkili": "Kurum Yöneticisi / Müdürlük",
           "Alıcı E-Posta": email,
           "Giriş Güvenlik Kodu": code,
-          "Açıklama": `Sayın Selim Bozkurt,\n\nÖmer Avniyel Akademi Ana Yönetici paneline giriş için 1. aşama şifreniz başarıyla doğrulanmıştır.\n\nSisteme girişinizi tamamlamak için 2. Aşama Güvenlik Kodunuz:\n\n👉  ${code}  👈\n\nBu kod 10 dakika süreyle geçerlidir.`,
+          "Açıklama": `Sayın Kurum Yöneticisi,\n\nÖmer Avniyel Akademi Ana Yönetici paneline giriş için 1. aşama şifreniz başarıyla doğrulanmıştır.\n\nSisteme girişinizi tamamlamak için 2. Aşama Güvenlik Kodunuz:\n\n👉  ${code}  👈\n\nBu kod 10 dakika süreyle geçerlidir.`,
           _captcha: "false",
           _template: "table"
         })
@@ -461,9 +451,9 @@ window.App = {
     const session = this.currentSession;
     let roleBadge = '';
     if (session.role === 'superadmin') {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs border border-amber-300 whitespace-nowrap">👑 Ana Yönetici (Müdür)</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs border border-amber-300 whitespace-nowrap">👑 Kurum Yöneticisi</span>`;
     } else if (session.role === 'staff') {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-bold text-xs border border-blue-200 whitespace-nowrap">👨‍🏫 ${session.name}</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-bold text-xs border border-blue-200 whitespace-nowrap">👨‍🏫 ${session.name} ${session.staffRole ? `(${session.staffRole})` : ''}</span>`;
     } else {
       roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 font-bold text-xs border border-purple-200 whitespace-nowrap">👨‍👩‍👧 Veli Portalı (${session.familyCode})</span>`;
     }
@@ -510,6 +500,8 @@ window.App = {
       activeTitle = '📊 Canlı Excel Tablosu';
     } else if (this.activeTab === 'personel') {
       activeTitle = '👨‍🏫 Personel Yönetimi';
+    } else if (this.activeTab === 'gorevler') {
+      activeTitle = '🎯 Günün Görevlileri';
     } else if (this.activeTab === 'ayarlar') {
       activeTitle = '⚙️ Sistem Ayarları';
     }
@@ -552,7 +544,7 @@ window.App = {
         ` : ''}
 
         <!-- 5. SADECE YÖNETİCİ: ÜST BARDA DOĞRUDAN CANLI EXCEL TABLOSU BUTONU -->
-        ${(session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? `
+        ${(session.role === 'superadmin' || session.canEditStudents) ? `
           <div class="flex-shrink-0 ml-auto">
             <button onclick="window.App.setTab('ogrenciler_excel')" 
               class="px-3.5 py-1.5 rounded-xl ${this.activeTab === 'ogrenciler_excel' ? 'bg-emerald-900 ring-2 ring-emerald-400 text-white font-black' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-black'} text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm">
@@ -562,7 +554,7 @@ window.App = {
         ` : ''}
 
         <!-- 6. HER ZAMAN GÖRÜNÜR: SİSTEMİ & ÖNBELLEĞİ YENİLE BUTONU -->
-        <div class="flex-shrink-0 ${(session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? 'ml-1.5' : 'ml-auto'}">
+        <div class="flex-shrink-0 ${(session.role === 'superadmin' || session.canEditStudents) ? 'ml-1.5' : 'ml-auto'}">
           <button type="button" onclick="window.App.hardRefreshApp()" 
             class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-sm border border-amber-500 active:scale-95"
             title="Sistemi ve önbelleği sıfırlayıp en güncel sürümü yükler">
@@ -741,6 +733,26 @@ window.App = {
             </div>
             <span class="text-slate-300">→</span>
           </button>
+
+          <!-- Günün Görevlileri (Yemekçi & Müezzin) -->
+          <button type="button" onclick="window.App.navigateFromDrawer('gorevler')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'gorevler'
+                ? 'bg-amber-50 text-amber-900 font-black border border-amber-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🎯</span>
+              <div>
+                <div class="text-xs font-black flex items-center gap-1.5">
+                  <span>Günün Görevlileri</span>
+                  <span class="text-[9px] bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded font-black tracking-wider uppercase">Pano</span>
+                </div>
+                <div class="text-[10px] text-slate-400 font-medium">Günün Yemekçileri & Müezzini Seçimi</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
         </div>
 
         <!-- 2. AKADEMİ (2 ALT BAŞLIK: Takviye Ders Performansı & Genel Gelişim) -->
@@ -808,7 +820,7 @@ window.App = {
           </button>
 
           <!-- Canlı TV / Koridor Panosu (Sadece Kurum Yöneticisine Özel) -->
-          ${(session && (session.role === 'superadmin' || session.canManageStaff || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')))) ? `
+          ${(session && (session.role === 'superadmin' || session.canManageStaff)) ? `
           <a href="pano.html" target="_blank" onclick="localStorage.setItem('pano_admin_authorized', 'true'); window.App.closeDrawer()"
             class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between text-slate-700 hover:bg-purple-50 font-bold border border-purple-200/80 bg-purple-50/40">
             <div class="flex items-center gap-3">
@@ -887,7 +899,7 @@ window.App = {
           </button>
 
           <!-- Canlı Excel Tablosu (ÖĞRENCİ & SINIF İçinde) -->
-          ${(session.canManageStaff || session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? `
+          ${(session.canManageStaff || session.role === 'superadmin' || session.canEditStudents) ? `
             <button type="button" onclick="window.App.navigateFromDrawer('ogrenciler_excel')"
               class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
                 this.activeTab === 'ogrenciler_excel'
@@ -909,7 +921,7 @@ window.App = {
           ` : ''}
         </div>
 
-        ${(session.canManageStaff || session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? `
+        ${(session.canManageStaff || session.role === 'superadmin' || session.canEditSettings) ? `
           <!-- 3. YÖNETİCİ İŞLEMLERİ (Sadece Ana Yönetici) -->
           <div class="space-y-1.5 pt-3 border-t border-slate-100">
             <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">YÖNETİCİ İŞLEMLERİ</div>
@@ -1041,9 +1053,9 @@ window.App = {
                   <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-black uppercase tracking-wider mb-2">
                     <span>🔐</span> <span>1. AŞAMA: ŞİFRE DOĞRULAMA</span>
                   </div>
-                  <h2 class="text-xl font-black text-slate-900 mb-1">Ana Yönetici Girişi</h2>
+                  <h2 class="text-xl font-black text-slate-900 mb-1">Kurum Yöneticisi Girişi</h2>
                   <p class="text-xs text-slate-500 mb-4 leading-relaxed">
-                    Yüksek güvenlik gereği Ana Yönetici girişi 2 adımlıdır. Önce kurum şifrenizi giriniz, ardından e-postanıza tek kullanımlık onay kodu gönderilecektir.
+                    Bu panel tam yetkili Kurum Yönetimi içindir. Personel ve hocalar (Selim Bozkurt vb.) normal giriş ekranından kendi şifreleriyle doğrudan giriş yapabilir.
                   </p>
                 ` : `
                   <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-[11px] font-black uppercase tracking-wider mb-2">
@@ -1062,8 +1074,8 @@ window.App = {
                   <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase">YÖNETİCİ HESABI</label>
                     <div class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-black text-slate-800 flex items-center justify-between">
-                      <span class="flex items-center gap-2"><span>👑</span> <span>SELİM BOZKURT</span></span>
-                      <span class="text-[11px] text-amber-800 font-bold bg-amber-100/70 px-2 py-0.5 rounded-lg border border-amber-300">Ana Yönetici</span>
+                      <span class="flex items-center gap-2"><span>👑</span> <span>KURUM YÖNETİCİSİ</span></span>
+                      <span class="text-[11px] text-amber-800 font-bold bg-amber-100/70 px-2 py-0.5 rounded-lg border border-amber-300">Ana Yönetim</span>
                     </div>
                   </div>
 
@@ -1229,7 +1241,7 @@ window.App = {
                 <span class="text-slate-400">Kurum Yöneticisi misiniz?</span>
                 <button type="button" onclick="window.App.loginMode='admin_otp'; window.App.otpStep='password'; window.App.renderMainContent();" 
                   class="font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 cursor-pointer">
-                  <span>👑 Ana Yönetici Girişi</span>
+                  <span>👑 Kurum Yöneticisi Girişi</span>
                   <span>→</span>
                 </button>
               </div>
@@ -1241,7 +1253,7 @@ window.App = {
                 class="w-full py-2.5 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-black border-2 border-amber-300 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
                 title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
                 <span class="text-sm">🔄</span>
-                <span>Sistemi & Önbelleği Sıfırla (v3.9)</span>
+                <span>Sistemi & Önbelleği Sıfırla (v4.0)</span>
               </button>
             </div>
           </div>
@@ -1296,6 +1308,9 @@ window.App = {
     } else if (this.activeTab === 'personel') {
       main.innerHTML = `<div id="staff-container"></div>`;
       this.renderStaffView();
+    } else if (this.activeTab === 'gorevler') {
+      main.innerHTML = `<div id="duties-container"></div>`;
+      this.renderDailyDutiesView();
     } else if (this.activeTab === 'ayarlar') {
       main.innerHTML = `<div id="settings-container"></div>`;
       this.renderSettingsView();
@@ -1306,13 +1321,11 @@ window.App = {
   canManageStudents() {
     const session = this.currentSession;
     if (!session) return false;
-    if (session.role === 'superadmin' || session.canEditStudents === true || session.canManageStaff === true || session.staffId === 'stf_1') {
+    if (session.role === 'superadmin' || session.canEditStudents === true || session.canManageStaff === true) {
       return true;
     }
     const name = (session.name || '').toLowerCase().replace(/İ/g, 'i').replace(/I/g, 'i').replace(/ı/g, 'i');
     if (
-      name.includes('selim') ||
-      name.includes('bozkurt') ||
       name.includes('yonetici') ||
       name.includes('mudur') ||
       name.includes('admin')
@@ -1829,11 +1842,19 @@ window.App = {
               </div>
             </div>
 
-            <div class="pt-3 border-t border-slate-100">
-              <label class="block text-xs font-black text-amber-900 mb-1 uppercase">👑 ANA YÖNETİCİ E-POSTA ADRESİ</label>
-              <input type="email" id="set-admin-email" value="${settings.adminEmail || ''}" required
-                class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none focus:bg-white">
-              <span class="text-[11px] text-slate-400">Giriş yaparken doğrulama kodunuz bu e-postaya gönderilir.</span>
+            <div class="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-black text-amber-900 mb-1 uppercase">👑 KURUM YÖNETİCİSİ E-POSTA ADRESİ</label>
+                <input type="email" id="set-admin-email" value="${settings.adminEmail || ''}" required
+                  class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none focus:bg-white">
+                <span class="text-[10px] text-slate-400">Giriş yaparken 2. Aşama onay kodu bu adrese gider.</span>
+              </div>
+              <div>
+                <label class="block text-xs font-black text-amber-900 mb-1 uppercase">🔑 KURUM YÖNETİCİSİ GİRİŞ ŞİFRESİ</label>
+                <input type="text" id="set-admin-password" value="${settings.adminPassword || '123'}" required
+                  class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none focus:bg-white">
+                <span class="text-[10px] text-slate-400">Yönetim paneline girişte 1. Aşamada sorulan şifre.</span>
+              </div>
             </div>
 
             <!-- Canlı Bulut Veritabanı Ayarı -->
@@ -2011,6 +2032,53 @@ window.App = {
           </div>
         </div>
 
+        <!-- Hadis-i Şerif Veritabanı ve TV Panosu Hadis Yönetimi -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 text-lg flex items-center justify-center shadow-inner">
+                📖
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-800 text-base leading-tight">Hadis-i Şerif Veritabanı (TV Panosu)</h3>
+                <p class="text-xs text-slate-500">Masaüstünüzdeki HADİS.docx dosyasından veya kendi listenizden metinleri yapıştırabilirsiniz</p>
+              </div>
+            </div>
+            <span class="px-2.5 py-1 bg-amber-100 text-amber-900 font-black text-xs rounded-xl border border-amber-300">
+              Canlı Pano v4.1
+            </span>
+          </div>
+
+          <div class="space-y-3">
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Her satıra bir Hadis-i Şerif gelecek şekilde doğrudan yapıştırabilirsiniz. Format olarak <code>Metin — Kaynak</code> (örn: <em>"İki günü birbirine eşit olan ziyandadır." — Hadis-i Şerif (Beyhaki)</em>) veya sadece hadis metnini yazabilirsiniz.
+            </p>
+
+            <textarea id="settings-custom-hadisler" rows="8"
+              placeholder="Her satıra bir Hadis-i Şerif gelecek şekilde yapıştırınız..."
+              class="w-full p-3.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 leading-relaxed"></textarea>
+
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="window.App.saveCustomHadislerSubmit()"
+                  class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-2 cursor-pointer">
+                  <span>💾</span>
+                  <span>Hadis Listesini Kaydet ve TV'ye Gönder</span>
+                </button>
+
+                <button type="button" onclick="window.App.restoreDefaultHadisler()"
+                  class="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">
+                  Varsayılanları Yükle
+                </button>
+              </div>
+
+              <span id="hadis-count-badge" class="text-xs font-bold text-slate-500">
+                0 Hadis-i Şerif
+              </span>
+            </div>
+          </div>
+        </div>
+
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h3 class="font-bold text-slate-800 text-base mb-2 flex items-center gap-2">
             <span>💾</span> Yerel Dosya Yedekleme
@@ -2031,25 +2099,455 @@ window.App = {
         </div>
       </div>
     `;
+
+    // Ayarlar ekranı açıldığında özel hadisleri textarea'ya otomatik yükle
+    try {
+      const hadisList = (window.Store && typeof window.Store.getCustomHadisler === 'function') 
+        ? window.Store.getCustomHadisler() 
+        : [];
+      const textarea = document.getElementById('settings-custom-hadisler');
+      const badge = document.getElementById('hadis-count-badge');
+      if (textarea && hadisList.length > 0) {
+        textarea.value = hadisList.map(h => `${h.text} — ${h.author || 'Hadis-i Şerif'}`).join('\n');
+      }
+      if (badge) {
+        badge.textContent = `${hadisList.length} Hadis-i Şerif`;
+      }
+    } catch(e) {}
+  },
+
+  saveCustomHadislerSubmit() {
+    const textarea = document.getElementById('settings-custom-hadisler');
+    if (!textarea) return;
+    const lines = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) {
+      this.showToast('Lütfen en az bir Hadis-i Şerif giriniz.', 'warning');
+      return;
+    }
+    const hadisList = lines.map(line => {
+      const dashIdx = line.lastIndexOf('—');
+      if (dashIdx !== -1) {
+        return {
+          text: line.substring(0, dashIdx).trim(),
+          author: line.substring(dashIdx + 1).trim() || 'Hadis-i Şerif'
+        };
+      }
+      const hyphenIdx = line.lastIndexOf(' - ');
+      if (hyphenIdx !== -1) {
+        return {
+          text: line.substring(0, hyphenIdx).trim(),
+          author: line.substring(hyphenIdx + 3).trim() || 'Hadis-i Şerif'
+        };
+      }
+      return {
+        text: line,
+        author: 'Hadis-i Şerif'
+      };
+    });
+
+    if (window.Store && typeof window.Store.saveCustomHadisler === 'function') {
+      window.Store.saveCustomHadisler(hadisList);
+      this.showToast(`✓ ${hadisList.length} adet Hadis-i Şerif başarıyla kaydedildi ve TV panosuna bağlandı!`, 'success');
+      const badge = document.getElementById('hadis-count-badge');
+      if (badge) badge.textContent = `${hadisList.length} Hadis-i Şerif`;
+    }
+  },
+
+  restoreDefaultHadisler() {
+    const defaults = (window.HADIS_LISTESI && Array.isArray(window.HADIS_LISTESI))
+      ? window.HADIS_LISTESI
+      : [];
+    if (defaults.length > 0 && window.Store) {
+      window.Store.saveCustomHadisler(defaults);
+      const textarea = document.getElementById('settings-custom-hadisler');
+      if (textarea) {
+        textarea.value = defaults.map(h => `${h.text} — ${h.author || 'Hadis-i Şerif'}`).join('\n');
+      }
+      const badge = document.getElementById('hadis-count-badge');
+      if (badge) badge.textContent = `${defaults.length} Hadis-i Şerif`;
+      this.showToast('Varsayılan Hadis-i Şerifler yüklendi.', 'info');
+    }
   },
 
   saveSettingsSubmit(event) {
     event.preventDefault();
     const instName = document.getElementById('set-inst-name').value.trim();
     const adminEmail = document.getElementById('set-admin-email').value.trim();
+    const adminPassInput = document.getElementById('set-admin-password');
+    const adminPassword = adminPassInput ? adminPassInput.value.trim() : '';
     const logoUrl = document.getElementById('set-inst-logo-url') ? document.getElementById('set-inst-logo-url').value.trim() : '';
     const firebaseUrl = document.getElementById('set-firebase-url') ? document.getElementById('set-firebase-url').value.trim() : '';
 
-    window.Store.saveSettings({
+    const payload = {
       institutionName: instName,
       adminEmail: adminEmail,
       institutionLogo: logoUrl,
       firebaseUrl: firebaseUrl
-    });
+    };
+    if (adminPassword) {
+      payload.adminPassword = adminPassword;
+    }
+
+    window.Store.saveSettings(payload);
 
     this.showToast('Ayarlar, kurs logosu ve canlı bulut bağlantısı kaydedildi!', 'success');
     this.renderHeader();
     this.renderSettingsView();
+  },
+
+  // ========================================================
+  // --- GÜNÜN GÖREVLİLERİ YÖNETİMİ (YEMEKÇİLER & MÜEZZİN) ---
+  // ========================================================
+  selectedDutyDate: '',
+  draftDutyYemekciler: null,
+  draftDutyMuezzin: null,
+  draftDutyNote: null,
+
+  renderDailyDutiesView() {
+    const container = document.getElementById('duties-container');
+    if (!container) return;
+
+    if (!this.selectedDutyDate) {
+      this.selectedDutyDate = new Date().toISOString().split('T')[0];
+    }
+    const targetDate = this.selectedDutyDate;
+    const storeDuties = (window.Store && typeof window.Store.getDailyDuties === 'function')
+      ? window.Store.getDailyDuties(targetDate)
+      : { yemekciler: [], muezzin: '', note: '' };
+
+    if (this.draftDutyYemekciler === null) {
+      this.draftDutyYemekciler = Array.isArray(storeDuties.yemekciler) ? [...storeDuties.yemekciler] : [];
+    }
+    if (this.draftDutyMuezzin === null) {
+      this.draftDutyMuezzin = storeDuties.muezzin || '';
+    }
+    if (this.draftDutyNote === null) {
+      this.draftDutyNote = storeDuties.note || '';
+    }
+
+    const students = (window.Store && typeof window.Store.getStudents === 'function')
+      ? window.Store.getStudents(false)
+      : [];
+
+    const dateOptions = { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' };
+    const dateFormatted = new Date(targetDate + 'T00:00:00').toLocaleDateString('tr-TR', dateOptions);
+
+    const currentYemekciler = this.draftDutyYemekciler || [];
+    const currentMuezzin = this.draftDutyMuezzin || '';
+    const currentNote = this.draftDutyNote || '';
+
+    container.innerHTML = `
+      <div class="max-w-4xl mx-auto space-y-6 animate-fade-in">
+        
+        <!-- Üst Başlık ve Tarih Seçici -->
+        <div class="bg-gradient-to-r from-slate-900 via-amber-950/40 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-amber-500/30 flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-3xl shadow-lg shrink-0">
+              🎯
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="font-black text-white text-lg sm:text-xl">Günün Görevlileri Yönetimi</h3>
+                <span class="px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider">Canlı Pano</span>
+              </div>
+              <p class="text-xs text-amber-200/80 mt-0.5">
+                ${dateFormatted} • Yemekhane nöbetçileri ve vakit müezzini seçimi
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <input type="date" value="${targetDate}" 
+              onchange="window.App.changeDutyDate(this.value)"
+              class="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-amber-300 focus:border-amber-400 focus:outline-none cursor-pointer">
+            <button type="button" onclick="window.App.changeDutyDate(new Date().toISOString().split('T')[0])"
+              class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow transition cursor-pointer">
+              Bugün
+            </button>
+            <a href="pano.html" target="_blank"
+              class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-amber-500/40 transition flex items-center gap-1.5 cursor-pointer">
+              <span>📺</span>
+              <span class="hidden sm:inline">Panoda Gör ↗</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- 🍽️ 1. GÜNÜN YEMEKÇİLERİ KARTI -->
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 text-xl flex items-center justify-center shadow-inner">
+                    🍽️
+                  </div>
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-base">Günün Yemekçileri</h4>
+                    <p class="text-xs text-slate-500">Mutfak ve sofra görevlileri (${currentYemekciler.length} seçildi)</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Hızlı Talebe Ekleme Formu -->
+              <div class="space-y-3 mb-4">
+                <label class="block text-[11px] font-bold text-slate-600 uppercase">
+                  TALEBE SEÇİP EKLEYİNİZ
+                </label>
+                <div class="flex items-center gap-2">
+                  <select id="duty-yemekci-select" 
+                    class="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:bg-white focus:border-amber-500">
+                    <option value="">-- Talebe Seçiniz --</option>
+                    ${students.map(s => `
+                      <option value="${s.firstName} ${s.lastName} (${s.className})">
+                        ${s.firstName} ${s.lastName} (${s.className} • No: ${s.studentNo})
+                      </option>
+                    `).join('')}
+                  </select>
+                  <button type="button" onclick="window.App.addYemekciFromSelect()"
+                    class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl shadow transition cursor-pointer">
+                    + Ekle
+                  </button>
+                </div>
+
+                <!-- Manuel İsim Girişi Alternatifi -->
+                <div class="flex items-center gap-2 pt-1">
+                  <input type="text" id="duty-yemekci-custom-text" placeholder="Veya manuel isim yazınız..."
+                    class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
+                  <button type="button" onclick="window.App.addYemekciFromCustomText()"
+                    class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition cursor-pointer">
+                    Ekle
+                  </button>
+                </div>
+              </div>
+
+              <!-- Seçilen Yemekçiler Listesi -->
+              <div class="space-y-2">
+                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  NÖBETÇİ LİSTESİ (${currentYemekciler.length})
+                </div>
+                ${currentYemekciler.length === 0 ? `
+                  <div class="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
+                    Henüz yemekçi atanmadı. Yukarıdan talebe seçip "+ Ekle" butonuna basınız.
+                  </div>
+                ` : `
+                  <div class="space-y-1.5">
+                    ${currentYemekciler.map((name, idx) => `
+                      <div class="p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                          <span class="w-6 h-6 rounded-lg bg-amber-500 text-slate-950 text-xs font-black flex items-center justify-center">
+                            ${idx + 1}
+                          </span>
+                          <span class="font-bold text-xs text-amber-950">${name}</span>
+                        </div>
+                        <button type="button" onclick="window.App.removeYemekciAtIndex(${idx})"
+                          class="w-6 h-6 rounded-lg bg-white hover:bg-rose-50 text-rose-500 hover:text-rose-700 border border-rose-200 text-xs font-bold transition flex items-center justify-center cursor-pointer"
+                          title="Listeden Çıkar">
+                          ✕
+                        </button>
+                      </div>
+                    `).join('')}
+                  </div>
+                `}
+              </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+              <span>TV Panosunda "Günün Yemekçileri" slaytında görünür</span>
+              ${currentYemekciler.length > 0 ? `
+                <button type="button" onclick="window.App.clearAllYemekciler()" class="text-rose-500 hover:underline cursor-pointer">
+                  Tümünü Temizle
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- 📢 2. GÜNÜN MÜEZZİNİ KARTI -->
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 text-xl flex items-center justify-center shadow-inner">
+                    📢
+                  </div>
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-base">Günün Müezzini</h4>
+                    <p class="text-xs text-slate-500">5 Vakit namaz ezan ve cemaat nöbetçisi</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Müezzin Seçici -->
+              <div class="space-y-3 mb-6">
+                <label class="block text-[11px] font-bold text-slate-600 uppercase">
+                  MÜEZZİN TALEBEYİ SEÇİNİZ
+                </label>
+                <select id="duty-muezzin-select" 
+                  onchange="window.App.draftDutyMuezzin = this.value; window.App.renderDailyDutiesView();"
+                  class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-500">
+                  <option value="">-- Müezzin Talebeyi Seçiniz --</option>
+                  ${students.map(s => {
+                    const fullName = `${s.firstName} ${s.lastName} (${s.className})`;
+                    const isSelected = currentMuezzin.startsWith(`${s.firstName} ${s.lastName}`);
+                    return `
+                      <option value="${fullName}" ${isSelected ? 'selected' : ''}>
+                        ${s.firstName} ${s.lastName} (${s.className} • No: ${s.studentNo})
+                      </option>
+                    `;
+                  }).join('')}
+                </select>
+
+                <!-- Manuel Müezzin Girişi Alternatifi -->
+                <div class="flex items-center gap-2 pt-1">
+                  <input type="text" id="duty-muezzin-custom-text" placeholder="Veya manuel isim yazınız..."
+                    value="${currentMuezzin && !students.some(s => currentMuezzin.startsWith(`${s.firstName} ${s.lastName}`)) ? currentMuezzin : ''}"
+                    onchange="window.App.draftDutyMuezzin = this.value.trim(); window.App.renderDailyDutiesView();"
+                    class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
+                </div>
+              </div>
+
+              <!-- Seçili Müezzin Rozeti -->
+              <div class="p-5 bg-gradient-to-tr from-indigo-50 via-purple-50 to-slate-50 rounded-2xl border-2 border-indigo-200 text-center">
+                <div class="text-3xl mb-1">🕌</div>
+                <div class="text-[10px] font-black uppercase text-indigo-700 tracking-wider">GÜNÜN MÜEZZİNİ</div>
+                ${currentMuezzin ? `
+                  <h4 class="text-lg font-black text-slate-900 mt-1">
+                    ${currentMuezzin}
+                  </h4>
+                  <div class="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                    <span>🟢</span> <span>Görev Atandı</span>
+                  </div>
+                  <div class="mt-3">
+                    <button type="button" onclick="window.App.draftDutyMuezzin = ''; window.App.renderDailyDutiesView();"
+                      class="text-xs text-rose-600 hover:underline font-bold cursor-pointer">
+                      Görevi Kaldır
+                    </button>
+                  </div>
+                ` : `
+                  <div class="text-xs text-slate-400 font-bold mt-1">
+                    Henüz atanmadı
+                  </div>
+                `}
+              </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-400">
+              TV Panosunda "Günün Müezzini" slaytında ve alt haber bandında görünür.
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 📌 GÜNÜN ÖZEL DUYURUSU / NOTU -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-3">
+          <label class="block text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+            <span>📌</span> <span>GÜNÜN DUYURUSU VEYA ÖZEL NOTU (İSTEĞE BAĞLI)</span>
+          </label>
+          <input type="text" id="duty-note-input"
+            value="${currentNote}"
+            oninput="window.App.draftDutyNote = this.value;"
+            placeholder="Örn: Bugün öğle yemeği 12:45'te başlayacaktır. Akşam ikramı yemekhanededir."
+            class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-amber-500">
+          <p class="text-[11px] text-slate-400">
+            Bu not TV Panosunda Görevliler slaytının altında özel kutucuk olarak yayınlanır.
+          </p>
+        </div>
+
+        <!-- KAYDET VE TV PANOSUNA GÖNDER BUTONU -->
+        <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-900 text-white p-5 rounded-3xl shadow-xl">
+          <div class="text-xs">
+            <span class="font-black text-amber-400">Canlı Senkronizasyon:</span>
+            <span class="text-slate-300 ml-1">Kaydettiğiniz anda TV Panosu ve tüm açık cihazlar anında güncellenir.</span>
+          </div>
+
+          <button type="button" onclick="window.App.saveDailyDutiesSubmit()"
+            class="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer text-sm">
+            <span>💾</span>
+            <span>Görevlileri Kaydet ve TV Panosuna Gönder</span>
+          </button>
+        </div>
+
+      </div>
+    `;
+  },
+
+  changeDutyDate(newDate) {
+    if (!newDate) return;
+    this.selectedDutyDate = newDate;
+    this.draftDutyYemekciler = null;
+    this.draftDutyMuezzin = null;
+    this.draftDutyNote = null;
+    this.renderDailyDutiesView();
+  },
+
+  addYemekciFromSelect() {
+    const sel = document.getElementById('duty-yemekci-select');
+    if (!sel || !sel.value) {
+      this.showToast('Lütfen listeden bir talebe seçiniz.', 'warning');
+      return;
+    }
+    const val = sel.value.trim();
+    if (!Array.isArray(this.draftDutyYemekciler)) {
+      this.draftDutyYemekciler = [];
+    }
+    if (this.draftDutyYemekciler.includes(val)) {
+      this.showToast('Bu talebe zaten yemekçi listesinde ekli.', 'warning');
+      return;
+    }
+    this.draftDutyYemekciler.push(val);
+    sel.value = '';
+    this.renderDailyDutiesView();
+  },
+
+  addYemekciFromCustomText() {
+    const input = document.getElementById('duty-yemekci-custom-text');
+    if (!input || !input.value.trim()) return;
+    const val = input.value.trim();
+    if (!Array.isArray(this.draftDutyYemekciler)) {
+      this.draftDutyYemekciler = [];
+    }
+    if (this.draftDutyYemekciler.includes(val)) {
+      this.showToast('Bu isim zaten listede ekli.', 'warning');
+      return;
+    }
+    this.draftDutyYemekciler.push(val);
+    input.value = '';
+    this.renderDailyDutiesView();
+  },
+
+  removeYemekciAtIndex(idx) {
+    if (Array.isArray(this.draftDutyYemekciler)) {
+      this.draftDutyYemekciler.splice(idx, 1);
+      this.renderDailyDutiesView();
+    }
+  },
+
+  clearAllYemekciler() {
+    this.draftDutyYemekciler = [];
+    this.renderDailyDutiesView();
+  },
+
+  saveDailyDutiesSubmit() {
+    const noteInput = document.getElementById('duty-note-input');
+    const note = noteInput ? noteInput.value.trim() : (this.draftDutyNote || '');
+    const date = this.selectedDutyDate || new Date().toISOString().split('T')[0];
+
+    const payload = {
+      date,
+      yemekciler: this.draftDutyYemekciler || [],
+      muezzin: this.draftDutyMuezzin || '',
+      note
+    };
+
+    if (window.Store && typeof window.Store.saveDailyDuties === 'function') {
+      const res = window.Store.saveDailyDuties(payload);
+      if (res && res.success) {
+        this.showToast(`✓ ${date} tarihli görevliler başarıyla kaydedildi ve TV panosuna iletildi!`, 'success');
+      } else {
+        this.showToast('Görevliler kaydedildi.', 'success');
+      }
+    }
+    this.renderDailyDutiesView();
   },
 
   async handlePushAllToCloud() {
@@ -2708,8 +3206,6 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
       session.role === 'superadmin' ||
       session.canEditStudents === true ||
       session.canManageStaff === true ||
-      session.staffId === 'stf_1' ||
-      (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')) ||
       (session.name && session.name.toUpperCase().includes('YÖNETİCİ')) ||
       (session.name && session.name.toUpperCase().includes('MÜDÜR'))
     );

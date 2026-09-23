@@ -15,6 +15,8 @@ const STORAGE_KEYS = {
   LEAVE_RETURN: 'yoklama_leave_returns_v1',
   BONUS_POINTS: 'yoklama_bonus_points_v1',
   CUSTOM_COLUMNS: 'yoklama_custom_columns_v1',
+  DUTIES: 'yoklama_daily_duties_v1',
+  HADISLER: 'yoklama_custom_hadisler_v1',
   SETTINGS: 'yoklama_settings',
   INITIALIZED: 'yoklama_init_v5'
 };
@@ -54,6 +56,7 @@ const DEFAULT_SETTINGS = {
   institutionName: 'Ömer Avniyel Akademi',
   institutionLogo: 'kurs_logo.jpg', // Varsayılan kurs logosu dosya adı
   adminEmail: 'selimbozkurt111@gmail.com', // Ana yöneticinin doğrulama maili alacağı adres
+  adminPassword: '123', // Ana Kurum Yöneticisi özel giriş şifresi (Personelden bağımsız)
   academicYear: '2026-2027',
   firebaseUrl: 'https://oay-takip-default-rtdb.firebaseio.com', // Canlı Bulut Veritabanı URL
   yatakReminderEnabled: true, // Otomatik yatak kontrolü hatırlatıcısı
@@ -65,8 +68,9 @@ const DEFAULT_SETTINGS = {
 };
 
 // Sistemdeki Eğitmen / Hoca Kadrosu (İsim ve Şifreleri ile)
+// NOT: Selim Bozkurt kurumun Dahili Hocasıdır; Kurum Yöneticisi ise ayrı bir süper yetkili hesaptır.
 const DEFAULT_STAFF = [
-  { id: 'stf_1', fullName: 'SELİM BOZKURT', role: 'Dahili Hocası / Yönetici', phone: '0555 000 00 01', password: '123' },
+  { id: 'stf_1', fullName: 'SELİM BOZKURT', role: 'Dahili Hocası', phone: '0555 000 00 01', password: '123' },
   { id: 'stf_2', fullName: 'YASİN EKİNCİ', role: '5-A Sınıfı Etüt & Dahili Hocası', phone: '0555 000 00 02', password: '123' },
   { id: 'stf_3', fullName: 'AHMED MUBARİZ', role: '5-B Sınıfı Etüt & Dahili Hocası', phone: '0555 000 00 03', password: '123' },
   { id: 'stf_4', fullName: 'ABDUSSAMED TAV', role: '6. Sınıf (6-A & 6-B) Etüt & Dahili Hocası', phone: '0555 000 00 04', password: '123' },
@@ -277,6 +281,10 @@ class DataStore {
         settings.adminEmail = 'selimbozkurt111@gmail.com';
       }
 
+      if (!settings.adminPassword || !settings.adminPassword.trim()) {
+        settings.adminPassword = '123';
+      }
+
       if (!settings.firebaseUrl || !settings.firebaseUrl.trim()) {
         settings.firebaseUrl = 'https://oay-takip-default-rtdb.firebaseio.com';
       }
@@ -359,6 +367,8 @@ class DataStore {
       customColumns: this.getCustomColumns(),
       passive_student_ids: this.getPassiveStudentIds(),
       deleted_student_ids: this.getDeletedStudentIds(),
+      dailyDuties: this.getDailyDuties(),
+      hadisler: this.getCustomHadisler(),
       lastSyncedAt: new Date().toISOString()
     };
 
@@ -624,6 +634,19 @@ class DataStore {
       localStorage.setItem(STORAGE_KEYS.CUSTOM_COLUMNS, JSON.stringify(cloudCols));
     }
 
+    // 11. Günün Görevlileri (Yemekçi & Müezzin)
+    const cloudDuties = cloudData.dailyDuties || cloudData.daily_duties;
+    if (cloudDuties && typeof cloudDuties === 'object') {
+      localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(cloudDuties));
+      window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: cloudDuties }));
+    }
+
+    // 12. Özel Hadis-i Şerif Listesi
+    if (Array.isArray(cloudData.hadisler)) {
+      localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(cloudData.hadisler));
+      window.dispatchEvent(new CustomEvent('hadisler-updated', { detail: cloudData.hadisler }));
+    }
+
     window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: cloudData }));
   }
 
@@ -725,16 +748,10 @@ class DataStore {
     const cleanPass = passwordInput.toString().trim();
     if (!cleanPass) return false;
 
-    // 1. Personel listesindeki Selim Bozkurt / stf_1 şifresini bul
-    const staffList = this.getStaff();
-    const adminStaff = staffList.find(s => 
-      s.id === 'stf_1' || 
-      (s.fullName && s.fullName.toUpperCase().includes('SELİM BOZKURT')) ||
-      (s.role && (s.role.includes('Yönetici') || s.role.includes('Müdür')))
-    );
-
-    const staffPass = adminStaff ? (adminStaff.password || '123').toString().trim() : '123';
-    return cleanPass === staffPass || cleanPass === '123' || cleanPass === '123456';
+    // Sistem ayarlarındaki bağımsız Kurum Yöneticisi şifresini kontrol et (Varsayılan: 123)
+    const settings = this.getSettings();
+    const adminPass = (settings.adminPassword || '123').toString().trim();
+    return cleanPass === adminPass || cleanPass === '123' || cleanPass === '123456';
   }
 
   // --- Ana Yönetici E-posta Doğrulama Kodu (OTP) Üretimi (2. Aşama Güvenlik) ---
@@ -776,8 +793,8 @@ class DataStore {
         success: true,
         session: {
           role: 'superadmin',
-          staffId: 'stf_1',
-          name: 'SELİM BOZKURT',
+          staffId: 'admin_root',
+          name: 'Kurum Yöneticisi',
           canEditStudents: true,
           canManageStaff: true,
           canEditSettings: true
@@ -834,27 +851,30 @@ class DataStore {
 
     if (!normInput || !normPass) return null;
 
-    // 0. Ana Yönetici (Müdür) Doğrulama (Önce Şifre Kontrolü, Ardından E-posta Kodu)
+    // 0. Ana Yönetici (Müdürlük / Kurum Yöneticisi) Girişi (2 Aşamalı Güvenlik: Şifre -> E-posta OTP)
+    // DİKKAT: Selim Bozkurt artık bağımsız bir hoca/personel hesabıdır!
+    // Yönetici hesabına sadece 'admin', 'yonetici', 'mudur', 'yonetim', 'superadmin', 'kurumyoneticisi' ile girilir.
     if (
-      normInput === 'selimbozkurt' || 
       normInput === 'admin' || 
-      normInput === 'mudur' || 
       normInput === 'yonetici' || 
-      rawInput.toLowerCase().includes('selim')
+      normInput === 'mudur' || 
+      normInput === 'yonetim' || 
+      normInput === 'superadmin' ||
+      normInput === 'kurumyoneticisi'
     ) {
       if (this.verifyAdminPassword(rawPass)) {
         return {
           requiresAdminOtp: true,
           role: 'superadmin',
-          staffId: 'stf_1',
-          name: 'SELİM BOZKURT',
+          staffId: 'admin_root',
+          name: 'Kurum Yöneticisi',
           email: this.getSettings().adminEmail || 'selimbozkurt111@gmail.com'
         };
       }
       return null;
     }
 
-    // 1. Personel / Hoca Kontrolü (Ad Soyad ve Şifre)
+    // 1. Personel / Hoca Kontrolü (Ad Soyad ve Şifre) - Selim Bozkurt da diğer hocalar gibi doğrudan buraya girer!
     const staffList = this.getStaff();
     const matchedStaff = staffList.find(s => {
       const sNorm = this.normalizeSearchKey(s.fullName);
@@ -871,23 +891,12 @@ class DataStore {
     });
 
     if (matchedStaff) {
-      const isDirector = matchedStaff.id === 'stf_1' || 
-                         (matchedStaff.fullName && matchedStaff.fullName.toUpperCase().includes('SELİM BOZKURT')) ||
-                         (matchedStaff.role && (matchedStaff.role.toLowerCase().includes('yönetici') || matchedStaff.role.toLowerCase().includes('müdür')));
-      if (isDirector) {
-        return {
-          requiresAdminOtp: true,
-          role: 'superadmin',
-          staffId: matchedStaff.id,
-          name: matchedStaff.fullName,
-          email: this.getSettings().adminEmail || 'selimbozkurt111@gmail.com'
-        };
-      }
       return {
         role: 'staff',
         staffId: matchedStaff.id,
         name: matchedStaff.fullName,
         password: matchedStaff.password || '123',
+        staffRole: matchedStaff.role || 'Dahili Hocası',
         canEditStudents: false,
         canManageStaff: false,
         canEditSettings: false
@@ -952,6 +961,11 @@ class DataStore {
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          const selim = parsed.find(s => s.id === 'stf_1' || (s.fullName && s.fullName.toUpperCase().includes('SELİM BOZKURT')));
+          if (selim && selim.role && selim.role.includes('Yönetici')) {
+            selim.role = 'Dahili Hocası';
+            localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(parsed));
+          }
           return parsed;
         }
       }
@@ -2702,11 +2716,139 @@ class DataStore {
       if (parsed.leaveReturns) localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(parsed.leaveReturns));
       if (parsed.bonusPoints) localStorage.setItem(STORAGE_KEYS.BONUS_POINTS, JSON.stringify(parsed.bonusPoints));
       if (parsed.customColumns) localStorage.setItem(STORAGE_KEYS.CUSTOM_COLUMNS, JSON.stringify(parsed.customColumns));
+      if (parsed.dailyDuties) localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(parsed.dailyDuties));
+      if (parsed.hadisler) localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(parsed.hadisler));
       if (parsed.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(parsed.settings));
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
     }
+  }
+
+  // ========================================================
+  // --- GÜNÜN GÖREVLİLERİ (YEMEKÇİ & MÜEZZİN) ---
+  // ========================================================
+  getDailyDuties(targetDate) {
+    const today = targetDate || new Date().toISOString().split('T')[0];
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.DUTIES);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (parsed && typeof parsed === 'object') {
+          if (parsed[today]) return parsed[today];
+          if (parsed.date === today) return parsed;
+          return {
+            date: today,
+            yemekciler: Array.isArray(parsed.yemekciler) ? parsed.yemekciler : [],
+            muezzin: parsed.muezzin || '',
+            note: parsed.note || ''
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('getDailyDuties error:', e);
+    }
+    return {
+      date: today,
+      yemekciler: [],
+      muezzin: '',
+      note: ''
+    };
+  }
+
+  saveDailyDuties(duties) {
+    const today = (duties && duties.date) || new Date().toISOString().split('T')[0];
+    const dutyData = {
+      date: today,
+      yemekciler: Array.isArray(duties.yemekciler) ? duties.yemekciler : [],
+      muezzin: duties.muezzin || '',
+      note: duties.note || '',
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      let storeObj = {};
+      const raw = localStorage.getItem(STORAGE_KEYS.DUTIES);
+      if (raw) {
+        try { storeObj = JSON.parse(raw) || {}; } catch(e){}
+      }
+      storeObj[today] = dutyData;
+      storeObj.date = today;
+      storeObj.yemekciler = dutyData.yemekciler;
+      storeObj.muezzin = dutyData.muezzin;
+      storeObj.note = dutyData.note;
+
+      localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(storeObj));
+
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/daily_duties', storeObj);
+      }
+      window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: dutyData }));
+      return { success: true, data: dutyData };
+    } catch (err) {
+      console.error('saveDailyDuties error:', err);
+      return { success: false, message: err.message };
+    }
+  }
+
+  // ========================================================
+  // --- ÖZEL HADİS-İ ŞERİF VERİTABANI MOTORU ---
+  // ========================================================
+  getCustomHadisler() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.HADISLER);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+
+    if (window.HADIS_LISTESI && Array.isArray(window.HADIS_LISTESI) && window.HADIS_LISTESI.length > 0) {
+      return window.HADIS_LISTESI;
+    }
+
+    return [
+      { text: "İki günü birbirine eşit olan ziyandadır.", author: "Hadis-i Şerif (Beyhaki)" },
+      { text: "Namaz dinin direğidir; kim onu ikame ederse dinini ikame etmiş olur.", author: "Hadis-i Şerif (Tirmizi)" },
+      { text: "Sizin en hayırlınız, Kur'an'ı öğrenen ve öğretendir.", author: "Hadis-i Şerif (Buhari)" },
+      { text: "İlim tahsil etmek her Müslümana farzdır.", author: "Hadis-i Şerif (İbn Mace)" },
+      { text: "Müminlerin iman bakımından en mükemmeli, ahlakı en güzel olanıdır.", author: "Hadis-i Şerif (Tirmizi)" },
+      { text: "Temizlik imanın yarısıdır.", author: "Hadis-i Şerif (Müslim)" },
+      { text: "Cemaatle kılınan namaz, tek başına kılınan namazdan yirmi yedi derece daha faziletlidir.", author: "Hadis-i Şerif (Buhari & Müslim)" },
+      { text: "Müslüman, elinden ve dilinden diğer Müslümanların emniyette olduğu kimsedir.", author: "Hadis-i Şerif (Buhari)" }
+    ];
+  }
+
+  saveCustomHadisler(hadisList) {
+    if (!Array.isArray(hadisList)) return;
+    localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(hadisList));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/hadisler', hadisList);
+    }
+    window.dispatchEvent(new CustomEvent('hadisler-updated', { detail: hadisList }));
+  }
+
+  // ========================================================
+  // --- PANODA GÖSTERİLECEK CEZALILAR VE İNTİZAM LİSTESİ ---
+  // ========================================================
+  getPanoPenalizedStudents(referenceDate) {
+    const today = referenceDate || new Date().toISOString().split('T')[0];
+    const students = this.getStudents(false); // Aktif öğrenciler
+    const reportData = this.getLeaveReportBatch(students, undefined, '13:00');
+
+    // Sadece cezası olanları (penaltyMinutes > 0) filtrele ve ceza dakikasına göre çoktan aza sırala
+    const penalized = (reportData.reports || [])
+      .filter(item => item && item.report && item.report.penaltyMinutes > 0)
+      .sort((a, b) => b.report.penaltyMinutes - a.report.penaltyMinutes);
+
+    return {
+      totalPenalizedCount: penalized.length,
+      penalizedStudents: penalized,
+      totalStudents: students.length,
+      onTimeCount: reportData.onTimeCount
+    };
   }
 }
 
