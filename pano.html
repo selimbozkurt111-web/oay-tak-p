@@ -12,7 +12,7 @@
   <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v4.0) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20260923_v4.0_SEPARATE_SELIM_BOZKURT_AND_ADMIN';
+      var CURRENT_BUILD = '20260924_v4.2_HADIS_PERSISTENCE';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -185,25 +185,31 @@
     </div>
 
     <!-- Orta: Slayt Göstergeleri (Tabs) & Otomatik Geçiş Sayacı -->
-    <div class="hidden lg:flex items-center gap-2 bg-slate-950/70 p-1.5 rounded-2xl border border-slate-800">
-      <button onclick="PanoApp.goToSlide(0)" id="slide-btn-0" class="px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 bg-amber-500 text-slate-950">
+    <div class="hidden lg:flex items-center gap-1.5 bg-slate-950/70 p-1.5 rounded-2xl border border-slate-800">
+      <button onclick="PanoApp.goToSlide(0)" id="slide-btn-0" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 bg-amber-500 text-slate-950">
         <span>🏆</span> <span>Şampiyonlar</span>
       </button>
-      <button onclick="PanoApp.goToSlide(1)" id="slide-btn-1" class="px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+      <button onclick="PanoApp.goToSlide(1)" id="slide-btn-1" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
         <span>🎓</span> <span>Sınıf Liderleri</span>
       </button>
-      <button onclick="PanoApp.goToSlide(2)" id="slide-btn-2" class="px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+      <button onclick="PanoApp.goToSlide(2)" id="slide-btn-2" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
         <span>📊</span> <span>İlk 10</span>
       </button>
-      <button onclick="PanoApp.goToSlide(3)" id="slide-btn-3" class="px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 text-slate-400 hover:text-white">
-        <span>📋</span> <span>11 - 20 Sıralama</span>
+      <button onclick="PanoApp.goToSlide(3)" id="slide-btn-3" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
+        <span>📋</span> <span>11-20</span>
       </button>
-      <button onclick="PanoApp.goToSlide(4)" id="slide-btn-4" class="px-3 py-1 rounded-xl text-xs font-black transition flex items-center gap-1.5 text-slate-400 hover:text-white">
-        <span>🕌</span> <span>Günün İbadeti</span>
+      <button onclick="PanoApp.goToSlide(4)" id="slide-btn-4" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
+        <span>🎯</span> <span>Günün Görevlileri</span>
+      </button>
+      <button onclick="PanoApp.goToSlide(5)" id="slide-btn-5" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
+        <span>🕌</span> <span>Günün Hadisi</span>
+      </button>
+      <button onclick="PanoApp.goToSlide(6)" id="slide-btn-6" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
+        <span>⚠️</span> <span>Cezalılar</span>
       </button>
 
       <!-- Otomatik Geçiş Geri Sayım Rozeti -->
-      <div id="slide-timer-badge" class="ml-2 px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-black font-mono flex items-center gap-1.5" title="Sonraki slayta kalan süre">
+      <div id="slide-timer-badge" class="ml-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-black font-mono flex items-center gap-1.5" title="Sonraki slayta kalan süre">
         <span id="slide-timer-icon" class="animate-spin text-[10px]">⏳</span>
         <span id="slide-timer-text">15s</span>
       </div>
@@ -276,19 +282,20 @@
   <div class="fixed bottom-10 right-4 z-40 opacity-70 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-3 py-1.5 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[11px] font-black shadow-lg flex items-center gap-1.5 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v4.0)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v4.2)</span>
     </button>
   </div>
 
-  <!-- Store ve Leaderboard Modülleri -->
-  <script src="js/store.js?v=4.0"></script>
-  <script src="js/leaderboard.js?v=4.0"></script>
+  <!-- Hadis Veritabanı, Store ve Leaderboard Modülleri -->
+  <script src="js/hadisler.js?v=4.2"></script>
+  <script src="js/store.js?v=4.2"></script>
+  <script src="js/leaderboard.js?v=4.2"></script>
 
-  <!-- Pano TV Yönetim Motoru (v4.0) -->
+  <!-- Pano TV Yönetim Motoru (v4.2) -->
   <script>
     const PanoApp = {
       currentSlide: 0,
-      totalSlides: 5,
+      totalSlides: 7,
       slideSecondsDuration: 15, // 15 saniye (TV / Kiosk için ideal süre)
       slideSecondsLeft: 15,     // Kalan saniye sayacı
       heartbeatTimer: null,     // 1 saniyelik kesintisiz ana kalp atışı
@@ -661,7 +668,13 @@
               this.renderSlideLeaderboard11To20(container, ranking, data);
               break;
             case 4:
+              this.renderSlideDailyDuties(container);
+              break;
+            case 5:
               this.renderSlideDailyPrayerQuote(container);
+              break;
+            case 6:
+              this.renderSlidePenalties(container);
               break;
             default:
               this.renderSlidePodium(container, ranking, data);
@@ -1086,32 +1099,202 @@
         `;
       },
 
-      // SLAYT 4: 🕌 GÜNÜN İBADETİ & MOTİVASYON HADİSİ
+      // SLAYT 4: 🎯 GÜNÜN GÖREVLİ TALEBELERİ (YEMEKÇİLER & MÜEZZİN)
+      renderSlideDailyDuties(container) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const duties = (window.Store && typeof window.Store.getDailyDuties === 'function')
+          ? window.Store.getDailyDuties(todayStr)
+          : { yemekciler: [], muezzin: '', note: '' };
+
+        const dateOptions = { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' };
+        const dateFormatted = new Date().toLocaleDateString('tr-TR', dateOptions);
+
+        const yemekciler = Array.isArray(duties.yemekciler) ? duties.yemekciler : [];
+        const muezzin = duties.muezzin || '';
+        const note = duties.note || '';
+
+        this.updateTickerWithDuties(duties);
+
+        container.innerHTML = `
+          <div class="space-y-6 animate-fade-in max-w-6xl mx-auto w-full">
+            <div class="text-center">
+              <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-black text-xs uppercase tracking-widest mb-1 shadow-lg">
+                <span>🎯</span> KURS GÜNLÜK HİZMET VE İBADET NÖBETİ <span>🎯</span>
+              </div>
+              <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                Günün Görevli Talebeleri
+              </h2>
+              <p class="text-xs text-slate-400 font-medium">
+                Tarih: ${dateFormatted} • Hizmet ve cemaat şuuruyla kardeşlerine rehber olan talebelerimiz
+              </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              
+              <!-- 🍽️ 1. KART: GÜNÜN YEMEKÇİLERİ -->
+              <div class="bg-gradient-to-b from-slate-900 via-slate-900/95 to-amber-950/20 rounded-3xl border-2 border-amber-500/50 p-6 sm:p-8 shadow-2xl relative overflow-hidden flex flex-col justify-between">
+                <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600"></div>
+                
+                <div>
+                  <div class="flex items-center justify-between gap-3 mb-4">
+                    <div class="flex items-center gap-3">
+                      <div class="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-3xl shadow-lg">
+                        🍽️
+                      </div>
+                      <div>
+                        <div class="text-[11px] font-black uppercase tracking-wider text-amber-400">MUTFAK & YEMEKHANE</div>
+                        <h3 class="text-xl sm:text-2xl font-black text-white tracking-tight">Günün Yemekçileri</h3>
+                      </div>
+                    </div>
+                    <span class="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono font-black text-xs">
+                      ${yemekciler.length} Talebe
+                    </span>
+                  </div>
+
+                  <p class="text-xs text-slate-400 mb-5 leading-relaxed">
+                    Sofra düzeni, kardeşlerine ikram ve yemekhane intizamından sorumlu görevli talebelerimiz:
+                  </p>
+
+                  ${yemekciler.length > 0 ? `
+                    <div class="space-y-2.5">
+                      ${yemekciler.map((name, idx) => `
+                        <div class="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800 hover:border-amber-500/50 flex items-center justify-between shadow-inner transition">
+                          <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-300 font-black text-xs flex items-center justify-center border border-amber-500/30">
+                              #${idx + 1}
+                            </span>
+                            <span class="font-black text-base sm:text-lg text-white tracking-wide">
+                              ${name}
+                            </span>
+                          </div>
+                          <span class="text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
+                            Nöbetçi
+                          </span>
+                        </div>
+                      `).join('')}
+                    </div>
+                  ` : `
+                    <div class="py-12 text-center bg-slate-950/60 rounded-2xl border border-slate-800">
+                      <div class="text-3xl mb-2 text-slate-600">🍲</div>
+                      <div class="text-sm font-bold text-slate-400">Bugün için yemekçi talebe henüz belirlenmedi.</div>
+                      <div class="text-[11px] text-slate-500 mt-1">Yönetim panelinden "Günün Görevlileri" sekmesinden atanabilir.</div>
+                    </div>
+                  `}
+                </div>
+
+                <div class="mt-6 pt-4 border-t border-slate-800/80 text-[11px] text-amber-400/90 font-medium italic flex items-center gap-2">
+                  <span>✨</span>
+                  <span>"Kavmin efendisi, onlara hizmet edendir." (Hadis-i Şerif)</span>
+                </div>
+              </div>
+
+              <!-- 📢 2. KART: GÜNÜN MÜEZZİNİ -->
+              <div class="bg-gradient-to-b from-slate-900 via-slate-900/95 to-indigo-950/20 rounded-3xl border-2 border-indigo-500/50 p-6 sm:p-8 shadow-2xl relative overflow-hidden flex flex-col justify-between">
+                <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-indigo-500 via-emerald-400 to-indigo-600"></div>
+
+                <div>
+                  <div class="flex items-center justify-between gap-3 mb-4">
+                    <div class="flex items-center gap-3">
+                      <div class="w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center text-3xl shadow-lg">
+                        📢
+                      </div>
+                      <div>
+                        <div class="text-[11px] font-black uppercase tracking-wider text-indigo-400">EZAN & CEMAAT ÇAĞRISI</div>
+                        <h3 class="text-xl sm:text-2xl font-black text-white tracking-tight">Günün Müezzini</h3>
+                      </div>
+                    </div>
+                    <span class="px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-mono font-black text-xs">
+                      5 Vakit
+                    </span>
+                  </div>
+
+                  <p class="text-xs text-slate-400 mb-5 leading-relaxed">
+                    Vakit ezanlarını okumak, cemaate çağrı yapmak ve namaz nizamını sağlamakla görevli talebemiz:
+                  </p>
+
+                  ${muezzin ? `
+                    <div class="p-6 bg-gradient-to-tr from-slate-950 via-slate-950 to-indigo-950/60 rounded-3xl border-2 border-indigo-500/60 text-center shadow-inner relative overflow-hidden">
+                      <div class="text-4xl mb-2">🕌</div>
+                      <div class="text-[11px] font-black uppercase text-indigo-400 tracking-wider">BAŞ MÜEZZİN</div>
+                      <h4 class="text-2xl sm:text-3xl font-black text-white mt-1 tracking-tight">
+                        ${muezzin}
+                      </h4>
+                      <div class="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+                        <span>🟢 Vakit Ezanları Nöbetinde</span>
+                      </div>
+                    </div>
+                  ` : `
+                    <div class="py-12 text-center bg-slate-950/60 rounded-2xl border border-slate-800">
+                      <div class="text-3xl mb-2 text-slate-600">🕌</div>
+                      <div class="text-sm font-bold text-slate-400">Bugün için müezzin talebe henüz belirlenmedi.</div>
+                      <div class="text-[11px] text-slate-500 mt-1">Yönetim panelinden "Günün Görevlileri" sekmesinden atanabilir.</div>
+                    </div>
+                  `}
+                </div>
+
+                <div class="mt-6 pt-4 border-t border-slate-800/80 text-[11px] text-indigo-300 font-medium italic flex items-center gap-2">
+                  <span>✨</span>
+                  <span>"Müezzinler kıyamet günü boyun cihetiyle insanların en uzun (en şerefli) olanlarıdır." (Hadis-i Şerif)</span>
+                </div>
+              </div>
+
+            </div>
+
+            ${note ? `
+              <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3">
+                <span class="text-2xl shrink-0">📌</span>
+                <div>
+                  <div class="text-[11px] font-black text-amber-400 uppercase tracking-wider">GÜNÜN ÖZEL DUYURUSU</div>
+                  <div class="text-xs sm:text-sm font-bold text-slate-200">${note}</div>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      },
+
+      // SLAYT 5: 🕌 GÜNÜN HADİS-İ ŞERİFİ & HİKMETİ (KULLANICI LİSTESİNDEN SEÇİMLİ)
       renderSlideDailyPrayerQuote(container) {
-        const quotes = [
-          { text: "İki günü birbirine eşit olan ziyandadır.", author: "Hadis-i Şerif" },
-          { text: "Namaz dinin direğidir; kim onu ikame ederse dinini ikame etmiş olur.", author: "Hadis-i Şerif" },
-          { text: "İlim tahsil etmek her Müslümana farzdır.", author: "Hadis-i Şerif" },
-          { text: "Müminlerin iman bakımından en mükemmeli, ahlakı en güzel olanıdır.", author: "Hadis-i Şerif" },
-          { text: "Temizlik imandandır.", author: "Hadis-i Şerif" }
-        ];
-        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+        let hadisList = [];
+        try {
+          if (window.Store && typeof window.Store.getCustomHadisler === 'function') {
+            hadisList = window.Store.getCustomHadisler();
+          }
+        } catch (e) {}
+
+        if (!Array.isArray(hadisList) || hadisList.length === 0) {
+          hadisList = (window.HADIS_LISTESI && Array.isArray(window.HADIS_LISTESI) && window.HADIS_LISTESI.length > 0)
+            ? window.HADIS_LISTESI
+            : [
+              { text: "İki günü birbirine eşit olan ziyandadır.", author: "Hadis-i Şerif (Beyhaki)" },
+              { text: "Namaz dinin direğidir; kim onu ikame ederse dinini ikame etmiş olur.", author: "Hadis-i Şerif (Tirmizi)" },
+              { text: "Sizin en hayırlınız, Kur'an'ı öğrenen ve öğretendir.", author: "Hadis-i Şerif (Buhari)" },
+              { text: "İlim tahsil etmek her Müslümana farzdır.", author: "Hadis-i Şerif (İbn Mace)" },
+              { text: "Müminlerin iman bakımından en mükemmeli, ahlakı en güzel olanıdır.", author: "Hadis-i Şerif (Tirmizi)" },
+              { text: "Temizlik imanın yarısıdır.", author: "Hadis-i Şerif (Müslim)" }
+            ];
+        }
+
+        // Günün gün numarasına göre veya rastgele seç
+        const dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+        const quoteIdx = (dayOfYear + Math.floor(Math.random() * 3)) % hadisList.length;
+        const currentQuote = hadisList[quoteIdx] || hadisList[0];
 
         container.innerHTML = `
           <div class="space-y-8 animate-fade-in max-w-5xl mx-auto w-full text-center py-4">
             
-            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-black text-xs uppercase tracking-widest">
-              <span>🕌</span> GÜNÜN HİKMETİ VE BEREKETİ <span>🕌</span>
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-black text-xs uppercase tracking-widest shadow-lg">
+              <span>🕌</span> GÜNÜN HADİS-İ ŞERİFİ VE HİKMETİ <span>🕌</span>
             </div>
 
             <!-- Hadis / Hikmet Kartı -->
             <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/60 rounded-3xl border-2 border-indigo-500/40 p-8 sm:p-12 shadow-2xl relative overflow-hidden">
-              <div class="text-5xl sm:text-6xl text-amber-400/40 font-serif mb-3">“</div>
+              <div class="text-5xl sm:text-6xl text-amber-400/40 font-serif mb-3 select-none">“</div>
               <p class="text-2xl sm:text-4xl font-black text-white leading-relaxed tracking-tight max-w-3xl mx-auto">
-                ${randomQuote.text}
+                ${currentQuote.text}
               </p>
-              <div class="text-amber-400 font-black text-sm sm:text-base mt-4 uppercase tracking-widest">
-                — ${randomQuote.author}
+              <div class="text-amber-400 font-black text-sm sm:text-base mt-5 uppercase tracking-widest">
+                — ${currentQuote.author || 'Hadis-i Şerif'}
               </div>
             </div>
 
@@ -1137,6 +1320,152 @@
             </div>
 
           </div>
+        `;
+      },
+
+      // SLAYT 6: ⚠️ CEZALILAR VE İNTİZAM LİSTESİ (EN SON SAYFA!)
+      renderSlidePenalties(container) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const res = (window.Store && typeof window.Store.getPanoPenalizedStudents === 'function')
+          ? window.Store.getPanoPenalizedStudents(todayStr)
+          : { totalPenalizedCount: 0, penalizedStudents: [], totalStudents: 0, onTimeCount: 0 };
+
+        const list = res.penalizedStudents || [];
+
+        container.innerHTML = `
+          <div class="space-y-4 animate-fade-in max-w-6xl mx-auto w-full">
+            <div class="flex flex-wrap items-center justify-between border-b border-slate-800 pb-3 gap-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-2xl">⚠️</span>
+                  <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">Haftalık İntizam & Ceza Raporu</h2>
+                  <span class="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-black text-xs">
+                    Son Sayfa • Çıkış Cezaları
+                  </span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">
+                  Namaz, oda/yatak, okul geliş ve izin dönüşü gecikmeleri sonucu gecikmeli çıkış yapacak talebeler
+                </p>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <div class="text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
+                  İntizamlı: <span class="text-emerald-400 font-black">${res.onTimeCount || 0}</span>
+                </div>
+                <div class="text-xs font-bold text-rose-300 bg-rose-950/40 px-3 py-1.5 rounded-xl border border-rose-800/60">
+                  Cezalı: <span class="text-rose-400 font-black">${res.totalPenalizedCount || 0} Talebe</span>
+                </div>
+              </div>
+            </div>
+
+            ${list.length === 0 ? `
+              <!-- Cezalı Yoksa Kutlama Kartı -->
+              <div class="bg-gradient-to-b from-slate-900 via-emerald-950/20 to-slate-950 rounded-3xl border-2 border-emerald-500/40 p-12 text-center shadow-2xl max-w-2xl mx-auto my-8">
+                <div class="w-20 h-20 rounded-3xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-4xl mx-auto mb-4 shadow-lg shadow-emerald-500/10">
+                  🌟
+                </div>
+                <div class="inline-block px-3.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 font-black text-xs uppercase tracking-widest mb-3">
+                  MAŞAALLAH • TAM İNTİZAM
+                </div>
+                <h3 class="text-2xl sm:text-3xl font-black text-white tracking-tight mb-2">
+                  Şu Anda Kursumuzda Cezalı Talebe Bulunmamaktadır!
+                </h3>
+                <p class="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-lg mx-auto">
+                  Tüm talebelerimiz 5 vakit namazlarına, oda ve yatak nizamına, okul ve izin vakitlerine tam riayet etmiştir. Tüm talebelerimize teşekkür eder, bu güzel intizamın devamını dileriz.
+                </p>
+              </div>
+            ` : `
+              <!-- Cezalı Talebeler Listesi (Tablo / Kartlar) -->
+              <div class="bg-slate-900/90 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
+                <div class="overflow-x-auto max-h-[60vh]">
+                  <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr class="bg-slate-950/80 text-[11px] font-black uppercase text-slate-400 border-b border-slate-800 sticky top-0 z-10">
+                        <th class="p-3 text-center w-12">#</th>
+                        <th class="p-3 w-44">TALEBE ADI & SINIFI</th>
+                        <th class="p-3 text-center w-28">CEZA SÜRESİ</th>
+                        <th class="p-3 text-center w-36">KAPI ÇIKIŞ SAATİ</th>
+                        <th class="p-3">CEZA SEBEPLERİ VE İHLALLER</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/80">
+                      ${list.map((item, idx) => {
+                        const st = item.student || {};
+                        const rep = item.report || {};
+                        const infractions = rep.infractions || [];
+
+                        return `
+                          <tr class="hover:bg-rose-950/20 transition">
+                            <td class="p-3 text-center font-mono font-bold text-slate-500">
+                              ${idx + 1}
+                            </td>
+                            <td class="p-3">
+                              <div class="font-black text-sm text-white">${st.firstName} ${st.lastName}</div>
+                              <div class="text-[10px] text-slate-400 font-medium">${st.className || ''} • No: ${st.studentNo || ''}</div>
+                            </td>
+                            <td class="p-3 text-center">
+                              <span class="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono font-black text-xs shadow-sm">
+                                <span>⏱️</span>
+                                <span>+${rep.penaltyFormatted || (rep.penaltyMinutes + ' Dk')}</span>
+                              </span>
+                            </td>
+                            <td class="p-3 text-center">
+                              <div class="font-mono font-black text-sm text-rose-400">
+                                ${rep.calculatedExitTime || '13:00'}
+                              </div>
+                              <div class="text-[10px] text-slate-500 font-medium">
+                                Normal: ${rep.baseExitTime || '13:00'}
+                              </div>
+                            </td>
+                            <td class="p-3">
+                              <div class="flex flex-wrap items-center gap-1.5">
+                                ${infractions.length === 0 ? `
+                                  <span class="text-slate-500 text-[11px]">-</span>
+                                ` : infractions.map(inf => {
+                                  let badgeClass = 'bg-slate-950 text-slate-300 border-slate-800';
+                                  if (inf.category === 'namaz') badgeClass = 'bg-amber-950/40 text-amber-300 border-amber-800/50';
+                                  else if (inf.category === 'yatak') badgeClass = 'bg-teal-950/40 text-teal-300 border-teal-800/50';
+                                  else if (inf.category === 'okul') badgeClass = 'bg-blue-950/40 text-blue-300 border-blue-800/50';
+                                  else if (inf.category === 'izin_donusu') badgeClass = 'bg-purple-950/40 text-purple-300 border-purple-800/50';
+
+                                  return `
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border text-[11px] font-bold ${badgeClass}">
+                                      <span>${inf.categoryLabel || 'İntizam'}:</span>
+                                      <span class="font-normal text-slate-200">${inf.subLabel || inf.desc || ''}</span>
+                                      <span class="text-rose-400 font-mono font-black ml-0.5">(+${inf.penaltyMinutes || 30}dk)</span>
+                                    </span>
+                                  `;
+                                }).join('')}
+                              </div>
+                            </td>
+                          </tr>
+                        `;
+                      }).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            `}
+          </div>
+        `;
+      },
+
+      // Alt Kayan Haber Bandını (Ticker) Günün Görevlileriyle Zenginleştirme
+      updateTickerWithDuties(duties) {
+        const tickerEl = document.getElementById('pano-ticker');
+        if (!tickerEl) return;
+        const yemekcilerStr = (duties && Array.isArray(duties.yemekciler) && duties.yemekciler.length > 0)
+          ? duties.yemekciler.join(', ')
+          : 'Belirlenmedi';
+        const muezzinStr = (duties && duties.muezzin) ? duties.muezzin : 'Belirlenmedi';
+
+        tickerEl.innerHTML = `
+          🍽️ <strong>Günün Yemekçileri:</strong> ${yemekcilerStr} • 
+          📢 <strong>Günün Müezzini:</strong> ${muezzinStr} • 
+          🕌 5 Vakit namazını cemaatle kılanlara günlük +15 puan İbadet Bonusu! • 
+          🛏️ Sabah odasını ve yatağını nizami toplayana +15 puan • 
+          📚 Takviye ders sınavlarında 100 tam puan alan talebelerimize +50 şampiyonluk puanı! • 
+          "İki günü birbirine eşit olan ziyandadır." (Hadis-i Şerif)
         `;
       }
     };

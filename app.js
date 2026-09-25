@@ -51,7 +51,7 @@ window.App = {
           window.LeaveTrackerModule.renderView();
         } else if (this.activeTab === 'yoklama' && window.AttendanceModule) {
           window.AttendanceModule.renderView();
-        } else if (this.activeTab !== 'ogrenciler_excel') {
+        } else if (this.activeTab !== 'ogrenciler_excel' && this.activeTab !== 'ayarlar' && this.activeTab !== 'gorevler') {
           this.renderMainContent();
         }
       }
@@ -500,6 +500,8 @@ window.App = {
       activeTitle = '📊 Canlı Excel Tablosu';
     } else if (this.activeTab === 'personel') {
       activeTitle = '👨‍🏫 Personel Yönetimi';
+    } else if (this.activeTab === 'gorevler') {
+      activeTitle = '🎯 Günün Görevlileri';
     } else if (this.activeTab === 'ayarlar') {
       activeTitle = '⚙️ Sistem Ayarları';
     }
@@ -727,6 +729,26 @@ window.App = {
               <div>
                 <div class="text-xs font-black">Namaz Raporları</div>
                 <div class="text-[10px] text-slate-400 font-medium">Haftalık ve aylık katılım karnesi</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+
+          <!-- Günün Görevlileri (Yemekçi & Müezzin) -->
+          <button type="button" onclick="window.App.navigateFromDrawer('gorevler')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'gorevler'
+                ? 'bg-amber-50 text-amber-900 font-black border border-amber-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🎯</span>
+              <div>
+                <div class="text-xs font-black flex items-center gap-1.5">
+                  <span>Günün Görevlileri</span>
+                  <span class="text-[9px] bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded font-black tracking-wider uppercase">Pano</span>
+                </div>
+                <div class="text-[10px] text-slate-400 font-medium">Günün Yemekçileri & Müezzini Seçimi</div>
               </div>
             </div>
             <span class="text-slate-300">→</span>
@@ -1286,6 +1308,9 @@ window.App = {
     } else if (this.activeTab === 'personel') {
       main.innerHTML = `<div id="staff-container"></div>`;
       this.renderStaffView();
+    } else if (this.activeTab === 'gorevler') {
+      main.innerHTML = `<div id="duties-container"></div>`;
+      this.renderDailyDutiesView();
     } else if (this.activeTab === 'ayarlar') {
       main.innerHTML = `<div id="settings-container"></div>`;
       this.renderSettingsView();
@@ -2007,6 +2032,65 @@ window.App = {
           </div>
         </div>
 
+        <!-- Hadis-i Şerif Veritabanı ve TV Panosu Hadis Yönetimi -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 text-lg flex items-center justify-center shadow-inner">
+                📖
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-800 text-base leading-tight">Hadis-i Şerif Veritabanı (TV Panosu)</h3>
+                <p class="text-xs text-slate-500">Masaüstünüzdeki HADİS.docx dosyasından veya kendi listenizden metinleri yapıştırabilirsiniz</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95" title="Masaüstündeki HADİS.docx dosyasını seçerek otomatik aktarabilirsiniz">
+                <span>📂</span>
+                <span>HADİS.docx Dosyası Seç</span>
+                <input type="file" id="settings-hadis-file" accept=".docx,.doc,.txt" class="hidden" onchange="window.App.handleHadisDocUpload(event)">
+              </label>
+              <span class="px-2.5 py-1 bg-amber-100 text-amber-900 font-black text-xs rounded-xl border border-amber-300">
+                Canlı Pano v4.2
+              </span>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Masaüstündeki <strong>HADİS.docx</strong> dosyanızın içindeki tüm metni kopyalayıp aşağıdaki kutucuğa doğrudan yapıştırabilir (Ctrl+V) veya yukarıdaki <strong>"HADİS.docx Dosyası Seç"</strong> butonuyla tek tıkla yükleyebilirsiniz. Numaralandırmalar (1., 2.), tırnak işaretleri ve kaynaklar otomatik düzenlenir; siz pencereyi değiştirseniz dahi yazdıklarınız asla kaybolmaz.
+            </p>
+
+            <div class="relative">
+              <textarea id="settings-custom-hadisler" rows="8"
+                placeholder="Her satıra bir Hadis-i Şerif gelecek şekilde yapıştırınız veya dosya seçiniz...&#10;Örnek:&#10;1. İki günü birbirine eşit olan ziyandadır. (Beyhaki)&#10;2. Namaz dinin direğidir. (Tirmizi)"
+                class="w-full p-3.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 leading-relaxed"></textarea>
+              <div id="hadis-draft-notice" class="hidden absolute top-2.5 right-2.5 px-2 py-0.5 bg-amber-500 text-white font-bold text-[10px] rounded-md shadow-xs animate-pulse">
+                Taslak Hafızada Korunuyor
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="window.App.saveCustomHadislerSubmit()"
+                  class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-2 cursor-pointer active:scale-95">
+                  <span>💾</span>
+                  <span>Hadis Listesini Kaydet ve TV'ye Gönder</span>
+                </button>
+
+                <button type="button" onclick="window.App.restoreDefaultHadisler()"
+                  class="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">
+                  Varsayılanları Yükle
+                </button>
+              </div>
+
+              <span id="hadis-count-badge" class="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200">
+                0 Hadis-i Şerif
+              </span>
+            </div>
+          </div>
+        </div>
+
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h3 class="font-bold text-slate-800 text-base mb-2 flex items-center gap-2">
             <span>💾</span> Yerel Dosya Yedekleme
@@ -2027,6 +2111,281 @@ window.App = {
         </div>
       </div>
     `;
+
+    // Ayarlar ekranı açıldığında özel hadisleri textarea'ya otomatik yükle & taslak koruma
+    try {
+      const textarea = document.getElementById('settings-custom-hadisler');
+      const badge = document.getElementById('hadis-count-badge');
+      const notice = document.getElementById('hadis-draft-notice');
+
+      if (textarea) {
+        // 1. Önce kaydedilmemiş taslak (draft) var mı kontrol et
+        const savedDraft = localStorage.getItem('oay_hadis_draft');
+        if (savedDraft && savedDraft.trim()) {
+          textarea.value = savedDraft;
+          if (notice) notice.classList.remove('hidden');
+          const parsed = this.parseHadisText(savedDraft);
+          if (badge) {
+            badge.textContent = `⚠️ ${parsed.length} Hadis (Kaydedilmemiş Taslak)`;
+            badge.className = 'text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-300';
+          }
+        } else {
+          // Taslak yoksa kayıtlı güncel hadisleri getir
+          const hadisList = (window.Store && typeof window.Store.getCustomHadisler === 'function') 
+            ? window.Store.getCustomHadisler() 
+            : [];
+          if (hadisList.length > 0) {
+            textarea.value = hadisList.map(h => `${h.text} — ${h.author || 'Hadis-i Şerif'}`).join('\n');
+            if (badge) {
+              badge.textContent = `✓ ${hadisList.length} Hadis-i Şerif (Kayıtlı)`;
+              badge.className = 'text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1.5 rounded-xl border border-emerald-300';
+            }
+          }
+        }
+
+        // 2. Kullanıcı her yazdığında veya yapıştırdığında anlık taslak olarak kaydet
+        textarea.addEventListener('input', () => {
+          const val = textarea.value;
+          localStorage.setItem('oay_hadis_draft', val);
+          const parsed = this.parseHadisText(val);
+          if (notice) notice.classList.remove('hidden');
+          if (badge) {
+            badge.textContent = `✏️ ${parsed.length} Hadis Algılandı (Kaydet Butonuna Basınız)`;
+            badge.className = 'text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-300';
+          }
+        });
+      }
+    } catch(e) {
+      console.warn('Hadis UI setup hatası:', e);
+    }
+  },
+
+  // Metin içinden hadisleri ve kaynaklarını akıllıca çıkaran evrensel ayrıştırıcı
+  parseHadisText(rawText) {
+    if (!rawText || typeof rawText !== 'string') return [];
+    
+    // Satır sonlarını normalize et
+    const normalized = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // Paragraf veya satır bazında ayır
+    const paragraphs = normalized.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    let chunks = [];
+    if (paragraphs.length > 1 && paragraphs.some(p => p.length > 25)) {
+      chunks = paragraphs;
+    } else {
+      chunks = normalized.split('\n').map(l => l.trim()).filter(Boolean);
+    }
+
+    const results = [];
+    
+    for (let i = 0; i < chunks.length; i++) {
+      let chunk = chunks[i].trim();
+      if (!chunk) continue;
+
+      // Eğer satır sadece bir kaynak/ravi ise (örn: "(Buhari)", "Kaynak: Tirmizi", "— Müslim") bir önceki hadise ekle
+      const isJustCitation = /^(\(|\[|—|--|-|Kaynak:|Ravi:)/i.test(chunk) && chunk.length < 70;
+      if (isJustCitation && results.length > 0) {
+        let cleanCitation = chunk.replace(/^[\(\[\—\-\s]+|[\)\]\s]+$/g, '').trim();
+        if (cleanCitation) {
+          results[results.length - 1].author = cleanCitation;
+          continue;
+        }
+      }
+
+      // Başındaki 1., 2., 1-, [1], (1), •, * veya "Hadis 1:" gibi numaralandırmaları temizle
+      chunk = chunk.replace(/^(\d+[\.\-\)]|\(\d+\)|\[\d+\]|•|\*|-|Hadis\s*\d+[:\.\-]?)\s*/i, '').trim();
+
+      let text = chunk;
+      let author = 'Hadis-i Şerif';
+
+      // Tire, uzun tire veya iki tire ile ayrılmış kaynakları ayıkla
+      const emDashIdx = chunk.lastIndexOf('—');
+      const doubleDashIdx = chunk.lastIndexOf('--');
+      const spacedHyphenIdx = chunk.lastIndexOf(' - ');
+
+      if (emDashIdx !== -1 && emDashIdx > 10) {
+        text = chunk.substring(0, emDashIdx).trim();
+        author = chunk.substring(emDashIdx + 1).trim() || 'Hadis-i Şerif';
+      } else if (doubleDashIdx !== -1 && doubleDashIdx > 10) {
+        text = chunk.substring(0, doubleDashIdx).trim();
+        author = chunk.substring(doubleDashIdx + 2).trim() || 'Hadis-i Şerif';
+      } else if (spacedHyphenIdx !== -1 && spacedHyphenIdx > 10) {
+        text = chunk.substring(0, spacedHyphenIdx).trim();
+        author = chunk.substring(spacedHyphenIdx + 3).trim() || 'Hadis-i Şerif';
+      } else {
+        // Cümle sonundaki parantez içi kaynakları ayıkla: örn: (Buhari) veya (Hadis-i Şerif - Tirmizi)
+        const parenMatch = chunk.match(/\((Hadis-i\s*Şerif[^\)]*|[A-ZÇĞİÖŞÜ][a-zA-ZçğıöşüÇĞİÖŞÜ\s,\.:;0-9\/]+)\)\s*$/);
+        if (parenMatch && parenMatch.index > 10) {
+          text = chunk.substring(0, parenMatch.index).trim();
+          author = parenMatch[1].trim();
+        }
+      }
+
+      // Tırnak işaretlerini ve baş/son boşlukları temizle
+      text = text.replace(/^["“'«\s]+|["”'»\s]+$/g, '').trim();
+      author = author.replace(/^[\(\[\—\-\s]+|[\)\]\s]+$/g, '').trim() || 'Hadis-i Şerif';
+
+      if (text.length >= 5) {
+        results.push({ text, author });
+      }
+    }
+
+    return results;
+  },
+
+  // .docx dosyasını pure vanilla JS ile okuma (ZIP içindeki word/document.xml metnini ayıklar)
+  async extractTextFromDocx(file) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let offset = 0;
+      while (offset < bytes.length - 30) {
+        if (bytes[offset] === 0x50 && bytes[offset+1] === 0x4b && bytes[offset+2] === 0x03 && bytes[offset+3] === 0x04) {
+          const compMethod = bytes[offset + 8] | (bytes[offset + 9] << 8);
+          const compSize = bytes[offset + 18] | (bytes[offset + 19] << 8) | (bytes[offset + 20] << 16) | (bytes[offset + 21] << 24);
+          const fnLen = bytes[offset + 26] | (bytes[offset + 27] << 8);
+          const extraLen = bytes[offset + 28] | (bytes[offset + 29] << 8);
+          const fnBytes = bytes.slice(offset + 30, offset + 30 + fnLen);
+          const filename = new TextDecoder().decode(fnBytes);
+          const dataStart = offset + 30 + fnLen + extraLen;
+          
+          if (filename === 'word/document.xml') {
+            let xmlText = '';
+            if (compMethod === 0) {
+              xmlText = new TextDecoder('utf-8').decode(bytes.slice(dataStart, dataStart + compSize));
+            } else if (compMethod === 8 && typeof DecompressionStream !== 'undefined') {
+              const compressedSlice = bytes.slice(dataStart, dataStart + compSize);
+              const ds = new DecompressionStream('deflate-raw');
+              const writer = ds.writable.getWriter();
+              writer.write(compressedSlice);
+              writer.close();
+              const response = new Response(ds.readable);
+              xmlText = await response.text();
+            }
+            if (xmlText) {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(xmlText, 'application/xml');
+              const paragraphs = doc.getElementsByTagName('w:p');
+              const lines = [];
+              for (let p of paragraphs) {
+                const texts = p.getElementsByTagName('w:t');
+                let pText = '';
+                for (let t of texts) {
+                  pText += t.textContent;
+                }
+                if (pText.trim()) lines.push(pText.trim());
+              }
+              return lines.join('\n');
+            }
+          }
+          offset = dataStart + (compSize > 0 ? compSize : 1);
+        } else {
+          offset++;
+        }
+      }
+      return null;
+    } catch (err) {
+      console.warn('Docx extract error:', err);
+      return null;
+    }
+  },
+
+  // Kullanıcı masaüstünden HADİS.docx dosyasını seçtiğinde
+  async handleHadisDocUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const textarea = document.getElementById('settings-custom-hadisler');
+    const badge = document.getElementById('hadis-count-badge');
+    const notice = document.getElementById('hadis-draft-notice');
+
+    try {
+      this.showToast('Dosya inceleniyor ve metinler aktarılıyor...', 'info');
+      let text = '';
+      if (file.name.toLowerCase().endsWith('.docx')) {
+        text = await this.extractTextFromDocx(file);
+      }
+      if (!text) {
+        text = await file.text();
+      }
+
+      if (text && text.trim()) {
+        if (textarea) {
+          textarea.value = text.trim();
+          localStorage.setItem('oay_hadis_draft', text.trim());
+          const parsed = this.parseHadisText(text);
+          if (badge) {
+            badge.textContent = `📋 ${parsed.length} Hadis Algılandı (Kaydetmek için butona basınız)`;
+            badge.className = 'text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-300';
+          }
+          if (notice) notice.classList.remove('hidden');
+          this.showToast(`✓ ${file.name} dosyasından ${parsed.length} hadis başarıyla aktarıldı. Lütfen "Hadis Listesini Kaydet" butonuna basarak onaylayınız.`, 'success');
+        }
+      } else {
+        this.showToast('Dosya içeriği okunamadı. Lütfen Word içinden kopyalayıp kutucuğa doğrudan yapıştırınız.', 'warning');
+      }
+    } catch (e) {
+      console.error('Hadis dosya okuma hatası:', e);
+      this.showToast('Dosya açılırken bir hata oluştu. Lütfen Word içinden kopyalayıp yapıştırınız.', 'danger');
+    } finally {
+      event.target.value = '';
+    }
+  },
+
+  saveCustomHadislerSubmit() {
+    const textarea = document.getElementById('settings-custom-hadisler');
+    if (!textarea) return;
+    const rawVal = textarea.value.trim();
+    if (!rawVal) {
+      this.showToast('Lütfen en az bir Hadis-i Şerif giriniz.', 'warning');
+      return;
+    }
+
+    const hadisList = this.parseHadisText(rawVal);
+    if (hadisList.length === 0) {
+      this.showToast('Geçerli bir Hadis-i Şerif metni bulunamadı. Lütfen kontrol ediniz.', 'warning');
+      return;
+    }
+
+    if (window.Store && typeof window.Store.saveCustomHadisler === 'function') {
+      window.Store.saveCustomHadisler(hadisList);
+      localStorage.removeItem('oay_hadis_draft');
+
+      // Kutucuğu da tertemiz formatlanmış haliyle güncelle
+      textarea.value = hadisList.map(h => `${h.text} — ${h.author || 'Hadis-i Şerif'}`).join('\n');
+
+      const badge = document.getElementById('hadis-count-badge');
+      if (badge) {
+        badge.textContent = `✓ ${hadisList.length} Hadis-i Şerif (Kayıtlı & Canlı TV'de)`;
+        badge.className = 'text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1.5 rounded-xl border border-emerald-300';
+      }
+      const notice = document.getElementById('hadis-draft-notice');
+      if (notice) notice.classList.add('hidden');
+
+      this.showToast(`✓ ${hadisList.length} adet Hadis-i Şerif başarıyla kaydedildi ve TV panosuna bağlandı!`, 'success');
+    }
+  },
+
+  restoreDefaultHadisler() {
+    const defaults = (window.HADIS_LISTESI && Array.isArray(window.HADIS_LISTESI))
+      ? window.HADIS_LISTESI
+      : [];
+    if (defaults.length > 0 && window.Store) {
+      window.Store.saveCustomHadisler(defaults);
+      localStorage.removeItem('oay_hadis_draft');
+      const textarea = document.getElementById('settings-custom-hadisler');
+      if (textarea) {
+        textarea.value = defaults.map(h => `${h.text} — ${h.author || 'Hadis-i Şerif'}`).join('\n');
+      }
+      const badge = document.getElementById('hadis-count-badge');
+      if (badge) {
+        badge.textContent = `✓ ${defaults.length} Hadis-i Şerif (Varsayılanlar)`;
+        badge.className = 'text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1.5 rounded-xl border border-emerald-300';
+      }
+      const notice = document.getElementById('hadis-draft-notice');
+      if (notice) notice.classList.add('hidden');
+      this.showToast('Varsayılan Hadis-i Şerifler yüklendi.', 'info');
+    }
   },
 
   saveSettingsSubmit(event) {
@@ -2050,9 +2409,374 @@ window.App = {
 
     window.Store.saveSettings(payload);
 
-    this.showToast('Ayarlar, kurs logosu ve canlı bulut bağlantısı kaydedildi!', 'success');
+    // Eğer hadis kutusunda taslak veya değiştirilmiş veri varsa onu da otomatik kaydet
+    const hadisTextarea = document.getElementById('settings-custom-hadisler');
+    if (hadisTextarea && hadisTextarea.value.trim()) {
+      const parsed = this.parseHadisText(hadisTextarea.value.trim());
+      if (parsed.length > 0 && window.Store && typeof window.Store.saveCustomHadisler === 'function') {
+        window.Store.saveCustomHadisler(parsed);
+        localStorage.removeItem('oay_hadis_draft');
+      }
+    }
+
+    this.showToast('Tüm ayarlar, Hadis-i Şerifler ve TV bağlantısı kaydedildi!', 'success');
     this.renderHeader();
     this.renderSettingsView();
+  },
+
+  // ========================================================
+  // --- GÜNÜN GÖREVLİLERİ YÖNETİMİ (YEMEKÇİLER & MÜEZZİN) ---
+  // ========================================================
+  selectedDutyDate: '',
+  draftDutyYemekciler: null,
+  draftDutyMuezzin: null,
+  draftDutyNote: null,
+
+  renderDailyDutiesView() {
+    const container = document.getElementById('duties-container');
+    if (!container) return;
+
+    if (!this.selectedDutyDate) {
+      this.selectedDutyDate = new Date().toISOString().split('T')[0];
+    }
+    const targetDate = this.selectedDutyDate;
+    const storeDuties = (window.Store && typeof window.Store.getDailyDuties === 'function')
+      ? window.Store.getDailyDuties(targetDate)
+      : { yemekciler: [], muezzin: '', note: '' };
+
+    if (this.draftDutyYemekciler === null) {
+      this.draftDutyYemekciler = Array.isArray(storeDuties.yemekciler) ? [...storeDuties.yemekciler] : [];
+    }
+    if (this.draftDutyMuezzin === null) {
+      this.draftDutyMuezzin = storeDuties.muezzin || '';
+    }
+    if (this.draftDutyNote === null) {
+      this.draftDutyNote = storeDuties.note || '';
+    }
+
+    const students = (window.Store && typeof window.Store.getStudents === 'function')
+      ? window.Store.getStudents(false)
+      : [];
+
+    const dateOptions = { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' };
+    const dateFormatted = new Date(targetDate + 'T00:00:00').toLocaleDateString('tr-TR', dateOptions);
+
+    const currentYemekciler = this.draftDutyYemekciler || [];
+    const currentMuezzin = this.draftDutyMuezzin || '';
+    const currentNote = this.draftDutyNote || '';
+
+    container.innerHTML = `
+      <div class="max-w-4xl mx-auto space-y-6 animate-fade-in">
+        
+        <!-- Üst Başlık ve Tarih Seçici -->
+        <div class="bg-gradient-to-r from-slate-900 via-amber-950/40 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-amber-500/30 flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-3xl shadow-lg shrink-0">
+              🎯
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="font-black text-white text-lg sm:text-xl">Günün Görevlileri Yönetimi</h3>
+                <span class="px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider">Canlı Pano</span>
+              </div>
+              <p class="text-xs text-amber-200/80 mt-0.5">
+                ${dateFormatted} • Yemekhane nöbetçileri ve vakit müezzini seçimi
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <input type="date" value="${targetDate}" 
+              onchange="window.App.changeDutyDate(this.value)"
+              class="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-amber-300 focus:border-amber-400 focus:outline-none cursor-pointer">
+            <button type="button" onclick="window.App.changeDutyDate(new Date().toISOString().split('T')[0])"
+              class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow transition cursor-pointer">
+              Bugün
+            </button>
+            <a href="pano.html" target="_blank"
+              class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-amber-500/40 transition flex items-center gap-1.5 cursor-pointer">
+              <span>📺</span>
+              <span class="hidden sm:inline">Panoda Gör ↗</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- 🍽️ 1. GÜNÜN YEMEKÇİLERİ KARTI -->
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 text-xl flex items-center justify-center shadow-inner">
+                    🍽️
+                  </div>
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-base">Günün Yemekçileri</h4>
+                    <p class="text-xs text-slate-500">Mutfak ve sofra görevlileri (${currentYemekciler.length} seçildi)</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Hızlı Talebe Ekleme Formu -->
+              <div class="space-y-3 mb-4">
+                <label class="block text-[11px] font-bold text-slate-600 uppercase">
+                  TALEBE SEÇİP EKLEYİNİZ
+                </label>
+                <div class="flex items-center gap-2">
+                  <select id="duty-yemekci-select" 
+                    class="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:bg-white focus:border-amber-500">
+                    <option value="">-- Talebe Seçiniz --</option>
+                    ${students.map(s => `
+                      <option value="${s.firstName} ${s.lastName} (${s.className})">
+                        ${s.firstName} ${s.lastName} (${s.className} • No: ${s.studentNo})
+                      </option>
+                    `).join('')}
+                  </select>
+                  <button type="button" onclick="window.App.addYemekciFromSelect()"
+                    class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl shadow transition cursor-pointer">
+                    + Ekle
+                  </button>
+                </div>
+
+                <!-- Manuel İsim Girişi Alternatifi -->
+                <div class="flex items-center gap-2 pt-1">
+                  <input type="text" id="duty-yemekci-custom-text" placeholder="Veya manuel isim yazınız..."
+                    class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
+                  <button type="button" onclick="window.App.addYemekciFromCustomText()"
+                    class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition cursor-pointer">
+                    Ekle
+                  </button>
+                </div>
+              </div>
+
+              <!-- Seçilen Yemekçiler Listesi -->
+              <div class="space-y-2">
+                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  NÖBETÇİ LİSTESİ (${currentYemekciler.length})
+                </div>
+                ${currentYemekciler.length === 0 ? `
+                  <div class="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
+                    Henüz yemekçi atanmadı. Yukarıdan talebe seçip "+ Ekle" butonuna basınız.
+                  </div>
+                ` : `
+                  <div class="space-y-1.5">
+                    ${currentYemekciler.map((name, idx) => `
+                      <div class="p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                          <span class="w-6 h-6 rounded-lg bg-amber-500 text-slate-950 text-xs font-black flex items-center justify-center">
+                            ${idx + 1}
+                          </span>
+                          <span class="font-bold text-xs text-amber-950">${name}</span>
+                        </div>
+                        <button type="button" onclick="window.App.removeYemekciAtIndex(${idx})"
+                          class="w-6 h-6 rounded-lg bg-white hover:bg-rose-50 text-rose-500 hover:text-rose-700 border border-rose-200 text-xs font-bold transition flex items-center justify-center cursor-pointer"
+                          title="Listeden Çıkar">
+                          ✕
+                        </button>
+                      </div>
+                    `).join('')}
+                  </div>
+                `}
+              </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+              <span>TV Panosunda "Günün Yemekçileri" slaytında görünür</span>
+              ${currentYemekciler.length > 0 ? `
+                <button type="button" onclick="window.App.clearAllYemekciler()" class="text-rose-500 hover:underline cursor-pointer">
+                  Tümünü Temizle
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- 📢 2. GÜNÜN MÜEZZİNİ KARTI -->
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 text-xl flex items-center justify-center shadow-inner">
+                    📢
+                  </div>
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-base">Günün Müezzini</h4>
+                    <p class="text-xs text-slate-500">5 Vakit namaz ezan ve cemaat nöbetçisi</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Müezzin Seçici -->
+              <div class="space-y-3 mb-6">
+                <label class="block text-[11px] font-bold text-slate-600 uppercase">
+                  MÜEZZİN TALEBEYİ SEÇİNİZ
+                </label>
+                <select id="duty-muezzin-select" 
+                  onchange="window.App.draftDutyMuezzin = this.value; window.App.renderDailyDutiesView();"
+                  class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-500">
+                  <option value="">-- Müezzin Talebeyi Seçiniz --</option>
+                  ${students.map(s => {
+                    const fullName = `${s.firstName} ${s.lastName} (${s.className})`;
+                    const isSelected = currentMuezzin.startsWith(`${s.firstName} ${s.lastName}`);
+                    return `
+                      <option value="${fullName}" ${isSelected ? 'selected' : ''}>
+                        ${s.firstName} ${s.lastName} (${s.className} • No: ${s.studentNo})
+                      </option>
+                    `;
+                  }).join('')}
+                </select>
+
+                <!-- Manuel Müezzin Girişi Alternatifi -->
+                <div class="flex items-center gap-2 pt-1">
+                  <input type="text" id="duty-muezzin-custom-text" placeholder="Veya manuel isim yazınız..."
+                    value="${currentMuezzin && !students.some(s => currentMuezzin.startsWith(`${s.firstName} ${s.lastName}`)) ? currentMuezzin : ''}"
+                    onchange="window.App.draftDutyMuezzin = this.value.trim(); window.App.renderDailyDutiesView();"
+                    class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
+                </div>
+              </div>
+
+              <!-- Seçili Müezzin Rozeti -->
+              <div class="p-5 bg-gradient-to-tr from-indigo-50 via-purple-50 to-slate-50 rounded-2xl border-2 border-indigo-200 text-center">
+                <div class="text-3xl mb-1">🕌</div>
+                <div class="text-[10px] font-black uppercase text-indigo-700 tracking-wider">GÜNÜN MÜEZZİNİ</div>
+                ${currentMuezzin ? `
+                  <h4 class="text-lg font-black text-slate-900 mt-1">
+                    ${currentMuezzin}
+                  </h4>
+                  <div class="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                    <span>🟢</span> <span>Görev Atandı</span>
+                  </div>
+                  <div class="mt-3">
+                    <button type="button" onclick="window.App.draftDutyMuezzin = ''; window.App.renderDailyDutiesView();"
+                      class="text-xs text-rose-600 hover:underline font-bold cursor-pointer">
+                      Görevi Kaldır
+                    </button>
+                  </div>
+                ` : `
+                  <div class="text-xs text-slate-400 font-bold mt-1">
+                    Henüz atanmadı
+                  </div>
+                `}
+              </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-400">
+              TV Panosunda "Günün Müezzini" slaytında ve alt haber bandında görünür.
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 📌 GÜNÜN ÖZEL DUYURUSU / NOTU -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-3">
+          <label class="block text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+            <span>📌</span> <span>GÜNÜN DUYURUSU VEYA ÖZEL NOTU (İSTEĞE BAĞLI)</span>
+          </label>
+          <input type="text" id="duty-note-input"
+            value="${currentNote}"
+            oninput="window.App.draftDutyNote = this.value;"
+            placeholder="Örn: Bugün öğle yemeği 12:45'te başlayacaktır. Akşam ikramı yemekhanededir."
+            class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-amber-500">
+          <p class="text-[11px] text-slate-400">
+            Bu not TV Panosunda Görevliler slaytının altında özel kutucuk olarak yayınlanır.
+          </p>
+        </div>
+
+        <!-- KAYDET VE TV PANOSUNA GÖNDER BUTONU -->
+        <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-900 text-white p-5 rounded-3xl shadow-xl">
+          <div class="text-xs">
+            <span class="font-black text-amber-400">Canlı Senkronizasyon:</span>
+            <span class="text-slate-300 ml-1">Kaydettiğiniz anda TV Panosu ve tüm açık cihazlar anında güncellenir.</span>
+          </div>
+
+          <button type="button" onclick="window.App.saveDailyDutiesSubmit()"
+            class="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer text-sm">
+            <span>💾</span>
+            <span>Görevlileri Kaydet ve TV Panosuna Gönder</span>
+          </button>
+        </div>
+
+      </div>
+    `;
+  },
+
+  changeDutyDate(newDate) {
+    if (!newDate) return;
+    this.selectedDutyDate = newDate;
+    this.draftDutyYemekciler = null;
+    this.draftDutyMuezzin = null;
+    this.draftDutyNote = null;
+    this.renderDailyDutiesView();
+  },
+
+  addYemekciFromSelect() {
+    const sel = document.getElementById('duty-yemekci-select');
+    if (!sel || !sel.value) {
+      this.showToast('Lütfen listeden bir talebe seçiniz.', 'warning');
+      return;
+    }
+    const val = sel.value.trim();
+    if (!Array.isArray(this.draftDutyYemekciler)) {
+      this.draftDutyYemekciler = [];
+    }
+    if (this.draftDutyYemekciler.includes(val)) {
+      this.showToast('Bu talebe zaten yemekçi listesinde ekli.', 'warning');
+      return;
+    }
+    this.draftDutyYemekciler.push(val);
+    sel.value = '';
+    this.renderDailyDutiesView();
+  },
+
+  addYemekciFromCustomText() {
+    const input = document.getElementById('duty-yemekci-custom-text');
+    if (!input || !input.value.trim()) return;
+    const val = input.value.trim();
+    if (!Array.isArray(this.draftDutyYemekciler)) {
+      this.draftDutyYemekciler = [];
+    }
+    if (this.draftDutyYemekciler.includes(val)) {
+      this.showToast('Bu isim zaten listede ekli.', 'warning');
+      return;
+    }
+    this.draftDutyYemekciler.push(val);
+    input.value = '';
+    this.renderDailyDutiesView();
+  },
+
+  removeYemekciAtIndex(idx) {
+    if (Array.isArray(this.draftDutyYemekciler)) {
+      this.draftDutyYemekciler.splice(idx, 1);
+      this.renderDailyDutiesView();
+    }
+  },
+
+  clearAllYemekciler() {
+    this.draftDutyYemekciler = [];
+    this.renderDailyDutiesView();
+  },
+
+  saveDailyDutiesSubmit() {
+    const noteInput = document.getElementById('duty-note-input');
+    const note = noteInput ? noteInput.value.trim() : (this.draftDutyNote || '');
+    const date = this.selectedDutyDate || new Date().toISOString().split('T')[0];
+
+    const payload = {
+      date,
+      yemekciler: this.draftDutyYemekciler || [],
+      muezzin: this.draftDutyMuezzin || '',
+      note
+    };
+
+    if (window.Store && typeof window.Store.saveDailyDuties === 'function') {
+      const res = window.Store.saveDailyDuties(payload);
+      if (res && res.success) {
+        this.showToast(`✓ ${date} tarihli görevliler başarıyla kaydedildi ve TV panosuna iletildi!`, 'success');
+      } else {
+        this.showToast('Görevliler kaydedildi.', 'success');
+      }
+    }
+    this.renderDailyDutiesView();
   },
 
   async handlePushAllToCloud() {

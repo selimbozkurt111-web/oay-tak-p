@@ -15,6 +15,8 @@ const STORAGE_KEYS = {
   LEAVE_RETURN: 'yoklama_leave_returns_v1',
   BONUS_POINTS: 'yoklama_bonus_points_v1',
   CUSTOM_COLUMNS: 'yoklama_custom_columns_v1',
+  DUTIES: 'yoklama_daily_duties_v1',
+  HADISLER: 'yoklama_custom_hadisler_v1',
   SETTINGS: 'yoklama_settings',
   INITIALIZED: 'yoklama_init_v5'
 };
@@ -365,6 +367,9 @@ class DataStore {
       customColumns: this.getCustomColumns(),
       passive_student_ids: this.getPassiveStudentIds(),
       deleted_student_ids: this.getDeletedStudentIds(),
+      dailyDuties: this.getDailyDuties(),
+      hadisler: this.getCustomHadisler(),
+      hadisler_updatedAt: (localStorage.getItem('yoklama_custom_hadisler_meta_v1') ? JSON.parse(localStorage.getItem('yoklama_custom_hadisler_meta_v1')).updatedAt : new Date().toISOString()),
       lastSyncedAt: new Date().toISOString()
     };
 
@@ -630,6 +635,42 @@ class DataStore {
       localStorage.setItem(STORAGE_KEYS.CUSTOM_COLUMNS, JSON.stringify(cloudCols));
     }
 
+    // 11. Günün Görevlileri (Yemekçi & Müezzin)
+    const cloudDuties = cloudData.dailyDuties || cloudData.daily_duties;
+    if (cloudDuties && typeof cloudDuties === 'object') {
+      localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(cloudDuties));
+      window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: cloudDuties }));
+    }
+
+    // 12. Özel Hadis-i Şerif Listesi (Akıllı birleştirme: En güncel updatedAt kazanır)
+    let cloudHadisList = null;
+    if (Array.isArray(cloudData.hadisler)) {
+      cloudHadisList = cloudData.hadisler;
+    } else if (cloudData.hadisler && typeof cloudData.hadisler === 'object') {
+      cloudHadisList = Object.values(cloudData.hadisler).filter(Boolean);
+    }
+
+    if (Array.isArray(cloudHadisList) && cloudHadisList.length > 0) {
+      let localMeta = null;
+      try {
+        const rawMeta = localStorage.getItem('yoklama_custom_hadisler_meta_v1');
+        if (rawMeta) localMeta = JSON.parse(rawMeta);
+      } catch (e) {}
+
+      const cloudUpdatedAt = cloudData.hadisler_updatedAt || cloudData.lastSyncedAt;
+      const localUpdatedAt = localMeta ? localMeta.updatedAt : null;
+
+      // Yerel düzenleme buluttan daha yeniyse bulutun eski verisi yereli ASLA EZEMEZ!
+      if (!localUpdatedAt || !cloudUpdatedAt || new Date(cloudUpdatedAt) >= new Date(localUpdatedAt)) {
+        localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(cloudHadisList));
+        localStorage.setItem('yoklama_custom_hadisler_meta_v1', JSON.stringify({
+          list: cloudHadisList,
+          updatedAt: cloudUpdatedAt || new Date().toISOString()
+        }));
+        window.dispatchEvent(new CustomEvent('hadisler-updated', { detail: cloudHadisList }));
+      }
+    }
+
     window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: cloudData }));
   }
 
@@ -659,6 +700,23 @@ class DataStore {
             this.handleRealtimeLeaveReturn(path, data);
           } else if (path.startsWith('settings')) {
             this.handleRealtimeSettings(path, data);
+          } else if (path.startsWith('hadisler')) {
+            if (data) {
+              const list = Array.isArray(data) ? data : (typeof data === 'object' ? Object.values(data).filter(Boolean) : null);
+              if (list && list.length > 0) {
+                localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(list));
+                localStorage.setItem('yoklama_custom_hadisler_meta_v1', JSON.stringify({
+                  list,
+                  updatedAt: new Date().toISOString()
+                }));
+                window.dispatchEvent(new CustomEvent('hadisler-updated', { detail: list }));
+              }
+            }
+          } else if (path.startsWith('dailyDuties') || path.startsWith('daily_duties')) {
+            if (data && typeof data === 'object') {
+              localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(data));
+              window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: data }));
+            }
           } else {
             this.syncFromCloud();
           }
@@ -2699,11 +2757,165 @@ class DataStore {
       if (parsed.leaveReturns) localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(parsed.leaveReturns));
       if (parsed.bonusPoints) localStorage.setItem(STORAGE_KEYS.BONUS_POINTS, JSON.stringify(parsed.bonusPoints));
       if (parsed.customColumns) localStorage.setItem(STORAGE_KEYS.CUSTOM_COLUMNS, JSON.stringify(parsed.customColumns));
+      if (parsed.dailyDuties) localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(parsed.dailyDuties));
+      if (parsed.hadisler) localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(parsed.hadisler));
       if (parsed.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(parsed.settings));
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
     }
+  }
+
+  // ========================================================
+  // --- GÜNÜN GÖREVLİLERİ (YEMEKÇİ & MÜEZZİN) ---
+  // ========================================================
+  getDailyDuties(targetDate) {
+    const today = targetDate || new Date().toISOString().split('T')[0];
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.DUTIES);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (parsed && typeof parsed === 'object') {
+          if (parsed[today]) return parsed[today];
+          if (parsed.date === today) return parsed;
+          return {
+            date: today,
+            yemekciler: Array.isArray(parsed.yemekciler) ? parsed.yemekciler : [],
+            muezzin: parsed.muezzin || '',
+            note: parsed.note || ''
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('getDailyDuties error:', e);
+    }
+    return {
+      date: today,
+      yemekciler: [],
+      muezzin: '',
+      note: ''
+    };
+  }
+
+  saveDailyDuties(duties) {
+    const today = (duties && duties.date) || new Date().toISOString().split('T')[0];
+    const dutyData = {
+      date: today,
+      yemekciler: Array.isArray(duties.yemekciler) ? duties.yemekciler : [],
+      muezzin: duties.muezzin || '',
+      note: duties.note || '',
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      let storeObj = {};
+      const raw = localStorage.getItem(STORAGE_KEYS.DUTIES);
+      if (raw) {
+        try { storeObj = JSON.parse(raw) || {}; } catch(e){}
+      }
+      storeObj[today] = dutyData;
+      storeObj.date = today;
+      storeObj.yemekciler = dutyData.yemekciler;
+      storeObj.muezzin = dutyData.muezzin;
+      storeObj.note = dutyData.note;
+
+      localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(storeObj));
+
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/daily_duties', storeObj);
+      }
+      window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: dutyData }));
+      return { success: true, data: dutyData };
+    } catch (err) {
+      console.error('saveDailyDuties error:', err);
+      return { success: false, message: err.message };
+    }
+  }
+
+  // ========================================================
+  // --- ÖZEL HADİS-İ ŞERİF VERİTABANI MOTORU ---
+  // ========================================================
+  getCustomHadisler() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.HADISLER);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+        if (parsed && Array.isArray(parsed.list) && parsed.list.length > 0) {
+          return parsed.list;
+        }
+      }
+    } catch (e) {}
+
+    try {
+      const meta = localStorage.getItem('yoklama_custom_hadisler_meta_v1');
+      if (meta) {
+        const parsedMeta = JSON.parse(meta);
+        if (parsedMeta && Array.isArray(parsedMeta.list) && parsedMeta.list.length > 0) {
+          return parsedMeta.list;
+        }
+      }
+    } catch (e) {}
+
+    if (window.HADIS_LISTESI && Array.isArray(window.HADIS_LISTESI) && window.HADIS_LISTESI.length > 0) {
+      return window.HADIS_LISTESI;
+    }
+
+    return [
+      { text: "İki günü birbirine eşit olan ziyandadır.", author: "Hadis-i Şerif (Beyhaki)" },
+      { text: "Namaz dinin direğidir; kim onu ikame ederse dinini ikame etmiş olur.", author: "Hadis-i Şerif (Tirmizi)" },
+      { text: "Sizin en hayırlınız, Kur'an'ı öğrenen ve öğretendir.", author: "Hadis-i Şerif (Buhari)" },
+      { text: "İlim tahsil etmek her Müslümana farzdır.", author: "Hadis-i Şerif (İbn Mace)" },
+      { text: "Müminlerin iman bakımından en mükemmeli, ahlakı en güzel olanıdır.", author: "Hadis-i Şerif (Tirmizi)" },
+      { text: "Temizlik imanın yarısıdır.", author: "Hadis-i Şerif (Müslim)" },
+      { text: "Cemaatle kılınan namaz, tek başına kılınan namazdan yirmi yedi derece daha faziletlidir.", author: "Hadis-i Şerif (Buhari & Müslim)" },
+      { text: "Müslüman, elinden ve dilinden diğer Müslümanların emniyette olduğu kimsedir.", author: "Hadis-i Şerif (Buhari)" }
+    ];
+  }
+
+  saveCustomHadisler(hadisList) {
+    if (!Array.isArray(hadisList) || hadisList.length === 0) {
+      return { success: false, message: 'Hadis listesi boş.' };
+    }
+    const nowIso = new Date().toISOString();
+    const dataObj = {
+      list: hadisList,
+      updatedAt: nowIso
+    };
+
+    localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(hadisList));
+    localStorage.setItem('yoklama_custom_hadisler_meta_v1', JSON.stringify(dataObj));
+    try { localStorage.removeItem('oay_hadis_draft'); } catch(e){}
+
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/hadisler', hadisList);
+      this.syncToCloud('kurs_data/hadisler_updatedAt', nowIso);
+    }
+    window.dispatchEvent(new CustomEvent('hadisler-updated', { detail: hadisList }));
+    return { success: true, count: hadisList.length, data: hadisList };
+  }
+
+  // ========================================================
+  // --- PANODA GÖSTERİLECEK CEZALILAR VE İNTİZAM LİSTESİ ---
+  // ========================================================
+  getPanoPenalizedStudents(referenceDate) {
+    const today = referenceDate || new Date().toISOString().split('T')[0];
+    const students = this.getStudents(false); // Aktif öğrenciler
+    const reportData = this.getLeaveReportBatch(students, undefined, '13:00');
+
+    // Sadece cezası olanları (penaltyMinutes > 0) filtrele ve ceza dakikasına göre çoktan aza sırala
+    const penalized = (reportData.reports || [])
+      .filter(item => item && item.report && item.report.penaltyMinutes > 0)
+      .sort((a, b) => b.report.penaltyMinutes - a.report.penaltyMinutes);
+
+    return {
+      totalPenalizedCount: penalized.length,
+      penalizedStudents: penalized,
+      totalStudents: students.length,
+      onTimeCount: reportData.onTimeCount
+    };
   }
 }
 
