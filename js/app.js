@@ -51,7 +51,7 @@ window.App = {
           window.LeaveTrackerModule.renderView();
         } else if (this.activeTab === 'yoklama' && window.AttendanceModule) {
           window.AttendanceModule.renderView();
-        } else if (this.activeTab !== 'ogrenciler_excel') {
+        } else if (this.activeTab !== 'ogrenciler_excel' && this.activeTab !== 'ayarlar' && this.activeTab !== 'gorevler') {
           this.renderMainContent();
         }
       }
@@ -2044,24 +2044,36 @@ window.App = {
                 <p class="text-xs text-slate-500">Masaüstünüzdeki HADİS.docx dosyasından veya kendi listenizden metinleri yapıştırabilirsiniz</p>
               </div>
             </div>
-            <span class="px-2.5 py-1 bg-amber-100 text-amber-900 font-black text-xs rounded-xl border border-amber-300">
-              Canlı Pano v4.1
-            </span>
+            <div class="flex items-center gap-2">
+              <label class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95" title="Masaüstündeki HADİS.docx dosyasını seçerek otomatik aktarabilirsiniz">
+                <span>📂</span>
+                <span>HADİS.docx Dosyası Seç</span>
+                <input type="file" id="settings-hadis-file" accept=".docx,.doc,.txt" class="hidden" onchange="window.App.handleHadisDocUpload(event)">
+              </label>
+              <span class="px-2.5 py-1 bg-amber-100 text-amber-900 font-black text-xs rounded-xl border border-amber-300">
+                Canlı Pano v4.2
+              </span>
+            </div>
           </div>
 
           <div class="space-y-3">
             <p class="text-xs text-slate-600 leading-relaxed">
-              Her satıra bir Hadis-i Şerif gelecek şekilde doğrudan yapıştırabilirsiniz. Format olarak <code>Metin — Kaynak</code> (örn: <em>"İki günü birbirine eşit olan ziyandadır." — Hadis-i Şerif (Beyhaki)</em>) veya sadece hadis metnini yazabilirsiniz.
+              Masaüstündeki <strong>HADİS.docx</strong> dosyanızın içindeki tüm metni kopyalayıp aşağıdaki kutucuğa doğrudan yapıştırabilir (Ctrl+V) veya yukarıdaki <strong>"HADİS.docx Dosyası Seç"</strong> butonuyla tek tıkla yükleyebilirsiniz. Numaralandırmalar (1., 2.), tırnak işaretleri ve kaynaklar otomatik düzenlenir; siz pencereyi değiştirseniz dahi yazdıklarınız asla kaybolmaz.
             </p>
 
-            <textarea id="settings-custom-hadisler" rows="8"
-              placeholder="Her satıra bir Hadis-i Şerif gelecek şekilde yapıştırınız..."
-              class="w-full p-3.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 leading-relaxed"></textarea>
+            <div class="relative">
+              <textarea id="settings-custom-hadisler" rows="8"
+                placeholder="Her satıra bir Hadis-i Şerif gelecek şekilde yapıştırınız veya dosya seçiniz...&#10;Örnek:&#10;1. İki günü birbirine eşit olan ziyandadır. (Beyhaki)&#10;2. Namaz dinin direğidir. (Tirmizi)"
+                class="w-full p-3.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 leading-relaxed"></textarea>
+              <div id="hadis-draft-notice" class="hidden absolute top-2.5 right-2.5 px-2 py-0.5 bg-amber-500 text-white font-bold text-[10px] rounded-md shadow-xs animate-pulse">
+                Taslak Hafızada Korunuyor
+              </div>
+            </div>
 
             <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
               <div class="flex items-center gap-2">
                 <button type="button" onclick="window.App.saveCustomHadislerSubmit()"
-                  class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-2 cursor-pointer">
+                  class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-2 cursor-pointer active:scale-95">
                   <span>💾</span>
                   <span>Hadis Listesini Kaydet ve TV'ye Gönder</span>
                 </button>
@@ -2072,7 +2084,7 @@ window.App = {
                 </button>
               </div>
 
-              <span id="hadis-count-badge" class="text-xs font-bold text-slate-500">
+              <span id="hadis-count-badge" class="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200">
                 0 Hadis-i Şerif
               </span>
             </div>
@@ -2100,56 +2112,257 @@ window.App = {
       </div>
     `;
 
-    // Ayarlar ekranı açıldığında özel hadisleri textarea'ya otomatik yükle
+    // Ayarlar ekranı açıldığında özel hadisleri textarea'ya otomatik yükle & taslak koruma
     try {
-      const hadisList = (window.Store && typeof window.Store.getCustomHadisler === 'function') 
-        ? window.Store.getCustomHadisler() 
-        : [];
       const textarea = document.getElementById('settings-custom-hadisler');
       const badge = document.getElementById('hadis-count-badge');
-      if (textarea && hadisList.length > 0) {
-        textarea.value = hadisList.map(h => `${h.text} — ${h.author || 'Hadis-i Şerif'}`).join('\n');
+      const notice = document.getElementById('hadis-draft-notice');
+
+      if (textarea) {
+        // 1. Önce kaydedilmemiş taslak (draft) var mı kontrol et
+        const savedDraft = localStorage.getItem('oay_hadis_draft');
+        if (savedDraft && savedDraft.trim()) {
+          textarea.value = savedDraft;
+          if (notice) notice.classList.remove('hidden');
+          const parsed = this.parseHadisText(savedDraft);
+          if (badge) {
+            badge.textContent = `⚠️ ${parsed.length} Hadis (Kaydedilmemiş Taslak)`;
+            badge.className = 'text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-300';
+          }
+        } else {
+          // Taslak yoksa kayıtlı güncel hadisleri getir
+          const hadisList = (window.Store && typeof window.Store.getCustomHadisler === 'function') 
+            ? window.Store.getCustomHadisler() 
+            : [];
+          if (hadisList.length > 0) {
+            textarea.value = hadisList.map(h => `${h.text} — ${h.author || 'Hadis-i Şerif'}`).join('\n');
+            if (badge) {
+              badge.textContent = `✓ ${hadisList.length} Hadis-i Şerif (Kayıtlı)`;
+              badge.className = 'text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1.5 rounded-xl border border-emerald-300';
+            }
+          }
+        }
+
+        // 2. Kullanıcı her yazdığında veya yapıştırdığında anlık taslak olarak kaydet
+        textarea.addEventListener('input', () => {
+          const val = textarea.value;
+          localStorage.setItem('oay_hadis_draft', val);
+          const parsed = this.parseHadisText(val);
+          if (notice) notice.classList.remove('hidden');
+          if (badge) {
+            badge.textContent = `✏️ ${parsed.length} Hadis Algılandı (Kaydet Butonuna Basınız)`;
+            badge.className = 'text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-300';
+          }
+        });
       }
-      if (badge) {
-        badge.textContent = `${hadisList.length} Hadis-i Şerif`;
+    } catch(e) {
+      console.warn('Hadis UI setup hatası:', e);
+    }
+  },
+
+  // Metin içinden hadisleri ve kaynaklarını akıllıca çıkaran evrensel ayrıştırıcı
+  parseHadisText(rawText) {
+    if (!rawText || typeof rawText !== 'string') return [];
+    
+    // Satır sonlarını normalize et
+    const normalized = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // Paragraf veya satır bazında ayır
+    const paragraphs = normalized.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    let chunks = [];
+    if (paragraphs.length > 1 && paragraphs.some(p => p.length > 25)) {
+      chunks = paragraphs;
+    } else {
+      chunks = normalized.split('\n').map(l => l.trim()).filter(Boolean);
+    }
+
+    const results = [];
+    
+    for (let i = 0; i < chunks.length; i++) {
+      let chunk = chunks[i].trim();
+      if (!chunk) continue;
+
+      // Eğer satır sadece bir kaynak/ravi ise (örn: "(Buhari)", "Kaynak: Tirmizi", "— Müslim") bir önceki hadise ekle
+      const isJustCitation = /^(\(|\[|—|--|-|Kaynak:|Ravi:)/i.test(chunk) && chunk.length < 70;
+      if (isJustCitation && results.length > 0) {
+        let cleanCitation = chunk.replace(/^[\(\[\—\-\s]+|[\)\]\s]+$/g, '').trim();
+        if (cleanCitation) {
+          results[results.length - 1].author = cleanCitation;
+          continue;
+        }
       }
-    } catch(e) {}
+
+      // Başındaki 1., 2., 1-, [1], (1), •, * veya "Hadis 1:" gibi numaralandırmaları temizle
+      chunk = chunk.replace(/^(\d+[\.\-\)]|\(\d+\)|\[\d+\]|•|\*|-|Hadis\s*\d+[:\.\-]?)\s*/i, '').trim();
+
+      let text = chunk;
+      let author = 'Hadis-i Şerif';
+
+      // Tire, uzun tire veya iki tire ile ayrılmış kaynakları ayıkla
+      const emDashIdx = chunk.lastIndexOf('—');
+      const doubleDashIdx = chunk.lastIndexOf('--');
+      const spacedHyphenIdx = chunk.lastIndexOf(' - ');
+
+      if (emDashIdx !== -1 && emDashIdx > 10) {
+        text = chunk.substring(0, emDashIdx).trim();
+        author = chunk.substring(emDashIdx + 1).trim() || 'Hadis-i Şerif';
+      } else if (doubleDashIdx !== -1 && doubleDashIdx > 10) {
+        text = chunk.substring(0, doubleDashIdx).trim();
+        author = chunk.substring(doubleDashIdx + 2).trim() || 'Hadis-i Şerif';
+      } else if (spacedHyphenIdx !== -1 && spacedHyphenIdx > 10) {
+        text = chunk.substring(0, spacedHyphenIdx).trim();
+        author = chunk.substring(spacedHyphenIdx + 3).trim() || 'Hadis-i Şerif';
+      } else {
+        // Cümle sonundaki parantez içi kaynakları ayıkla: örn: (Buhari) veya (Hadis-i Şerif - Tirmizi)
+        const parenMatch = chunk.match(/\((Hadis-i\s*Şerif[^\)]*|[A-ZÇĞİÖŞÜ][a-zA-ZçğıöşüÇĞİÖŞÜ\s,\.:;0-9\/]+)\)\s*$/);
+        if (parenMatch && parenMatch.index > 10) {
+          text = chunk.substring(0, parenMatch.index).trim();
+          author = parenMatch[1].trim();
+        }
+      }
+
+      // Tırnak işaretlerini ve baş/son boşlukları temizle
+      text = text.replace(/^["“'«\s]+|["”'»\s]+$/g, '').trim();
+      author = author.replace(/^[\(\[\—\-\s]+|[\)\]\s]+$/g, '').trim() || 'Hadis-i Şerif';
+
+      if (text.length >= 5) {
+        results.push({ text, author });
+      }
+    }
+
+    return results;
+  },
+
+  // .docx dosyasını pure vanilla JS ile okuma (ZIP içindeki word/document.xml metnini ayıklar)
+  async extractTextFromDocx(file) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let offset = 0;
+      while (offset < bytes.length - 30) {
+        if (bytes[offset] === 0x50 && bytes[offset+1] === 0x4b && bytes[offset+2] === 0x03 && bytes[offset+3] === 0x04) {
+          const compMethod = bytes[offset + 8] | (bytes[offset + 9] << 8);
+          const compSize = bytes[offset + 18] | (bytes[offset + 19] << 8) | (bytes[offset + 20] << 16) | (bytes[offset + 21] << 24);
+          const fnLen = bytes[offset + 26] | (bytes[offset + 27] << 8);
+          const extraLen = bytes[offset + 28] | (bytes[offset + 29] << 8);
+          const fnBytes = bytes.slice(offset + 30, offset + 30 + fnLen);
+          const filename = new TextDecoder().decode(fnBytes);
+          const dataStart = offset + 30 + fnLen + extraLen;
+          
+          if (filename === 'word/document.xml') {
+            let xmlText = '';
+            if (compMethod === 0) {
+              xmlText = new TextDecoder('utf-8').decode(bytes.slice(dataStart, dataStart + compSize));
+            } else if (compMethod === 8 && typeof DecompressionStream !== 'undefined') {
+              const compressedSlice = bytes.slice(dataStart, dataStart + compSize);
+              const ds = new DecompressionStream('deflate-raw');
+              const writer = ds.writable.getWriter();
+              writer.write(compressedSlice);
+              writer.close();
+              const response = new Response(ds.readable);
+              xmlText = await response.text();
+            }
+            if (xmlText) {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(xmlText, 'application/xml');
+              const paragraphs = doc.getElementsByTagName('w:p');
+              const lines = [];
+              for (let p of paragraphs) {
+                const texts = p.getElementsByTagName('w:t');
+                let pText = '';
+                for (let t of texts) {
+                  pText += t.textContent;
+                }
+                if (pText.trim()) lines.push(pText.trim());
+              }
+              return lines.join('\n');
+            }
+          }
+          offset = dataStart + (compSize > 0 ? compSize : 1);
+        } else {
+          offset++;
+        }
+      }
+      return null;
+    } catch (err) {
+      console.warn('Docx extract error:', err);
+      return null;
+    }
+  },
+
+  // Kullanıcı masaüstünden HADİS.docx dosyasını seçtiğinde
+  async handleHadisDocUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const textarea = document.getElementById('settings-custom-hadisler');
+    const badge = document.getElementById('hadis-count-badge');
+    const notice = document.getElementById('hadis-draft-notice');
+
+    try {
+      this.showToast('Dosya inceleniyor ve metinler aktarılıyor...', 'info');
+      let text = '';
+      if (file.name.toLowerCase().endsWith('.docx')) {
+        text = await this.extractTextFromDocx(file);
+      }
+      if (!text) {
+        text = await file.text();
+      }
+
+      if (text && text.trim()) {
+        if (textarea) {
+          textarea.value = text.trim();
+          localStorage.setItem('oay_hadis_draft', text.trim());
+          const parsed = this.parseHadisText(text);
+          if (badge) {
+            badge.textContent = `📋 ${parsed.length} Hadis Algılandı (Kaydetmek için butona basınız)`;
+            badge.className = 'text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-300';
+          }
+          if (notice) notice.classList.remove('hidden');
+          this.showToast(`✓ ${file.name} dosyasından ${parsed.length} hadis başarıyla aktarıldı. Lütfen "Hadis Listesini Kaydet" butonuna basarak onaylayınız.`, 'success');
+        }
+      } else {
+        this.showToast('Dosya içeriği okunamadı. Lütfen Word içinden kopyalayıp kutucuğa doğrudan yapıştırınız.', 'warning');
+      }
+    } catch (e) {
+      console.error('Hadis dosya okuma hatası:', e);
+      this.showToast('Dosya açılırken bir hata oluştu. Lütfen Word içinden kopyalayıp yapıştırınız.', 'danger');
+    } finally {
+      event.target.value = '';
+    }
   },
 
   saveCustomHadislerSubmit() {
     const textarea = document.getElementById('settings-custom-hadisler');
     if (!textarea) return;
-    const lines = textarea.value.split('\n').map(l => l.trim()).filter(Boolean);
-    if (lines.length === 0) {
+    const rawVal = textarea.value.trim();
+    if (!rawVal) {
       this.showToast('Lütfen en az bir Hadis-i Şerif giriniz.', 'warning');
       return;
     }
-    const hadisList = lines.map(line => {
-      const dashIdx = line.lastIndexOf('—');
-      if (dashIdx !== -1) {
-        return {
-          text: line.substring(0, dashIdx).trim(),
-          author: line.substring(dashIdx + 1).trim() || 'Hadis-i Şerif'
-        };
-      }
-      const hyphenIdx = line.lastIndexOf(' - ');
-      if (hyphenIdx !== -1) {
-        return {
-          text: line.substring(0, hyphenIdx).trim(),
-          author: line.substring(hyphenIdx + 3).trim() || 'Hadis-i Şerif'
-        };
-      }
-      return {
-        text: line,
-        author: 'Hadis-i Şerif'
-      };
-    });
+
+    const hadisList = this.parseHadisText(rawVal);
+    if (hadisList.length === 0) {
+      this.showToast('Geçerli bir Hadis-i Şerif metni bulunamadı. Lütfen kontrol ediniz.', 'warning');
+      return;
+    }
 
     if (window.Store && typeof window.Store.saveCustomHadisler === 'function') {
       window.Store.saveCustomHadisler(hadisList);
-      this.showToast(`✓ ${hadisList.length} adet Hadis-i Şerif başarıyla kaydedildi ve TV panosuna bağlandı!`, 'success');
+      localStorage.removeItem('oay_hadis_draft');
+
+      // Kutucuğu da tertemiz formatlanmış haliyle güncelle
+      textarea.value = hadisList.map(h => `${h.text} — ${h.author || 'Hadis-i Şerif'}`).join('\n');
+
       const badge = document.getElementById('hadis-count-badge');
-      if (badge) badge.textContent = `${hadisList.length} Hadis-i Şerif`;
+      if (badge) {
+        badge.textContent = `✓ ${hadisList.length} Hadis-i Şerif (Kayıtlı & Canlı TV'de)`;
+        badge.className = 'text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1.5 rounded-xl border border-emerald-300';
+      }
+      const notice = document.getElementById('hadis-draft-notice');
+      if (notice) notice.classList.add('hidden');
+
+      this.showToast(`✓ ${hadisList.length} adet Hadis-i Şerif başarıyla kaydedildi ve TV panosuna bağlandı!`, 'success');
     }
   },
 
@@ -2159,12 +2372,18 @@ window.App = {
       : [];
     if (defaults.length > 0 && window.Store) {
       window.Store.saveCustomHadisler(defaults);
+      localStorage.removeItem('oay_hadis_draft');
       const textarea = document.getElementById('settings-custom-hadisler');
       if (textarea) {
         textarea.value = defaults.map(h => `${h.text} — ${h.author || 'Hadis-i Şerif'}`).join('\n');
       }
       const badge = document.getElementById('hadis-count-badge');
-      if (badge) badge.textContent = `${defaults.length} Hadis-i Şerif`;
+      if (badge) {
+        badge.textContent = `✓ ${defaults.length} Hadis-i Şerif (Varsayılanlar)`;
+        badge.className = 'text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1.5 rounded-xl border border-emerald-300';
+      }
+      const notice = document.getElementById('hadis-draft-notice');
+      if (notice) notice.classList.add('hidden');
       this.showToast('Varsayılan Hadis-i Şerifler yüklendi.', 'info');
     }
   },
@@ -2190,7 +2409,17 @@ window.App = {
 
     window.Store.saveSettings(payload);
 
-    this.showToast('Ayarlar, kurs logosu ve canlı bulut bağlantısı kaydedildi!', 'success');
+    // Eğer hadis kutusunda taslak veya değiştirilmiş veri varsa onu da otomatik kaydet
+    const hadisTextarea = document.getElementById('settings-custom-hadisler');
+    if (hadisTextarea && hadisTextarea.value.trim()) {
+      const parsed = this.parseHadisText(hadisTextarea.value.trim());
+      if (parsed.length > 0 && window.Store && typeof window.Store.saveCustomHadisler === 'function') {
+        window.Store.saveCustomHadisler(parsed);
+        localStorage.removeItem('oay_hadis_draft');
+      }
+    }
+
+    this.showToast('Tüm ayarlar, Hadis-i Şerifler ve TV bağlantısı kaydedildi!', 'success');
     this.renderHeader();
     this.renderSettingsView();
   },
@@ -3362,7 +3591,7 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
     },
 
     handleCellInput(studentId, field, rawValue) {
-      const val = (rawValue != null ? rawValue : '').toString().trim();
+      const val = rawValue != null ? rawValue.toString() : '';
       const key = `${studentId}_${field}`;
       if (this.saveTimers[key]) clearTimeout(this.saveTimers[key]);
 
@@ -3372,11 +3601,14 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
       }
 
       this.saveTimers[key] = setTimeout(() => {
-        const updatePayload = { [field]: val };
-        if (field === 'lastName' && val) {
+        delete this.saveTimers[key];
+        const trimmedVal = val.trim();
+        const updatePayload = { [field]: trimmedVal };
+
+        if (field === 'lastName' && trimmedVal) {
           const currentStudent = window.Store.getStudentById(studentId);
           if (currentStudent && (!currentStudent.familyCode || currentStudent.familyCode.includes('2026'))) {
-            updatePayload.familyCode = (val + '2026').toUpperCase();
+            updatePayload.familyCode = (trimmedVal + '2026').toUpperCase();
             const famInput = document.querySelector(`input[data-student-id="${studentId}"][data-field="familyCode"]`);
             if (famInput) famInput.value = updatePayload.familyCode;
           }
@@ -3390,12 +3622,34 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
             if (indicator) indicator.innerHTML = '';
           }, 1500);
         }
-      }, 350);
+      }, 400);
     },
 
     handleCellBlur(studentId, field, rawValue) {
+      const key = `${studentId}_${field}`;
+      if (this.saveTimers[key]) {
+        clearTimeout(this.saveTimers[key]);
+        delete this.saveTimers[key];
+      }
       const val = (rawValue != null ? rawValue : '').toString().trim();
-      window.Store.updateStudent(studentId, { [field]: val });
+      const updatePayload = { [field]: val };
+      if (field === 'lastName' && val) {
+        const currentStudent = window.Store.getStudentById(studentId);
+        if (currentStudent && (!currentStudent.familyCode || currentStudent.familyCode.includes('2026'))) {
+          updatePayload.familyCode = (val + '2026').toUpperCase();
+          const famInput = document.querySelector(`input[data-student-id="${studentId}"][data-field="familyCode"]`);
+          if (famInput) famInput.value = updatePayload.familyCode;
+        }
+      }
+      window.Store.updateStudent(studentId, updatePayload);
+
+      const indicator = document.getElementById('excel-save-indicator');
+      if (indicator) {
+        indicator.innerHTML = `<span class="text-emerald-600 font-black text-xs flex items-center gap-1">✓ <span>Otomatik Kaydedildi</span></span>`;
+        setTimeout(() => {
+          if (indicator) indicator.innerHTML = '';
+        }, 1500);
+      }
     },
 
     handleKeyDown(e, rowIdx, colIdx) {

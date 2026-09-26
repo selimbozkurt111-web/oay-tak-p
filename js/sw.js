@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v4.1 - Günün Görevlileri, Hadisler & Cezalılar Panosu)
-const CACHE_NAME = 'oay-takip-cache-v4.1';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v4.3 - Canlı Excel Senkronizasyon & Değişiklik Koruma)
+const CACHE_NAME = 'oay-takip-cache-v4.3';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [

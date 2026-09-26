@@ -193,9 +193,11 @@ class DataStore {
     }
   }
 
-  // Eski "5. Sınıf" vb. kayıtları şubelere (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) yükseltme
+  // Eski "5. Sınıf" vb. kayıtları şubelere (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) yükseltme (Sadece ilk kurulumda 1 kez)
   autoMigrateStudentClasses() {
     try {
+      if (localStorage.getItem('yoklama_migrated_classes_done_v2')) return;
+
       const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
       if (!raw) return;
       const list = JSON.parse(raw);
@@ -245,6 +247,7 @@ class DataStore {
           this.syncToCloud('kurs_data/students', updatedList);
         }
       }
+      localStorage.setItem('yoklama_migrated_classes_done_v2', 'true');
     } catch (e) {
       console.warn('[autoMigrateStudentClasses] Hata:', e);
     }
@@ -369,6 +372,7 @@ class DataStore {
       deleted_student_ids: this.getDeletedStudentIds(),
       dailyDuties: this.getDailyDuties(),
       hadisler: this.getCustomHadisler(),
+      hadisler_updatedAt: (localStorage.getItem('yoklama_custom_hadisler_meta_v1') ? JSON.parse(localStorage.getItem('yoklama_custom_hadisler_meta_v1')).updatedAt : new Date().toISOString()),
       lastSyncedAt: new Date().toISOString()
     };
 
@@ -518,12 +522,16 @@ class DataStore {
     }
 
     // 5. Öğrenci listesi (Akıllı Birleştirme: Silinenleri Ayıklar, Pasif Durumunu ve Yerel Düzenlemeleri Asla Ezmez!)
-    if (Array.isArray(cloudData.students) && cloudData.students.length > 0) {
+    let cloudStudentsList = Array.isArray(cloudData.students) 
+      ? cloudData.students 
+      : (cloudData.students && typeof cloudData.students === 'object' ? Object.values(cloudData.students).filter(Boolean) : []);
+
+    if (Array.isArray(cloudStudentsList) && cloudStudentsList.length > 0) {
       const deletedMap = currentDeletedMap;
       const passiveMap = this.getPassiveStudentIds();
 
       // Buluttan gelenler içinden silinmişleri temizle
-      const validCloudStudents = cloudData.students.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+      const validCloudStudents = cloudStudentsList.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
 
       // Yerel listeden de silinmişleri temizle
       let localStudents = [];
@@ -552,13 +560,28 @@ class DataStore {
         const isCloudPassive = cloudSt.isPassive === true || cloudSt.status === 'passive';
         const finalPassive = inPassiveMap || isLocallyPassive || isCloudPassive;
 
-        if (localSt && localSt.updatedAt && cloudSt.updatedAt && new Date(localSt.updatedAt) > new Date(cloudSt.updatedAt)) {
-          return {
-            ...cloudSt,
-            ...localSt,
-            isPassive: finalPassive,
-            status: finalPassive ? 'passive' : 'active'
-          };
+        if (localSt) {
+          // Akıllı Karşılaştırma:
+          // 1. Yerelde güncelleme varsa ve buluttakinden yeni veya eşitse: Yerel kazanır
+          // 2. Yerelde güncelleme varsa ama bulutta updatedAt yoksa: Yerel kazanır
+          // 3. Yalnızca bulut öğrencisinin updatedAt'i yerelden kesinlikle daha yeniyse: Bulut kazanır
+          let preferLocal = true;
+          if (cloudSt.updatedAt && localSt.updatedAt) {
+            preferLocal = new Date(localSt.updatedAt) >= new Date(cloudSt.updatedAt);
+          } else if (cloudSt.updatedAt && !localSt.updatedAt) {
+            preferLocal = false;
+          } else {
+            preferLocal = true;
+          }
+
+          if (preferLocal) {
+            return {
+              ...cloudSt,
+              ...localSt,
+              isPassive: finalPassive,
+              status: finalPassive ? 'passive' : 'active'
+            };
+          }
         }
 
         return {
@@ -578,7 +601,6 @@ class DataStore {
       // Silinenler siciline göre son kez arındır
       const finalCleanList = mergedStudents.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(finalCleanList));
-      this.autoMigrateStudentClasses();
     }
 
     // 5. Hoca listesi
@@ -641,10 +663,33 @@ class DataStore {
       window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: cloudDuties }));
     }
 
-    // 12. Özel Hadis-i Şerif Listesi
+    // 12. Özel Hadis-i Şerif Listesi (Akıllı birleştirme: En güncel updatedAt kazanır)
+    let cloudHadisList = null;
     if (Array.isArray(cloudData.hadisler)) {
-      localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(cloudData.hadisler));
-      window.dispatchEvent(new CustomEvent('hadisler-updated', { detail: cloudData.hadisler }));
+      cloudHadisList = cloudData.hadisler;
+    } else if (cloudData.hadisler && typeof cloudData.hadisler === 'object') {
+      cloudHadisList = Object.values(cloudData.hadisler).filter(Boolean);
+    }
+
+    if (Array.isArray(cloudHadisList) && cloudHadisList.length > 0) {
+      let localMeta = null;
+      try {
+        const rawMeta = localStorage.getItem('yoklama_custom_hadisler_meta_v1');
+        if (rawMeta) localMeta = JSON.parse(rawMeta);
+      } catch (e) {}
+
+      const cloudUpdatedAt = cloudData.hadisler_updatedAt || cloudData.lastSyncedAt;
+      const localUpdatedAt = localMeta ? localMeta.updatedAt : null;
+
+      // Yerel düzenleme buluttan daha yeniyse bulutun eski verisi yereli ASLA EZEMEZ!
+      if (!localUpdatedAt || !cloudUpdatedAt || new Date(cloudUpdatedAt) >= new Date(localUpdatedAt)) {
+        localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(cloudHadisList));
+        localStorage.setItem('yoklama_custom_hadisler_meta_v1', JSON.stringify({
+          list: cloudHadisList,
+          updatedAt: cloudUpdatedAt || new Date().toISOString()
+        }));
+        window.dispatchEvent(new CustomEvent('hadisler-updated', { detail: cloudHadisList }));
+      }
     }
 
     window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: cloudData }));
@@ -676,6 +721,35 @@ class DataStore {
             this.handleRealtimeLeaveReturn(path, data);
           } else if (path.startsWith('settings')) {
             this.handleRealtimeSettings(path, data);
+          } else if (path.startsWith('hadisler')) {
+            if (data) {
+              const list = Array.isArray(data) ? data : (typeof data === 'object' ? Object.values(data).filter(Boolean) : null);
+              if (list && list.length > 0) {
+                localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(list));
+                localStorage.setItem('yoklama_custom_hadisler_meta_v1', JSON.stringify({
+                  list,
+                  updatedAt: new Date().toISOString()
+                }));
+                window.dispatchEvent(new CustomEvent('hadisler-updated', { detail: list }));
+              }
+            }
+          } else if (path.startsWith('dailyDuties') || path.startsWith('daily_duties')) {
+            if (data && typeof data === 'object') {
+              localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(data));
+              window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: data }));
+            }
+          } else if (path.startsWith('students')) {
+            // Eğer son 4 saniye içinde bu tarayıcı öğrenci kaydetti ise, bu gelen SSE kendi yansımamızdır; es geç
+            if (this._lastStudentPushTime && (Date.now() - this._lastStudentPushTime < 4000)) {
+              return;
+            }
+            if (data) {
+              const studentsArr = Array.isArray(data) ? data : (typeof data === 'object' ? Object.values(data).filter(Boolean) : null);
+              if (studentsArr && studentsArr.length > 0) {
+                this.applyFullCloudSync({ students: studentsArr });
+                window.dispatchEvent(new CustomEvent('students-cloud-updated', { detail: studentsArr }));
+              }
+            }
           } else {
             this.syncFromCloud();
           }
@@ -1172,14 +1246,16 @@ class DataStore {
 
     const passiveMap = this.getPassiveStudentIds();
     let mapChanged = false;
+    const nowIso = new Date().toISOString();
 
     sanitizedStudents.forEach(s => {
       if (!s || !s.id) return;
+      if (!s.updatedAt) s.updatedAt = nowIso;
       if (passiveMap[s.id] && passiveMap[s.id].isPassive === true) {
         s.isPassive = true;
         s.status = 'passive';
       } else if (s.isPassive === true || s.status === 'passive') {
-        passiveMap[s.id] = { isPassive: true, updatedAt: s.updatedAt || new Date().toISOString() };
+        passiveMap[s.id] = { isPassive: true, updatedAt: s.updatedAt || nowIso };
         mapChanged = true;
       }
     });
@@ -1193,6 +1269,7 @@ class DataStore {
 
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(sanitizedStudents));
     if (this.isCloudEnabled()) {
+      this._lastStudentPushTime = Date.now();
       this.syncToCloud('kurs_data/students', sanitizedStudents);
     }
   }
@@ -1263,7 +1340,7 @@ class DataStore {
         ...updatedData,
         isPassive: isPassiveVal,
         status: isPassiveVal ? 'passive' : 'active',
-        familyCode: (updatedData.familyCode || students[index].familyCode || '').trim().toUpperCase(),
+        familyCode: ((updatedData.familyCode !== undefined ? updatedData.familyCode : students[index].familyCode) || '').trim().toUpperCase(),
         updatedAt: new Date().toISOString()
       };
       this.saveStudents(students);
@@ -2802,6 +2879,19 @@ class DataStore {
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed;
         }
+        if (parsed && Array.isArray(parsed.list) && parsed.list.length > 0) {
+          return parsed.list;
+        }
+      }
+    } catch (e) {}
+
+    try {
+      const meta = localStorage.getItem('yoklama_custom_hadisler_meta_v1');
+      if (meta) {
+        const parsedMeta = JSON.parse(meta);
+        if (parsedMeta && Array.isArray(parsedMeta.list) && parsedMeta.list.length > 0) {
+          return parsedMeta.list;
+        }
       }
     } catch (e) {}
 
@@ -2822,12 +2912,25 @@ class DataStore {
   }
 
   saveCustomHadisler(hadisList) {
-    if (!Array.isArray(hadisList)) return;
+    if (!Array.isArray(hadisList) || hadisList.length === 0) {
+      return { success: false, message: 'Hadis listesi boş.' };
+    }
+    const nowIso = new Date().toISOString();
+    const dataObj = {
+      list: hadisList,
+      updatedAt: nowIso
+    };
+
     localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(hadisList));
+    localStorage.setItem('yoklama_custom_hadisler_meta_v1', JSON.stringify(dataObj));
+    try { localStorage.removeItem('oay_hadis_draft'); } catch(e){}
+
     if (this.isCloudEnabled()) {
       this.syncToCloud('kurs_data/hadisler', hadisList);
+      this.syncToCloud('kurs_data/hadisler_updatedAt', nowIso);
     }
     window.dispatchEvent(new CustomEvent('hadisler-updated', { detail: hadisList }));
+    return { success: true, count: hadisList.length, data: hadisList };
   }
 
   // ========================================================
