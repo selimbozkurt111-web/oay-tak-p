@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
   <meta name="description" content="Ömer Avniyel Akademi Canlı TV Bilgi ve Duyuru Panosu">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v4.0) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v4.6) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20260927_v4.5_BULLETPROOF_STUDENT_EXCEL';
+      var CURRENT_BUILD = '20260927_v4.6_WHATSAPP_PENALTY_CLEARED';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -282,14 +282,14 @@
   <div class="fixed bottom-10 right-4 z-40 opacity-70 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-3 py-1.5 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[11px] font-black shadow-lg flex items-center gap-1.5 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v4.5)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v4.6)</span>
     </button>
   </div>
 
   <!-- Hadis Veritabanı, Store ve Leaderboard Modülleri -->
-  <script src="js/hadisler.js?v=4.5"></script>
-  <script src="js/store.js?v=4.5"></script>
-  <script src="js/leaderboard.js?v=4.5"></script>
+  <script src="js/hadisler.js?v=4.6"></script>
+  <script src="js/store.js?v=4.6"></script>
+  <script src="js/leaderboard.js?v=4.6"></script>
 
   <!-- Pano TV Yönetim Motoru (v4.4) -->
   <script>
@@ -446,6 +446,12 @@
             this.togglePause();
           }
           if (e.key === 'f' || e.key === 'F11') this.toggleFullscreen();
+        });
+
+        window.addEventListener('penalty-cleared-updated', () => {
+          if (this.currentSlide === 6) {
+            try { this.renderCurrentSlide(); } catch (e) {}
+          }
         });
 
         // Kurum adı & logosu ayarla
@@ -1349,11 +1355,16 @@
               </div>
 
               <div class="flex items-center gap-2">
+                ${(res.clearedCount || 0) > 0 ? `
+                  <div class="text-xs font-bold text-emerald-300 bg-emerald-950/40 px-3 py-1.5 rounded-xl border border-emerald-800/60 flex items-center gap-1">
+                    <span>✓</span> <span>Cezasını Çeken: <strong class="text-emerald-400">${res.clearedCount}</strong></span>
+                  </div>
+                ` : ''}
                 <div class="text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
                   İntizamlı: <span class="text-emerald-400 font-black">${res.onTimeCount || 0}</span>
                 </div>
                 <div class="text-xs font-bold text-rose-300 bg-rose-950/40 px-3 py-1.5 rounded-xl border border-rose-800/60">
-                  Cezalı: <span class="text-rose-400 font-black">${res.totalPenalizedCount || 0} Talebe</span>
+                  Aktif Cezalı: <span class="text-rose-400 font-black">${res.totalPenalizedCount || 0} Talebe</span>
                 </div>
               </div>
             </div>
@@ -1368,10 +1379,12 @@
                   MAŞAALLAH • TAM İNTİZAM
                 </div>
                 <h3 class="text-2xl sm:text-3xl font-black text-white tracking-tight mb-2">
-                  Şu Anda Kursumuzda Cezalı Talebe Bulunmamaktadır!
+                  Şu Anda Kursumuzda Aktif Cezalı Talebe Bulunmamaktadır!
                 </h3>
                 <p class="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-lg mx-auto">
-                  Tüm talebelerimiz 5 vakit namazlarına, oda ve yatak nizamına, okul ve izin vakitlerine tam riayet etmiştir. Tüm talebelerimize teşekkür eder, bu güzel intizamın devamını dileriz.
+                  ${(res.clearedCount || 0) > 0 
+                    ? `Bu hafta oluşan cezalar talebelerimiz tarafından tamamlanmış ve intizam sağlanmıştır. Gayretlerinden ötürü tüm talebelerimizi tebrik ederiz.`
+                    : `Tüm talebelerimiz 5 vakit namazlarına, oda ve yatak nizamına, okul ve izin vakitlerine tam riayet etmiştir. Bu güzel intizamın devamını dileriz.`}
                 </p>
               </div>
             ` : `
