@@ -2287,7 +2287,7 @@ class DataStore {
       }
     });
 
-    // İzin Dönüşü Gecikmeleri (Kaç dakika geç kaldıysa x3 geç çıkış cezası)
+    // İzin Dönüşü Gecikmeleri (Kaç dakika geç kaldıysa x3 ek telafi süresi)
     let leaveReturnInfractionsCount = 0;
     let leaveReturnPenaltyMinutes = 0;
     const allLeaveReturns = this.getAllLeaveReturns();
@@ -2315,7 +2315,7 @@ class DataStore {
             lateMinutes: lr.lateMinutes,
             arrivalTime: lr.arrivalTime,
             expectedTime: lr.expectedTime,
-            desc: `${dStr} ${dayName} • İzin Dönüşü: ${lr.lateMinutes} dk geç geldi (${lr.arrivalTime}, beklenen: ${lr.expectedTime}) • 3x Ceza: +${multPenalty} dk geç çıkış`
+            desc: `${dStr} ${dayName} • İzin Dönüşü: ${lr.lateMinutes} dk geç geldi (${lr.arrivalTime}, beklenen: ${lr.expectedTime}) • 3x Telafi: +${multPenalty} dk ek süre`
           });
         }
       }
@@ -2440,7 +2440,7 @@ class DataStore {
       all[weekKey][studentId] = {
         cleared: newState,
         clearedAt: newState ? new Date().toISOString() : null,
-        note: note || (newState ? 'Cezasını çekti / tamamlandı' : '')
+        note: note || (newState ? 'Telafisini tamamladı' : '')
       };
       
       localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(all));
@@ -2464,7 +2464,7 @@ class DataStore {
       all[weekKey][studentId] = {
         cleared: !!isCleared,
         clearedAt: isCleared ? new Date().toISOString() : null,
-        note: note || (isCleared ? 'Cezasını çekti / tamamlandı' : '')
+        note: note || (isCleared ? 'Telafisini tamamladı' : '')
       };
       localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(all));
       if (this.isCloudEnabled()) {
@@ -3200,7 +3200,7 @@ class DataStore {
   }
 
   // ========================================================
-  // --- PANODA GÖSTERİLECEK CEZALILAR VE İNTİZAM LİSTESİ ---
+  // --- PANODA GÖSTERİLECEK TELAFİLİLER VE İNTİZAM LİSTESİ ---
   // ========================================================
   getPanoPenalizedStudents(referenceDate) {
     const today = referenceDate || new Date().toISOString().split('T')[0];
@@ -3209,11 +3209,11 @@ class DataStore {
     const weekKey = `week_${weekInfo.startDate}`;
     const reportData = this.getLeaveReportBatch(students, undefined, '13:00');
 
-    // Cezası olan tüm talebeler
+    // Telafisi olan tüm talebeler
     const allPenalized = (reportData.reports || [])
       .filter(item => item && item.report && item.report.penaltyMinutes > 0);
 
-    // CEZASINI ÇEKENLER (isPenaltyCleared) TV panosundan otomatik düşer!
+    // TELAFİSİNİ TAMAMLAYANLAR (isPenaltyCleared) TV panosundan otomatik düşer!
     const activePenalized = allPenalized
       .filter(item => !this.isPenaltyCleared(weekKey, item.student.id))
       .sort((a, b) => b.report.penaltyMinutes - a.report.penaltyMinutes);

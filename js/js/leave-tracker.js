@@ -113,9 +113,9 @@ window.LeaveTrackerModule = {
       const st = window.Store.getStudentById(studentId);
       const name = st ? `${st.firstName} ${st.lastName}` : 'Talebe';
       if (newState) {
-        window.App.showToast(`✓ ${name} cezasını çekti olarak işaretlendi ve TV panosundan düşürüldü.`, 'success');
+        window.App.showToast(`✓ ${name} telafisini tamamladı olarak işaretlendi ve TV panosundan düşürüldü.`, 'success');
       } else {
-        window.App.showToast(`⚠️ ${name} cezası tekrar aktif yapıldı (TV'de gösterilecek).`, 'info');
+        window.App.showToast(`⚠️ ${name} telafi süresi tekrar aktif yapıldı (TV'de gösterilecek).`, 'info');
       }
     }
   },
@@ -321,17 +321,17 @@ window.LeaveTrackerModule = {
             </div>
           </div>
 
-          <!-- Gecikmeli Çıkacaklar (Cezalılar) -->
+          <!-- Gecikmeli Çıkacaklar (Telafililer) -->
           <div class="bg-white rounded-3xl p-5 border border-rose-200 shadow-sm flex items-center justify-between relative overflow-hidden">
             <div class="absolute -right-2 -bottom-2 w-20 h-20 bg-rose-50 rounded-full opacity-60 pointer-events-none"></div>
             <div>
-              <div class="text-[11px] font-bold uppercase text-rose-700 tracking-wider">GECİKMELİ ÇIKACAKLAR</div>
+              <div class="text-[11px] font-bold uppercase text-rose-700 tracking-wider">EK SÜRELİ ÇIKACAKLAR</div>
               <div class="text-2xl font-black text-rose-700 mt-1">${batch.delayedCount} Talebe</div>
               <div class="text-[11px] font-bold mt-1 flex flex-col gap-0.5">
-                ${clearedCount > 0 ? `<span class="text-emerald-700">✓ ${clearedCount} Talebe Cezasını Çekti (TV'den Düşürüldü)</span>` : ''}
+                ${clearedCount > 0 ? `<span class="text-emerald-700">✓ ${clearedCount} Talebe Telafisini Tamamladı (TV'den Düşürüldü)</span>` : ''}
                 ${activePenalizedCount > 0 
                   ? `<span class="text-rose-600">⚠️ ${activePenalizedCount} Talebe TV'de Gösteriliyor</span>` 
-                  : `<span class="text-emerald-600">🎉 TV Panosu Temiz (Cezalı Yok)</span>`}
+                  : `<span class="text-emerald-600">🎉 TV Panosu Temiz (Telafili Yok)</span>`}
               </div>
             </div>
             <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 text-xl font-bold flex items-center justify-center">
@@ -415,7 +415,7 @@ window.LeaveTrackerModule = {
               </div>
             </div>
 
-            <!-- Sadece Cezalılar Butonu -->
+            <!-- Sadece Telafililer Butonu -->
             <div>
               <button type="button" onclick="window.LeaveTrackerModule.toggleFilterOnlyDelayed()"
                 class="px-3.5 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-2 border ${
@@ -423,7 +423,7 @@ window.LeaveTrackerModule = {
                     ? 'bg-rose-50 text-rose-700 border-rose-300 shadow-sm ring-2 ring-rose-200' 
                     : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                 }">
-                <span>${this.filterOnlyDelayed ? '🔴 Sadece Cezalılar Gösteriliyor' : '⚪ Tümünü Göster'}</span>
+                <span>${this.filterOnlyDelayed ? '🔴 Sadece Telafililer Gösteriliyor' : '⚪ Tümünü Göster'}</span>
                 <span class="px-1.5 py-0.5 rounded-md text-[10px] ${this.filterOnlyDelayed ? 'bg-rose-200 text-rose-800' : 'bg-slate-200 text-slate-700'}">
                   ${batch.delayedCount}
                 </span>
@@ -451,7 +451,7 @@ window.LeaveTrackerModule = {
                 🟢 0 Kusur: Zamanında (${this.baseExitTime})
               </span>
               <span class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 font-bold border border-rose-200">
-                🔴 Cezalı: Gecikmeli Çıkış
+                🔴 Telafili: Ek Süreli Çıkış
               </span>
             </div>
           </div>
@@ -467,9 +467,9 @@ window.LeaveTrackerModule = {
                   <th class="p-3 font-black text-center">🎒 OKUL DÖNÜŞÜ</th>
                   <th class="p-3 font-black text-center">🧳 İZİN DÖNÜŞÜ (3x)</th>
                   <th class="p-3 font-black text-center">TOPLAM KUSUR</th>
-                  <th class="p-3 font-black text-center">CEZA SÜRESİ</th>
+                  <th class="p-3 font-black text-center">TELAFİ SÜRESİ</th>
                   <th class="p-3 font-black text-center">İZİN ÇIKIŞ SAATİ</th>
-                  <th class="p-3 font-black text-center no-print min-w-[140px]">CEZA DURUMU (TV)</th>
+                  <th class="p-3 font-black text-center no-print min-w-[140px]">TELAFİ DURUMU (TV)</th>
                   <th class="p-3 font-black text-center no-print">KAPI KONTROL</th>
                   <th class="p-3 font-black text-center no-print">İŞLEM</th>
                 </tr>
@@ -508,7 +508,7 @@ window.LeaveTrackerModule = {
                           <div>
                             <div class="font-black text-slate-900 text-xs flex items-center gap-1.5">
                               <span>${s.firstName} ${s.lastName}</span>
-                              ${isCleared ? '<span class="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[9px] font-black">✓ Ceza Tamam</span>' : ''}
+                              ${isCleared ? '<span class="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[9px] font-black">✓ Telafi Tamam</span>' : ''}
                             </div>
                             <div class="text-[10px] text-slate-500 font-medium">
                               ${s.className} • ${s.dahiliHoca || '-'} • ${s.yatakhane || '-'}
@@ -550,7 +550,7 @@ window.LeaveTrackerModule = {
                         `}
                       </td>
 
-                      <!-- İzin Dönüşü Gecikmeleri (3x Ceza) -->
+                      <!-- İzin Dönüşü Gecikmeleri (3x Telafi) -->
                       <td class="p-3 text-center">
                         ${(rep.leaveReturnInfractionsCount || 0) > 0 ? `
                           <span class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-900 border border-rose-300 font-black inline-block shadow-2xs">
@@ -570,10 +570,10 @@ window.LeaveTrackerModule = {
                         </span>
                       </td>
 
-                      <!-- Ceza Süresi -->
+                      <!-- Telafi Süresi -->
                       <td class="p-3 text-center">
                         <span class="font-black text-xs ${hasPenalty ? (isCleared ? 'text-emerald-700' : 'text-rose-700') : 'text-emerald-700'}">
-                          ${hasPenalty ? `+${rep.penaltyFormatted}` : 'Ceza Yok'}
+                          ${hasPenalty ? `+${rep.penaltyFormatted}` : 'Telafi Yok'}
                         </span>
                       </td>
 
@@ -586,27 +586,27 @@ window.LeaveTrackerModule = {
                         }">
                           <div class="text-sm leading-tight">${rep.calculatedExitTime}</div>
                           <div class="text-[9px] font-bold opacity-80 mt-0.5">
-                            ${hasPenalty ? (isCleared ? '✓ Cezasını Çekti' : `(+${rep.penaltyMinutes} dk gecikmeli)`) : 'Tam Vaktinde'}
+                            ${hasPenalty ? (isCleared ? '✓ Telafisini Tamamladı' : `(+${rep.penaltyMinutes} dk ek süre)`) : 'Tam Vaktinde'}
                           </div>
                         </div>
                       </td>
 
-                      <!-- Ceza Durumu & TV Panosu Onayı -->
+                      <!-- Telafi Durumu & TV Panosu Onayı -->
                       <td class="p-3 text-center no-print">
                         ${hasPenalty ? `
                           ${isCleared ? `
                             <button type="button" onclick="window.LeaveTrackerModule.togglePenaltyCleared('${s.id}')"
                               class="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-rose-600 text-white font-black text-[11px] transition shadow-xs flex items-center justify-center gap-1 mx-auto cursor-pointer group"
-                              title="Tıklandığında cezayı tekrar aktif yapar ve TV panosuna gönderir">
-                              <span>✓</span> <span>Cezasını Çekti</span>
+                              title="Tıklandığında telafi süresini tekrar aktif yapar ve TV panosuna gönderir">
+                              <span>✓</span> <span>Telafisi Tamam</span>
                               <span class="hidden group-hover:inline text-[9px] ml-0.5">(Geri Al)</span>
                             </button>
                             <div class="text-[9px] text-emerald-700 font-bold mt-0.5">TV'den Düşürüldü</div>
                           ` : `
                             <button type="button" onclick="window.LeaveTrackerModule.togglePenaltyCleared('${s.id}')"
                               class="px-2.5 py-1 rounded-xl bg-amber-100 hover:bg-emerald-100 text-amber-900 hover:text-emerald-900 border border-amber-300 hover:border-emerald-400 font-black text-[11px] transition shadow-2xs flex items-center justify-center gap-1 mx-auto cursor-pointer"
-                              title="Talebe cezasını tamamladığında basınız; TV panosundaki cezalılar listesinden anında düşer">
-                              <span>⏳</span> <span>Cezasını Çekti Yap</span>
+                              title="Talebe telafisini tamamladığında basınız; TV panosundaki telafililer listesinden anında düşer">
+                              <span>⏳</span> <span>Telafisi Tamam Yap</span>
                             </button>
                             <div class="text-[9px] text-rose-600 font-bold mt-0.5">TV'de Yayında</div>
                           `}
@@ -684,14 +684,14 @@ window.LeaveTrackerModule = {
             </button>
           </div>
 
-          <!-- Ceza & Çıkış Kartı -->
+          <!-- Telafi & Çıkış Kartı -->
           <div class="grid grid-cols-3 gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-center">
             <div>
               <div class="text-[10px] font-bold text-slate-400 uppercase">TOPLAM KUSUR</div>
               <div class="text-lg font-black text-rose-700 mt-0.5">${rep.totalInfractions} Adet</div>
             </div>
             <div>
-              <div class="text-[10px] font-bold text-slate-400 uppercase">GECİKME SÜRESİ</div>
+              <div class="text-[10px] font-bold text-slate-400 uppercase">TELAFİ SÜRESİ</div>
               <div class="text-lg font-black text-rose-700 mt-0.5">+${rep.penaltyFormatted}</div>
             </div>
             <div>
@@ -745,7 +745,7 @@ window.LeaveTrackerModule = {
                       ? 'bg-emerald-600 text-white hover:bg-rose-600'
                       : 'bg-amber-500 hover:bg-amber-600 text-white'
                   }">
-                  <span>${window.Store.isPenaltyCleared(`week_${weekInfo.startDate}`, student.id) ? '✓ Cezasını Çekti (Geri Al)' : '✓ Cezasını Çekti Yap'}</span>
+                  <span>${window.Store.isPenaltyCleared(`week_${weekInfo.startDate}`, student.id) ? '✓ Telafisi Tamam (Geri Al)' : '✓ Telafisini Tamamladı Yap'}</span>
                 </button>
               ` : ''}
               <button type="button" onclick="window.LeaveTrackerModule.sendWhatsAppExitNotice('${student.id}')"

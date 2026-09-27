@@ -870,7 +870,7 @@ window.App = {
               <span class="text-xl">🧳</span>
               <div>
                 <div class="text-xs font-black">İzin Dönüşü Takibi</div>
-                <div class="text-[10px] text-slate-400 font-medium">Saatli varış kaydı ve 3 katı geç çıkış cezası</div>
+                <div class="text-[10px] text-slate-400 font-medium">Saatli varış kaydı ve 3 katı izne ek telafi süresi</div>
               </div>
             </div>
             <span class="text-slate-300">→</span>
@@ -1253,7 +1253,7 @@ window.App = {
                 class="w-full py-2.5 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-black border-2 border-amber-300 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
                 title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
                 <span class="text-sm">🔄</span>
-                <span>Sistemi & Önbelleği Sıfırla (v4.0)</span>
+                <span>Sistemi & Önbelleği Sıfırla (v4.7)</span>
               </button>
             </div>
           </div>
