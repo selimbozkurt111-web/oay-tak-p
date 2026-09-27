@@ -43,13 +43,15 @@ window.StudentExcelModule = {
         </div>
       `;
       return;
+    }
+
     if (!this._hasCloudUpdateListener) {
       this._hasCloudUpdateListener = true;
       window.addEventListener('students-cloud-updated', () => {
-        const activeEl = document.activeElement;
-        const isUserEditing = activeEl && activeEl.classList && activeEl.classList.contains('excel-input');
-        if (!isUserEditing && window.App && window.App.activeTab === 'ogrenciler_excel') {
-          this.renderTableBody();
+        // Kullanıcı Canlı Excel sekmesindeyken tabloyu arka planda ASLA otomatik yeniden çizme!
+        // Bu koruma, kullanıcının düzelttiği hücrelerin geri dönmesini veya imlecin kaybolmasını %100 engeller.
+        if (window.App && window.App.activeTab === 'ogrenciler_excel') {
+          return;
         }
       });
     }
@@ -250,6 +252,9 @@ window.StudentExcelModule = {
   handleKeyDown(e, rowIdx, colIdx) {
     if (e.key === 'Enter') {
       e.preventDefault();
+      if (e.target && typeof e.target.blur === 'function') {
+        e.target.blur();
+      }
       const nextInput = document.getElementById(`excel-cell-${rowIdx + 1}-${colIdx}`);
       if (nextInput) {
         nextInput.focus();
@@ -257,6 +262,9 @@ window.StudentExcelModule = {
       }
     } else if (e.key === 'ArrowUp' && (e.ctrlKey || e.altKey)) {
       e.preventDefault();
+      if (e.target && typeof e.target.blur === 'function') {
+        e.target.blur();
+      }
       const prevInput = document.getElementById(`excel-cell-${rowIdx - 1}-${colIdx}`);
       if (prevInput) {
         prevInput.focus();
@@ -264,6 +272,9 @@ window.StudentExcelModule = {
       }
     } else if (e.key === 'ArrowDown' && (e.ctrlKey || e.altKey)) {
       e.preventDefault();
+      if (e.target && typeof e.target.blur === 'function') {
+        e.target.blur();
+      }
       const nextInput = document.getElementById(`excel-cell-${rowIdx + 1}-${colIdx}`);
       if (nextInput) {
         nextInput.focus();

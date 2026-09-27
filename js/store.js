@@ -4,6 +4,7 @@
 
 const STORAGE_KEYS = {
   STUDENTS: 'yoklama_students',
+  LOCAL_STUDENT_EDITS: 'yoklama_local_student_edits_v1',
   DELETED_STUDENT_IDS: 'yoklama_deleted_student_ids_v1',
   PASSIVE_STUDENT_IDS: 'yoklama_passive_student_ids_v1',
   STAFF: 'yoklama_staff',
@@ -561,15 +562,22 @@ class DataStore {
         const finalPassive = inPassiveMap || isLocallyPassive || isCloudPassive;
 
         if (localSt) {
-          // Akıllı Karşılaştırma:
-          // 1. Yerelde güncelleme varsa ve buluttakinden yeni veya eşitse: Yerel kazanır
-          // 2. Yerelde güncelleme varsa ama bulutta updatedAt yoksa: Yerel kazanır
-          // 3. Yalnızca bulut öğrencisinin updatedAt'i yerelden kesinlikle daha yeniyse: Bulut kazanır
+          // Akıllı Karşılaştırma & Yerel Düzenleme Kalkanı:
+          // 1. Bu cihazda bu öğrenci elle düzenlenmişse (isStudentLocallyEdited): KESİNLİKLE YEREL KAYIT KAZANIR!
+          // 2. Yerelde geçerli kayıt varsa: Bulutun eski/bayat verisi yereli ASLA EZEMEZ!
+          const isLocallyEdited = this.isStudentLocallyEdited(cloudSt.id);
           let preferLocal = true;
-          if (cloudSt.updatedAt && localSt.updatedAt) {
-            preferLocal = new Date(localSt.updatedAt) >= new Date(cloudSt.updatedAt);
-          } else if (cloudSt.updatedAt && !localSt.updatedAt) {
-            preferLocal = false;
+
+          if (isLocallyEdited) {
+            preferLocal = true;
+          } else if (cloudSt.updatedAt && localSt.updatedAt) {
+            const localTs = new Date(localSt.updatedAt).getTime();
+            const cloudTs = new Date(cloudSt.updatedAt).getTime();
+            if (!isNaN(localTs) && !isNaN(cloudTs)) {
+              preferLocal = localTs >= cloudTs;
+            } else {
+              preferLocal = true;
+            }
           } else {
             preferLocal = true;
           }
@@ -739,8 +747,10 @@ class DataStore {
               window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: data }));
             }
           } else if (path.startsWith('students')) {
-            // Eğer son 4 saniye içinde bu tarayıcı öğrenci kaydetti ise, bu gelen SSE kendi yansımamızdır; es geç
-            if (this._lastStudentPushTime && (Date.now() - this._lastStudentPushTime < 4000)) {
+            // Eğer son 20 saniye içinde bu tarayıcı öğrenci kaydetti veya düzenlediyse, bu gelen SSE kendi yansımamızdır; es geç
+            const timeSinceEdit = this._lastStudentEditTime ? (Date.now() - this._lastStudentEditTime) : 999999;
+            const timeSincePush = this._lastStudentPushTime ? (Date.now() - this._lastStudentPushTime) : 999999;
+            if (timeSinceEdit < 20000 || timeSincePush < 20000) {
               return;
             }
             if (data) {
@@ -1148,6 +1158,41 @@ class DataStore {
     return !!(map[studentId] && map[studentId].isDeleted === true);
   }
 
+  // --- Yerel Düzenleme Kalkanı (Bulut Senkronizasyonunun Kullanıcı Düzeltmelerini Geri Almasını %100 Engeller) ---
+  getLocallyEditedStudents() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LOCAL_STUDENT_EDITS);
+      return data ? JSON.parse(data) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  saveLocallyEditedStudents(map) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.LOCAL_STUDENT_EDITS, JSON.stringify(map || {}));
+    } catch (e) {
+      console.error('saveLocallyEditedStudents error:', e);
+    }
+  }
+
+  markStudentLocallyEdited(studentId, fields = []) {
+    if (!studentId) return;
+    const map = this.getLocallyEditedStudents();
+    map[studentId] = {
+      updatedAt: new Date().toISOString(),
+      timestamp: Date.now(),
+      fields: Array.isArray(fields) ? fields : [fields]
+    };
+    this.saveLocallyEditedStudents(map);
+  }
+
+  isStudentLocallyEdited(studentId) {
+    if (!studentId) return false;
+    const map = this.getLocallyEditedStudents();
+    return !!map[studentId];
+  }
+
   // --- Öğrenci İşlemleri (Aktif & Pasif & Kalıcı Silinme Korumalı) ---
   getAllStudents() {
     try {
@@ -1268,8 +1313,9 @@ class DataStore {
     }
 
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(sanitizedStudents));
+    this._lastStudentPushTime = Date.now();
+    this._lastStudentEditTime = Date.now();
     if (this.isCloudEnabled()) {
-      this._lastStudentPushTime = Date.now();
       this.syncToCloud('kurs_data/students', sanitizedStudents);
     }
   }
@@ -1300,6 +1346,7 @@ class DataStore {
       passiveMap[newStudent.id] = { isPassive: true, updatedAt: newStudent.updatedAt };
       this.savePassiveStudentIds(passiveMap);
     }
+    this.markStudentLocallyEdited(newStudent.id, ['ALL']);
     this.saveStudents(students);
     return newStudent;
   }
@@ -1334,6 +1381,9 @@ class DataStore {
           isPassiveVal = true;
         }
       }
+
+      this.markStudentLocallyEdited(id, Object.keys(updatedData));
+      this._lastStudentEditTime = Date.now();
 
       students[index] = {
         ...students[index],

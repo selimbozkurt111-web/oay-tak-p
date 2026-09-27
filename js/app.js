@@ -3655,6 +3655,9 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
     handleKeyDown(e, rowIdx, colIdx) {
       if (e.key === 'Enter') {
         e.preventDefault();
+        if (e.target && typeof e.target.blur === 'function') {
+          e.target.blur();
+        }
         const nextInput = document.getElementById(`excel-cell-${rowIdx + 1}-${colIdx}`);
         if (nextInput) {
           nextInput.focus();
@@ -3662,6 +3665,9 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
         }
       } else if (e.key === 'ArrowUp' && (e.ctrlKey || e.altKey)) {
         e.preventDefault();
+        if (e.target && typeof e.target.blur === 'function') {
+          e.target.blur();
+        }
         const prevInput = document.getElementById(`excel-cell-${rowIdx - 1}-${colIdx}`);
         if (prevInput) {
           prevInput.focus();
@@ -3669,6 +3675,9 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
         }
       } else if (e.key === 'ArrowDown' && (e.ctrlKey || e.altKey)) {
         e.preventDefault();
+        if (e.target && typeof e.target.blur === 'function') {
+          e.target.blur();
+        }
         const nextInput = document.getElementById(`excel-cell-${rowIdx + 1}-${colIdx}`);
         if (nextInput) {
           nextInput.focus();
