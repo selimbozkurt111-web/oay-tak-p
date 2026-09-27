@@ -43,6 +43,15 @@ window.StudentExcelModule = {
         </div>
       `;
       return;
+    if (!this._hasCloudUpdateListener) {
+      this._hasCloudUpdateListener = true;
+      window.addEventListener('students-cloud-updated', () => {
+        const activeEl = document.activeElement;
+        const isUserEditing = activeEl && activeEl.classList && activeEl.classList.contains('excel-input');
+        if (!isUserEditing && window.App && window.App.activeTab === 'ogrenciler_excel') {
+          this.renderTableBody();
+        }
+      });
     }
 
     this.render();
@@ -87,12 +96,6 @@ window.StudentExcelModule = {
     this.selectedClass = 'ALL';
     this.selectedStatus = 'ALL';
     this.searchQuery = '';
-    const fallbackList = (window.Store && typeof window.Store.getAllStudents === 'function' && window.Store.getAllStudents()) ||
-                         (window.Store && typeof window.Store.getStudents === 'function' && window.Store.getStudents(true)) ||
-                         window.SEED_STUDENTS || [];
-    if (fallbackList.length > 0 && window.Store && typeof window.Store.saveStudents === 'function') {
-      window.Store.saveStudents(fallbackList);
-    }
     this.render();
   },
 
@@ -109,8 +112,11 @@ window.StudentExcelModule = {
     }
 
     if (!Array.isArray(students) || students.length === 0) {
-      const fallbackList = window.SEED_STUDENTS || 
+      const rawFallback = window.SEED_STUDENTS || 
                            (typeof SEED_STUDENTS !== 'undefined' ? SEED_STUDENTS : []);
+      const fallbackList = (window.Store && typeof window.Store.isStudentDeleted === 'function')
+        ? rawFallback.filter(s => s && s.id && !window.Store.isStudentDeleted(s.id))
+        : rawFallback;
       if (Array.isArray(fallbackList) && fallbackList.length > 0) {
         try {
           if (window.Store && typeof window.Store.saveStudents === 'function') {
@@ -176,9 +182,9 @@ window.StudentExcelModule = {
     return students;
   },
 
-  // Hücre içeriği değiştiğinde anında otomatik kayıt (Debounce 350ms)
+  // Hücre içeriği değiştiğinde anında otomatik kayıt (Debounce 400ms)
   handleCellInput(studentId, field, rawValue) {
-    const val = (rawValue != null ? rawValue : '').toString().trim();
+    const val = rawValue != null ? rawValue.toString() : '';
     const key = `${studentId}_${field}`;
     if (this.saveTimers[key]) clearTimeout(this.saveTimers[key]);
 
@@ -188,12 +194,15 @@ window.StudentExcelModule = {
     }
 
     this.saveTimers[key] = setTimeout(() => {
-      const updatePayload = { [field]: val };
+      delete this.saveTimers[key];
+      const trimmedVal = val.trim();
+      const updatePayload = { [field]: trimmedVal };
+
       // Eğer soyadı değiştiyse ve aile kodu boşsa veya eski soyada bağlıysa otomatik güncelle
-      if (field === 'lastName' && val) {
+      if (field === 'lastName' && trimmedVal) {
         const currentStudent = window.Store.getStudentById(studentId);
         if (currentStudent && (!currentStudent.familyCode || currentStudent.familyCode.includes('2026'))) {
-          updatePayload.familyCode = (val + '2026').toUpperCase();
+          updatePayload.familyCode = (trimmedVal + '2026').toUpperCase();
           const famInput = document.querySelector(`input[data-student-id="${studentId}"][data-field="familyCode"]`);
           if (famInput) famInput.value = updatePayload.familyCode;
         }
@@ -207,12 +216,34 @@ window.StudentExcelModule = {
           if (indicator) indicator.innerHTML = '';
         }, 1500);
       }
-    }, 350);
+    }, 400);
   },
 
   handleCellBlur(studentId, field, rawValue) {
+    const key = `${studentId}_${field}`;
+    if (this.saveTimers[key]) {
+      clearTimeout(this.saveTimers[key]);
+      delete this.saveTimers[key];
+    }
     const val = (rawValue != null ? rawValue : '').toString().trim();
-    window.Store.updateStudent(studentId, { [field]: val });
+    const updatePayload = { [field]: val };
+    if (field === 'lastName' && val) {
+      const currentStudent = window.Store.getStudentById(studentId);
+      if (currentStudent && (!currentStudent.familyCode || currentStudent.familyCode.includes('2026'))) {
+        updatePayload.familyCode = (val + '2026').toUpperCase();
+        const famInput = document.querySelector(`input[data-student-id="${studentId}"][data-field="familyCode"]`);
+        if (famInput) famInput.value = updatePayload.familyCode;
+      }
+    }
+    window.Store.updateStudent(studentId, updatePayload);
+
+    const indicator = document.getElementById('excel-save-indicator');
+    if (indicator) {
+      indicator.innerHTML = `<span class="text-emerald-600 font-black text-xs flex items-center gap-1">✓ <span>Otomatik Kaydedildi</span></span>`;
+      setTimeout(() => {
+        if (indicator) indicator.innerHTML = '';
+      }, 1500);
+    }
   },
 
   // Excel Klavye Deneyimi: Enter'a basınca aynı sütunda bir alt satıra geç
@@ -497,8 +528,11 @@ window.StudentExcelModule = {
     const name = st ? `${st.firstName || ''} ${st.lastName || ''}`.trim() : 'Bu talebeyi';
     if (confirm(`"${name}" kaydını sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!\n(Öğrencinin geçmişini kaybetmemek için bunun yerine ⏸️ Pasife Alabilirsiniz.)`)) {
       window.Store.deleteStudent(id);
-      window.App.showToast('Öğrenci kaydı silindi.', 'info');
+      window.App.showToast('Öğrenci kaydı kalıcı olarak silindi.', 'info');
       this.render();
+      if (window.App && typeof window.App.renderStudentsView === 'function') {
+        window.App.renderStudentsView();
+      }
     }
   },
 

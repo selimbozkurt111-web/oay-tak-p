@@ -3591,7 +3591,7 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
     },
 
     handleCellInput(studentId, field, rawValue) {
-      const val = (rawValue != null ? rawValue : '').toString().trim();
+      const val = rawValue != null ? rawValue.toString() : '';
       const key = `${studentId}_${field}`;
       if (this.saveTimers[key]) clearTimeout(this.saveTimers[key]);
 
@@ -3601,11 +3601,14 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
       }
 
       this.saveTimers[key] = setTimeout(() => {
-        const updatePayload = { [field]: val };
-        if (field === 'lastName' && val) {
+        delete this.saveTimers[key];
+        const trimmedVal = val.trim();
+        const updatePayload = { [field]: trimmedVal };
+
+        if (field === 'lastName' && trimmedVal) {
           const currentStudent = window.Store.getStudentById(studentId);
           if (currentStudent && (!currentStudent.familyCode || currentStudent.familyCode.includes('2026'))) {
-            updatePayload.familyCode = (val + '2026').toUpperCase();
+            updatePayload.familyCode = (trimmedVal + '2026').toUpperCase();
             const famInput = document.querySelector(`input[data-student-id="${studentId}"][data-field="familyCode"]`);
             if (famInput) famInput.value = updatePayload.familyCode;
           }
@@ -3619,12 +3622,34 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
             if (indicator) indicator.innerHTML = '';
           }, 1500);
         }
-      }, 350);
+      }, 400);
     },
 
     handleCellBlur(studentId, field, rawValue) {
+      const key = `${studentId}_${field}`;
+      if (this.saveTimers[key]) {
+        clearTimeout(this.saveTimers[key]);
+        delete this.saveTimers[key];
+      }
       const val = (rawValue != null ? rawValue : '').toString().trim();
-      window.Store.updateStudent(studentId, { [field]: val });
+      const updatePayload = { [field]: val };
+      if (field === 'lastName' && val) {
+        const currentStudent = window.Store.getStudentById(studentId);
+        if (currentStudent && (!currentStudent.familyCode || currentStudent.familyCode.includes('2026'))) {
+          updatePayload.familyCode = (val + '2026').toUpperCase();
+          const famInput = document.querySelector(`input[data-student-id="${studentId}"][data-field="familyCode"]`);
+          if (famInput) famInput.value = updatePayload.familyCode;
+        }
+      }
+      window.Store.updateStudent(studentId, updatePayload);
+
+      const indicator = document.getElementById('excel-save-indicator');
+      if (indicator) {
+        indicator.innerHTML = `<span class="text-emerald-600 font-black text-xs flex items-center gap-1">✓ <span>Otomatik Kaydedildi</span></span>`;
+        setTimeout(() => {
+          if (indicator) indicator.innerHTML = '';
+        }, 1500);
+      }
     },
 
     handleKeyDown(e, rowIdx, colIdx) {
