@@ -490,6 +490,8 @@ window.App = {
       activeTitle = `📝 Test & Etüt (${filterLabel})`;
     } else if (this.activeTab === 'leaderboard') {
       activeTitle = '🏆 Haftanın & Ayın Talebesi';
+    } else if (this.activeTab === 'kuran_takip' || this.activeTab === 'hatim') {
+      activeTitle = '📖 Kur\'an-ı Kerim & Hatim';
     } else if (this.activeTab === 'izin_cikis') {
       activeTitle = '🚪 İzine Çıkış Takibi';
     } else if (this.activeTab === 'izin_donusu') {
@@ -621,6 +623,9 @@ window.App = {
           window.TestResultsModule.selectedEtut = 'ALL';
         }
       }
+    }
+    if ((tab === 'kuran_takip' || tab === 'hatim') && category && window.QuranTrackerModule) {
+      window.QuranTrackerModule.selectedGroup = category;
     }
     this.renderHeader();
     this.renderMainContent();
@@ -796,6 +801,26 @@ window.App = {
             </div>
             <span class="text-slate-300">→</span>
           </button>
+
+          <!-- Kur'an-ı Kerim & Hatim Takibi (YENİ!) -->
+          <button type="button" onclick="window.App.navigateFromDrawer('kuran_takip')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'kuran_takip'
+                ? 'bg-emerald-50 text-emerald-900 font-black border border-emerald-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">📖</span>
+              <div>
+                <div class="text-xs font-black flex items-center gap-1.5">
+                  <span>Kur'an-ı Kerim & Hatim</span>
+                  <span class="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Yeni</span>
+                </div>
+                <div class="text-[10px] text-slate-400 font-medium">Dini ders grupları, sayfa takibi ve cüz hesabı</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
         </div>
 
         <!-- YARIŞMA & LİDERLİK TABLOSU -->
@@ -870,7 +895,7 @@ window.App = {
               <span class="text-xl">🧳</span>
               <div>
                 <div class="text-xs font-black">İzin Dönüşü Takibi</div>
-                <div class="text-[10px] text-slate-400 font-medium">Saatli varış kaydı ve 3 katı geç çıkış cezası</div>
+                <div class="text-[10px] text-slate-400 font-medium">Saatli varış kaydı ve 3 katı izne ek telafi süresi</div>
               </div>
             </div>
             <span class="text-slate-300">→</span>
@@ -1253,7 +1278,7 @@ window.App = {
                 class="w-full py-2.5 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-black border-2 border-amber-300 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
                 title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
                 <span class="text-sm">🔄</span>
-                <span>Sistemi & Önbelleği Sıfırla (v4.0)</span>
+                <span>Sistemi & Önbelleği Sıfırla (v4.9)</span>
               </button>
             </div>
           </div>
@@ -1298,6 +1323,11 @@ window.App = {
       main.innerHTML = `<div id="leave-return-container"></div>`;
       if (window.LeaveReturnModule) {
         window.LeaveReturnModule.init();
+      }
+    } else if (this.activeTab === 'kuran_takip' || this.activeTab === 'hatim') {
+      main.innerHTML = `<div id="quran-tracker-container"></div>`;
+      if (window.QuranTrackerModule) {
+        window.QuranTrackerModule.init();
       }
     } else if (this.activeTab === 'ogrenciler') {
       main.innerHTML = `<div id="students-container"></div>`;

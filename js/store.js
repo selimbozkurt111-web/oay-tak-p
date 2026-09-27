@@ -13,11 +13,13 @@ const STORAGE_KEYS = {
   ACADEMIC_SCORES: 'yoklama_academic_scores',
   TEST_RESULTS: 'yoklama_test_results_v1',
   LEAVE_CHECKOUT: 'yoklama_leave_checkout_v1',
+  PENALTY_CLEARED: 'yoklama_penalty_cleared_v1',
   LEAVE_RETURN: 'yoklama_leave_returns_v1',
   BONUS_POINTS: 'yoklama_bonus_points_v1',
   CUSTOM_COLUMNS: 'yoklama_custom_columns_v1',
   DUTIES: 'yoklama_daily_duties_v1',
   HADISLER: 'yoklama_custom_hadisler_v1',
+  QURAN_TRACKER: 'yoklama_quran_tracker_v1',
   SETTINGS: 'yoklama_settings',
   INITIALIZED: 'yoklama_init_v5'
 };
@@ -366,6 +368,7 @@ class DataStore {
       performance: this.getPerformances(),
       academicScores: this.getAcademicScores(),
       gateCheckouts: this.getAllGateCheckouts(),
+      penaltiesCleared: this.getAllClearedPenalties(),
       leaveReturns: this.getAllLeaveReturns(),
       bonusPoints: this.getAllBonusPoints(),
       customColumns: this.getCustomColumns(),
@@ -374,6 +377,7 @@ class DataStore {
       dailyDuties: this.getDailyDuties(),
       hadisler: this.getCustomHadisler(),
       hadisler_updatedAt: (localStorage.getItem('yoklama_custom_hadisler_meta_v1') ? JSON.parse(localStorage.getItem('yoklama_custom_hadisler_meta_v1')).updatedAt : new Date().toISOString()),
+      quranTracker: this.getAllQuranRecords(),
       lastSyncedAt: new Date().toISOString()
     };
 
@@ -554,44 +558,39 @@ class DataStore {
       const mergedStudents = validCloudStudents.map(cloudSt => {
         if (!cloudSt || !cloudSt.id) return cloudSt;
         const localSt = localStudentMap.get(cloudSt.id);
-        
-        // Pasiflik kuralı: Pasif sicilinde varsa veya yerelde pasifse KORU!
-        const isLocallyPassive = localSt && (localSt.isPassive === true || localSt.status === 'passive');
-        const inPassiveMap = passiveMap[cloudSt.id] && passiveMap[cloudSt.id].isPassive === true;
-        const isCloudPassive = cloudSt.isPassive === true || cloudSt.status === 'passive';
-        const finalPassive = inPassiveMap || isLocallyPassive || isCloudPassive;
 
         if (localSt) {
-          // Akıllı Karşılaştırma & Yerel Düzenleme Kalkanı:
-          // 1. Bu cihazda bu öğrenci elle düzenlenmişse (isStudentLocallyEdited): KESİNLİKLE YEREL KAYIT KAZANIR!
-          // 2. Yerelde geçerli kayıt varsa: Bulutun eski/bayat verisi yereli ASLA EZEMEZ!
           const isLocallyEdited = this.isStudentLocallyEdited(cloudSt.id);
+          const localTs = localSt.updatedAt ? new Date(localSt.updatedAt).getTime() : 0;
+          const cloudTs = cloudSt.updatedAt ? new Date(cloudSt.updatedAt).getTime() : 0;
+          
           let preferLocal = true;
-
           if (isLocallyEdited) {
             preferLocal = true;
-          } else if (cloudSt.updatedAt && localSt.updatedAt) {
-            const localTs = new Date(localSt.updatedAt).getTime();
-            const cloudTs = new Date(cloudSt.updatedAt).getTime();
-            if (!isNaN(localTs) && !isNaN(cloudTs)) {
-              preferLocal = localTs >= cloudTs;
-            } else {
-              preferLocal = true;
-            }
-          } else {
-            preferLocal = true;
+          } else if (!isNaN(localTs) && !isNaN(cloudTs)) {
+            preferLocal = localTs >= cloudTs;
           }
 
           if (preferLocal) {
+            const finalPassive = localSt.isPassive === true || localSt.status === 'passive';
             return {
               ...cloudSt,
               ...localSt,
               isPassive: finalPassive,
               status: finalPassive ? 'passive' : 'active'
             };
+          } else {
+            const finalPassive = cloudSt.isPassive === true || cloudSt.status === 'passive';
+            return {
+              ...localSt,
+              ...cloudSt,
+              isPassive: finalPassive,
+              status: finalPassive ? 'passive' : 'active'
+            };
           }
         }
 
+        const finalPassive = (passiveMap[cloudSt.id] && passiveMap[cloudSt.id].isPassive === true) || cloudSt.isPassive === true || cloudSt.status === 'passive';
         return {
           ...cloudSt,
           isPassive: finalPassive,
@@ -619,6 +618,17 @@ class DataStore {
     // 6. İzin kapı çıkışları
     if (cloudData.gateCheckouts && typeof cloudData.gateCheckouts === 'object') {
       localStorage.setItem(STORAGE_KEYS.LEAVE_CHECKOUT, JSON.stringify(cloudData.gateCheckouts));
+    }
+
+    // 6b. Cezasını Çekenler (Tamamlanan / Affedilen Cezalar)
+    if (cloudData.penaltiesCleared && typeof cloudData.penaltiesCleared === 'object') {
+      const localCleared = this.getAllClearedPenalties();
+      const mergedCleared = { ...localCleared };
+      Object.keys(cloudData.penaltiesCleared).forEach(wKey => {
+        if (!mergedCleared[wKey]) mergedCleared[wKey] = {};
+        Object.assign(mergedCleared[wKey], cloudData.penaltiesCleared[wKey]);
+      });
+      localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(mergedCleared));
     }
 
     // 7. İzin dönüş kayıtları (Akıllı birleştirme: En güncel updatedAt kazanır)
@@ -700,6 +710,21 @@ class DataStore {
       }
     }
 
+    // 13. Kur'an-ı Kerim & Hatim Takibi (Akıllı birleştirme: En güncel updatedAt kazanır)
+    if (cloudData.quranTracker && typeof cloudData.quranTracker === 'object') {
+      const localQuran = this.getAllQuranRecords();
+      const mergedQuran = { ...localQuran };
+      Object.keys(cloudData.quranTracker).forEach(stId => {
+        const cloudRec = cloudData.quranTracker[stId];
+        const localRec = mergedQuran[stId];
+        if (!localRec || !localRec.updatedAt || (cloudRec && cloudRec.updatedAt && new Date(cloudRec.updatedAt) >= new Date(localRec.updatedAt))) {
+          mergedQuran[stId] = cloudRec;
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(mergedQuran));
+      window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: mergedQuran }));
+    }
+
     window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: cloudData }));
   }
 
@@ -746,6 +771,8 @@ class DataStore {
               localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(data));
               window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: data }));
             }
+          } else if (path.startsWith('quranTracker')) {
+            this.handleRealtimeQuranTracker(path, data);
           } else if (path.startsWith('students')) {
             // Eğer son 20 saniye içinde bu tarayıcı öğrenci kaydetti veya düzenlediyse, bu gelen SSE kendi yansımamızdır; es geç
             const timeSinceEdit = this._lastStudentEditTime ? (Date.now() - this._lastStudentEditTime) : 999999;
@@ -773,6 +800,27 @@ class DataStore {
       };
     } catch (err) {
       console.warn('[RealtimeSync] EventSource başlatılamadı:', err);
+    }
+  }
+
+  handleRealtimeQuranTracker(path, data) {
+    try {
+      const parts = path.split('/');
+      const all = this.getAllQuranRecords();
+      if (parts.length === 2) {
+        const studentId = parts[1];
+        if (data === null) {
+          delete all[studentId];
+        } else {
+          all[studentId] = data;
+        }
+      } else if (parts.length === 1 && typeof data === 'object') {
+        Object.assign(all, data || {});
+      }
+      localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(all));
+      window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: all }));
+    } catch (e) {
+      console.warn('[handleRealtimeQuranTracker] Hata:', e);
     }
   }
 
@@ -1220,10 +1268,10 @@ class DataStore {
 
       list.forEach(s => {
         if (!s || !s.id) return;
+        const isExplicitlyPassive = s.isPassive === true || s.status === 'passive';
         const inPassiveMap = passiveMap[s.id] && passiveMap[s.id].isPassive === true;
-        const isCurrentlyPassive = inPassiveMap || s.isPassive === true || s.status === 'passive';
 
-        if (isCurrentlyPassive) {
+        if (isExplicitlyPassive) {
           if (!s.isPassive || s.status !== 'passive') {
             s.isPassive = true;
             s.status = 'passive';
@@ -1238,6 +1286,10 @@ class DataStore {
             s.isPassive = false;
             s.status = 'active';
             listChanged = true;
+          }
+          if (passiveMap[s.id]) {
+            delete passiveMap[s.id];
+            mapChanged = true;
           }
         }
       });
@@ -1296,12 +1348,20 @@ class DataStore {
     sanitizedStudents.forEach(s => {
       if (!s || !s.id) return;
       if (!s.updatedAt) s.updatedAt = nowIso;
-      if (passiveMap[s.id] && passiveMap[s.id].isPassive === true) {
+      if (s.isPassive === true || s.status === 'passive') {
         s.isPassive = true;
         s.status = 'passive';
-      } else if (s.isPassive === true || s.status === 'passive') {
-        passiveMap[s.id] = { isPassive: true, updatedAt: s.updatedAt || nowIso };
-        mapChanged = true;
+        if (!passiveMap[s.id] || !passiveMap[s.id].isPassive) {
+          passiveMap[s.id] = { isPassive: true, updatedAt: s.updatedAt || nowIso };
+          mapChanged = true;
+        }
+      } else {
+        s.isPassive = false;
+        s.status = 'active';
+        if (passiveMap[s.id]) {
+          delete passiveMap[s.id];
+          mapChanged = true;
+        }
       }
     });
 
@@ -1365,6 +1425,12 @@ class DataStore {
           passiveMap[id] = { isPassive: true, updatedAt: new Date().toISOString() };
         } else {
           delete passiveMap[id];
+          if (this.isCloudEnabled()) {
+            const baseUrl = this.getFirebaseUrl();
+            if (baseUrl) {
+              try { fetch(`${baseUrl}/kurs_data/passive_student_ids/${id}.json`, { method: 'DELETE' }).catch(() => {}); } catch (e) {}
+            }
+          }
         }
         this.savePassiveStudentIds(passiveMap);
       } else if (updatedData.status !== undefined) {
@@ -1373,6 +1439,12 @@ class DataStore {
           passiveMap[id] = { isPassive: true, updatedAt: new Date().toISOString() };
         } else {
           delete passiveMap[id];
+          if (this.isCloudEnabled()) {
+            const baseUrl = this.getFirebaseUrl();
+            if (baseUrl) {
+              try { fetch(`${baseUrl}/kurs_data/passive_student_ids/${id}.json`, { method: 'DELETE' }).catch(() => {}); } catch (e) {}
+            }
+          }
         }
         this.savePassiveStudentIds(passiveMap);
       } else {
@@ -1538,8 +1610,18 @@ class DataStore {
       passiveMap[id] = { isPassive: true, updatedAt: nowIso };
     } else {
       delete passiveMap[id];
+      if (this.isCloudEnabled()) {
+        const baseUrl = this.getFirebaseUrl();
+        if (baseUrl) {
+          try {
+            fetch(`${baseUrl}/kurs_data/passive_student_ids/${id}.json`, { method: 'DELETE' }).catch(() => {});
+          } catch (e) {}
+        }
+      }
     }
 
+    this.markStudentLocallyEdited(id, ['isPassive', 'status']);
+    this._lastStudentEditTime = Date.now();
     this.savePassiveStudentIds(passiveMap);
     this.saveStudents(students);
     return { success: true, isPassive: s.isPassive, student: s };
@@ -2274,7 +2356,7 @@ class DataStore {
       }
     });
 
-    // İzin Dönüşü Gecikmeleri (Kaç dakika geç kaldıysa x3 geç çıkış cezası)
+    // İzin Dönüşü Gecikmeleri (Kaç dakika geç kaldıysa x3 ek telafi süresi)
     let leaveReturnInfractionsCount = 0;
     let leaveReturnPenaltyMinutes = 0;
     const allLeaveReturns = this.getAllLeaveReturns();
@@ -2302,7 +2384,7 @@ class DataStore {
             lateMinutes: lr.lateMinutes,
             arrivalTime: lr.arrivalTime,
             expectedTime: lr.expectedTime,
-            desc: `${dStr} ${dayName} • İzin Dönüşü: ${lr.lateMinutes} dk geç geldi (${lr.arrivalTime}, beklenen: ${lr.expectedTime}) • 3x Ceza: +${multPenalty} dk geç çıkış`
+            desc: `${dStr} ${dayName} • İzin Dönüşü: ${lr.lateMinutes} dk geç geldi (${lr.arrivalTime}, beklenen: ${lr.expectedTime}) • 3x Telafi: +${multPenalty} dk ek süre`
           });
         }
       }
@@ -2388,6 +2470,122 @@ class DataStore {
     } catch {
       return false;
     }
+  }
+
+  // ========================================================
+  // --- CEZALILAR İÇİN CEZASINI ÇEKTİ / TAMAMLANDI METODLARI ---
+  // ========================================================
+  getAllClearedPenalties() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.PENALTY_CLEARED);
+      return data ? JSON.parse(data) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  isPenaltyCleared(weekKey, studentId) {
+    if (!weekKey || !studentId) return false;
+    const all = this.getAllClearedPenalties();
+    if (!all[weekKey]) return false;
+    const entry = all[weekKey][studentId];
+    if (typeof entry === 'boolean') return entry;
+    return !!(entry && entry.cleared);
+  }
+
+  getClearedPenaltiesForWeek(weekKey) {
+    if (!weekKey) return {};
+    const all = this.getAllClearedPenalties();
+    return all[weekKey] || {};
+  }
+
+  togglePenaltyCleared(weekKey, studentId, note = '') {
+    try {
+      const all = this.getAllClearedPenalties();
+      if (!all[weekKey]) all[weekKey] = {};
+      const current = this.isPenaltyCleared(weekKey, studentId);
+      const newState = !current;
+      
+      all[weekKey][studentId] = {
+        cleared: newState,
+        clearedAt: newState ? new Date().toISOString() : null,
+        note: note || (newState ? 'Telafisini tamamladı' : '')
+      };
+      
+      localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(all));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/penaltiesCleared', all);
+      }
+      window.dispatchEvent(new CustomEvent('penalty-cleared-updated', { 
+        detail: { weekKey, studentId, cleared: newState } 
+      }));
+      return newState;
+    } catch (e) {
+      console.error('togglePenaltyCleared error:', e);
+      return false;
+    }
+  }
+
+  setPenaltyCleared(weekKey, studentId, isCleared = true, note = '') {
+    try {
+      const all = this.getAllClearedPenalties();
+      if (!all[weekKey]) all[weekKey] = {};
+      all[weekKey][studentId] = {
+        cleared: !!isCleared,
+        clearedAt: isCleared ? new Date().toISOString() : null,
+        note: note || (isCleared ? 'Telafisini tamamladı' : '')
+      };
+      localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(all));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/penaltiesCleared', all);
+      }
+      window.dispatchEvent(new CustomEvent('penalty-cleared-updated', { 
+        detail: { weekKey, studentId, cleared: !!isCleared } 
+      }));
+      return true;
+    } catch (e) {
+      console.error('setPenaltyCleared error:', e);
+      return false;
+    }
+  }
+
+  // ========================================================
+  // --- WHATSAPP İLE VELİYE BİLDİRİM YARDIMCISI ---
+  // ========================================================
+  cleanPhoneNumber(rawPhone) {
+    if (!rawPhone) return '';
+    let cleaned = rawPhone.toString().replace(/\D/g, '');
+    if (!cleaned) return '';
+    if (cleaned.startsWith('0090')) {
+      cleaned = cleaned.substring(2);
+    } else if (cleaned.startsWith('0')) {
+      cleaned = '9' + cleaned;
+    } else if (cleaned.length === 10 && cleaned.startsWith('5')) {
+      cleaned = '90' + cleaned;
+    }
+    return cleaned;
+  }
+
+  formatPhoneDisplay(rawPhone) {
+    const clean = this.cleanPhoneNumber(rawPhone);
+    if (clean.length === 12 && clean.startsWith('905')) {
+      return `0${clean.substring(2, 5)} ${clean.substring(5, 8)} ${clean.substring(8, 10)} ${clean.substring(10, 12)}`;
+    }
+    return rawPhone || '';
+  }
+
+  sendWhatsAppMessage(rawPhone, messageText) {
+    const phone = this.cleanPhoneNumber(rawPhone);
+    if (!phone) {
+      if (window.App && typeof window.App.showToast === 'function') {
+        window.App.showToast('Veli telefon numarası bulunamadı. Lütfen talebenin veli telefonunu giriniz.', 'warning');
+      }
+      return false;
+    }
+    const encoded = encodeURIComponent(messageText);
+    const url = `https://api.whatsapp.com/send?phone=${phone}&text=${encoded}`;
+    window.open(url, '_blank');
+    return true;
   }
 
   // --- İzin Dönüşü Kayıt Metodları ---
@@ -2899,6 +3097,8 @@ class DataStore {
       attendance: this.getAttendance(),
       performance: this.getPerformances(),
       academicScores: this.getAcademicScores(),
+      gateCheckouts: this.getAllGateCheckouts(),
+      penaltiesCleared: this.getAllClearedPenalties(),
       leaveReturns: this.getAllLeaveReturns(),
       bonusPoints: this.getAllBonusPoints(),
       customColumns: this.getCustomColumns(),
@@ -2923,6 +3123,8 @@ class DataStore {
       if (parsed.attendance) localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(parsed.attendance));
       if (parsed.performance) localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(parsed.performance));
       if (parsed.academicScores) localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(parsed.academicScores));
+      if (parsed.gateCheckouts) localStorage.setItem(STORAGE_KEYS.LEAVE_CHECKOUT, JSON.stringify(parsed.gateCheckouts));
+      if (parsed.penaltiesCleared) localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(parsed.penaltiesCleared));
       if (parsed.leaveReturns) localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(parsed.leaveReturns));
       if (parsed.bonusPoints) localStorage.setItem(STORAGE_KEYS.BONUS_POINTS, JSON.stringify(parsed.bonusPoints));
       if (parsed.customColumns) localStorage.setItem(STORAGE_KEYS.CUSTOM_COLUMNS, JSON.stringify(parsed.customColumns));
@@ -3067,24 +3269,333 @@ class DataStore {
   }
 
   // ========================================================
-  // --- PANODA GÖSTERİLECEK CEZALILAR VE İNTİZAM LİSTESİ ---
+  // --- PANODA GÖSTERİLECEK TELAFİLİLER VE İNTİZAM LİSTESİ ---
   // ========================================================
   getPanoPenalizedStudents(referenceDate) {
     const today = referenceDate || new Date().toISOString().split('T')[0];
     const students = this.getStudents(false); // Aktif öğrenciler
+    const weekInfo = this.getWeekRange(today);
+    const weekKey = `week_${weekInfo.startDate}`;
     const reportData = this.getLeaveReportBatch(students, undefined, '13:00');
 
-    // Sadece cezası olanları (penaltyMinutes > 0) filtrele ve ceza dakikasına göre çoktan aza sırala
-    const penalized = (reportData.reports || [])
-      .filter(item => item && item.report && item.report.penaltyMinutes > 0)
+    // Telafisi olan tüm talebeler
+    const allPenalized = (reportData.reports || [])
+      .filter(item => item && item.report && item.report.penaltyMinutes > 0);
+
+    // TELAFİSİNİ TAMAMLAYANLAR (isPenaltyCleared) TV panosundan otomatik düşer!
+    const activePenalized = allPenalized
+      .filter(item => !this.isPenaltyCleared(weekKey, item.student.id))
       .sort((a, b) => b.report.penaltyMinutes - a.report.penaltyMinutes);
 
+    const clearedCount = allPenalized.length - activePenalized.length;
+
     return {
-      totalPenalizedCount: penalized.length,
-      penalizedStudents: penalized,
+      weekKey,
+      totalPenalizedCount: activePenalized.length,
+      allPenalizedCount: allPenalized.length,
+      clearedCount: clearedCount,
+      penalizedStudents: activePenalized,
       totalStudents: students.length,
-      onTimeCount: reportData.onTimeCount
+      onTimeCount: reportData.onTimeCount + clearedCount
     };
+  }
+
+  // ========================================================
+  // --- KUR'AN-I KERİM & HATİM TAKİP SİSTEMİ ---
+  // ========================================================
+  getAllQuranRecords() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.QURAN_TRACKER);
+      if (raw) return JSON.parse(raw);
+
+      // İlk çalıştırmada boşsa talebelerin seviyelerine uygun gerçekçi başlangıç verileri hazırla
+      const students = this.getStudents(false);
+      const initial = {};
+      students.forEach(s => {
+        let page = 1;
+        let hatim = 0;
+        const numSeed = parseInt(s.studentNo || s.id.replace(/\D/g, '') || '1', 10);
+        if (s.seviye === 'Seviye 3') {
+          page = 240 + ((numSeed * 17) % 260);
+          hatim = (numSeed % 2 === 0) ? 1 : 0;
+        } else if (s.seviye === 'Seviye 2') {
+          page = 120 + ((numSeed * 13) % 160);
+          hatim = 0;
+        } else {
+          page = 25 + ((numSeed * 7) % 95);
+          hatim = 0;
+        }
+        initial[s.id] = {
+          studentId: s.id,
+          currentPage: page,
+          hatimCount: hatim,
+          diniGrup: s.dahiliHoca || s.seviye || 'Genel',
+          note: '',
+          updatedAt: new Date().toISOString(),
+          history: []
+        };
+      });
+      localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(initial));
+      return initial;
+    } catch (e) {
+      console.warn('getAllQuranRecords error:', e);
+      return {};
+    }
+  }
+
+  getQuranRecord(studentId) {
+    if (!studentId) return null;
+    const all = this.getAllQuranRecords();
+    const student = this.getStudentById(studentId) || {};
+    const defaultGroup = student.dahiliHoca || student.seviye || 'Genel';
+    
+    if (all[studentId]) {
+      return {
+        studentId,
+        currentPage: typeof all[studentId].currentPage === 'number' ? all[studentId].currentPage : 1,
+        hatimCount: typeof all[studentId].hatimCount === 'number' ? all[studentId].hatimCount : 0,
+        diniGrup: all[studentId].diniGrup || defaultGroup,
+        note: all[studentId].note || '',
+        updatedAt: all[studentId].updatedAt || null,
+        history: Array.isArray(all[studentId].history) ? all[studentId].history : []
+      };
+    }
+
+    return {
+      studentId,
+      currentPage: 1,
+      hatimCount: 0,
+      diniGrup: defaultGroup,
+      note: '',
+      updatedAt: null,
+      history: []
+    };
+  }
+
+  calculateQuranStats(pageInput, hatimCountInput = 0) {
+    const page = Math.min(604, Math.max(0, parseInt(pageInput, 10) || 0));
+    const hatimCount = Math.max(0, parseInt(hatimCountInput, 10) || 0);
+
+    const pagesReadInHatim = page;
+    const pagesLeftInHatim = Math.max(0, 604 - page);
+    const percentRead = parseFloat(((page / 604) * 100).toFixed(1));
+    const percentLeft = parseFloat((((604 - page) / 604) * 100).toFixed(1));
+    const cuzNo = page === 0 ? 1 : Math.min(30, Math.floor(Math.max(0, page - 1) / 20) + 1);
+    const cuzStartPage = (cuzNo - 1) * 20 + 1;
+    const cuzEndPage = Math.min(604, cuzNo * 20);
+    const totalLifetimePages = (hatimCount * 604) + page;
+    const isHatimComplete = page >= 604;
+
+    return {
+      currentPage: page,
+      hatimCount,
+      pagesReadInHatim,
+      pagesLeftInHatim,
+      percentRead,
+      percentLeft,
+      cuzNo,
+      cuzPageRange: `${cuzStartPage} - ${cuzEndPage}`,
+      totalLifetimePages,
+      isHatimComplete
+    };
+  }
+
+  saveQuranRecord(studentId, pageInput, hatimCountInput, note = '', customGroup = null) {
+    try {
+      const all = this.getAllQuranRecords();
+      const existing = this.getQuranRecord(studentId);
+      const student = this.getStudentById(studentId) || {};
+      
+      const newPage = Math.min(604, Math.max(0, parseInt(pageInput, 10) || 0));
+      const newHatim = Math.max(0, parseInt(hatimCountInput !== undefined && hatimCountInput !== null ? hatimCountInput : existing.hatimCount, 10) || 0);
+      const newGroup = customGroup !== null ? customGroup : (existing.diniGrup || student.dahiliHoca || student.seviye || 'Genel');
+      
+      const nowIso = new Date().toISOString();
+      const todayStr = nowIso.split('T')[0];
+
+      // Günlük okuma farkını geçmişe ekle
+      const history = [...(existing.history || [])];
+      const prevPage = existing.currentPage || 0;
+      const readDiff = (newPage >= prevPage) ? (newPage - prevPage) : newPage;
+      
+      // Aynı güne ait kayıt varsa güncelle, yoksa ekle
+      const todayIndex = history.findIndex(h => h.date === todayStr);
+      if (todayIndex >= 0) {
+        history[todayIndex] = {
+          date: todayStr,
+          page: newPage,
+          readToday: Math.max(0, (history[todayIndex].readToday || 0) + readDiff),
+          updatedAt: nowIso
+        };
+      } else {
+        history.unshift({
+          date: todayStr,
+          page: newPage,
+          readToday: Math.max(0, readDiff),
+          updatedAt: nowIso
+        });
+      }
+
+      // Geçmişi en fazla 30 kayıtla sınırla
+      if (history.length > 30) history.length = 30;
+
+      const updatedRecord = {
+        studentId,
+        currentPage: newPage,
+        hatimCount: newHatim,
+        diniGrup: newGroup,
+        note: note !== undefined ? note : (existing.note || ''),
+        updatedAt: nowIso,
+        history
+      };
+
+      all[studentId] = updatedRecord;
+      localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(all));
+
+      if (this.isCloudEnabled()) {
+        this.syncToCloud(`kurs_data/quranTracker/${studentId}`, updatedRecord);
+      }
+
+      window.dispatchEvent(new CustomEvent('quran-tracker-updated', { 
+        detail: { studentId, record: updatedRecord, all } 
+      }));
+
+      const stats = this.calculateQuranStats(newPage, newHatim);
+      return { success: true, record: updatedRecord, stats };
+    } catch (e) {
+      console.error('saveQuranRecord error:', e);
+      return { success: false, message: e.message };
+    }
+  }
+
+  completeHatim(studentId, note = '') {
+    const rec = this.getQuranRecord(studentId);
+    const newHatim = (rec.hatimCount || 0) + 1;
+    const completedNote = note || `${newHatim}. Hatm-i Şerif tamamlandı!`;
+    return this.saveQuranRecord(studentId, 1, newHatim, completedNote);
+  }
+
+  getQuranLeaderboard(limit = 10, filterGroup = 'ALL', filterLevel = 'ALL') {
+    const students = this.getStudents(false); // Aktif öğrenciler
+    const allRecords = this.getAllQuranRecords();
+
+    let list = students.map(s => {
+      const rec = allRecords[s.id] || { currentPage: 1, hatimCount: 0, diniGrup: s.dahiliHoca || s.seviye || 'Genel' };
+      const stats = this.calculateQuranStats(rec.currentPage, rec.hatimCount);
+      return {
+        student: s,
+        record: rec,
+        stats,
+        diniGrup: rec.diniGrup || s.dahiliHoca || s.seviye || 'Genel'
+      };
+    });
+
+    // Grup filtresi
+    if (filterGroup && filterGroup !== 'ALL') {
+      list = list.filter(item => {
+        const grp = item.diniGrup || item.student.dahiliHoca || '';
+        return grp.trim().toLowerCase() === filterGroup.trim().toLowerCase();
+      });
+    }
+
+    // Seviye filtresi
+    if (filterLevel && filterLevel !== 'ALL') {
+      list = list.filter(item => item.student.seviye === filterLevel);
+    }
+
+    // Sıralama: Önce tamamlanan hatim sayısı (DESC), sonra mevcut hatimdeki sayfa (DESC), sonra alfabetik
+    list.sort((a, b) => {
+      if (b.stats.totalLifetimePages !== a.stats.totalLifetimePages) {
+        return b.stats.totalLifetimePages - a.stats.totalLifetimePages;
+      }
+      if (b.stats.hatimCount !== a.stats.hatimCount) {
+        return b.stats.hatimCount - a.stats.hatimCount;
+      }
+      if (b.stats.currentPage !== a.stats.currentPage) {
+        return b.stats.currentPage - a.stats.currentPage;
+      }
+      return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
+    });
+
+    // Sıra numarası (Rank) ekle
+    list.forEach((item, idx) => {
+      item.rank = idx + 1;
+    });
+
+    if (limit && limit > 0) {
+      return list.slice(0, limit);
+    }
+    return list;
+  }
+
+  getQuranGroupSummary() {
+    const students = this.getStudents(false);
+    const allRecords = this.getAllQuranRecords();
+    const groupMap = {};
+
+    students.forEach(s => {
+      const rec = allRecords[s.id] || { currentPage: 1, hatimCount: 0, diniGrup: s.dahiliHoca || s.seviye || 'Genel' };
+      const grp = rec.diniGrup || s.dahiliHoca || 'Genel Grup';
+      const stats = this.calculateQuranStats(rec.currentPage, rec.hatimCount);
+
+      if (!groupMap[grp]) {
+        groupMap[grp] = {
+          groupName: grp,
+          students: [],
+          totalLifetimePages: 0,
+          totalCompletedHatims: 0,
+          totalCurrentPages: 0,
+          topReader: null
+        };
+      }
+
+      groupMap[grp].students.push({ student: s, record: rec, stats });
+      groupMap[grp].totalLifetimePages += stats.totalLifetimePages;
+      groupMap[grp].totalCompletedHatims += stats.hatimCount;
+      groupMap[grp].totalCurrentPages += stats.currentPage;
+    });
+
+    const summaryList = Object.values(groupMap).map(g => {
+      g.studentCount = g.students.length;
+      g.avgPagesPerStudent = g.studentCount > 0 ? Math.round(g.totalLifetimePages / g.studentCount) : 0;
+      g.avgPercent = g.studentCount > 0 ? Math.min(100, parseFloat(((g.totalCurrentPages / (g.studentCount * 604)) * 100).toFixed(1))) : 0;
+      
+      // Grup birincisini bul
+      g.students.sort((a, b) => b.stats.totalLifetimePages - a.stats.totalLifetimePages);
+      g.topReader = g.students[0] || null;
+
+      return g;
+    });
+
+    // Grupları toplam okunan sayfaya göre sırala
+    summaryList.sort((a, b) => b.totalLifetimePages - a.totalLifetimePages);
+    return summaryList;
+  }
+
+  sendWhatsAppQuranReport(studentId, rawPhone) {
+    const student = this.getStudentById(studentId);
+    if (!student) return false;
+
+    const phone = rawPhone || student.fatherPhone || student.motherPhone || student.parentPhone;
+    const rec = this.getQuranRecord(studentId);
+    const stats = this.calculateQuranStats(rec.currentPage, rec.hatimCount);
+
+    const hatimText = stats.hatimCount > 0 
+      ? `• Tamamlanan Hatim: ${stats.hatimCount} Hatm-i Şerif\n• Devam Eden Hatimdeki Sayfa: ${stats.currentPage} / 604 (${stats.cuzNo}. Cüz)\n`
+      : `• Kaldığı Sayfa: ${stats.currentPage} / 604 (${stats.cuzNo}. Cüz)\n`;
+
+    const message = 
+      `*ÖMER AVNİYEL AKADEMİ • KUR'AN-I KERİM HATİM BİLGİLENDİRMESİ*\n\n` +
+      `Sayın Velimiz,\n` +
+      `Talebeniz *${student.firstName} ${student.lastName}* (${student.className}) Kur'an-ı Kerim tilavet ve hatim takibinde gayretle ilerlemektedir:\n\n` +
+      `${hatimText}` +
+      `• Okunan Oran: %${stats.percentRead}\n` +
+      `• Hatmin Bitmesine Kalan: ${stats.pagesLeftInHatim} Sayfa (%${stats.percentLeft})\n` +
+      `• Dini Ders Grubu: ${rec.diniGrup || student.dahiliHoca || '-'}\n\n` +
+      `"Sizin en hayırlınız, Kur'an'ı öğrenen ve öğretendir." (Hadis-i Şerif - Buhârî)\n\n` +
+      `Talebemizi azminden ötürü tebrik eder, muvaffakiyetlerinin devamını dileriz. — Ömer Avniyel Akademi`;
+
+    return this.sendWhatsAppMessage(phone, message);
   }
 }
 
