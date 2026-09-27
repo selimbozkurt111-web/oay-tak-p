@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
   <meta name="description" content="Ömer Avniyel Akademi Canlı TV Bilgi ve Duyuru Panosu">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v4.6) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v4.7) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20260927_v4.6_WHATSAPP_PENALTY_CLEARED';
+      var CURRENT_BUILD = '20260927_v4.7_TELAFI_SISTEMI';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -205,7 +205,7 @@
         <span>🕌</span> <span>Günün Hadisi</span>
       </button>
       <button onclick="PanoApp.goToSlide(6)" id="slide-btn-6" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
-        <span>⚠️</span> <span>Cezalılar</span>
+        <span>⚠️</span> <span>Telafiler</span>
       </button>
 
       <!-- Otomatik Geçiş Geri Sayım Rozeti -->
@@ -282,14 +282,14 @@
   <div class="fixed bottom-10 right-4 z-40 opacity-70 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-3 py-1.5 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[11px] font-black shadow-lg flex items-center gap-1.5 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v4.6)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v4.7)</span>
     </button>
   </div>
 
   <!-- Hadis Veritabanı, Store ve Leaderboard Modülleri -->
-  <script src="js/hadisler.js?v=4.6"></script>
-  <script src="js/store.js?v=4.6"></script>
-  <script src="js/leaderboard.js?v=4.6"></script>
+  <script src="js/hadisler.js?v=4.7"></script>
+  <script src="js/store.js?v=4.7"></script>
+  <script src="js/leaderboard.js?v=4.7"></script>
 
   <!-- Pano TV Yönetim Motoru (v4.4) -->
   <script>
@@ -1329,7 +1329,7 @@
         `;
       },
 
-      // SLAYT 6: ⚠️ CEZALILAR VE İNTİZAM LİSTESİ (EN SON SAYFA!)
+      // SLAYT 6: ⚠️ TELAFİLER VE İNTİZAM LİSTESİ (EN SON SAYFA!)
       renderSlidePenalties(container) {
         const todayStr = new Date().toISOString().split('T')[0];
         const res = (window.Store && typeof window.Store.getPanoPenalizedStudents === 'function')
@@ -1344,33 +1344,33 @@
               <div>
                 <div class="flex items-center gap-2">
                   <span class="text-2xl">⚠️</span>
-                  <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">Haftalık İntizam & Ceza Raporu</h2>
+                  <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">Haftalık İntizam & Telafi Raporu</h2>
                   <span class="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-black text-xs">
-                    Son Sayfa • Çıkış Cezaları
+                    Son Sayfa • Çıkış Telafileri
                   </span>
                 </div>
                 <p class="text-xs text-slate-400 mt-0.5">
-                  Namaz, oda/yatak, okul geliş ve izin dönüşü gecikmeleri sonucu gecikmeli çıkış yapacak talebeler
+                  Namaz, oda/yatak, okul geliş ve izin dönüşü gecikmeleri sonucu ek telafi süresiyle çıkacak talebeler
                 </p>
               </div>
 
               <div class="flex items-center gap-2">
                 ${(res.clearedCount || 0) > 0 ? `
                   <div class="text-xs font-bold text-emerald-300 bg-emerald-950/40 px-3 py-1.5 rounded-xl border border-emerald-800/60 flex items-center gap-1">
-                    <span>✓</span> <span>Cezasını Çeken: <strong class="text-emerald-400">${res.clearedCount}</strong></span>
+                    <span>✓</span> <span>Telafisi Tamam: <strong class="text-emerald-400">${res.clearedCount}</strong></span>
                   </div>
                 ` : ''}
                 <div class="text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
                   İntizamlı: <span class="text-emerald-400 font-black">${res.onTimeCount || 0}</span>
                 </div>
                 <div class="text-xs font-bold text-rose-300 bg-rose-950/40 px-3 py-1.5 rounded-xl border border-rose-800/60">
-                  Aktif Cezalı: <span class="text-rose-400 font-black">${res.totalPenalizedCount || 0} Talebe</span>
+                  Aktif Telafili: <span class="text-rose-400 font-black">${res.totalPenalizedCount || 0} Talebe</span>
                 </div>
               </div>
             </div>
 
             ${list.length === 0 ? `
-              <!-- Cezalı Yoksa Kutlama Kartı -->
+              <!-- Telafili Yoksa Kutlama Kartı -->
               <div class="bg-gradient-to-b from-slate-900 via-emerald-950/20 to-slate-950 rounded-3xl border-2 border-emerald-500/40 p-12 text-center shadow-2xl max-w-2xl mx-auto my-8">
                 <div class="w-20 h-20 rounded-3xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-4xl mx-auto mb-4 shadow-lg shadow-emerald-500/10">
                   🌟
@@ -1379,16 +1379,16 @@
                   MAŞAALLAH • TAM İNTİZAM
                 </div>
                 <h3 class="text-2xl sm:text-3xl font-black text-white tracking-tight mb-2">
-                  Şu Anda Kursumuzda Aktif Cezalı Talebe Bulunmamaktadır!
+                  Şu Anda Kursumuzda Aktif Telafisi Olan Talebe Bulunmamaktadır!
                 </h3>
                 <p class="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-lg mx-auto">
                   ${(res.clearedCount || 0) > 0 
-                    ? `Bu hafta oluşan cezalar talebelerimiz tarafından tamamlanmış ve intizam sağlanmıştır. Gayretlerinden ötürü tüm talebelerimizi tebrik ederiz.`
+                    ? `Bu hafta oluşan intizam telafileri talebelerimiz tarafından tamamlanmış ve intizam sağlanmıştır. Gayretlerinden ötürü tüm talebelerimizi tebrik ederiz.`
                     : `Tüm talebelerimiz 5 vakit namazlarına, oda ve yatak nizamına, okul ve izin vakitlerine tam riayet etmiştir. Bu güzel intizamın devamını dileriz.`}
                 </p>
               </div>
             ` : `
-              <!-- Cezalı Talebeler Listesi (Tablo / Kartlar) -->
+              <!-- Telafili Talebeler Listesi (Tablo / Kartlar) -->
               <div class="bg-slate-900/90 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
                 <div class="overflow-x-auto max-h-[60vh]">
                   <table class="w-full text-left border-collapse text-xs">
@@ -1396,9 +1396,9 @@
                       <tr class="bg-slate-950/80 text-[11px] font-black uppercase text-slate-400 border-b border-slate-800 sticky top-0 z-10">
                         <th class="p-3 text-center w-12">#</th>
                         <th class="p-3 w-44">TALEBE ADI & SINIFI</th>
-                        <th class="p-3 text-center w-28">CEZA SÜRESİ</th>
+                        <th class="p-3 text-center w-28">TELAFİ SÜRESİ</th>
                         <th class="p-3 text-center w-36">KAPI ÇIKIŞ SAATİ</th>
-                        <th class="p-3">CEZA SEBEPLERİ VE İHLALLER</th>
+                        <th class="p-3">TELAFİ SEBEPLERİ VE İNTİZAM KAYITLARI</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-800/80">
