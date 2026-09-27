@@ -19,6 +19,7 @@ const STORAGE_KEYS = {
   CUSTOM_COLUMNS: 'yoklama_custom_columns_v1',
   DUTIES: 'yoklama_daily_duties_v1',
   HADISLER: 'yoklama_custom_hadisler_v1',
+  QURAN_TRACKER: 'yoklama_quran_tracker_v1',
   SETTINGS: 'yoklama_settings',
   INITIALIZED: 'yoklama_init_v5'
 };
@@ -376,6 +377,7 @@ class DataStore {
       dailyDuties: this.getDailyDuties(),
       hadisler: this.getCustomHadisler(),
       hadisler_updatedAt: (localStorage.getItem('yoklama_custom_hadisler_meta_v1') ? JSON.parse(localStorage.getItem('yoklama_custom_hadisler_meta_v1')).updatedAt : new Date().toISOString()),
+      quranTracker: this.getAllQuranRecords(),
       lastSyncedAt: new Date().toISOString()
     };
 
@@ -713,6 +715,21 @@ class DataStore {
       }
     }
 
+    // 13. Kur'an-ı Kerim & Hatim Takibi (Akıllı birleştirme: En güncel updatedAt kazanır)
+    if (cloudData.quranTracker && typeof cloudData.quranTracker === 'object') {
+      const localQuran = this.getAllQuranRecords();
+      const mergedQuran = { ...localQuran };
+      Object.keys(cloudData.quranTracker).forEach(stId => {
+        const cloudRec = cloudData.quranTracker[stId];
+        const localRec = mergedQuran[stId];
+        if (!localRec || !localRec.updatedAt || (cloudRec && cloudRec.updatedAt && new Date(cloudRec.updatedAt) >= new Date(localRec.updatedAt))) {
+          mergedQuran[stId] = cloudRec;
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(mergedQuran));
+      window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: mergedQuran }));
+    }
+
     window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: cloudData }));
   }
 
@@ -759,6 +776,8 @@ class DataStore {
               localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(data));
               window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: data }));
             }
+          } else if (path.startsWith('quranTracker')) {
+            this.handleRealtimeQuranTracker(path, data);
           } else if (path.startsWith('students')) {
             // Eğer son 20 saniye içinde bu tarayıcı öğrenci kaydetti veya düzenlediyse, bu gelen SSE kendi yansımamızdır; es geç
             const timeSinceEdit = this._lastStudentEditTime ? (Date.now() - this._lastStudentEditTime) : 999999;
@@ -786,6 +805,27 @@ class DataStore {
       };
     } catch (err) {
       console.warn('[RealtimeSync] EventSource başlatılamadı:', err);
+    }
+  }
+
+  handleRealtimeQuranTracker(path, data) {
+    try {
+      const parts = path.split('/');
+      const all = this.getAllQuranRecords();
+      if (parts.length === 2) {
+        const studentId = parts[1];
+        if (data === null) {
+          delete all[studentId];
+        } else {
+          all[studentId] = data;
+        }
+      } else if (parts.length === 1 && typeof data === 'object') {
+        Object.assign(all, data || {});
+      }
+      localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(all));
+      window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: all }));
+    } catch (e) {
+      console.warn('[handleRealtimeQuranTracker] Hata:', e);
     }
   }
 
@@ -3229,6 +3269,304 @@ class DataStore {
       totalStudents: students.length,
       onTimeCount: reportData.onTimeCount + clearedCount
     };
+  }
+
+  // ========================================================
+  // --- KUR'AN-I KERİM & HATİM TAKİP SİSTEMİ ---
+  // ========================================================
+  getAllQuranRecords() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.QURAN_TRACKER);
+      if (raw) return JSON.parse(raw);
+
+      // İlk çalıştırmada boşsa talebelerin seviyelerine uygun gerçekçi başlangıç verileri hazırla
+      const students = this.getStudents(false);
+      const initial = {};
+      students.forEach(s => {
+        let page = 1;
+        let hatim = 0;
+        const numSeed = parseInt(s.studentNo || s.id.replace(/\D/g, '') || '1', 10);
+        if (s.seviye === 'Seviye 3') {
+          page = 240 + ((numSeed * 17) % 260);
+          hatim = (numSeed % 2 === 0) ? 1 : 0;
+        } else if (s.seviye === 'Seviye 2') {
+          page = 120 + ((numSeed * 13) % 160);
+          hatim = 0;
+        } else {
+          page = 25 + ((numSeed * 7) % 95);
+          hatim = 0;
+        }
+        initial[s.id] = {
+          studentId: s.id,
+          currentPage: page,
+          hatimCount: hatim,
+          diniGrup: s.dahiliHoca || s.seviye || 'Genel',
+          note: '',
+          updatedAt: new Date().toISOString(),
+          history: []
+        };
+      });
+      localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(initial));
+      return initial;
+    } catch (e) {
+      console.warn('getAllQuranRecords error:', e);
+      return {};
+    }
+  }
+
+  getQuranRecord(studentId) {
+    if (!studentId) return null;
+    const all = this.getAllQuranRecords();
+    const student = this.getStudentById(studentId) || {};
+    const defaultGroup = student.dahiliHoca || student.seviye || 'Genel';
+    
+    if (all[studentId]) {
+      return {
+        studentId,
+        currentPage: typeof all[studentId].currentPage === 'number' ? all[studentId].currentPage : 1,
+        hatimCount: typeof all[studentId].hatimCount === 'number' ? all[studentId].hatimCount : 0,
+        diniGrup: all[studentId].diniGrup || defaultGroup,
+        note: all[studentId].note || '',
+        updatedAt: all[studentId].updatedAt || null,
+        history: Array.isArray(all[studentId].history) ? all[studentId].history : []
+      };
+    }
+
+    return {
+      studentId,
+      currentPage: 1,
+      hatimCount: 0,
+      diniGrup: defaultGroup,
+      note: '',
+      updatedAt: null,
+      history: []
+    };
+  }
+
+  calculateQuranStats(pageInput, hatimCountInput = 0) {
+    const page = Math.min(604, Math.max(0, parseInt(pageInput, 10) || 0));
+    const hatimCount = Math.max(0, parseInt(hatimCountInput, 10) || 0);
+
+    const pagesReadInHatim = page;
+    const pagesLeftInHatim = Math.max(0, 604 - page);
+    const percentRead = parseFloat(((page / 604) * 100).toFixed(1));
+    const percentLeft = parseFloat((((604 - page) / 604) * 100).toFixed(1));
+    const cuzNo = page === 0 ? 1 : Math.min(30, Math.floor(Math.max(0, page - 1) / 20) + 1);
+    const cuzStartPage = (cuzNo - 1) * 20 + 1;
+    const cuzEndPage = Math.min(604, cuzNo * 20);
+    const totalLifetimePages = (hatimCount * 604) + page;
+    const isHatimComplete = page >= 604;
+
+    return {
+      currentPage: page,
+      hatimCount,
+      pagesReadInHatim,
+      pagesLeftInHatim,
+      percentRead,
+      percentLeft,
+      cuzNo,
+      cuzPageRange: `${cuzStartPage} - ${cuzEndPage}`,
+      totalLifetimePages,
+      isHatimComplete
+    };
+  }
+
+  saveQuranRecord(studentId, pageInput, hatimCountInput, note = '', customGroup = null) {
+    try {
+      const all = this.getAllQuranRecords();
+      const existing = this.getQuranRecord(studentId);
+      const student = this.getStudentById(studentId) || {};
+      
+      const newPage = Math.min(604, Math.max(0, parseInt(pageInput, 10) || 0));
+      const newHatim = Math.max(0, parseInt(hatimCountInput !== undefined && hatimCountInput !== null ? hatimCountInput : existing.hatimCount, 10) || 0);
+      const newGroup = customGroup !== null ? customGroup : (existing.diniGrup || student.dahiliHoca || student.seviye || 'Genel');
+      
+      const nowIso = new Date().toISOString();
+      const todayStr = nowIso.split('T')[0];
+
+      // Günlük okuma farkını geçmişe ekle
+      const history = [...(existing.history || [])];
+      const prevPage = existing.currentPage || 0;
+      const readDiff = (newPage >= prevPage) ? (newPage - prevPage) : newPage;
+      
+      // Aynı güne ait kayıt varsa güncelle, yoksa ekle
+      const todayIndex = history.findIndex(h => h.date === todayStr);
+      if (todayIndex >= 0) {
+        history[todayIndex] = {
+          date: todayStr,
+          page: newPage,
+          readToday: Math.max(0, (history[todayIndex].readToday || 0) + readDiff),
+          updatedAt: nowIso
+        };
+      } else {
+        history.unshift({
+          date: todayStr,
+          page: newPage,
+          readToday: Math.max(0, readDiff),
+          updatedAt: nowIso
+        });
+      }
+
+      // Geçmişi en fazla 30 kayıtla sınırla
+      if (history.length > 30) history.length = 30;
+
+      const updatedRecord = {
+        studentId,
+        currentPage: newPage,
+        hatimCount: newHatim,
+        diniGrup: newGroup,
+        note: note !== undefined ? note : (existing.note || ''),
+        updatedAt: nowIso,
+        history
+      };
+
+      all[studentId] = updatedRecord;
+      localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(all));
+
+      if (this.isCloudEnabled()) {
+        this.syncToCloud(`kurs_data/quranTracker/${studentId}`, updatedRecord);
+      }
+
+      window.dispatchEvent(new CustomEvent('quran-tracker-updated', { 
+        detail: { studentId, record: updatedRecord, all } 
+      }));
+
+      const stats = this.calculateQuranStats(newPage, newHatim);
+      return { success: true, record: updatedRecord, stats };
+    } catch (e) {
+      console.error('saveQuranRecord error:', e);
+      return { success: false, message: e.message };
+    }
+  }
+
+  completeHatim(studentId, note = '') {
+    const rec = this.getQuranRecord(studentId);
+    const newHatim = (rec.hatimCount || 0) + 1;
+    const completedNote = note || `${newHatim}. Hatm-i Şerif tamamlandı!`;
+    return this.saveQuranRecord(studentId, 1, newHatim, completedNote);
+  }
+
+  getQuranLeaderboard(limit = 10, filterGroup = 'ALL', filterLevel = 'ALL') {
+    const students = this.getStudents(false); // Aktif öğrenciler
+    const allRecords = this.getAllQuranRecords();
+
+    let list = students.map(s => {
+      const rec = allRecords[s.id] || { currentPage: 1, hatimCount: 0, diniGrup: s.dahiliHoca || s.seviye || 'Genel' };
+      const stats = this.calculateQuranStats(rec.currentPage, rec.hatimCount);
+      return {
+        student: s,
+        record: rec,
+        stats,
+        diniGrup: rec.diniGrup || s.dahiliHoca || s.seviye || 'Genel'
+      };
+    });
+
+    // Grup filtresi
+    if (filterGroup && filterGroup !== 'ALL') {
+      list = list.filter(item => {
+        const grp = item.diniGrup || item.student.dahiliHoca || '';
+        return grp.trim().toLowerCase() === filterGroup.trim().toLowerCase();
+      });
+    }
+
+    // Seviye filtresi
+    if (filterLevel && filterLevel !== 'ALL') {
+      list = list.filter(item => item.student.seviye === filterLevel);
+    }
+
+    // Sıralama: Önce tamamlanan hatim sayısı (DESC), sonra mevcut hatimdeki sayfa (DESC), sonra alfabetik
+    list.sort((a, b) => {
+      if (b.stats.totalLifetimePages !== a.stats.totalLifetimePages) {
+        return b.stats.totalLifetimePages - a.stats.totalLifetimePages;
+      }
+      if (b.stats.hatimCount !== a.stats.hatimCount) {
+        return b.stats.hatimCount - a.stats.hatimCount;
+      }
+      if (b.stats.currentPage !== a.stats.currentPage) {
+        return b.stats.currentPage - a.stats.currentPage;
+      }
+      return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
+    });
+
+    // Sıra numarası (Rank) ekle
+    list.forEach((item, idx) => {
+      item.rank = idx + 1;
+    });
+
+    if (limit && limit > 0) {
+      return list.slice(0, limit);
+    }
+    return list;
+  }
+
+  getQuranGroupSummary() {
+    const students = this.getStudents(false);
+    const allRecords = this.getAllQuranRecords();
+    const groupMap = {};
+
+    students.forEach(s => {
+      const rec = allRecords[s.id] || { currentPage: 1, hatimCount: 0, diniGrup: s.dahiliHoca || s.seviye || 'Genel' };
+      const grp = rec.diniGrup || s.dahiliHoca || 'Genel Grup';
+      const stats = this.calculateQuranStats(rec.currentPage, rec.hatimCount);
+
+      if (!groupMap[grp]) {
+        groupMap[grp] = {
+          groupName: grp,
+          students: [],
+          totalLifetimePages: 0,
+          totalCompletedHatims: 0,
+          totalCurrentPages: 0,
+          topReader: null
+        };
+      }
+
+      groupMap[grp].students.push({ student: s, record: rec, stats });
+      groupMap[grp].totalLifetimePages += stats.totalLifetimePages;
+      groupMap[grp].totalCompletedHatims += stats.hatimCount;
+      groupMap[grp].totalCurrentPages += stats.currentPage;
+    });
+
+    const summaryList = Object.values(groupMap).map(g => {
+      g.studentCount = g.students.length;
+      g.avgPagesPerStudent = g.studentCount > 0 ? Math.round(g.totalLifetimePages / g.studentCount) : 0;
+      g.avgPercent = g.studentCount > 0 ? Math.min(100, parseFloat(((g.totalCurrentPages / (g.studentCount * 604)) * 100).toFixed(1))) : 0;
+      
+      // Grup birincisini bul
+      g.students.sort((a, b) => b.stats.totalLifetimePages - a.stats.totalLifetimePages);
+      g.topReader = g.students[0] || null;
+
+      return g;
+    });
+
+    // Grupları toplam okunan sayfaya göre sırala
+    summaryList.sort((a, b) => b.totalLifetimePages - a.totalLifetimePages);
+    return summaryList;
+  }
+
+  sendWhatsAppQuranReport(studentId, rawPhone) {
+    const student = this.getStudentById(studentId);
+    if (!student) return false;
+
+    const phone = rawPhone || student.fatherPhone || student.motherPhone || student.parentPhone;
+    const rec = this.getQuranRecord(studentId);
+    const stats = this.calculateQuranStats(rec.currentPage, rec.hatimCount);
+
+    const hatimText = stats.hatimCount > 0 
+      ? `• Tamamlanan Hatim: ${stats.hatimCount} Hatm-i Şerif\n• Devam Eden Hatimdeki Sayfa: ${stats.currentPage} / 604 (${stats.cuzNo}. Cüz)\n`
+      : `• Kaldığı Sayfa: ${stats.currentPage} / 604 (${stats.cuzNo}. Cüz)\n`;
+
+    const message = 
+      `*ÖMER AVNİYEL AKADEMİ • KUR'AN-I KERİM HATİM BİLGİLENDİRMESİ*\n\n` +
+      `Sayın Velimiz,\n` +
+      `Talebeniz *${student.firstName} ${student.lastName}* (${student.className}) Kur'an-ı Kerim tilavet ve hatim takibinde gayretle ilerlemektedir:\n\n` +
+      `${hatimText}` +
+      `• Okunan Oran: %${stats.percentRead}\n` +
+      `• Hatmin Bitmesine Kalan: ${stats.pagesLeftInHatim} Sayfa (%${stats.percentLeft})\n` +
+      `• Dini Ders Grubu: ${rec.diniGrup || student.dahiliHoca || '-'}\n\n` +
+      `"Sizin en hayırlınız, Kur'an'ı öğrenen ve öğretendir." (Hadis-i Şerif - Buhârî)\n\n` +
+      `Talebemizi azminden ötürü tebrik eder, muvaffakiyetlerinin devamını dileriz. — Ömer Avniyel Akademi`;
+
+    return this.sendWhatsAppMessage(phone, message);
   }
 }
 
