@@ -104,6 +104,47 @@ window.LeaveTrackerModule = {
     }
   },
 
+  togglePenaltyCleared(studentId) {
+    const weekInfo = this.getWeekInfo();
+    const weekKey = `week_${weekInfo.startDate}`;
+    const newState = window.Store.togglePenaltyCleared(weekKey, studentId);
+    this.renderView();
+    if (window.App && window.App.showToast) {
+      const st = window.Store.getStudentById(studentId);
+      const name = st ? `${st.firstName} ${st.lastName}` : 'Talebe';
+      if (newState) {
+        window.App.showToast(`✓ ${name} cezasını çekti olarak işaretlendi ve TV panosundan düşürüldü.`, 'success');
+      } else {
+        window.App.showToast(`⚠️ ${name} cezası tekrar aktif yapıldı (TV'de gösterilecek).`, 'info');
+      }
+    }
+  },
+
+  sendWhatsAppExitNotice(studentId) {
+    const st = window.Store.getStudentById(studentId);
+    if (!st) return;
+
+    let phone = st.parentPhone || st.phone || st.fatherPhone || '';
+    if (!phone) {
+      const input = prompt(`"${st.firstName} ${st.lastName}" adlı talebenin veli telefonu kayıtlı değil.\nMesaj göndermek için veli telefon numarasını giriniz (Örn: 05xx...):`);
+      if (!input || !input.trim()) return;
+      phone = input.trim();
+      window.Store.updateStudent(studentId, { parentPhone: phone });
+    }
+
+    const weekInfo = this.getWeekInfo();
+    const rep = window.Store.getLeaveReportForStudent(studentId, weekInfo.dates, this.baseExitTime);
+    
+    let msg = '';
+    if (rep.penaltyMinutes > 0) {
+      msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${st.firstName} ${st.lastName}, bu hafta oluşan intizam kusurları sebebiyle (+${rep.penaltyFormatted} gecikme) hafta sonu iznine saat ${rep.calculatedExitTime}'de çıkabilecektir (Standart çıkış: ${this.baseExitTime}). Bilgilerinize sunarız.`;
+    } else {
+      msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${st.firstName} ${st.lastName}, bu haftayı tam intizam ve kusursuz olarak tamamlamış olup hafta sonu iznine vaktinde (Saat: ${this.baseExitTime}) çıkacaktır. Gayretlerinden ötürü tebrik eder, hayırlı günler dileriz.`;
+    }
+
+    window.Store.sendWhatsAppMessage(phone, msg);
+  },
+
   openDetailModal(studentId) {
     this.modalStudentId = studentId;
     this.renderView();
@@ -154,6 +195,14 @@ window.LeaveTrackerModule = {
 
     // Toplu Ceza & Çıkış Hesabı
     const batch = window.Store.getLeaveReportBatch(allStudents, weekInfo.dates, this.baseExitTime);
+
+    let clearedCount = 0;
+    batch.reports.forEach(r => {
+      if (r.report.totalInfractions > 0 && window.Store.isPenaltyCleared(weekKey, r.student.id)) {
+        clearedCount++;
+      }
+    });
+    const activePenalizedCount = Math.max(0, batch.delayedCount - clearedCount);
 
     // Yalnızca gecikecekler filtresi aktifse
     let displayedReports = batch.reports;
@@ -278,7 +327,12 @@ window.LeaveTrackerModule = {
             <div>
               <div class="text-[11px] font-bold uppercase text-rose-700 tracking-wider">GECİKMELİ ÇIKACAKLAR</div>
               <div class="text-2xl font-black text-rose-700 mt-1">${batch.delayedCount} Talebe</div>
-              <div class="text-[11px] text-rose-600 font-bold mt-0.5">Yoklama kusuru olanlar</div>
+              <div class="text-[11px] font-bold mt-1 flex flex-col gap-0.5">
+                ${clearedCount > 0 ? `<span class="text-emerald-700">✓ ${clearedCount} Talebe Cezasını Çekti (TV'den Düşürüldü)</span>` : ''}
+                ${activePenalizedCount > 0 
+                  ? `<span class="text-rose-600">⚠️ ${activePenalizedCount} Talebe TV'de Gösteriliyor</span>` 
+                  : `<span class="text-emerald-600">🎉 TV Panosu Temiz (Cezalı Yok)</span>`}
+              </div>
             </div>
             <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 text-xl font-bold flex items-center justify-center">
               🔴
@@ -415,14 +469,15 @@ window.LeaveTrackerModule = {
                   <th class="p-3 font-black text-center">TOPLAM KUSUR</th>
                   <th class="p-3 font-black text-center">CEZA SÜRESİ</th>
                   <th class="p-3 font-black text-center">İZİN ÇIKIŞ SAATİ</th>
+                  <th class="p-3 font-black text-center no-print min-w-[140px]">CEZA DURUMU (TV)</th>
                   <th class="p-3 font-black text-center no-print">KAPI KONTROL</th>
-                  <th class="p-3 font-black text-center no-print">DETAY</th>
+                  <th class="p-3 font-black text-center no-print">İŞLEM</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
                 ${displayedReports.length === 0 ? `
                   <tr>
-                    <td colspan="11" class="p-8 text-center text-slate-400">
+                    <td colspan="12" class="p-8 text-center text-slate-400">
                       Seçilen kriterlere uygun öğrenci bulunamadı.
                     </td>
                   </tr>
@@ -431,9 +486,10 @@ window.LeaveTrackerModule = {
                   const rep = item.report;
                   const isCheckedOut = !!gateStatus[s.id];
                   const hasPenalty = rep.totalInfractions > 0;
+                  const isCleared = hasPenalty && window.Store.isPenaltyCleared(weekKey, s.id);
 
                   return `
-                    <tr class="hover:bg-slate-50/70 transition-colors ${isCheckedOut ? 'bg-slate-50/40 opacity-70' : ''}">
+                    <tr class="hover:bg-slate-50/70 transition-colors ${isCheckedOut ? 'bg-slate-50/40 opacity-70' : ''} ${isCleared ? 'bg-emerald-50/20' : ''}">
                       <!-- Sıra & No -->
                       <td class="p-3 text-center font-bold text-slate-400">
                         ${idx + 1}
@@ -443,12 +499,17 @@ window.LeaveTrackerModule = {
                       <td class="p-3">
                         <div class="flex items-center gap-2.5">
                           <div class="w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shadow-2xs ${
-                            hasPenalty ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                            hasPenalty 
+                              ? (isCleared ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300' : 'bg-rose-100 text-rose-800') 
+                              : 'bg-emerald-100 text-emerald-800'
                           }">
                             ${s.studentNo}
                           </div>
                           <div>
-                            <div class="font-black text-slate-900 text-xs">${s.firstName} ${s.lastName}</div>
+                            <div class="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                              <span>${s.firstName} ${s.lastName}</span>
+                              ${isCleared ? '<span class="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[9px] font-black">✓ Ceza Tamam</span>' : ''}
+                            </div>
                             <div class="text-[10px] text-slate-500 font-medium">
                               ${s.className} • ${s.dahiliHoca || '-'} • ${s.yatakhane || '-'}
                             </div>
@@ -503,7 +564,7 @@ window.LeaveTrackerModule = {
                       <!-- Toplam Kusur Sayısı -->
                       <td class="p-3 text-center">
                         <span class="px-2.5 py-1 rounded-xl font-black text-xs inline-block ${
-                          hasPenalty ? 'bg-rose-600 text-white shadow-2xs' : 'bg-slate-100 text-slate-500 font-bold'
+                          hasPenalty ? (isCleared ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-rose-600 text-white shadow-2xs') : 'bg-slate-100 text-slate-500 font-bold'
                         }">
                           ${rep.totalInfractions} Adet
                         </span>
@@ -511,7 +572,7 @@ window.LeaveTrackerModule = {
 
                       <!-- Ceza Süresi -->
                       <td class="p-3 text-center">
-                        <span class="font-black text-xs ${hasPenalty ? 'text-rose-700' : 'text-emerald-700'}">
+                        <span class="font-black text-xs ${hasPenalty ? (isCleared ? 'text-emerald-700' : 'text-rose-700') : 'text-emerald-700'}">
                           ${hasPenalty ? `+${rep.penaltyFormatted}` : 'Ceza Yok'}
                         </span>
                       </td>
@@ -520,14 +581,38 @@ window.LeaveTrackerModule = {
                       <td class="p-3 text-center">
                         <div class="inline-block px-3 py-1.5 rounded-xl font-black text-xs shadow-2xs border ${
                           hasPenalty 
-                            ? 'bg-rose-100 text-rose-900 border-rose-300 ring-1 ring-rose-200' 
+                            ? (isCleared ? 'bg-emerald-50 text-emerald-900 border-emerald-300' : 'bg-rose-100 text-rose-900 border-rose-300 ring-1 ring-rose-200')
                             : 'bg-emerald-100 text-emerald-900 border-emerald-300'
                         }">
                           <div class="text-sm leading-tight">${rep.calculatedExitTime}</div>
                           <div class="text-[9px] font-bold opacity-80 mt-0.5">
-                            ${hasPenalty ? `(+${rep.penaltyMinutes} dk gecikmeli)` : 'Tam Vaktinde'}
+                            ${hasPenalty ? (isCleared ? '✓ Cezasını Çekti' : `(+${rep.penaltyMinutes} dk gecikmeli)`) : 'Tam Vaktinde'}
                           </div>
                         </div>
+                      </td>
+
+                      <!-- Ceza Durumu & TV Panosu Onayı -->
+                      <td class="p-3 text-center no-print">
+                        ${hasPenalty ? `
+                          ${isCleared ? `
+                            <button type="button" onclick="window.LeaveTrackerModule.togglePenaltyCleared('${s.id}')"
+                              class="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-rose-600 text-white font-black text-[11px] transition shadow-xs flex items-center justify-center gap-1 mx-auto cursor-pointer group"
+                              title="Tıklandığında cezayı tekrar aktif yapar ve TV panosuna gönderir">
+                              <span>✓</span> <span>Cezasını Çekti</span>
+                              <span class="hidden group-hover:inline text-[9px] ml-0.5">(Geri Al)</span>
+                            </button>
+                            <div class="text-[9px] text-emerald-700 font-bold mt-0.5">TV'den Düşürüldü</div>
+                          ` : `
+                            <button type="button" onclick="window.LeaveTrackerModule.togglePenaltyCleared('${s.id}')"
+                              class="px-2.5 py-1 rounded-xl bg-amber-100 hover:bg-emerald-100 text-amber-900 hover:text-emerald-900 border border-amber-300 hover:border-emerald-400 font-black text-[11px] transition shadow-2xs flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                              title="Talebe cezasını tamamladığında basınız; TV panosundaki cezalılar listesinden anında düşer">
+                              <span>⏳</span> <span>Cezasını Çekti Yap</span>
+                            </button>
+                            <div class="text-[9px] text-rose-600 font-bold mt-0.5">TV'de Yayında</div>
+                          `}
+                        ` : `
+                          <span class="text-emerald-700 font-bold text-[11px]">✓ Kusursuz</span>
+                        `}
                       </td>
 
                       <!-- Kapı Kontrol Butonu (Nöbetçi Hoca / Güvenlik İçin) -->
@@ -542,12 +627,21 @@ window.LeaveTrackerModule = {
                         </button>
                       </td>
 
-                      <!-- Detay Butonu -->
+                      <!-- WhatsApp & Detay İşlemleri -->
                       <td class="p-3 text-center no-print">
-                        <button type="button" onclick="window.LeaveTrackerModule.openDetailModal('${s.id}')"
-                          class="p-2 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 font-bold transition">
-                          👁️
-                        </button>
+                        <div class="flex items-center justify-center gap-1">
+                          <button type="button" onclick="window.LeaveTrackerModule.sendWhatsAppExitNotice('${s.id}')"
+                            class="p-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                            title="Veliye WhatsApp'tan çıkış saati bildirimi gönder">
+                            <span>📲</span>
+                            <span class="text-[10px] hidden sm:inline">WhatsApp</span>
+                          </button>
+                          <button type="button" onclick="window.LeaveTrackerModule.openDetailModal('${s.id}')"
+                            class="p-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 font-bold transition shadow-2xs cursor-pointer"
+                            title="Kusur dökümü detayını gör">
+                            👁️
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   `;
@@ -641,10 +735,27 @@ window.LeaveTrackerModule = {
             `}
           </div>
 
-          <!-- Alt Kapat Butonu -->
-          <div class="pt-2 border-t border-slate-100 flex justify-end">
+          <!-- Alt İşlem & Kapat Butonları -->
+          <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              ${rep.totalInfractions > 0 ? `
+                <button type="button" onclick="window.LeaveTrackerModule.togglePenaltyCleared('${student.id}')"
+                  class="px-3 py-2 rounded-xl font-black text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer ${
+                    window.Store.isPenaltyCleared(`week_${weekInfo.startDate}`, student.id)
+                      ? 'bg-emerald-600 text-white hover:bg-rose-600'
+                      : 'bg-amber-500 hover:bg-amber-600 text-white'
+                  }">
+                  <span>${window.Store.isPenaltyCleared(`week_${weekInfo.startDate}`, student.id) ? '✓ Cezasını Çekti (Geri Al)' : '✓ Cezasını Çekti Yap'}</span>
+                </button>
+              ` : ''}
+              <button type="button" onclick="window.LeaveTrackerModule.sendWhatsAppExitNotice('${student.id}')"
+                class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer">
+                <span>📲</span>
+                <span>Veliye WhatsApp Bildirimi</span>
+              </button>
+            </div>
             <button type="button" onclick="window.LeaveTrackerModule.closeDetailModal()"
-              class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition">
+              class="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer">
               Kapat
             </button>
           </div>

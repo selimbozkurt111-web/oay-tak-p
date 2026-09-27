@@ -5,9 +5,9 @@
 window.App = {
   currentSession: null,
   activeTab: 'yoklama',
-  loginMode: 'user', // 'user' (Ad Soyad + Şifre) veya 'admin_otp' (E-posta ile Doğrulama)
+  loginMode: 'user', // 'user' (Ad Soyad + Şifre) veya 'admin_otp' (Önce Şifre + E-posta 2FA)
   loginTab: 'parent', // 'parent' (Veli) veya 'staff' (Eğitmen)
-  otpStep: 'request', // 'request' (mail yazma) veya 'verify' (kodu girme)
+  otpStep: 'password', // 'password' (1. Aşama: Şifre Doğrulama) veya 'verify' (2. Aşama: E-posta Kodu)
   adminEmailDraft: '',
   showAdminOtpOnScreen: true, // Kodu ekranda gösterme tercihi
   lastGeneratedAdminOtp: '',
@@ -21,7 +21,7 @@ window.App = {
       try {
         sessionStorage.setItem('yoklama_active_session', saved);
         this.currentSession = JSON.parse(saved);
-        if (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'stf_1' || (this.currentSession.name && this.currentSession.name.toUpperCase().includes('SELİM BOZKURT')))) {
+        if (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root')) {
           this.currentSession.role = 'superadmin';
           this.currentSession.canEditStudents = true;
           this.currentSession.canManageStaff = true;
@@ -51,7 +51,7 @@ window.App = {
           window.LeaveTrackerModule.renderView();
         } else if (this.activeTab === 'yoklama' && window.AttendanceModule) {
           window.AttendanceModule.renderView();
-        } else if (this.activeTab !== 'ogrenciler_excel') {
+        } else if (this.activeTab !== 'ogrenciler_excel' && this.activeTab !== 'ayarlar' && this.activeTab !== 'gorevler') {
           this.renderMainContent();
         }
       }
@@ -101,6 +101,34 @@ window.App = {
 
     // Yatak kontrolü zamanlayıcısını sayfa açılışında da bir kez denetle
     this.checkAndTriggerYatakReminder();
+  },
+
+  // Tarayıcı ve PWA önbelleğini tek tıkla tamamen temizleyip en güncel kodları zorla yükleme
+  async hardRefreshApp() {
+    if (typeof window.forcePurgeAppCache === 'function') {
+      window.forcePurgeAppCache();
+      return;
+    }
+    this.showToast('Önbellek temizleniyor ve sayfa yenileniyor...', 'info');
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) {
+          await reg.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (const key of keys) {
+          await caches.delete(key);
+        }
+      }
+    } catch (e) {
+      console.warn('Cache purge:', e);
+    }
+    setTimeout(() => {
+      window.location.href = window.location.pathname + '?reload=' + Date.now();
+    }, 250);
   },
 
   // --- Kurs Logosu / Fotoğrafı Otomatik Aday Bulma ve Hata Yönetimi ---
@@ -203,13 +231,31 @@ window.App = {
       return;
     }
 
+    // Ana Yönetici (Müdür) Girişi İse: Önce Şifre Doğrulandı, Şimdi 2. Aşama (E-postaya Kod Gönderimi)
+    if (session.requiresAdminOtp) {
+      const settings = window.Store.getSettings();
+      const adminEmail = session.email || settings.adminEmail || 'selimbozkurt111@gmail.com';
+      const res = window.Store.generateAdminOtp(adminEmail);
+      if (res && res.success) {
+        this.sendAdminOtpEmail(adminEmail, res.code);
+        this.adminEmailDraft = adminEmail;
+        this.lastGeneratedAdminOtp = res.code;
+        this.showAdminOtpOnScreen = true;
+        this.loginMode = 'admin_otp';
+        this.otpStep = 'verify';
+        this.showToast(`✓ Şifreniz onaylandı! 2. Güvenlik Aşaması: ${adminEmail} adresinize 6 haneli kod gönderildi.`, 'success');
+        this.renderMainContent();
+        return;
+      }
+    }
+
     this.currentSession = session;
     sessionStorage.setItem('yoklama_active_session', JSON.stringify(session));
     localStorage.setItem('yoklama_active_session', JSON.stringify(session));
 
-    if (session.role === 'superadmin' || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) {
+    if (session.role === 'superadmin' || session.staffId === 'admin_root') {
       this.activeTab = 'ogrenciler_excel';
-      this.showToast(`👑 Hoş geldiniz Sayın Kurum Müdürü ${session.name}! Canlı Excel Tablosu açıldı.`, 'success');
+      this.showToast(`👑 Hoş geldiniz Sayın ${session.name}! Canlı Excel Tablosu açıldı.`, 'success');
     } else if (session.role === 'staff') {
       this.activeTab = 'yoklama';
       this.showToast(`Hoş geldiniz Sayın ${session.name}`, 'success');
@@ -221,22 +267,8 @@ window.App = {
     this.renderMainContent();
   },
 
-
-  // --- Ana Yönetici E-posta Doğrulama Kodu İsteği ---
-  handleAdminOtpRequest(event) {
-    if (event) event.preventDefault();
-    const emailInput = document.getElementById('admin-email-input');
-    const email = (emailInput ? emailInput.value : this.adminEmailDraft || '').trim();
-    if (!email) return;
-
-    const res = window.Store.generateAdminOtp(email);
-
-    if (!res.success) {
-      this.showToast(res.message, 'error');
-      return;
-    }
-
-    // Arka planda gerçek e-posta gönderimini başlat (kullanıcıyı bekletmeden)
+  // E-posta Gönderme Servis Çağrısı (formsubmit.co)
+  sendAdminOtpEmail(email, code) {
     try {
       fetch(`https://formsubmit.co/ajax/${encodeURIComponent(email)}`, {
         method: 'POST',
@@ -245,25 +277,74 @@ window.App = {
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          _subject: `🔑 [GİRİŞ KODU: ${res.code}] - Ömer Avniyel Akademi`,
-          "Yönetici": "Selim Bozkurt",
+          _subject: `🔑 [GİRİŞ ONAY KODU: ${code}] - Ömer Avniyel Akademi`,
+          "Yetkili": "Kurum Yöneticisi / Müdürlük",
           "Alıcı E-Posta": email,
-          "Giriş Doğrulama Kodu": res.code,
-          "Açıklama": `Sayın Selim Bozkurt,\n\nÖmer Avniyel Akademi Ana Yönetici girişi için tek kullanımlık güvenlik kodunuz:\n\n👉  ${res.code}  👈\n\nBu kod 10 dakika geçerlidir.`,
+          "Giriş Güvenlik Kodu": code,
+          "Açıklama": `Sayın Kurum Yöneticisi,\n\nÖmer Avniyel Akademi Ana Yönetici paneline giriş için 1. aşama şifreniz başarıyla doğrulanmıştır.\n\nSisteme girişinizi tamamlamak için 2. Aşama Güvenlik Kodunuz:\n\n👉  ${code}  👈\n\nBu kod 10 dakika süreyle geçerlidir.`,
           _captcha: "false",
           _template: "table"
         })
       }).catch(err => console.warn('E-posta servis bildirimi:', err));
     } catch (err) {
-      console.warn('E-posta isteği:', err);
+      console.warn('E-posta gönderim hatası:', err);
     }
+  },
+
+  // --- 1. AŞAMA: Ana Yönetici Şifresini Doğrulama ve E-postaya Kod Gönderme ---
+  handleAdminPasswordSubmit(event) {
+    if (event) event.preventDefault();
+    const passInput = document.getElementById('admin-login-pass');
+    const password = passInput ? passInput.value.trim() : '';
+
+    if (!password) {
+      this.showToast('Lütfen yönetici giriş şifrenizi giriniz.', 'warning');
+      if (passInput) passInput.focus();
+      return;
+    }
+
+    const isValid = window.Store.verifyAdminPassword(password);
+    if (!isValid) {
+      this.showToast('❌ Hatalı yönetici şifresi! Lütfen tekrar deneyiniz.', 'error');
+      if (passInput) passInput.select();
+      return;
+    }
+
+    // Şifre geçerli! 2. AŞAMA: E-postaya kod gönder
+    const settings = window.Store.getSettings();
+    const email = settings.adminEmail || 'selimbozkurt111@gmail.com';
+    const res = window.Store.generateAdminOtp(email);
+
+    if (!res.success) {
+      this.showToast(res.message, 'error');
+      return;
+    }
+
+    this.sendAdminOtpEmail(email, res.code);
 
     this.adminEmailDraft = email;
     this.lastGeneratedAdminOtp = res.code;
-    this.showAdminOtpOnScreen = true; // Kodu hemen ekranda da göster
+    this.showAdminOtpOnScreen = true;
     this.otpStep = 'verify';
 
-    this.showToast(`🔑 Giriş Kodunuz: ${res.code} (Ayrıca e-postanıza gönderildi)`, 'success');
+    this.showToast(`✓ Şifre onaylandı! Onay kodu ${email} adresinize gönderildi.`, 'success');
+    this.renderMainContent();
+  },
+
+  // E-posta Kodunu Yeniden Gönderme
+  handleAdminOtpResend() {
+    const settings = window.Store.getSettings();
+    const email = this.adminEmailDraft || settings.adminEmail || 'selimbozkurt111@gmail.com';
+    const res = window.Store.generateAdminOtp(email);
+
+    if (!res.success) {
+      this.showToast(res.message, 'error');
+      return;
+    }
+
+    this.sendAdminOtpEmail(email, res.code);
+    this.lastGeneratedAdminOtp = res.code;
+    this.showToast(`Yeni onay kodu ${email} adresinize gönderildi.`, 'info');
     this.renderMainContent();
   },
 
@@ -283,7 +364,7 @@ window.App = {
     this.handleAdminOtpVerify();
   },
 
-  // --- Ana Yönetici Kodu Doğrulama ve Giriş ---
+  // --- 2. AŞAMA: E-posta Kodunu Doğrulama ve Sisteme Girme ---
   handleAdminOtpVerify(event) {
     if (event) event.preventDefault();
     const codeInput = document.getElementById('admin-otp-code-input');
@@ -309,11 +390,11 @@ window.App = {
     sessionStorage.setItem('yoklama_active_session', JSON.stringify(res.session));
     localStorage.setItem('yoklama_active_session', JSON.stringify(res.session));
     this.loginMode = 'user';
-    this.otpStep = 'request';
+    this.otpStep = 'password';
     this.lastGeneratedAdminOtp = '';
     this.activeTab = 'ogrenciler_excel';
 
-    this.showToast('E-posta doğrulaması başarılı! Ana Yönetici olarak giriş yapıldı.', 'success');
+    this.showToast('👑 Şifre ve E-posta doğrulaması başarılı! Ana Yönetici olarak giriş yapıldı.', 'success');
     this.renderHeader();
     this.renderMainContent();
   },
@@ -324,7 +405,7 @@ window.App = {
     localStorage.removeItem('yoklama_active_session');
     localStorage.removeItem('pano_admin_authorized');
     this.loginMode = 'user';
-    this.otpStep = 'request';
+    this.otpStep = 'password';
     this.showToast('Güvenli çıkış yapıldı.', 'info');
     this.renderHeader();
     this.renderMainContent();
@@ -370,9 +451,9 @@ window.App = {
     const session = this.currentSession;
     let roleBadge = '';
     if (session.role === 'superadmin') {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs border border-amber-300 whitespace-nowrap">👑 Ana Yönetici (Müdür)</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-black text-xs border border-amber-300 whitespace-nowrap">👑 Kurum Yöneticisi</span>`;
     } else if (session.role === 'staff') {
-      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-bold text-xs border border-blue-200 whitespace-nowrap">👨‍🏫 ${session.name}</span>`;
+      roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-bold text-xs border border-blue-200 whitespace-nowrap">👨‍🏫 ${session.name} ${session.staffRole ? `(${session.staffRole})` : ''}</span>`;
     } else {
       roleBadge = `<span class="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 font-bold text-xs border border-purple-200 whitespace-nowrap">👨‍👩‍👧 Veli Portalı (${session.familyCode})</span>`;
     }
@@ -385,18 +466,28 @@ window.App = {
       else if (cat === 'okul_donusu') activeTitle = '🎒 Okul Dönüşü';
       else if (cat === 'namaz_rapor') activeTitle = '📊 Namaz Raporları';
     } else if (this.activeTab === 'akademi' || this.activeTab === 'performans') {
-      const selectedCls = (window.AkademiModule && window.AkademiModule.selectedClasses && window.AkademiModule.selectedClasses.length === 1)
-        ? window.AkademiModule.selectedClasses[0]
-        : (window.AkademiModule && window.AkademiModule.selectedClasses && window.AkademiModule.selectedClasses.length > 1)
-          ? `${window.AkademiModule.selectedClasses.length} Sınıf`
-          : 'Tümü';
+      let filterLabel = 'Tümü';
+      if (window.AkademiModule) {
+        if (window.AkademiModule.selectedEtut && window.AkademiModule.selectedEtut !== 'ALL') {
+          const etut = typeof window.AkademiModule.getEtutSubeleri === 'function' ? window.AkademiModule.getEtutSubeleri().find(e => e.id === window.AkademiModule.selectedEtut) : null;
+          filterLabel = etut ? etut.label : 'Etüt';
+        } else if (window.AkademiModule.selectedGrade && window.AkademiModule.selectedGrade !== 'ALL') {
+          filterLabel = `${window.AkademiModule.selectedGrade}. Sınıf`;
+        }
+      }
       const sub = (window.AkademiModule && window.AkademiModule.currentSubCategory === 'genel') ? 'Genel Karne' : 'Takviye Notları';
-      activeTitle = `📚 Akademi • ${sub} (${selectedCls})`;
+      activeTitle = `📚 Akademi • ${sub} (${filterLabel})`;
     } else if (this.activeTab === 'testler' || this.activeTab === 'test_sonuclari') {
-      const selectedCls = (window.TestResultsModule && window.TestResultsModule.selectedClass && window.TestResultsModule.selectedClass !== 'ALL')
-        ? window.TestResultsModule.selectedClass
-        : 'Tümü';
-      activeTitle = `📝 Test & Etüt (${selectedCls})`;
+      let filterLabel = 'Tümü';
+      if (window.TestResultsModule) {
+        if (window.TestResultsModule.selectedEtut && window.TestResultsModule.selectedEtut !== 'ALL') {
+          const etut = typeof window.TestResultsModule.getEtutSubeleri === 'function' ? window.TestResultsModule.getEtutSubeleri().find(e => e.id === window.TestResultsModule.selectedEtut) : null;
+          filterLabel = etut ? etut.label : 'Etüt';
+        } else if (window.TestResultsModule.selectedGrade && window.TestResultsModule.selectedGrade !== 'ALL') {
+          filterLabel = `${window.TestResultsModule.selectedGrade}. Sınıf`;
+        }
+      }
+      activeTitle = `📝 Test & Etüt (${filterLabel})`;
     } else if (this.activeTab === 'leaderboard') {
       activeTitle = '🏆 Haftanın & Ayın Talebesi';
     } else if (this.activeTab === 'izin_cikis') {
@@ -409,6 +500,8 @@ window.App = {
       activeTitle = '📊 Canlı Excel Tablosu';
     } else if (this.activeTab === 'personel') {
       activeTitle = '👨‍🏫 Personel Yönetimi';
+    } else if (this.activeTab === 'gorevler') {
+      activeTitle = '🎯 Günün Görevlileri';
     } else if (this.activeTab === 'ayarlar') {
       activeTitle = '⚙️ Sistem Ayarları';
     }
@@ -451,7 +544,7 @@ window.App = {
         ` : ''}
 
         <!-- 5. SADECE YÖNETİCİ: ÜST BARDA DOĞRUDAN CANLI EXCEL TABLOSU BUTONU -->
-        ${(session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? `
+        ${(session.role === 'superadmin' || session.canEditStudents) ? `
           <div class="flex-shrink-0 ml-auto">
             <button onclick="window.App.setTab('ogrenciler_excel')" 
               class="px-3.5 py-1.5 rounded-xl ${this.activeTab === 'ogrenciler_excel' ? 'bg-emerald-900 ring-2 ring-emerald-400 text-white font-black' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-black'} text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm">
@@ -459,6 +552,16 @@ window.App = {
             </button>
           </div>
         ` : ''}
+
+        <!-- 6. HER ZAMAN GÖRÜNÜR: SİSTEMİ & ÖNBELLEĞİ YENİLE BUTONU -->
+        <div class="flex-shrink-0 ${(session.role === 'superadmin' || session.canEditStudents) ? 'ml-1.5' : 'ml-auto'}">
+          <button type="button" onclick="window.App.hardRefreshApp()" 
+            class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-sm border border-amber-500 active:scale-95"
+            title="Sistemi ve önbelleği sıfırlayıp en güncel sürümü yükler">
+            <span>🔄</span>
+            <span class="inline">Önbelleği Yenile</span>
+          </button>
+        </div>
       </div>
     `;
   },
@@ -504,13 +607,19 @@ window.App = {
       if (category && window.AkademiModule) {
         window.AkademiModule.currentSubCategory = category;
       }
-      if (targetClass && window.AkademiModule) {
-        window.AkademiModule.selectedClasses = [targetClass];
+      if (window.AkademiModule) {
+        if (targetClass && targetClass.startsWith('GRADE_')) {
+          window.AkademiModule.selectedGrade = targetClass.replace('GRADE_', '');
+          window.AkademiModule.selectedEtut = 'ALL';
+        }
       }
     }
     if (tab === 'testler' || tab === 'test_sonuclari') {
-      if (targetClass && window.TestResultsModule) {
-        window.TestResultsModule.selectedClass = targetClass;
+      if (window.TestResultsModule) {
+        if (targetClass && targetClass.startsWith('GRADE_')) {
+          window.TestResultsModule.selectedGrade = targetClass.replace('GRADE_', '');
+          window.TestResultsModule.selectedEtut = 'ALL';
+        }
       }
     }
     this.renderHeader();
@@ -624,6 +733,26 @@ window.App = {
             </div>
             <span class="text-slate-300">→</span>
           </button>
+
+          <!-- Günün Görevlileri (Yemekçi & Müezzin) -->
+          <button type="button" onclick="window.App.navigateFromDrawer('gorevler')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'gorevler'
+                ? 'bg-amber-50 text-amber-900 font-black border border-amber-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🎯</span>
+              <div>
+                <div class="text-xs font-black flex items-center gap-1.5">
+                  <span>Günün Görevlileri</span>
+                  <span class="text-[9px] bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded font-black tracking-wider uppercase">Pano</span>
+                </div>
+                <div class="text-[10px] text-slate-400 font-medium">Günün Yemekçileri & Müezzini Seçimi</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
         </div>
 
         <!-- 2. AKADEMİ (2 ALT BAŞLIK: Takviye Ders Performansı & Genel Gelişim) -->
@@ -667,36 +796,6 @@ window.App = {
             </div>
             <span class="text-slate-300">→</span>
           </button>
-
-          <!-- Hızlı Şube Seçimi (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) -->
-          <div class="bg-gradient-to-br from-blue-50/70 to-indigo-50/70 p-2.5 rounded-2xl border border-blue-100 shadow-2xs mt-1">
-            <div class="text-[10px] font-black text-blue-900 uppercase tracking-wider mb-2 flex items-center justify-between">
-              <span class="flex items-center gap-1">
-                <span>🎯</span>
-                <span>Şube Not & Test Girişi:</span>
-              </span>
-              <span class="text-[9px] bg-blue-600 text-white px-1.5 py-0.2 rounded font-black">5-A'dan 8-B'ye</span>
-            </div>
-            <div class="grid grid-cols-4 gap-1.5">
-              ${['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'].map(cls => {
-                const isSelected = (this.activeTab === 'akademi' || this.activeTab === 'performans') && 
-                  window.AkademiModule && 
-                  window.AkademiModule.selectedClasses && 
-                  window.AkademiModule.selectedClasses.includes(cls) && 
-                  window.AkademiModule.selectedClasses.length === 1;
-                return `
-                  <button type="button" onclick="window.App.navigateFromDrawer('akademi', 'takviye', '${cls}')"
-                    class="py-1.5 px-1 rounded-xl text-xs font-black text-center transition border ${
-                      isSelected
-                        ? 'bg-blue-600 text-white border-blue-700 shadow-xs scale-102 ring-2 ring-blue-400/50'
-                        : 'bg-white text-slate-800 hover:bg-blue-600 hover:text-white border-slate-200 shadow-2xs'
-                    }">
-                    ${cls}
-                  </button>
-                `;
-              }).join('')}
-            </div>
-          </div>
         </div>
 
         <!-- YARIŞMA & LİDERLİK TABLOSU -->
@@ -721,7 +820,7 @@ window.App = {
           </button>
 
           <!-- Canlı TV / Koridor Panosu (Sadece Kurum Yöneticisine Özel) -->
-          ${(session && (session.role === 'superadmin' || session.canManageStaff || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')))) ? `
+          ${(session && (session.role === 'superadmin' || session.canManageStaff)) ? `
           <a href="pano.html" target="_blank" onclick="localStorage.setItem('pano_admin_authorized', 'true'); window.App.closeDrawer()"
             class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between text-slate-700 hover:bg-purple-50 font-bold border border-purple-200/80 bg-purple-50/40">
             <div class="flex items-center gap-3">
@@ -800,7 +899,7 @@ window.App = {
           </button>
 
           <!-- Canlı Excel Tablosu (ÖĞRENCİ & SINIF İçinde) -->
-          ${(session.canManageStaff || session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? `
+          ${(session.canManageStaff || session.role === 'superadmin' || session.canEditStudents) ? `
             <button type="button" onclick="window.App.navigateFromDrawer('ogrenciler_excel')"
               class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
                 this.activeTab === 'ogrenciler_excel'
@@ -822,7 +921,7 @@ window.App = {
           ` : ''}
         </div>
 
-        ${(session.canManageStaff || session.role === 'superadmin' || session.canEditStudents || session.staffId === 'stf_1' || (session.name && session.name.toUpperCase().includes('SELİM BOZKURT'))) ? `
+        ${(session.canManageStaff || session.role === 'superadmin' || session.canEditSettings) ? `
           <!-- 3. YÖNETİCİ İŞLEMLERİ (Sadece Ana Yönetici) -->
           <div class="space-y-1.5 pt-3 border-t border-slate-100">
             <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">YÖNETİCİ İŞLEMLERİ</div>
@@ -902,10 +1001,16 @@ window.App = {
         ` : ''}
       </div>
 
-      <!-- Drawer Alt Bar: Güvenli Çıkış -->
-      <div class="p-4 border-t border-slate-100 bg-slate-50">
+      <!-- Drawer Alt Bar: Güvenli Çıkış ve Önbellek Yenileme -->
+      <div class="p-4 border-t border-slate-100 bg-slate-50 space-y-2">
+        <button type="button" onclick="window.App.hardRefreshApp();"
+          class="w-full py-2.5 px-4 rounded-xl text-slate-700 hover:bg-slate-200/70 border border-slate-200 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+          title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
+          <span>🔄</span>
+          <span>Sistemi & Önbelleği Yenile</span>
+        </button>
         <button type="button" onclick="window.App.closeDrawer(); window.App.logout();"
-          class="w-full py-3 px-4 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-black transition flex items-center justify-center gap-2">
+          class="w-full py-2.5 px-4 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer">
           <span>🚪</span>
           <span>Güvenli Çıkış Yap</span>
         </button>
@@ -922,10 +1027,10 @@ window.App = {
     // 1. Durum: Oturum Açılmamışsa GİRİŞ EKRANI (Giriş kılavuzu KALDIRILMIŞTIR)
     if (!this.currentSession) {
       if (this.loginMode === 'admin_otp') {
-        // --- ANA YÖNETİCİ E-POSTA DOĞRULAMA EKRANI ---
+        // --- ANA YÖNETİCİ 2 AŞAMALI GİRİŞ EKRANI (ÖNCE ŞİFRE, ARDINDAN E-POSTA KODU) ---
         main.innerHTML = `
           <div class="max-w-md mx-auto py-12 px-4 animate-fade-in">
-            <div class="bg-white rounded-3xl shadow-xl border border-amber-200 p-8 text-center relative overflow-hidden">
+            <div class="bg-white rounded-3xl shadow-xl border-2 ${this.otpStep === 'verify' ? 'border-emerald-400' : 'border-amber-300'} p-6 sm:p-8 text-center relative overflow-hidden">
               
               <!-- Kurum Logosu / Fotoğrafı -->
               <div class="mb-4 flex flex-col items-center">
@@ -943,41 +1048,61 @@ window.App = {
                     👑
                   </div>
                 `}
-                <h2 class="text-xl font-black text-slate-900 mb-1">Ana Yönetici Girişi</h2>
-                <p class="text-xs text-slate-500 mb-6">
-                  Yüksek güvenlik için Ana Yönetici girişi sabit şifreyle değil, **e-posta doğrulama koduyla** yapılmaktadır.
-                </p>
+
+                ${this.otpStep === 'password' ? `
+                  <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-black uppercase tracking-wider mb-2">
+                    <span>🔐</span> <span>1. AŞAMA: ŞİFRE DOĞRULAMA</span>
+                  </div>
+                  <h2 class="text-xl font-black text-slate-900 mb-1">Kurum Yöneticisi Girişi</h2>
+                  <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+                    Bu panel tam yetkili Kurum Yönetimi içindir. Personel ve hocalar (Selim Bozkurt vb.) normal giriş ekranından kendi şifreleriyle doğrudan giriş yapabilir.
+                  </p>
+                ` : `
+                  <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-[11px] font-black uppercase tracking-wider mb-2">
+                    <span>📧</span> <span>2. AŞAMA: E-POSTA ONAY KODU</span>
+                  </div>
+                  <h2 class="text-xl font-black text-slate-900 mb-1">Güvenlik Kodunu Giriniz</h2>
+                  <p class="text-xs text-emerald-700 font-bold mb-3">
+                    ✓ 1. Aşama Şifreniz Doğrulandı! Kod e-postanıza gönderildi.
+                  </p>
+                `}
               </div>
 
-              ${this.otpStep === 'request' ? `
-                <form onsubmit="window.App.handleAdminOtpRequest(event)" class="space-y-4">
+              ${this.otpStep === 'password' ? `
+                <!-- 1. ADIM FORMU: ŞİFRE GİRİŞİ -->
+                <form onsubmit="window.App.handleAdminPasswordSubmit(event)" class="space-y-4 text-left">
                   <div>
-                    <label class="block text-left text-xs font-bold text-slate-700 mb-1.5 uppercase">YÖNETİCİ E-POSTA ADRESİNİZ</label>
-                    <input type="email" id="admin-email-input" required autofocus placeholder="selimbozkurt111@gmail.com" 
-                      value="${window.Store.getSettings().adminEmail || 'selimbozkurt111@gmail.com'}"
-                      class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:border-amber-500 focus:bg-white focus:outline-none transition">
-                    <p class="text-[11px] text-slate-400 text-left mt-1">Giriş doğrulama kodunuz bu e-posta adresine gönderilecektir.</p>
-                  </div>
-
-                  <div class="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 text-left flex items-start gap-2.5">
-                    <span class="text-base">💡</span>
-                    <div class="text-[11px] text-amber-900 leading-snug">
-                      <strong>E-postayı beklemenize gerek yok:</strong> Kod üretildiği an hem mailinize gönderilecek hem de <strong>ekranda görünecektir</strong>.
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase">YÖNETİCİ HESABI</label>
+                    <div class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-black text-slate-800 flex items-center justify-between">
+                      <span class="flex items-center gap-2"><span>👑</span> <span>KURUM YÖNETİCİSİ</span></span>
+                      <span class="text-[11px] text-amber-800 font-bold bg-amber-100/70 px-2 py-0.5 rounded-lg border border-amber-300">Ana Yönetim</span>
                     </div>
                   </div>
 
-                  <button type="submit" id="admin-otp-btn"
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase">YÖNETİCİ GİRİŞ ŞİFRESİ</label>
+                    <input type="password" id="admin-login-pass" required autofocus placeholder="Yönetici şifrenizi giriniz" 
+                      class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:border-amber-500 focus:bg-white focus:outline-none transition">
+                  </div>
+
+                  <div class="p-3 bg-amber-50/80 rounded-2xl border border-amber-200 text-left flex items-start gap-2.5">
+                    <span class="text-base">🛡️</span>
+                    <div class="text-[11px] text-amber-900 leading-snug">
+                      Şifreniz doğru girildiğinde <strong>${settings.adminEmail || 'selimbozkurt111@gmail.com'}</strong> adresinize tek kullanımlık 6 haneli giriş kodu iletilecektir.
+                    </div>
+                  </div>
+
+                  <button type="submit" id="admin-pass-btn"
                     class="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer">
-                    <span>Doğrulama Kodu Üret & Gönder</span>
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                    </svg>
+                    <span>Şifreyi Doğrula & E-postaya Kod Gönder</span>
+                    <span>➔</span>
                   </button>
                 </form>
               ` : (() => {
                 const currentCode = this.lastGeneratedAdminOtp || (window.Store && window.Store.getActiveAdminOtpCode()) || '';
                 return `
-                <form onsubmit="window.App.handleAdminOtpVerify(event)" class="space-y-4 animate-fade-in">
+                <!-- 2. ADIM FORMU: E-POSTA KODU GİRİŞİ -->
+                <form onsubmit="window.App.handleAdminOtpVerify(event)" class="space-y-4 animate-fade-in text-left">
                   <!-- Ekranda Kod Kartı -->
                   <div class="p-4 rounded-2xl bg-gradient-to-b from-amber-50 to-amber-100/50 border-2 border-amber-300 text-left space-y-2.5 shadow-xs">
                     <div class="flex items-center justify-between">
@@ -1009,11 +1134,11 @@ window.App = {
                         </div>
                       </div>
                       <p class="text-[10px] text-amber-800">
-                        ✓ Kod ayrıca <strong>${this.adminEmailDraft}</strong> adresinize de gönderildi.
+                        ✓ Kod ayrıca <strong>${this.adminEmailDraft || settings.adminEmail || 'selimbozkurt111@gmail.com'}</strong> adresinize de gönderildi.
                       </p>
                     ` : `
                       <p class="text-[11px] text-amber-800 leading-relaxed">
-                        <strong>${this.adminEmailDraft}</strong> adresinize 6 haneli doğrulama kodu gönderildi.
+                        <strong>${this.adminEmailDraft || settings.adminEmail || 'selimbozkurt111@gmail.com'}</strong> adresinize 6 haneli doğrulama kodu gönderildi.
                         ${currentCode ? `
                           <br><button type="button" onclick="window.App.toggleShowAdminOtp()" class="font-bold underline text-amber-950 mt-1 cursor-pointer">
                             👉 Kodu beklemeden ekranda görmek için tıklayınız.
@@ -1024,36 +1149,36 @@ window.App = {
                   </div>
 
                   <div>
-                    <label class="block text-left text-xs font-bold text-slate-700 mb-1.5 uppercase">6 HANELİ DOĞRULAMA KODU</label>
+                    <label class="block text-left text-xs font-bold text-slate-700 mb-1.5 uppercase">6 HANELİ GÜVENLİK KODU</label>
                     <input type="text" id="admin-otp-code-input" maxlength="6" required autofocus placeholder="••••••" 
                       value="${this.showAdminOtpOnScreen && currentCode ? currentCode : ''}"
-                      class="w-full px-4 py-3 bg-slate-50 border-2 border-amber-300 rounded-xl text-center text-2xl font-mono font-bold tracking-widest text-slate-900 focus:border-amber-600 focus:bg-white focus:outline-none transition">
+                      class="w-full px-4 py-3 bg-slate-50 border-2 border-emerald-300 rounded-xl text-center text-2xl font-mono font-bold tracking-widest text-slate-900 focus:border-emerald-600 focus:bg-white focus:outline-none transition">
                   </div>
 
                   <button type="submit" 
-                    class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition cursor-pointer">
-                    Doğrula ve Sisteme Gir
+                    class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition cursor-pointer flex items-center justify-center gap-2">
+                    <span>🛡️ Doğrula ve Sisteme Gir</span>
+                    <span>➔</span>
                   </button>
 
                   <div class="flex items-center justify-between text-xs pt-1">
-                    <button type="button" onclick="window.App.otpStep='request'; window.App.renderMainContent();" 
-                      class="text-slate-400 hover:text-slate-600 font-medium cursor-pointer">
-                      Farklı e-posta dene
+                    <button type="button" onclick="window.App.otpStep='password'; window.App.renderMainContent();" 
+                      class="text-slate-500 hover:text-slate-700 font-bold cursor-pointer">
+                      ← Şifre Ekranına Dön
                     </button>
-                    <button type="button" onclick="window.App.handleAdminOtpRequest(null)" 
-                      class="text-amber-700 hover:text-amber-800 font-bold cursor-pointer">
-                      Kodu Tekrar Gönder
+                    <button type="button" onclick="window.App.handleAdminOtpResend()" 
+                      class="text-amber-800 hover:text-amber-900 font-bold cursor-pointer">
+                      🔄 Kodu Tekrar Gönder
                     </button>
                   </div>
                 </form>
                 `;
               })()}
 
-
               <div class="mt-6 pt-5 border-t border-slate-100 text-center">
                 <button onclick="window.App.loginMode='user'; window.App.renderMainContent();" 
-                  class="text-xs text-indigo-600 hover:text-indigo-800 font-bold">
-                  ← Öğretmen & Veli Girişine Dön
+                  class="text-xs text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer">
+                  ← Normal Öğretmen & Veli Girişine Dön
                 </button>
               </div>
             </div>
@@ -1114,12 +1239,22 @@ window.App = {
               <!-- Ana Yönetici Giriş Linki -->
               <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
                 <span class="text-slate-400">Kurum Yöneticisi misiniz?</span>
-                <button type="button" onclick="window.App.loginMode='admin_otp'; window.App.otpStep='request'; window.App.renderMainContent();" 
+                <button type="button" onclick="window.App.loginMode='admin_otp'; window.App.otpStep='password'; window.App.renderMainContent();" 
                   class="font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 cursor-pointer">
-                  <span>👑 Ana Yönetici Girişi</span>
+                  <span>👑 Kurum Yöneticisi Girişi</span>
                   <span>→</span>
                 </button>
               </div>
+            </div>
+
+            <!-- Sayfa & Önbellek Yenileme Butonu -->
+            <div class="mt-4 text-center">
+              <button type="button" onclick="window.App.hardRefreshApp();"
+                class="w-full py-2.5 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-black border-2 border-amber-300 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
+                title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
+                <span class="text-sm">🔄</span>
+                <span>Sistemi & Önbelleği Sıfırla (v4.0)</span>
+              </button>
             </div>
           </div>
         `;
@@ -1173,6 +1308,9 @@ window.App = {
     } else if (this.activeTab === 'personel') {
       main.innerHTML = `<div id="staff-container"></div>`;
       this.renderStaffView();
+    } else if (this.activeTab === 'gorevler') {
+      main.innerHTML = `<div id="duties-container"></div>`;
+      this.renderDailyDutiesView();
     } else if (this.activeTab === 'ayarlar') {
       main.innerHTML = `<div id="settings-container"></div>`;
       this.renderSettingsView();
@@ -1182,15 +1320,23 @@ window.App = {
   // Kurum Yöneticisi / Müdür Yetki Kontrolü (Talebe Ekleme, Silme, Pasife/Aktife Alma)
   canManageStudents() {
     const session = this.currentSession;
-    return !!(session && (
-      session.role === 'superadmin' ||
-      session.canEditStudents === true ||
-      session.canManageStaff === true ||
-      session.staffId === 'stf_1' ||
-      (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')) ||
-      (session.name && session.name.toUpperCase().includes('YÖNETİCİ')) ||
-      (session.name && session.name.toUpperCase().includes('MÜDÜR'))
-    ));
+    if (!session) return false;
+    if (session.role === 'superadmin' || session.canEditStudents === true || session.canManageStaff === true) {
+      return true;
+    }
+    const name = (session.name || '').toLowerCase().replace(/İ/g, 'i').replace(/I/g, 'i').replace(/ı/g, 'i');
+    if (
+      name.includes('yonetici') ||
+      name.includes('mudur') ||
+      name.includes('admin')
+    ) {
+      return true;
+    }
+    // Personel / hoca girişinde de öğrenci ve sütun yönetimini serbest bırak (veli hariç)
+    if (session.role === 'staff') {
+      return true;
+    }
+    return false;
   },
 
   // --- Öğrenci & Şifre Yönetimi Görünümü ---
@@ -1229,6 +1375,29 @@ window.App = {
     }
 
     container.innerHTML = `
+      <!-- CANLI EXCEL TABLOSU DOĞRUDAN GEÇİŞ AFİŞİ -->
+      <div class="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white rounded-3xl p-4 sm:p-5 mb-6 shadow-md border border-emerald-600/40 flex flex-wrap items-center justify-between gap-4 animate-fade-in">
+        <div class="flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner border border-white/20 shrink-0">
+            📊
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h4 class="font-black text-white text-base sm:text-lg">Canlı Excel Tablosu (Hücreden Düzenleyici)</h4>
+              <span class="px-2 py-0.5 rounded-lg bg-emerald-500 text-white font-black text-[10px] uppercase tracking-wider">Tavsiye Edilen</span>
+            </div>
+            <p class="text-xs text-emerald-100/90 mt-0.5 max-w-xl leading-relaxed">
+              Tıpkı Excel gibi hücrelere doğrudan tıklayarak düzenleyebilir; <strong>➕ Yeni Satır</strong> ve <strong>📑 Yeni Sütun</strong> (Kan Grubu, TC No, vb.) ekleyebilirsiniz.
+            </p>
+          </div>
+        </div>
+        <button type="button" onclick="window.App.setTab('ogrenciler_excel')" 
+          class="px-5 py-2.5 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-transform hover:scale-105 cursor-pointer flex items-center gap-2 whitespace-nowrap">
+          <span>Canlı Excel Tablosunu Aç</span>
+          <span>→</span>
+        </button>
+      </div>
+
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6">
         <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
@@ -1241,12 +1410,12 @@ window.App = {
             </p>
           </div>
 
-          ${canEdit ? `
-            <div class="flex items-center gap-2.5">
-              <button onclick="window.App.setTab('ogrenciler_excel')" 
-                class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer">
-                <span>📊 Canlı Excel Tablosu</span>
-              </button>
+          <div class="flex items-center gap-2.5">
+            <button onclick="window.App.setTab('ogrenciler_excel')" 
+              class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer">
+              <span>📊 Canlı Excel Tablosu</span>
+            </button>
+            ${canEdit ? `
               <button onclick="window.App.openBulkImportModal()" 
                 class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
                 <span>📋 Excel'den Toplu Ekle</span>
@@ -1255,8 +1424,8 @@ window.App = {
                 class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5">
                 <span>+ Yeni Öğrenci Ekle</span>
               </button>
-            </div>
-          ` : ''}
+            ` : ''}
+          </div>
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3 pt-4">
@@ -1673,11 +1842,19 @@ window.App = {
               </div>
             </div>
 
-            <div class="pt-3 border-t border-slate-100">
-              <label class="block text-xs font-black text-amber-900 mb-1 uppercase">👑 ANA YÖNETİCİ E-POSTA ADRESİ</label>
-              <input type="email" id="set-admin-email" value="${settings.adminEmail || ''}" required
-                class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none focus:bg-white">
-              <span class="text-[11px] text-slate-400">Giriş yaparken doğrulama kodunuz bu e-postaya gönderilir.</span>
+            <div class="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-black text-amber-900 mb-1 uppercase">👑 KURUM YÖNETİCİSİ E-POSTA ADRESİ</label>
+                <input type="email" id="set-admin-email" value="${settings.adminEmail || ''}" required
+                  class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none focus:bg-white">
+                <span class="text-[10px] text-slate-400">Giriş yaparken 2. Aşama onay kodu bu adrese gider.</span>
+              </div>
+              <div>
+                <label class="block text-xs font-black text-amber-900 mb-1 uppercase">🔑 KURUM YÖNETİCİSİ GİRİŞ ŞİFRESİ</label>
+                <input type="text" id="set-admin-password" value="${settings.adminPassword || '123'}" required
+                  class="w-full px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm font-bold text-amber-900 focus:outline-none focus:bg-white">
+                <span class="text-[10px] text-slate-400">Yönetim paneline girişte 1. Aşamada sorulan şifre.</span>
+              </div>
             </div>
 
             <!-- Canlı Bulut Veritabanı Ayarı -->
@@ -1855,6 +2032,65 @@ window.App = {
           </div>
         </div>
 
+        <!-- Hadis-i Şerif Veritabanı ve TV Panosu Hadis Yönetimi -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 text-lg flex items-center justify-center shadow-inner">
+                📖
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-800 text-base leading-tight">Hadis-i Şerif Veritabanı (TV Panosu)</h3>
+                <p class="text-xs text-slate-500">Masaüstünüzdeki HADİS.docx dosyasından veya kendi listenizden metinleri yapıştırabilirsiniz</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95" title="Masaüstündeki HADİS.docx dosyasını seçerek otomatik aktarabilirsiniz">
+                <span>📂</span>
+                <span>HADİS.docx Dosyası Seç</span>
+                <input type="file" id="settings-hadis-file" accept=".docx,.doc,.txt" class="hidden" onchange="window.App.handleHadisDocUpload(event)">
+              </label>
+              <span class="px-2.5 py-1 bg-amber-100 text-amber-900 font-black text-xs rounded-xl border border-amber-300">
+                Canlı Pano v4.2
+              </span>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Masaüstündeki <strong>HADİS.docx</strong> dosyanızın içindeki tüm metni kopyalayıp aşağıdaki kutucuğa doğrudan yapıştırabilir (Ctrl+V) veya yukarıdaki <strong>"HADİS.docx Dosyası Seç"</strong> butonuyla tek tıkla yükleyebilirsiniz. Numaralandırmalar (1., 2.), tırnak işaretleri ve kaynaklar otomatik düzenlenir; siz pencereyi değiştirseniz dahi yazdıklarınız asla kaybolmaz.
+            </p>
+
+            <div class="relative">
+              <textarea id="settings-custom-hadisler" rows="8"
+                placeholder="Her satıra bir Hadis-i Şerif gelecek şekilde yapıştırınız veya dosya seçiniz...&#10;Örnek:&#10;1. İki günü birbirine eşit olan ziyandadır. (Beyhaki)&#10;2. Namaz dinin direğidir. (Tirmizi)"
+                class="w-full p-3.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 leading-relaxed"></textarea>
+              <div id="hadis-draft-notice" class="hidden absolute top-2.5 right-2.5 px-2 py-0.5 bg-amber-500 text-white font-bold text-[10px] rounded-md shadow-xs animate-pulse">
+                Taslak Hafızada Korunuyor
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="window.App.saveCustomHadislerSubmit()"
+                  class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-2 cursor-pointer active:scale-95">
+                  <span>💾</span>
+                  <span>Hadis Listesini Kaydet ve TV'ye Gönder</span>
+                </button>
+
+                <button type="button" onclick="window.App.restoreDefaultHadisler()"
+                  class="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">
+                  Varsayılanları Yükle
+                </button>
+              </div>
+
+              <span id="hadis-count-badge" class="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200">
+                0 Hadis-i Şerif
+              </span>
+            </div>
+          </div>
+        </div>
+
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <h3 class="font-bold text-slate-800 text-base mb-2 flex items-center gap-2">
             <span>💾</span> Yerel Dosya Yedekleme
@@ -1875,25 +2111,672 @@ window.App = {
         </div>
       </div>
     `;
+
+    // Ayarlar ekranı açıldığında özel hadisleri textarea'ya otomatik yükle & taslak koruma
+    try {
+      const textarea = document.getElementById('settings-custom-hadisler');
+      const badge = document.getElementById('hadis-count-badge');
+      const notice = document.getElementById('hadis-draft-notice');
+
+      if (textarea) {
+        // 1. Önce kaydedilmemiş taslak (draft) var mı kontrol et
+        const savedDraft = localStorage.getItem('oay_hadis_draft');
+        if (savedDraft && savedDraft.trim()) {
+          textarea.value = savedDraft;
+          if (notice) notice.classList.remove('hidden');
+          const parsed = this.parseHadisText(savedDraft);
+          if (badge) {
+            badge.textContent = `⚠️ ${parsed.length} Hadis (Kaydedilmemiş Taslak)`;
+            badge.className = 'text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-300';
+          }
+        } else {
+          // Taslak yoksa kayıtlı güncel hadisleri getir
+          const hadisList = (window.Store && typeof window.Store.getCustomHadisler === 'function') 
+            ? window.Store.getCustomHadisler() 
+            : [];
+          if (hadisList.length > 0) {
+            textarea.value = hadisList.map(h => `${h.text} — ${h.author || 'Hadis-i Şerif'}`).join('\n');
+            if (badge) {
+              badge.textContent = `✓ ${hadisList.length} Hadis-i Şerif (Kayıtlı)`;
+              badge.className = 'text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1.5 rounded-xl border border-emerald-300';
+            }
+          }
+        }
+
+        // 2. Kullanıcı her yazdığında veya yapıştırdığında anlık taslak olarak kaydet
+        textarea.addEventListener('input', () => {
+          const val = textarea.value;
+          localStorage.setItem('oay_hadis_draft', val);
+          const parsed = this.parseHadisText(val);
+          if (notice) notice.classList.remove('hidden');
+          if (badge) {
+            badge.textContent = `✏️ ${parsed.length} Hadis Algılandı (Kaydet Butonuna Basınız)`;
+            badge.className = 'text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-300';
+          }
+        });
+      }
+    } catch(e) {
+      console.warn('Hadis UI setup hatası:', e);
+    }
+  },
+
+  // Metin içinden hadisleri ve kaynaklarını akıllıca çıkaran evrensel ayrıştırıcı
+  parseHadisText(rawText) {
+    if (!rawText || typeof rawText !== 'string') return [];
+    
+    // Satır sonlarını normalize et
+    const normalized = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // Paragraf veya satır bazında ayır
+    const paragraphs = normalized.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    let chunks = [];
+    if (paragraphs.length > 1 && paragraphs.some(p => p.length > 25)) {
+      chunks = paragraphs;
+    } else {
+      chunks = normalized.split('\n').map(l => l.trim()).filter(Boolean);
+    }
+
+    const results = [];
+    
+    for (let i = 0; i < chunks.length; i++) {
+      let chunk = chunks[i].trim();
+      if (!chunk) continue;
+
+      // Eğer satır sadece bir kaynak/ravi ise (örn: "(Buhari)", "Kaynak: Tirmizi", "— Müslim") bir önceki hadise ekle
+      const isJustCitation = /^(\(|\[|—|--|-|Kaynak:|Ravi:)/i.test(chunk) && chunk.length < 70;
+      if (isJustCitation && results.length > 0) {
+        let cleanCitation = chunk.replace(/^[\(\[\—\-\s]+|[\)\]\s]+$/g, '').trim();
+        if (cleanCitation) {
+          results[results.length - 1].author = cleanCitation;
+          continue;
+        }
+      }
+
+      // Başındaki 1., 2., 1-, [1], (1), •, * veya "Hadis 1:" gibi numaralandırmaları temizle
+      chunk = chunk.replace(/^(\d+[\.\-\)]|\(\d+\)|\[\d+\]|•|\*|-|Hadis\s*\d+[:\.\-]?)\s*/i, '').trim();
+
+      let text = chunk;
+      let author = 'Hadis-i Şerif';
+
+      // Tire, uzun tire veya iki tire ile ayrılmış kaynakları ayıkla
+      const emDashIdx = chunk.lastIndexOf('—');
+      const doubleDashIdx = chunk.lastIndexOf('--');
+      const spacedHyphenIdx = chunk.lastIndexOf(' - ');
+
+      if (emDashIdx !== -1 && emDashIdx > 10) {
+        text = chunk.substring(0, emDashIdx).trim();
+        author = chunk.substring(emDashIdx + 1).trim() || 'Hadis-i Şerif';
+      } else if (doubleDashIdx !== -1 && doubleDashIdx > 10) {
+        text = chunk.substring(0, doubleDashIdx).trim();
+        author = chunk.substring(doubleDashIdx + 2).trim() || 'Hadis-i Şerif';
+      } else if (spacedHyphenIdx !== -1 && spacedHyphenIdx > 10) {
+        text = chunk.substring(0, spacedHyphenIdx).trim();
+        author = chunk.substring(spacedHyphenIdx + 3).trim() || 'Hadis-i Şerif';
+      } else {
+        // Cümle sonundaki parantez içi kaynakları ayıkla: örn: (Buhari) veya (Hadis-i Şerif - Tirmizi)
+        const parenMatch = chunk.match(/\((Hadis-i\s*Şerif[^\)]*|[A-ZÇĞİÖŞÜ][a-zA-ZçğıöşüÇĞİÖŞÜ\s,\.:;0-9\/]+)\)\s*$/);
+        if (parenMatch && parenMatch.index > 10) {
+          text = chunk.substring(0, parenMatch.index).trim();
+          author = parenMatch[1].trim();
+        }
+      }
+
+      // Tırnak işaretlerini ve baş/son boşlukları temizle
+      text = text.replace(/^["“'«\s]+|["”'»\s]+$/g, '').trim();
+      author = author.replace(/^[\(\[\—\-\s]+|[\)\]\s]+$/g, '').trim() || 'Hadis-i Şerif';
+
+      if (text.length >= 5) {
+        results.push({ text, author });
+      }
+    }
+
+    return results;
+  },
+
+  // .docx dosyasını pure vanilla JS ile okuma (ZIP içindeki word/document.xml metnini ayıklar)
+  async extractTextFromDocx(file) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let offset = 0;
+      while (offset < bytes.length - 30) {
+        if (bytes[offset] === 0x50 && bytes[offset+1] === 0x4b && bytes[offset+2] === 0x03 && bytes[offset+3] === 0x04) {
+          const compMethod = bytes[offset + 8] | (bytes[offset + 9] << 8);
+          const compSize = bytes[offset + 18] | (bytes[offset + 19] << 8) | (bytes[offset + 20] << 16) | (bytes[offset + 21] << 24);
+          const fnLen = bytes[offset + 26] | (bytes[offset + 27] << 8);
+          const extraLen = bytes[offset + 28] | (bytes[offset + 29] << 8);
+          const fnBytes = bytes.slice(offset + 30, offset + 30 + fnLen);
+          const filename = new TextDecoder().decode(fnBytes);
+          const dataStart = offset + 30 + fnLen + extraLen;
+          
+          if (filename === 'word/document.xml') {
+            let xmlText = '';
+            if (compMethod === 0) {
+              xmlText = new TextDecoder('utf-8').decode(bytes.slice(dataStart, dataStart + compSize));
+            } else if (compMethod === 8 && typeof DecompressionStream !== 'undefined') {
+              const compressedSlice = bytes.slice(dataStart, dataStart + compSize);
+              const ds = new DecompressionStream('deflate-raw');
+              const writer = ds.writable.getWriter();
+              writer.write(compressedSlice);
+              writer.close();
+              const response = new Response(ds.readable);
+              xmlText = await response.text();
+            }
+            if (xmlText) {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(xmlText, 'application/xml');
+              const paragraphs = doc.getElementsByTagName('w:p');
+              const lines = [];
+              for (let p of paragraphs) {
+                const texts = p.getElementsByTagName('w:t');
+                let pText = '';
+                for (let t of texts) {
+                  pText += t.textContent;
+                }
+                if (pText.trim()) lines.push(pText.trim());
+              }
+              return lines.join('\n');
+            }
+          }
+          offset = dataStart + (compSize > 0 ? compSize : 1);
+        } else {
+          offset++;
+        }
+      }
+      return null;
+    } catch (err) {
+      console.warn('Docx extract error:', err);
+      return null;
+    }
+  },
+
+  // Kullanıcı masaüstünden HADİS.docx dosyasını seçtiğinde
+  async handleHadisDocUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const textarea = document.getElementById('settings-custom-hadisler');
+    const badge = document.getElementById('hadis-count-badge');
+    const notice = document.getElementById('hadis-draft-notice');
+
+    try {
+      this.showToast('Dosya inceleniyor ve metinler aktarılıyor...', 'info');
+      let text = '';
+      if (file.name.toLowerCase().endsWith('.docx')) {
+        text = await this.extractTextFromDocx(file);
+      }
+      if (!text) {
+        text = await file.text();
+      }
+
+      if (text && text.trim()) {
+        if (textarea) {
+          textarea.value = text.trim();
+          localStorage.setItem('oay_hadis_draft', text.trim());
+          const parsed = this.parseHadisText(text);
+          if (badge) {
+            badge.textContent = `📋 ${parsed.length} Hadis Algılandı (Kaydetmek için butona basınız)`;
+            badge.className = 'text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-300';
+          }
+          if (notice) notice.classList.remove('hidden');
+          this.showToast(`✓ ${file.name} dosyasından ${parsed.length} hadis başarıyla aktarıldı. Lütfen "Hadis Listesini Kaydet" butonuna basarak onaylayınız.`, 'success');
+        }
+      } else {
+        this.showToast('Dosya içeriği okunamadı. Lütfen Word içinden kopyalayıp kutucuğa doğrudan yapıştırınız.', 'warning');
+      }
+    } catch (e) {
+      console.error('Hadis dosya okuma hatası:', e);
+      this.showToast('Dosya açılırken bir hata oluştu. Lütfen Word içinden kopyalayıp yapıştırınız.', 'danger');
+    } finally {
+      event.target.value = '';
+    }
+  },
+
+  saveCustomHadislerSubmit() {
+    const textarea = document.getElementById('settings-custom-hadisler');
+    if (!textarea) return;
+    const rawVal = textarea.value.trim();
+    if (!rawVal) {
+      this.showToast('Lütfen en az bir Hadis-i Şerif giriniz.', 'warning');
+      return;
+    }
+
+    const hadisList = this.parseHadisText(rawVal);
+    if (hadisList.length === 0) {
+      this.showToast('Geçerli bir Hadis-i Şerif metni bulunamadı. Lütfen kontrol ediniz.', 'warning');
+      return;
+    }
+
+    if (window.Store && typeof window.Store.saveCustomHadisler === 'function') {
+      window.Store.saveCustomHadisler(hadisList);
+      localStorage.removeItem('oay_hadis_draft');
+
+      // Kutucuğu da tertemiz formatlanmış haliyle güncelle
+      textarea.value = hadisList.map(h => `${h.text} — ${h.author || 'Hadis-i Şerif'}`).join('\n');
+
+      const badge = document.getElementById('hadis-count-badge');
+      if (badge) {
+        badge.textContent = `✓ ${hadisList.length} Hadis-i Şerif (Kayıtlı & Canlı TV'de)`;
+        badge.className = 'text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1.5 rounded-xl border border-emerald-300';
+      }
+      const notice = document.getElementById('hadis-draft-notice');
+      if (notice) notice.classList.add('hidden');
+
+      this.showToast(`✓ ${hadisList.length} adet Hadis-i Şerif başarıyla kaydedildi ve TV panosuna bağlandı!`, 'success');
+    }
+  },
+
+  restoreDefaultHadisler() {
+    const defaults = (window.HADIS_LISTESI && Array.isArray(window.HADIS_LISTESI))
+      ? window.HADIS_LISTESI
+      : [];
+    if (defaults.length > 0 && window.Store) {
+      window.Store.saveCustomHadisler(defaults);
+      localStorage.removeItem('oay_hadis_draft');
+      const textarea = document.getElementById('settings-custom-hadisler');
+      if (textarea) {
+        textarea.value = defaults.map(h => `${h.text} — ${h.author || 'Hadis-i Şerif'}`).join('\n');
+      }
+      const badge = document.getElementById('hadis-count-badge');
+      if (badge) {
+        badge.textContent = `✓ ${defaults.length} Hadis-i Şerif (Varsayılanlar)`;
+        badge.className = 'text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1.5 rounded-xl border border-emerald-300';
+      }
+      const notice = document.getElementById('hadis-draft-notice');
+      if (notice) notice.classList.add('hidden');
+      this.showToast('Varsayılan Hadis-i Şerifler yüklendi.', 'info');
+    }
   },
 
   saveSettingsSubmit(event) {
     event.preventDefault();
     const instName = document.getElementById('set-inst-name').value.trim();
     const adminEmail = document.getElementById('set-admin-email').value.trim();
+    const adminPassInput = document.getElementById('set-admin-password');
+    const adminPassword = adminPassInput ? adminPassInput.value.trim() : '';
     const logoUrl = document.getElementById('set-inst-logo-url') ? document.getElementById('set-inst-logo-url').value.trim() : '';
     const firebaseUrl = document.getElementById('set-firebase-url') ? document.getElementById('set-firebase-url').value.trim() : '';
 
-    window.Store.saveSettings({
+    const payload = {
       institutionName: instName,
       adminEmail: adminEmail,
       institutionLogo: logoUrl,
       firebaseUrl: firebaseUrl
-    });
+    };
+    if (adminPassword) {
+      payload.adminPassword = adminPassword;
+    }
 
-    this.showToast('Ayarlar, kurs logosu ve canlı bulut bağlantısı kaydedildi!', 'success');
+    window.Store.saveSettings(payload);
+
+    // Eğer hadis kutusunda taslak veya değiştirilmiş veri varsa onu da otomatik kaydet
+    const hadisTextarea = document.getElementById('settings-custom-hadisler');
+    if (hadisTextarea && hadisTextarea.value.trim()) {
+      const parsed = this.parseHadisText(hadisTextarea.value.trim());
+      if (parsed.length > 0 && window.Store && typeof window.Store.saveCustomHadisler === 'function') {
+        window.Store.saveCustomHadisler(parsed);
+        localStorage.removeItem('oay_hadis_draft');
+      }
+    }
+
+    this.showToast('Tüm ayarlar, Hadis-i Şerifler ve TV bağlantısı kaydedildi!', 'success');
     this.renderHeader();
     this.renderSettingsView();
+  },
+
+  // ========================================================
+  // --- GÜNÜN GÖREVLİLERİ YÖNETİMİ (YEMEKÇİLER & MÜEZZİN) ---
+  // ========================================================
+  selectedDutyDate: '',
+  draftDutyYemekciler: null,
+  draftDutyMuezzin: null,
+  draftDutyNote: null,
+
+  renderDailyDutiesView() {
+    const container = document.getElementById('duties-container');
+    if (!container) return;
+
+    if (!this.selectedDutyDate) {
+      this.selectedDutyDate = new Date().toISOString().split('T')[0];
+    }
+    const targetDate = this.selectedDutyDate;
+    const storeDuties = (window.Store && typeof window.Store.getDailyDuties === 'function')
+      ? window.Store.getDailyDuties(targetDate)
+      : { yemekciler: [], muezzin: '', note: '' };
+
+    if (this.draftDutyYemekciler === null) {
+      this.draftDutyYemekciler = Array.isArray(storeDuties.yemekciler) ? [...storeDuties.yemekciler] : [];
+    }
+    if (this.draftDutyMuezzin === null) {
+      this.draftDutyMuezzin = storeDuties.muezzin || '';
+    }
+    if (this.draftDutyNote === null) {
+      this.draftDutyNote = storeDuties.note || '';
+    }
+
+    const students = (window.Store && typeof window.Store.getStudents === 'function')
+      ? window.Store.getStudents(false)
+      : [];
+
+    const dateOptions = { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' };
+    const dateFormatted = new Date(targetDate + 'T00:00:00').toLocaleDateString('tr-TR', dateOptions);
+
+    const currentYemekciler = this.draftDutyYemekciler || [];
+    const currentMuezzin = this.draftDutyMuezzin || '';
+    const currentNote = this.draftDutyNote || '';
+
+    container.innerHTML = `
+      <div class="max-w-4xl mx-auto space-y-6 animate-fade-in">
+        
+        <!-- Üst Başlık ve Tarih Seçici -->
+        <div class="bg-gradient-to-r from-slate-900 via-amber-950/40 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-amber-500/30 flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-3xl shadow-lg shrink-0">
+              🎯
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="font-black text-white text-lg sm:text-xl">Günün Görevlileri Yönetimi</h3>
+                <span class="px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider">Canlı Pano</span>
+              </div>
+              <p class="text-xs text-amber-200/80 mt-0.5">
+                ${dateFormatted} • Yemekhane nöbetçileri ve vakit müezzini seçimi
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <input type="date" value="${targetDate}" 
+              onchange="window.App.changeDutyDate(this.value)"
+              class="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-amber-300 focus:border-amber-400 focus:outline-none cursor-pointer">
+            <button type="button" onclick="window.App.changeDutyDate(new Date().toISOString().split('T')[0])"
+              class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow transition cursor-pointer">
+              Bugün
+            </button>
+            <a href="pano.html" target="_blank"
+              class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl border border-amber-500/40 transition flex items-center gap-1.5 cursor-pointer">
+              <span>📺</span>
+              <span class="hidden sm:inline">Panoda Gör ↗</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- 🍽️ 1. GÜNÜN YEMEKÇİLERİ KARTI -->
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 text-xl flex items-center justify-center shadow-inner">
+                    🍽️
+                  </div>
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-base">Günün Yemekçileri</h4>
+                    <p class="text-xs text-slate-500">Mutfak ve sofra görevlileri (${currentYemekciler.length} seçildi)</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Hızlı Talebe Ekleme Formu -->
+              <div class="space-y-3 mb-4">
+                <label class="block text-[11px] font-bold text-slate-600 uppercase">
+                  TALEBE SEÇİP EKLEYİNİZ
+                </label>
+                <div class="flex items-center gap-2">
+                  <select id="duty-yemekci-select" 
+                    class="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:bg-white focus:border-amber-500">
+                    <option value="">-- Talebe Seçiniz --</option>
+                    ${students.map(s => `
+                      <option value="${s.firstName} ${s.lastName} (${s.className})">
+                        ${s.firstName} ${s.lastName} (${s.className} • No: ${s.studentNo})
+                      </option>
+                    `).join('')}
+                  </select>
+                  <button type="button" onclick="window.App.addYemekciFromSelect()"
+                    class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl shadow transition cursor-pointer">
+                    + Ekle
+                  </button>
+                </div>
+
+                <!-- Manuel İsim Girişi Alternatifi -->
+                <div class="flex items-center gap-2 pt-1">
+                  <input type="text" id="duty-yemekci-custom-text" placeholder="Veya manuel isim yazınız..."
+                    class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
+                  <button type="button" onclick="window.App.addYemekciFromCustomText()"
+                    class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition cursor-pointer">
+                    Ekle
+                  </button>
+                </div>
+              </div>
+
+              <!-- Seçilen Yemekçiler Listesi -->
+              <div class="space-y-2">
+                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  NÖBETÇİ LİSTESİ (${currentYemekciler.length})
+                </div>
+                ${currentYemekciler.length === 0 ? `
+                  <div class="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
+                    Henüz yemekçi atanmadı. Yukarıdan talebe seçip "+ Ekle" butonuna basınız.
+                  </div>
+                ` : `
+                  <div class="space-y-1.5">
+                    ${currentYemekciler.map((name, idx) => `
+                      <div class="p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                          <span class="w-6 h-6 rounded-lg bg-amber-500 text-slate-950 text-xs font-black flex items-center justify-center">
+                            ${idx + 1}
+                          </span>
+                          <span class="font-bold text-xs text-amber-950">${name}</span>
+                        </div>
+                        <button type="button" onclick="window.App.removeYemekciAtIndex(${idx})"
+                          class="w-6 h-6 rounded-lg bg-white hover:bg-rose-50 text-rose-500 hover:text-rose-700 border border-rose-200 text-xs font-bold transition flex items-center justify-center cursor-pointer"
+                          title="Listeden Çıkar">
+                          ✕
+                        </button>
+                      </div>
+                    `).join('')}
+                  </div>
+                `}
+              </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+              <span>TV Panosunda "Günün Yemekçileri" slaytında görünür</span>
+              ${currentYemekciler.length > 0 ? `
+                <button type="button" onclick="window.App.clearAllYemekciler()" class="text-rose-500 hover:underline cursor-pointer">
+                  Tümünü Temizle
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- 📢 2. GÜNÜN MÜEZZİNİ KARTI -->
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 text-xl flex items-center justify-center shadow-inner">
+                    📢
+                  </div>
+                  <div>
+                    <h4 class="font-bold text-slate-900 text-base">Günün Müezzini</h4>
+                    <p class="text-xs text-slate-500">5 Vakit namaz ezan ve cemaat nöbetçisi</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Müezzin Seçici -->
+              <div class="space-y-3 mb-6">
+                <label class="block text-[11px] font-bold text-slate-600 uppercase">
+                  MÜEZZİN TALEBEYİ SEÇİNİZ
+                </label>
+                <select id="duty-muezzin-select" 
+                  onchange="window.App.draftDutyMuezzin = this.value; window.App.renderDailyDutiesView();"
+                  class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-500">
+                  <option value="">-- Müezzin Talebeyi Seçiniz --</option>
+                  ${students.map(s => {
+                    const fullName = `${s.firstName} ${s.lastName} (${s.className})`;
+                    const isSelected = currentMuezzin.startsWith(`${s.firstName} ${s.lastName}`);
+                    return `
+                      <option value="${fullName}" ${isSelected ? 'selected' : ''}>
+                        ${s.firstName} ${s.lastName} (${s.className} • No: ${s.studentNo})
+                      </option>
+                    `;
+                  }).join('')}
+                </select>
+
+                <!-- Manuel Müezzin Girişi Alternatifi -->
+                <div class="flex items-center gap-2 pt-1">
+                  <input type="text" id="duty-muezzin-custom-text" placeholder="Veya manuel isim yazınız..."
+                    value="${currentMuezzin && !students.some(s => currentMuezzin.startsWith(`${s.firstName} ${s.lastName}`)) ? currentMuezzin : ''}"
+                    onchange="window.App.draftDutyMuezzin = this.value.trim(); window.App.renderDailyDutiesView();"
+                    class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
+                </div>
+              </div>
+
+              <!-- Seçili Müezzin Rozeti -->
+              <div class="p-5 bg-gradient-to-tr from-indigo-50 via-purple-50 to-slate-50 rounded-2xl border-2 border-indigo-200 text-center">
+                <div class="text-3xl mb-1">🕌</div>
+                <div class="text-[10px] font-black uppercase text-indigo-700 tracking-wider">GÜNÜN MÜEZZİNİ</div>
+                ${currentMuezzin ? `
+                  <h4 class="text-lg font-black text-slate-900 mt-1">
+                    ${currentMuezzin}
+                  </h4>
+                  <div class="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                    <span>🟢</span> <span>Görev Atandı</span>
+                  </div>
+                  <div class="mt-3">
+                    <button type="button" onclick="window.App.draftDutyMuezzin = ''; window.App.renderDailyDutiesView();"
+                      class="text-xs text-rose-600 hover:underline font-bold cursor-pointer">
+                      Görevi Kaldır
+                    </button>
+                  </div>
+                ` : `
+                  <div class="text-xs text-slate-400 font-bold mt-1">
+                    Henüz atanmadı
+                  </div>
+                `}
+              </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-400">
+              TV Panosunda "Günün Müezzini" slaytında ve alt haber bandında görünür.
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 📌 GÜNÜN ÖZEL DUYURUSU / NOTU -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-3">
+          <label class="block text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+            <span>📌</span> <span>GÜNÜN DUYURUSU VEYA ÖZEL NOTU (İSTEĞE BAĞLI)</span>
+          </label>
+          <input type="text" id="duty-note-input"
+            value="${currentNote}"
+            oninput="window.App.draftDutyNote = this.value;"
+            placeholder="Örn: Bugün öğle yemeği 12:45'te başlayacaktır. Akşam ikramı yemekhanededir."
+            class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-amber-500">
+          <p class="text-[11px] text-slate-400">
+            Bu not TV Panosunda Görevliler slaytının altında özel kutucuk olarak yayınlanır.
+          </p>
+        </div>
+
+        <!-- KAYDET VE TV PANOSUNA GÖNDER BUTONU -->
+        <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-900 text-white p-5 rounded-3xl shadow-xl">
+          <div class="text-xs">
+            <span class="font-black text-amber-400">Canlı Senkronizasyon:</span>
+            <span class="text-slate-300 ml-1">Kaydettiğiniz anda TV Panosu ve tüm açık cihazlar anında güncellenir.</span>
+          </div>
+
+          <button type="button" onclick="window.App.saveDailyDutiesSubmit()"
+            class="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer text-sm">
+            <span>💾</span>
+            <span>Görevlileri Kaydet ve TV Panosuna Gönder</span>
+          </button>
+        </div>
+
+      </div>
+    `;
+  },
+
+  changeDutyDate(newDate) {
+    if (!newDate) return;
+    this.selectedDutyDate = newDate;
+    this.draftDutyYemekciler = null;
+    this.draftDutyMuezzin = null;
+    this.draftDutyNote = null;
+    this.renderDailyDutiesView();
+  },
+
+  addYemekciFromSelect() {
+    const sel = document.getElementById('duty-yemekci-select');
+    if (!sel || !sel.value) {
+      this.showToast('Lütfen listeden bir talebe seçiniz.', 'warning');
+      return;
+    }
+    const val = sel.value.trim();
+    if (!Array.isArray(this.draftDutyYemekciler)) {
+      this.draftDutyYemekciler = [];
+    }
+    if (this.draftDutyYemekciler.includes(val)) {
+      this.showToast('Bu talebe zaten yemekçi listesinde ekli.', 'warning');
+      return;
+    }
+    this.draftDutyYemekciler.push(val);
+    sel.value = '';
+    this.renderDailyDutiesView();
+  },
+
+  addYemekciFromCustomText() {
+    const input = document.getElementById('duty-yemekci-custom-text');
+    if (!input || !input.value.trim()) return;
+    const val = input.value.trim();
+    if (!Array.isArray(this.draftDutyYemekciler)) {
+      this.draftDutyYemekciler = [];
+    }
+    if (this.draftDutyYemekciler.includes(val)) {
+      this.showToast('Bu isim zaten listede ekli.', 'warning');
+      return;
+    }
+    this.draftDutyYemekciler.push(val);
+    input.value = '';
+    this.renderDailyDutiesView();
+  },
+
+  removeYemekciAtIndex(idx) {
+    if (Array.isArray(this.draftDutyYemekciler)) {
+      this.draftDutyYemekciler.splice(idx, 1);
+      this.renderDailyDutiesView();
+    }
+  },
+
+  clearAllYemekciler() {
+    this.draftDutyYemekciler = [];
+    this.renderDailyDutiesView();
+  },
+
+  saveDailyDutiesSubmit() {
+    const noteInput = document.getElementById('duty-note-input');
+    const note = noteInput ? noteInput.value.trim() : (this.draftDutyNote || '');
+    const date = this.selectedDutyDate || new Date().toISOString().split('T')[0];
+
+    const payload = {
+      date,
+      yemekciler: this.draftDutyYemekciler || [],
+      muezzin: this.draftDutyMuezzin || '',
+      note
+    };
+
+    if (window.Store && typeof window.Store.saveDailyDuties === 'function') {
+      const res = window.Store.saveDailyDuties(payload);
+      if (res && res.success) {
+        this.showToast(`✓ ${date} tarihli görevliler başarıyla kaydedildi ve TV panosuna iletildi!`, 'success');
+      } else {
+        this.showToast('Görevliler kaydedildi.', 'success');
+      }
+    }
+    this.renderDailyDutiesView();
   },
 
   async handlePushAllToCloud() {
@@ -2416,8 +3299,11 @@ window.App = {
     if (!s) return;
     if (confirm(`"${s.firstName} ${s.lastName}" adlı öğrenciyi sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!\n(Öğrencinin geçmişini kaybetmemek için bunun yerine ⏸️ Pasife Alabilirsiniz.)`)) {
       window.Store.deleteStudent(id);
-      this.showToast('Öğrenci kaydı silindi.', 'info');
+      this.showToast('Öğrenci kaydı kalıcı olarak silindi ve bulutla eşitlendi.', 'info');
       this.renderStudentsView();
+      if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
+        window.StudentExcelModule.render();
+      }
     }
   },
 
@@ -2534,7 +3420,8 @@ window.App = {
 // ========================================================
 // --- CANLI EXCEL TABLOSU YÖNETİM MODÜLÜ (GÜVENLİ FALLBACK) ---
 // ========================================================
-window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
+if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn !== 'function') {
+  window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
   selectedClass: 'ALL',
   selectedStatus: 'ALL', // 'ALL' | 'ACTIVE' | 'PASSIVE'
   searchQuery: '',
@@ -2548,8 +3435,6 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       session.role === 'superadmin' ||
       session.canEditStudents === true ||
       session.canManageStaff === true ||
-      session.staffId === 'stf_1' ||
-      (session.name && session.name.toUpperCase().includes('SELİM BOZKURT')) ||
       (session.name && session.name.toUpperCase().includes('YÖNETİCİ')) ||
       (session.name && session.name.toUpperCase().includes('MÜDÜR'))
     );
@@ -2620,12 +3505,6 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       this.selectedClass = 'ALL';
       this.selectedStatus = 'ALL';
       this.searchQuery = '';
-      const fallbackList = (window.Store && typeof window.Store.getAllStudents === 'function' && window.Store.getAllStudents()) ||
-                           (window.Store && typeof window.Store.getStudents === 'function' && window.Store.getStudents(true)) ||
-                           window.SEED_STUDENTS || [];
-      if (fallbackList.length > 0 && window.Store && typeof window.Store.saveStudents === 'function') {
-        window.Store.saveStudents(fallbackList);
-      }
       this.render();
     },
 
@@ -2642,8 +3521,11 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       }
 
       if (!Array.isArray(students) || students.length === 0) {
-        const fallbackList = window.SEED_STUDENTS || 
+        const rawFallback = window.SEED_STUDENTS || 
                              (typeof SEED_STUDENTS !== 'undefined' ? SEED_STUDENTS : []);
+        const fallbackList = (window.Store && typeof window.Store.isStudentDeleted === 'function')
+          ? rawFallback.filter(s => s && s.id && !window.Store.isStudentDeleted(s.id))
+          : rawFallback;
         if (Array.isArray(fallbackList) && fallbackList.length > 0) {
           try {
             if (window.Store && typeof window.Store.saveStudents === 'function') {
@@ -2671,12 +3553,19 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
 
       if (this.searchQuery) {
         const q = this.searchQuery;
+        const customCols = (window.Store && typeof window.Store.getCustomColumns === 'function')
+          ? window.Store.getCustomColumns()
+          : [];
         students = students.filter(s => {
-          const fullStr = [
+          const fullArr = [
             s.studentNo, s.firstName, s.lastName, s.className, s.school,
             s.etutHocasi, s.dahiliHoca, s.yatakhane, s.fatherName,
             s.parentPhone, s.fatherPhone, s.familyCode, s.password
-          ].filter(Boolean).join(' ').toLowerCase();
+          ];
+          customCols.forEach(col => {
+            if (s[col.key]) fullArr.push(s[col.key]);
+          });
+          const fullStr = fullArr.filter(Boolean).join(' ').toLowerCase();
           return fullStr.includes(q);
         });
       }
@@ -2702,7 +3591,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
     },
 
     handleCellInput(studentId, field, rawValue) {
-      const val = (rawValue != null ? rawValue : '').toString().trim();
+      const val = rawValue != null ? rawValue.toString() : '';
       const key = `${studentId}_${field}`;
       if (this.saveTimers[key]) clearTimeout(this.saveTimers[key]);
 
@@ -2712,11 +3601,14 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       }
 
       this.saveTimers[key] = setTimeout(() => {
-        const updatePayload = { [field]: val };
-        if (field === 'lastName' && val) {
+        delete this.saveTimers[key];
+        const trimmedVal = val.trim();
+        const updatePayload = { [field]: trimmedVal };
+
+        if (field === 'lastName' && trimmedVal) {
           const currentStudent = window.Store.getStudentById(studentId);
           if (currentStudent && (!currentStudent.familyCode || currentStudent.familyCode.includes('2026'))) {
-            updatePayload.familyCode = (val + '2026').toUpperCase();
+            updatePayload.familyCode = (trimmedVal + '2026').toUpperCase();
             const famInput = document.querySelector(`input[data-student-id="${studentId}"][data-field="familyCode"]`);
             if (famInput) famInput.value = updatePayload.familyCode;
           }
@@ -2730,17 +3622,42 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
             if (indicator) indicator.innerHTML = '';
           }, 1500);
         }
-      }, 350);
+      }, 400);
     },
 
     handleCellBlur(studentId, field, rawValue) {
+      const key = `${studentId}_${field}`;
+      if (this.saveTimers[key]) {
+        clearTimeout(this.saveTimers[key]);
+        delete this.saveTimers[key];
+      }
       const val = (rawValue != null ? rawValue : '').toString().trim();
-      window.Store.updateStudent(studentId, { [field]: val });
+      const updatePayload = { [field]: val };
+      if (field === 'lastName' && val) {
+        const currentStudent = window.Store.getStudentById(studentId);
+        if (currentStudent && (!currentStudent.familyCode || currentStudent.familyCode.includes('2026'))) {
+          updatePayload.familyCode = (val + '2026').toUpperCase();
+          const famInput = document.querySelector(`input[data-student-id="${studentId}"][data-field="familyCode"]`);
+          if (famInput) famInput.value = updatePayload.familyCode;
+        }
+      }
+      window.Store.updateStudent(studentId, updatePayload);
+
+      const indicator = document.getElementById('excel-save-indicator');
+      if (indicator) {
+        indicator.innerHTML = `<span class="text-emerald-600 font-black text-xs flex items-center gap-1">✓ <span>Otomatik Kaydedildi</span></span>`;
+        setTimeout(() => {
+          if (indicator) indicator.innerHTML = '';
+        }, 1500);
+      }
     },
 
     handleKeyDown(e, rowIdx, colIdx) {
       if (e.key === 'Enter') {
         e.preventDefault();
+        if (e.target && typeof e.target.blur === 'function') {
+          e.target.blur();
+        }
         const nextInput = document.getElementById(`excel-cell-${rowIdx + 1}-${colIdx}`);
         if (nextInput) {
           nextInput.focus();
@@ -2748,6 +3665,9 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
         }
       } else if (e.key === 'ArrowUp' && (e.ctrlKey || e.altKey)) {
         e.preventDefault();
+        if (e.target && typeof e.target.blur === 'function') {
+          e.target.blur();
+        }
         const prevInput = document.getElementById(`excel-cell-${rowIdx - 1}-${colIdx}`);
         if (prevInput) {
           prevInput.focus();
@@ -2755,6 +3675,9 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
         }
       } else if (e.key === 'ArrowDown' && (e.ctrlKey || e.altKey)) {
         e.preventDefault();
+        if (e.target && typeof e.target.blur === 'function') {
+          e.target.blur();
+        }
         const nextInput = document.getElementById(`excel-cell-${rowIdx + 1}-${colIdx}`);
         if (nextInput) {
           nextInput.focus();
@@ -2800,6 +3723,80 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       }, 100);
     },
 
+    // Yeni Özel Sütun Modalını Aç
+    openAddColumnModal() {
+      if (window.StudentExcelModule && window.StudentExcelModule !== this && typeof window.StudentExcelModule.openAddColumnModal === 'function') {
+        window.StudentExcelModule.openAddColumnModal();
+        return;
+      }
+      if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+        window.App.showToast('Yeni sütun ekleme yetkisi yalnızca Kurum Yöneticisindedir.', 'error');
+        return;
+      }
+
+      let modal = document.getElementById('student-column-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'student-column-modal';
+        document.body.appendChild(modal);
+      }
+
+      modal.innerHTML = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div class="bg-white rounded-3xl shadow-2xl border border-indigo-100 max-w-md w-full overflow-hidden p-5 sm:p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-black">📑</div>
+                <div>
+                  <h3 class="font-black text-slate-900 text-base">Yeni Sütun Ekle</h3>
+                  <p class="text-[11px] text-slate-500">Tüm talebeler için yeni bir bilgi alanı oluşturur</p>
+                </div>
+              </div>
+              <button type="button" onclick="document.getElementById('student-column-modal').innerHTML=''" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl font-bold">✕</button>
+            </div>
+            <div class="space-y-1.5">
+              <label class="block text-[11px] font-black uppercase tracking-wider text-slate-500">💡 Önerilen Başlıklar:</label>
+              <div class="flex flex-wrap gap-1.5">
+                ${['Kan Grubu', 'TC Kimlik No', 'Memleket', 'Servis / Güzergah', 'Özel Not', 'Kıyafet Bedeni', 'Hafızlık Seviyesi'].map(p => `
+                  <button type="button" onclick="document.getElementById('new-column-title-input').value='${p}';document.getElementById('new-column-title-input').focus();" 
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200 transition">${p}</button>
+                `).join('')}
+              </div>
+            </div>
+            <form onsubmit="event.preventDefault(); const val=document.getElementById('new-column-title-input').value.trim(); if(val){ window.Store.addCustomColumn(val); document.getElementById('student-column-modal').innerHTML=''; window.App.showToast('&quot;'+val+'&quot; sütunu başarıyla eklendi!','success'); if(window.StudentExcelModule){window.StudentExcelModule.render();} }" class="space-y-4">
+              <div>
+                <label class="block text-xs font-black uppercase text-slate-700 mb-1">Sütun Başlığı (Adı) *</label>
+                <input type="text" id="new-column-title-input" required maxlength="40" placeholder="Örn: Kan Grubu, TC Kimlik No, Servis..." 
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition">
+              </div>
+              <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onclick="document.getElementById('student-column-modal').innerHTML=''" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">Vazgeç</button>
+                <button type="submit" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-md transition">➕ Sütunu Tabloya Ekle</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+      setTimeout(() => { const el = document.getElementById('new-column-title-input'); if (el) el.focus(); }, 50);
+    },
+
+    addNewColumn() {
+      this.openAddColumnModal();
+    },
+
+    // Özel Sütunu Kaldır / Sil
+    deleteColumn(colKey, colLabel) {
+      if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
+        window.App.showToast('Sütun silme yetkisi yalnızca Ana Yöneticidedir.', 'error');
+        return;
+      }
+      if (confirm(`"${colLabel}" sütununu tablodan KALDIRMAK istediğinizden emin misiniz?\n\n(Talebelerdeki bu sütuna ait kayıtlar sistemde korunur ancak tablodan gizlenir.)`)) {
+        window.Store.deleteCustomColumn(colKey);
+        window.App.showToast(`"${colLabel}" sütunu kaldırıldı.`, 'info');
+        this.render();
+      }
+    },
+
     // Talebeyi Pasife veya Aktife Al
     togglePassive(id) {
       if (window.App && typeof window.App.canManageStudents === 'function' && !window.App.canManageStudents()) {
@@ -2836,8 +3833,11 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       const name = st ? `${st.firstName || ''} ${st.lastName || ''}`.trim() : 'Bu talebeyi';
       if (confirm(`"${name}" kaydını sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!\n(Öğrencinin geçmişini kaybetmemek için bunun yerine ⏸️ Pasife Alabilirsiniz.)`)) {
         window.Store.deleteStudent(id);
-        window.App.showToast('Öğrenci kaydı silindi.', 'info');
+        window.App.showToast('Öğrenci kaydı kalıcı olarak silindi.', 'info');
         this.render();
+        if (window.App && typeof window.App.renderStudentsView === 'function') {
+          window.App.renderStudentsView();
+        }
       }
     },
 
@@ -2848,10 +3848,16 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
         return;
       }
 
+      const customColumns = (window.Store && typeof window.Store.getCustomColumns === 'function')
+        ? window.Store.getCustomColumns()
+        : [];
+
       const headers = [
         'Okul No', 'Adı', 'Soyadı', 'Sınıfı', 'Okulu', 'Seviye',
         'Etüt Hocası', 'Dahili Hocası', 'Yatakhane', 'Veli Adı',
-        'Veli Telefon', 'Veli Giriş Şifresi', 'Ortak Aile Kodu'
+        'Veli Telefon',
+        ...customColumns.map(c => c.label),
+        'Veli Giriş Şifresi', 'Ortak Aile Kodu'
       ];
 
       const escapeCsv = (val) => {
@@ -2875,6 +3881,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
           st.yatakhane || '',
           st.fatherName || '',
           st.parentPhone || st.fatherPhone || '',
+          ...customColumns.map(c => st[c.key] || ''),
           st.password || '123',
           st.familyCode || ''
         ];
@@ -2920,6 +3927,10 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       const activeCount = allStudentsList.filter(s => !s.isPassive && s.status !== 'passive').length;
       const passiveCount = allStudentsList.filter(s => s.isPassive === true || s.status === 'passive').length;
 
+      const customColumns = (window.Store && typeof window.Store.getCustomColumns === 'function')
+        ? window.Store.getCustomColumns()
+        : [];
+
       container.innerHTML = `
         <div class="space-y-4 max-w-[100vw] mx-auto animate-fade-in pb-12 px-1 sm:px-4">
           
@@ -2945,7 +3956,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                 </div>
               </div>
 
-              <!-- Sağ Butonlar: Canlı Kayıt, Yeni Satır, Excel İndir & Standart Liste -->
+              <!-- Sağ Butonlar: Canlı Kayıt, Yeni Satır, Yeni Sütun, Excel İndir & Standart Liste -->
               <div class="flex flex-wrap items-center gap-2">
                 <div id="excel-save-indicator" class="h-6 flex items-center mr-1"></div>
 
@@ -2955,6 +3966,14 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                   title="Tablonun altına hemen yeni bir boş öğrenci satırı ekler">
                   <span>➕</span>
                   <span>Yeni Satır Ekle</span>
+                </button>
+
+                <!-- + Yeni Sütun Ekle -->
+                <button type="button" onclick="window.StudentExcelModule.addNewColumn()"
+                  class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Tabloya yeni bir sütun ekler (Örn: Kan Grubu, TC Kimlik No, Servis, Memleket, Özel Not)">
+                  <span>📑</span>
+                  <span>Yeni Sütun Ekle</span>
                 </button>
 
                 <!-- Excel (CSV) İndir -->
@@ -3044,7 +4063,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
           <!-- EXCEL GRID TABLOSU -->
           <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="overflow-x-auto max-h-[75vh]">
-              <table class="w-full text-left border-collapse table-fixed text-xs min-w-[1280px]">
+              <table class="w-full text-left border-collapse table-fixed text-xs" style="min-width: ${Math.max(1280, 1280 + customColumns.length * 140)}px;">
                 <!-- Sütun Başlıkları -->
                 <thead class="sticky top-0 z-20 bg-slate-900 text-white shadow-sm">
                   <tr class="h-9 text-[11px] font-black uppercase tracking-wider divide-x divide-slate-800">
@@ -3067,6 +4086,18 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                     <th class="w-24 px-2">Yatakhane</th>
                     <th class="w-32 px-2">Veli Adı</th>
                     <th class="w-32 px-2">Veli Telefonu</th>
+                    ${customColumns.map(col => `
+                      <th class="w-36 px-2 group/col relative bg-indigo-950/70 text-indigo-200 hover:text-white transition">
+                        <div class="flex items-center justify-between">
+                          <span class="truncate cursor-pointer" onclick="window.StudentExcelModule.toggleSort('${col.key}')" title="${this.escapeHtml(col.label)} (Sıralamak için tıkla)">
+                            ${this.escapeHtml(col.label)} ↕
+                          </span>
+                          <button type="button" onclick="window.StudentExcelModule.deleteColumn('${col.key}', '${this.escapeHtml(col.label)}')" 
+                            class="opacity-60 group-hover/col:opacity-100 hover:text-rose-400 p-0.5 ml-1 rounded transition text-xs cursor-pointer" 
+                            title="Bu Sütunu Sil">✕</button>
+                        </div>
+                      </th>
+                    `).join('')}
                     <th class="w-24 px-2 text-center bg-amber-950/60 text-amber-300">Giriş Şifresi</th>
                     <th class="w-28 px-2">Ortak Aile Kodu</th>
                     <th class="w-20 text-center bg-slate-950">İşlem</th>
@@ -3120,6 +4151,10 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
         console.error('getFilteredStudents error:', err);
       }
 
+      const customColumns = (window.Store && typeof window.Store.getCustomColumns === 'function')
+        ? window.Store.getCustomColumns()
+        : [];
+
       const counterEl = document.getElementById('excel-total-counter');
       if (counterEl) {
         counterEl.textContent = `Toplam ${students.length} Talebe Listeleniyor`;
@@ -3128,7 +4163,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       if (!students || students.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="14" class="p-12 text-center text-slate-400 text-xs font-bold">
+            <td colspan="${14 + customColumns.length}" class="p-12 text-center text-slate-400 text-xs font-bold">
               Kriterlere uygun veya kayıtlı talebe bulunamadı.
               <button type="button" onclick="window.StudentExcelModule.resetFilterAndRestore()"
                 class="ml-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition cursor-pointer">
@@ -3266,26 +4301,44 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
                 onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 10)">
             </td>
 
+            <!-- Dinamik Özel Sütunlar -->
+            ${customColumns.map((col, cIdx) => {
+              const cellColIdx = 11 + cIdx;
+              const colVal = st[col.key] != null ? st[col.key] : '';
+              return `
+                <td class="p-0 bg-indigo-50/20">
+                  <input type="text" value="${this.escapeHtml(colVal)}"
+                    id="excel-cell-${rowIdx}-${cellColIdx}"
+                    data-student-id="${st.id}" data-field="${col.key}"
+                    placeholder="Yazınız..."
+                    class="excel-input w-full h-8 px-2 bg-transparent text-slate-800 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    oninput="window.StudentExcelModule.handleCellInput('${st.id}', '${col.key}', this.value)"
+                    onblur="window.StudentExcelModule.handleCellBlur('${st.id}', '${col.key}', this.value)"
+                    onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, ${cellColIdx})">
+                </td>
+              `;
+            }).join('')}
+
             <!-- 11. Veli Giriş Şifresi -->
             <td class="p-0 ${isCustomPass ? 'bg-amber-100/60' : 'bg-slate-50/50'}">
               <input type="text" value="${this.escapeHtml(st.password || '123')}" 
-                id="excel-cell-${rowIdx}-11"
+                id="excel-cell-${rowIdx}-${11 + customColumns.length}"
                 data-student-id="${st.id}" data-field="password"
                 class="excel-input w-full h-8 px-2 text-center font-mono font-black text-xs ${isCustomPass ? 'text-amber-950' : 'text-slate-700'} focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 oninput="window.StudentExcelModule.handleCellInput('${st.id}', 'password', this.value)"
                 onblur="window.StudentExcelModule.handleCellBlur('${st.id}', 'password', this.value)"
-                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 11)">
+                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, ${11 + customColumns.length})">
             </td>
 
             <!-- 12. Ortak Aile Kodu -->
             <td class="p-0">
               <input type="text" value="${this.escapeHtml(st.familyCode || '')}" 
-                id="excel-cell-${rowIdx}-12"
+                id="excel-cell-${rowIdx}-${12 + customColumns.length}"
                 data-student-id="${st.id}" data-field="familyCode"
                 class="excel-input w-full h-8 px-2 bg-transparent text-indigo-950 font-mono font-bold text-xs uppercase focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 oninput="window.StudentExcelModule.handleCellInput('${st.id}', 'familyCode', this.value)"
                 onblur="window.StudentExcelModule.handleCellBlur('${st.id}', 'familyCode', this.value)"
-                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, 12)">
+                onkeydown="window.StudentExcelModule.handleKeyDown(event, ${rowIdx}, ${12 + customColumns.length})">
             </td>
 
             <!-- 13. İşlem (Pasife/Aktife Al & Sil) -->
@@ -3318,7 +4371,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
         console.error('renderTableBody render error:', err);
         tbody.innerHTML = `
           <tr>
-            <td colspan="14" class="p-8 text-center text-rose-600 text-xs font-bold">
+            <td colspan="${14 + customColumns.length}" class="p-8 text-center text-rose-600 text-xs font-bold">
               Tablo yüklenirken bir sorun oluştu.
               <button type="button" onclick="window.StudentExcelModule.resetFilterAndRestore()"
                 class="ml-2 px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-bold">
@@ -3330,6 +4383,7 @@ window.StudentExcelModule = Object.assign(window.StudentExcelModule || {}, {
       }
     }
   });
+}
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
