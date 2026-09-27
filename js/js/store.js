@@ -558,44 +558,39 @@ class DataStore {
       const mergedStudents = validCloudStudents.map(cloudSt => {
         if (!cloudSt || !cloudSt.id) return cloudSt;
         const localSt = localStudentMap.get(cloudSt.id);
-        
-        // Pasiflik kuralı: Pasif sicilinde varsa veya yerelde pasifse KORU!
-        const isLocallyPassive = localSt && (localSt.isPassive === true || localSt.status === 'passive');
-        const inPassiveMap = passiveMap[cloudSt.id] && passiveMap[cloudSt.id].isPassive === true;
-        const isCloudPassive = cloudSt.isPassive === true || cloudSt.status === 'passive';
-        const finalPassive = inPassiveMap || isLocallyPassive || isCloudPassive;
 
         if (localSt) {
-          // Akıllı Karşılaştırma & Yerel Düzenleme Kalkanı:
-          // 1. Bu cihazda bu öğrenci elle düzenlenmişse (isStudentLocallyEdited): KESİNLİKLE YEREL KAYIT KAZANIR!
-          // 2. Yerelde geçerli kayıt varsa: Bulutun eski/bayat verisi yereli ASLA EZEMEZ!
           const isLocallyEdited = this.isStudentLocallyEdited(cloudSt.id);
+          const localTs = localSt.updatedAt ? new Date(localSt.updatedAt).getTime() : 0;
+          const cloudTs = cloudSt.updatedAt ? new Date(cloudSt.updatedAt).getTime() : 0;
+          
           let preferLocal = true;
-
           if (isLocallyEdited) {
             preferLocal = true;
-          } else if (cloudSt.updatedAt && localSt.updatedAt) {
-            const localTs = new Date(localSt.updatedAt).getTime();
-            const cloudTs = new Date(cloudSt.updatedAt).getTime();
-            if (!isNaN(localTs) && !isNaN(cloudTs)) {
-              preferLocal = localTs >= cloudTs;
-            } else {
-              preferLocal = true;
-            }
-          } else {
-            preferLocal = true;
+          } else if (!isNaN(localTs) && !isNaN(cloudTs)) {
+            preferLocal = localTs >= cloudTs;
           }
 
           if (preferLocal) {
+            const finalPassive = localSt.isPassive === true || localSt.status === 'passive';
             return {
               ...cloudSt,
               ...localSt,
               isPassive: finalPassive,
               status: finalPassive ? 'passive' : 'active'
             };
+          } else {
+            const finalPassive = cloudSt.isPassive === true || cloudSt.status === 'passive';
+            return {
+              ...localSt,
+              ...cloudSt,
+              isPassive: finalPassive,
+              status: finalPassive ? 'passive' : 'active'
+            };
           }
         }
 
+        const finalPassive = (passiveMap[cloudSt.id] && passiveMap[cloudSt.id].isPassive === true) || cloudSt.isPassive === true || cloudSt.status === 'passive';
         return {
           ...cloudSt,
           isPassive: finalPassive,
@@ -1273,10 +1268,10 @@ class DataStore {
 
       list.forEach(s => {
         if (!s || !s.id) return;
+        const isExplicitlyPassive = s.isPassive === true || s.status === 'passive';
         const inPassiveMap = passiveMap[s.id] && passiveMap[s.id].isPassive === true;
-        const isCurrentlyPassive = inPassiveMap || s.isPassive === true || s.status === 'passive';
 
-        if (isCurrentlyPassive) {
+        if (isExplicitlyPassive) {
           if (!s.isPassive || s.status !== 'passive') {
             s.isPassive = true;
             s.status = 'passive';
@@ -1291,6 +1286,10 @@ class DataStore {
             s.isPassive = false;
             s.status = 'active';
             listChanged = true;
+          }
+          if (passiveMap[s.id]) {
+            delete passiveMap[s.id];
+            mapChanged = true;
           }
         }
       });
@@ -1349,12 +1348,20 @@ class DataStore {
     sanitizedStudents.forEach(s => {
       if (!s || !s.id) return;
       if (!s.updatedAt) s.updatedAt = nowIso;
-      if (passiveMap[s.id] && passiveMap[s.id].isPassive === true) {
+      if (s.isPassive === true || s.status === 'passive') {
         s.isPassive = true;
         s.status = 'passive';
-      } else if (s.isPassive === true || s.status === 'passive') {
-        passiveMap[s.id] = { isPassive: true, updatedAt: s.updatedAt || nowIso };
-        mapChanged = true;
+        if (!passiveMap[s.id] || !passiveMap[s.id].isPassive) {
+          passiveMap[s.id] = { isPassive: true, updatedAt: s.updatedAt || nowIso };
+          mapChanged = true;
+        }
+      } else {
+        s.isPassive = false;
+        s.status = 'active';
+        if (passiveMap[s.id]) {
+          delete passiveMap[s.id];
+          mapChanged = true;
+        }
       }
     });
 
@@ -1418,6 +1425,12 @@ class DataStore {
           passiveMap[id] = { isPassive: true, updatedAt: new Date().toISOString() };
         } else {
           delete passiveMap[id];
+          if (this.isCloudEnabled()) {
+            const baseUrl = this.getFirebaseUrl();
+            if (baseUrl) {
+              try { fetch(`${baseUrl}/kurs_data/passive_student_ids/${id}.json`, { method: 'DELETE' }).catch(() => {}); } catch (e) {}
+            }
+          }
         }
         this.savePassiveStudentIds(passiveMap);
       } else if (updatedData.status !== undefined) {
@@ -1426,6 +1439,12 @@ class DataStore {
           passiveMap[id] = { isPassive: true, updatedAt: new Date().toISOString() };
         } else {
           delete passiveMap[id];
+          if (this.isCloudEnabled()) {
+            const baseUrl = this.getFirebaseUrl();
+            if (baseUrl) {
+              try { fetch(`${baseUrl}/kurs_data/passive_student_ids/${id}.json`, { method: 'DELETE' }).catch(() => {}); } catch (e) {}
+            }
+          }
         }
         this.savePassiveStudentIds(passiveMap);
       } else {
@@ -1591,8 +1610,18 @@ class DataStore {
       passiveMap[id] = { isPassive: true, updatedAt: nowIso };
     } else {
       delete passiveMap[id];
+      if (this.isCloudEnabled()) {
+        const baseUrl = this.getFirebaseUrl();
+        if (baseUrl) {
+          try {
+            fetch(`${baseUrl}/kurs_data/passive_student_ids/${id}.json`, { method: 'DELETE' }).catch(() => {});
+          } catch (e) {}
+        }
+      }
     }
 
+    this.markStudentLocallyEdited(id, ['isPassive', 'status']);
+    this._lastStudentEditTime = Date.now();
     this.savePassiveStudentIds(passiveMap);
     this.saveStudents(students);
     return { success: true, isPassive: s.isPassive, student: s };
