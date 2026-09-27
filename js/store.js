@@ -2394,6 +2394,89 @@ class DataStore {
     }
   }
 
+  // --- Aylık İzin Dönüşü Kontrol ve Raporlama Metodları ---
+  getMonthlyLeaveReturns(yearMonthStr) {
+    const all = this.getAllLeaveReturns();
+    const result = {};
+    Object.keys(all).forEach(dateStr => {
+      if (dateStr.startsWith(yearMonthStr)) {
+        result[dateStr] = all[dateStr];
+      }
+    });
+    return result;
+  }
+
+  getMonthlyLeaveReturnReportForStudent(studentId, yearMonthStr) {
+    const monthReturns = this.getMonthlyLeaveReturns(yearMonthStr);
+    const returnDates = Object.keys(monthReturns).sort();
+    const records = [];
+    let onTimeCount = 0;
+    let lateCount = 0;
+    let totalLateMinutes = 0;
+    let totalPenaltyMinutes = 0;
+    let excusedCount = 0;
+
+    returnDates.forEach(dateStr => {
+      const rec = monthReturns[dateStr] ? monthReturns[dateStr][studentId] : null;
+      if (rec && (rec.arrivalTime || rec.status === 'IZINLI')) {
+        records.push(rec);
+        if (rec.status === 'GEC') {
+          lateCount++;
+          totalLateMinutes += (rec.lateMinutes || 0);
+          totalPenaltyMinutes += (rec.penaltyMinutes || 0);
+        } else if (rec.status === 'IZINLI') {
+          excusedCount++;
+        } else if (rec.status === 'VAKTINDE' || rec.status === 'ERKEN') {
+          onTimeCount++;
+        }
+      }
+    });
+
+    return {
+      studentId,
+      yearMonth: yearMonthStr,
+      totalReturns: records.length,
+      records,
+      onTimeCount,
+      lateCount,
+      totalLateMinutes,
+      totalPenaltyMinutes,
+      totalPenaltyFormatted: this.formatPenaltyDuration(totalPenaltyMinutes),
+      excusedCount
+    };
+  }
+
+  getMonthlyLeaveReturnBatch(students, yearMonthStr) {
+    const reports = students.map(st => ({
+      student: st,
+      report: this.getMonthlyLeaveReturnReportForStudent(st.id, yearMonthStr)
+    }));
+
+    let totalReturnsAll = 0;
+    let totalLateAll = 0;
+    let totalPenaltyMinutesAll = 0;
+    let totalExcusedAll = 0;
+    let totalOnTimeAll = 0;
+
+    reports.forEach(r => {
+      totalReturnsAll += r.report.totalReturns;
+      totalLateAll += r.report.lateCount;
+      totalPenaltyMinutesAll += r.report.totalPenaltyMinutes;
+      totalExcusedAll += r.report.excusedCount;
+      totalOnTimeAll += r.report.onTimeCount;
+    });
+
+    return {
+      reports,
+      totalReturnsAll,
+      totalLateAll,
+      totalPenaltyMinutesAll,
+      totalPenaltyFormatted: this.formatPenaltyDuration(totalPenaltyMinutesAll),
+      totalExcusedAll,
+      totalOnTimeAll
+    };
+  }
+
   // ========================================================
   // --- HAFTANIN VE AYIN TALEBESİ & PUANLAMA MOTORU ---
   // ========================================================
