@@ -243,8 +243,14 @@ window.AttendanceModule = {
       this.currentCategory
     );
 
+    const scrollY = window.scrollY;
     this.renderStudentRows();
     this.renderSummary();
+    if (scrollY > 0) {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+      });
+    }
   },
 
   saveAllCurrentView() {
@@ -303,6 +309,88 @@ window.AttendanceModule = {
     if (window.App && typeof window.App.showToast === 'function') {
       window.App.showToast(`✅ Tüm talebeler "${statusLabel}" olarak kaydedildi! (${records.length} Talebe)`, 'success');
     }
+  },
+
+  // WhatsApp ile Veliye Anlık Yoklama Bildirimi Gönderme
+  sendWhatsAppNotice(studentId) {
+    const student = window.Store.getStudentById(studentId);
+    if (!student) return;
+
+    let phone = student.parentPhone || student.phone || student.fatherPhone || '';
+    if (!phone) {
+      const input = prompt(`"${student.firstName} ${student.lastName}" adlı talebenin veli telefonu kayıtlı değil.\nMesaj göndermek için veli telefon numarasını giriniz (Örn: 05xx...):`);
+      if (!input || !input.trim()) return;
+      phone = input.trim();
+      window.Store.updateStudent(studentId, { parentPhone: phone });
+    }
+
+    const draft = this.draftAttendance[studentId] || { status: this.getDefaultStatus() };
+    const stCode = draft.status || this.getDefaultStatus();
+    const dayName = this.getDayName(this.currentDate);
+
+    let msg = '';
+    if (this.currentCategory === 'namaz') {
+      if (stCode === 'YOK') {
+        msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) tarihinde ${this.currentPrayer} namazı cemaatine mazeretsiz olarak katılmamıştır. Bilgilerinize sunarız.`;
+      } else if (stCode === 'GEC_TAKKESIZ') {
+        msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) tarihinde ${this.currentPrayer} namazına hem geç kalmış hem de takkesiz olarak katılmıştır. Bilgilerinize sunarız.`;
+      } else if (stCode === 'TAKKESIZ') {
+        msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) tarihinde ${this.currentPrayer} namazına takkesiz olarak katılmıştır. Bilgilerinize sunarız.`;
+      } else if (stCode === 'GEC') {
+        msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) tarihinde ${this.currentPrayer} namazına geç kalmıştır. Bilgilerinize sunarız.`;
+      } else if (stCode === 'IZINLI') {
+        msg = `Sayın Velimiz, Talebeniz ${student.firstName} ${student.lastName} için ${this.currentDate} (${dayName}) ${this.currentPrayer} namazında izinli kaydı yapılmıştır. Bilgilerinize sunarız. — Ömer Avniyel Akademi`;
+      } else {
+        msg = `Sayın Velimiz, Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) ${this.currentPrayer} namazına cemaatle eksiksiz katılmıştır. Bilgilerinize sunarız. — Ömer Avniyel Akademi`;
+      }
+    } else if (this.currentCategory === 'yatak') {
+      if (stCode === 'KOTU') {
+        msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) tarihli sabah oda ve yatak kontrolünde yatağını nizami toplamamış ve dağınık bırakmıştır. İntizam kusuru kaydı işlenmiştir. Bilgilerinize sunarız.`;
+      } else if (stCode === 'ORTA') {
+        msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) sabah oda ve yatak kontrolünde kısmi intizam eksiği tespit edilmiştir. Bilgilerinize sunarız.`;
+      } else {
+        msg = `Sayın Velimiz, Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) sabah yatak ve dolap kontrolünde tertemiz ve nizami intizam sergilemiştir. Tebrik ederiz. — Ömer Avniyel Akademi`;
+      }
+    } else if (this.currentCategory === 'okul_donusu') {
+      if (stCode === 'GELMEDI') {
+        msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) tarihli okul dönüşünde yurda henüz gelmemiştir. Durumu hakkında hocalarına bilgi vermenizi rica ederiz.`;
+      } else if (stCode === 'GEC') {
+        msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) tarihli okul dönüş saatine geç kalmıştır. Bilgilerinize sunarız.`;
+      } else {
+        msg = `Sayın Velimiz, Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) okuldan vaktinde yurda giriş yapmıştır. Hayırlı günler dileriz. — Ömer Avniyel Akademi`;
+      }
+    }
+
+    window.Store.sendWhatsAppMessage(phone, msg);
+  },
+
+  // WhatsApp ile Veliye Haftalık / Aylık Namaz Karne Raporu Gönderme
+  sendWhatsAppAttendanceReport(studentId) {
+    const student = window.Store.getStudentById(studentId);
+    if (!student) return;
+
+    let phone = student.parentPhone || student.phone || student.fatherPhone || '';
+    if (!phone) {
+      const input = prompt(`"${student.firstName} ${student.lastName}" adlı talebenin veli telefonu kayıtlı değil.\nMesaj göndermek için veli telefon numarasını giriniz (Örn: 05xx...):`);
+      if (!input || !input.trim()) return;
+      phone = input.trim();
+      window.Store.updateStudent(studentId, { parentPhone: phone });
+    }
+
+    const range = this.getReportRange();
+    const rep = window.Store.getPrayerReportForStudent(studentId, range.dates);
+    const periodLabel = this.reportPeriod === 'haftalik' ? 'Haftalık' : 'Aylık';
+
+    let msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz:\n\nTalebeniz ${student.firstName} ${student.lastName}'nin ${periodLabel} 5 Vakit Namaz Devam Raporu:\n` +
+      `• Namaz Devam Başarısı: %${rep.attendanceRate}\n` +
+      `• Cemaatle Kılınan: ${rep.overallCounts.VAR || 0} Vakit\n` +
+      `• Takkesiz Katılım: ${rep.overallCounts.TAKKESIZ || 0}\n` +
+      `• Geç Kalınan: ${rep.overallCounts.GEC || 0}\n` +
+      `• Katılmadığı (Yok): ${rep.overallCounts.YOK || 0}\n` +
+      `• İzinli / Raporlu: ${rep.overallCounts.IZINLI || 0}\n\n` +
+      `Bilgilerinize sunar, hayırlı günler dileriz. — Ömer Avniyel Akademi`;
+
+    window.Store.sendWhatsAppMessage(phone, msg);
   },
 
   getAllStudentsForCurrentView() {
@@ -788,10 +876,15 @@ window.AttendanceModule = {
             </div>
           </div>
 
-          <!-- Modal Alt Kapat Butonu -->
-          <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+          <!-- Modal Alt Kapat & WhatsApp Butonları -->
+          <div class="p-4 border-t border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+            <button type="button" onclick="window.AttendanceModule.sendWhatsAppAttendanceReport('${st.id}')"
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-xs cursor-pointer">
+              <span>📲</span>
+              <span>Veliye WhatsApp Karnesi Gönder</span>
+            </button>
             <button onclick="window.AttendanceModule.closeStudentDetailModal()" 
-              class="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition">
+              class="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black transition cursor-pointer">
               Kapat
             </button>
           </div>
@@ -1132,7 +1225,7 @@ window.AttendanceModule = {
             </div>
           </div>
 
-          <!-- 2. Kategoriye Özel Kelimeli Butonlar -->
+          <!-- 2. Kategoriye Özel Kelimeli Butonlar & WhatsApp -->
           <div class="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2 w-full sm:w-auto shrink-0">
             ${currentStatuses.map(st => {
               let isSelected = false;
@@ -1160,6 +1253,15 @@ window.AttendanceModule = {
                 </button>
               `;
             }).join('')}
+
+            <!-- WhatsApp Veli Bildirim Butonu -->
+            <button type="button" 
+              onclick="event.stopPropagation(); window.AttendanceModule.sendWhatsAppNotice('${s.id}')"
+              class="p-2 sm:px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 transition text-xs font-bold flex items-center justify-center gap-1 shadow-2xs cursor-pointer shrink-0"
+              title="Bu talebenin velisine WhatsApp bildirimi gönder">
+              <span>📲</span>
+              <span class="text-[10px] hidden md:inline">WhatsApp</span>
+            </button>
           </div>
         </div>
       `;
@@ -1306,6 +1408,13 @@ window.AttendanceModule = {
                     class="px-2 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer"
                     title="İzinli / Raporlu yap">
                     <span>İzinli</span>
+                  </button>
+                  <button type="button" 
+                    onclick="window.AttendanceModule.sendWhatsAppNotice('${st.id}')"
+                    class="px-2 py-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white border border-emerald-300 rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1 cursor-pointer"
+                    title="Bu talebenin velisine WhatsApp bildirimi gönder">
+                    <span>📲</span>
+                    <span>Veliye İlet</span>
                   </button>
                 </div>
               </div>

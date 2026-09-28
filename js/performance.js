@@ -12,7 +12,7 @@ window.AkademiModule = {
   selectedEtut: 'ALL',           // 'ALL' | '5-A|YASİN EKİNCİ' vb.
   selectedClasses: [],           // Geriye dönük uyumluluk
   searchQuery: '',
-  sortBy: 'score_desc',          // 'score_desc': Aldığı Nota / Ortalamaya Göre Sırala | 'name': İsim Sıralı
+  sortBy: 'name',                // Varsayılan: İsim / Sabit Sıralı (Giriş yaparken sıçrama ve yer değiştirmeleri %100 önler)
   saveTimers: {},
   selectedBadges: new Set(),
   shareStudentId: null,
@@ -229,6 +229,7 @@ window.AkademiModule = {
   },
 
   toggleSort() {
+    const scrollY = window.scrollY;
     this.sortBy = this.sortBy === 'score_desc' ? 'name' : 'score_desc';
     const btn = document.getElementById('btn-matrix-sort');
     if (btn) {
@@ -244,6 +245,9 @@ window.AkademiModule = {
       thTalebe.innerHTML = `Talebe ${this.sortBy === 'score_desc' ? '(Derece)' : ''}`;
     }
     this.renderMatrixTableBody();
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+    });
   },
 
   setSearchQuery(query) {
@@ -713,7 +717,7 @@ window.AkademiModule = {
           </td>
 
           <!-- 2. 5 Takviye Dersi Giriş Hücreleri -->
-          ${this.subjects.map(subj => {
+          ${this.subjects.map((subj, colIdx) => {
             const rawScore = scoreMap[`${st.id}_${subj.name}`];
             const currentScore = (rawScore !== undefined && rawScore !== null) ? rawScore : '';
             const color = this.getColorStyle(currentScore);
@@ -722,12 +726,17 @@ window.AkademiModule = {
               <td class="py-0.5 px-0.5 text-center border-l border-slate-100">
                 <input type="number" min="0" max="100" 
                   id="cell-${st.id}-${subj.key}"
+                  data-row-idx="${idx}"
+                  data-col-idx="${colIdx}"
+                  data-student-id="${st.id}"
+                  data-subj-key="${subj.key}"
                   placeholder="-"
                   value="${currentScore}"
                   style="background-color: ${color.bg}; color: ${color.text}; border-color: ${color.border};"
                   class="w-8 sm:w-10 h-7 text-center font-black rounded-lg border text-xs p-0 focus:outline-none focus:ring-1 focus:ring-blue-400"
                   oninput="window.AkademiModule.handleMatrixInput('${st.id}', '${subj.key}', this.value)"
-                  onblur="window.AkademiModule.handleMatrixBlur('${st.id}', '${subj.key}', this.value)">
+                  onblur="window.AkademiModule.handleMatrixBlur('${st.id}', '${subj.key}', this.value)"
+                  onkeydown="window.AkademiModule.handleMatrixKeyDown(event, '${st.id}', '${subj.key}', ${idx}, ${colIdx})">
               </td>
             `;
           }).join('')}
@@ -823,15 +832,40 @@ window.AkademiModule = {
     if (cell && num !== null) {
       cell.value = num;
     }
+    // NOT: Kullanıcı kutudan çıktığında tabloyu ASLA otomatik yeniden çizme!
+    // Bu sayede imleç yerinde kalır, sayfa başa/sona zıplamaz ve mobil klavye kapanmaz.
+  },
 
-    // Eğer puana göre sıralıysa ve kullanıcı başka bir input kutusuna odaklanmadıysa listeyi yeniden sırala
-    if (this.sortBy === 'score_desc') {
-      setTimeout(() => {
-        const active = document.activeElement;
-        if (!active || (active.tagName !== 'INPUT')) {
-          this.renderMatrixTableBody();
-        }
-      }, 300);
+  // Klavye ile hücreler arası hızlı geçiş (Enter/Aşağı: Bir alt öğrenci, Yukarı: Bir üst öğrenci)
+  handleMatrixKeyDown(e, studentId, subjectKey, rowIdx, colIdx) {
+    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextCell = document.querySelector(`input[data-row-idx="${rowIdx + 1}"][data-subj-key="${subjectKey}"]`);
+      if (nextCell) {
+        nextCell.focus();
+        nextCell.select();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevCell = document.querySelector(`input[data-row-idx="${rowIdx - 1}"][data-subj-key="${subjectKey}"]`);
+      if (prevCell) {
+        prevCell.focus();
+        prevCell.select();
+      }
+    } else if (e.key === 'ArrowRight' && (e.target.selectionStart === e.target.value.length || e.target.value === '')) {
+      const nextColCell = document.querySelector(`input[data-row-idx="${rowIdx}"][data-col-idx="${colIdx + 1}"]`);
+      if (nextColCell) {
+        e.preventDefault();
+        nextColCell.focus();
+        nextColCell.select();
+      }
+    } else if (e.key === 'ArrowLeft' && e.target.selectionStart === 0) {
+      const prevColCell = document.querySelector(`input[data-row-idx="${rowIdx}"][data-col-idx="${colIdx - 1}"]`);
+      if (prevColCell) {
+        e.preventDefault();
+        prevColCell.focus();
+        prevColCell.select();
+      }
     }
   },
 

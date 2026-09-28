@@ -383,7 +383,8 @@ window.QuranTrackerModule = {
     this.updateModalCalculations();
   },
 
-  renderView() {
+  renderView(preserveScroll = true) {
+    const scrollY = preserveScroll ? window.scrollY : 0;
     const container = document.getElementById('quran-tracker-container');
     if (!container) return;
 
@@ -652,6 +653,12 @@ window.QuranTrackerModule = {
         ${this.renderViewContent(filtered, groupSummaries)}
       </div>
     `;
+
+    if (preserveScroll && scrollY > 0) {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+      });
+    }
   },
 
   renderViewContent(filtered, groupSummaries) {

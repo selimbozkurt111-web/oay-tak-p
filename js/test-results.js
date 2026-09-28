@@ -11,7 +11,7 @@ window.TestResultsModule = {
   activeView: 'editor', // 'editor' | 'history'
   currentTestId: null,
   showTestDetails: false, // Mobilde ekranı kaplamasın diye varsayılan daraltılmış
-  sortBy: 'score_desc',   // 'score_desc': Notu En Yüksek İlk (1. -> Son) | 'name': İsim Sırası
+  sortBy: 'name',         // Varsayılan: İsim Sırası (Giriş yaparken sıçrama ve yer değiştirmeleri %100 önler)
   
   // Test Üst Bilgileri
   testMeta: {
@@ -74,13 +74,21 @@ window.TestResultsModule = {
   },
 
   toggleSort() {
+    const scrollY = window.scrollY;
     this.sortBy = this.sortBy === 'score_desc' ? 'name' : 'score_desc';
     this.render();
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+    });
   },
 
   applySort() {
+    const scrollY = window.scrollY;
     this.sortBy = 'score_desc';
     this.render();
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+    });
   },
 
   getCurrentlyDisplayedStudents() {
@@ -237,16 +245,47 @@ window.TestResultsModule = {
     this.updateSummaryCounters();
   },
 
-  // Giriş tamamlanıp kutudan çıkıldığında (blur) listeyi puana göre yeniden dizer
-  handleInputBlur() {
-    if (this.sortBy === 'score_desc') {
-      // Hafif bir gecikmeyle başka bir kutuya tıklandıysa odağı bozmamak için
-      setTimeout(() => {
-        const active = document.activeElement;
-        if (!active || (active.tagName !== 'INPUT')) {
-          this.render();
+  // Giriş tamamlanıp kutudan çıkıldığında (blur)
+  handleInputBlur(studentId) {
+    if (studentId) {
+      this.calculateRow(studentId);
+    }
+    this.updateSummaryCounters();
+    // NOT: Kullanıcı kutudan çıktığında sayfayı ASLA yeniden çizme!
+    // Sayfa yeniden çizilirse sayfa başa zıplar ve mobil klavye kapanır.
+  },
+
+  // Klavye ile hücreler arası hızlı geçiş (Enter: Yanlış kutusuna veya alt öğrenciye geçer)
+  handleKeyDown(e, studentId, field, rowIdx) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (field === 'correct') {
+        const wInput = document.getElementById(`input-w-${studentId}`);
+        if (wInput) {
+          wInput.focus();
+          wInput.select();
         }
-      }, 300);
+      } else {
+        const nextInput = document.querySelector(`input[data-row-idx="${rowIdx + 1}"][data-field="correct"]`);
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.select();
+        }
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextInput = document.querySelector(`input[data-row-idx="${rowIdx + 1}"][data-field="${field}"]`);
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.select();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevInput = document.querySelector(`input[data-row-idx="${rowIdx - 1}"][data-field="${field}"]`);
+      if (prevInput) {
+        prevInput.focus();
+        prevInput.select();
+      }
     }
   },
 
@@ -568,18 +607,26 @@ window.TestResultsModule = {
                       <!-- 2. Doğru (D) Girişi -->
                       <td class="py-0.5 px-0.5 text-center bg-emerald-50/20">
                         <input type="number" id="input-c-${st.id}" min="0" max="${this.testMeta.totalQuestions}" 
+                          data-row-idx="${idx}"
+                          data-field="correct"
+                          data-student-id="${st.id}"
                           value="${sc.correct}"
                           oninput="window.TestResultsModule.handleInputChange('${st.id}', 'correct', this.value)"
-                          onblur="window.TestResultsModule.handleInputBlur()"
+                          onblur="window.TestResultsModule.handleInputBlur('${st.id}')"
+                          onkeydown="window.TestResultsModule.handleKeyDown(event, '${st.id}', 'correct', ${idx})"
                           class="w-8 sm:w-10 h-7 text-center font-black text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 p-0">
                       </td>
 
                       <!-- 3. Yanlış (Y) Girişi -->
                       <td class="py-0.5 px-0.5 text-center bg-rose-50/20">
                         <input type="number" id="input-w-${st.id}" min="0" max="${this.testMeta.totalQuestions}" 
+                          data-row-idx="${idx}"
+                          data-field="wrong"
+                          data-student-id="${st.id}"
                           value="${sc.wrong}"
                           oninput="window.TestResultsModule.handleInputChange('${st.id}', 'wrong', this.value)"
-                          onblur="window.TestResultsModule.handleInputBlur()"
+                          onblur="window.TestResultsModule.handleInputBlur('${st.id}')"
+                          onkeydown="window.TestResultsModule.handleKeyDown(event, '${st.id}', 'wrong', ${idx})"
                           class="w-8 sm:w-10 h-7 text-center font-black text-rose-800 bg-rose-50 border border-rose-300 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-rose-500 p-0">
                       </td>
 
