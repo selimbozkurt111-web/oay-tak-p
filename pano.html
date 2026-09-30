@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
   <meta name="description" content="Ömer Avniyel Akademi Canlı TV Bilgi ve Duyuru Panosu">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v5.2) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v5.3) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20260930_v5.2_PANO_DUTIES_HADIS_TELAFILER_FIX';
+      var CURRENT_BUILD = '20260930_v5.3_PANO_DIRECT_PLAY_AND_CRASH_FIX';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -36,17 +36,11 @@
 
       if (savedBuild !== CURRENT_BUILD) {
         console.log('[Auto-Purge Pano] Sürüm güncelleniyor:', savedBuild, '->', CURRENT_BUILD);
-        localStorage.setItem('oay_pano_build_version', CURRENT_BUILD);
+        try { localStorage.setItem('oay_pano_build_version', CURRENT_BUILD); } catch(e){}
         if ('caches' in window) {
           caches.keys().then(function(names) {
             return Promise.all(names.map(function(n) { return caches.delete(n); }));
-          }).then(function() {
-            if (savedBuild) {
-              window.location.href = window.location.pathname + '?v=' + Date.now();
-            }
           });
-        } else if (savedBuild) {
-          window.location.href = window.location.pathname + '?v=' + Date.now();
         }
       }
     })();
@@ -105,7 +99,7 @@
 <body class="h-full bg-slate-950 text-slate-100 flex flex-col justify-between overflow-hidden select-none font-sans">
 
   <!-- YÖNETİCİ GÜVENLİK KİLİT EKRANI (ADMIN SECURITY LOCK) -->
-  <div id="pano-lock-screen" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 transition-all duration-300">
+  <div id="pano-lock-screen" style="display: none !important;" class="hidden fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 transition-all duration-300">
     <div class="bg-slate-900/95 border border-slate-800 rounded-3xl p-7 sm:p-9 max-w-md w-full shadow-2xl text-center relative overflow-hidden">
       <!-- Arka plan neon ışık efektleri -->
       <div class="absolute -top-20 -left-20 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -293,15 +287,15 @@
   <div class="fixed bottom-10 right-4 z-40 opacity-70 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-3 py-1.5 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[11px] font-black shadow-lg flex items-center gap-1.5 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v5.2)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v5.3)</span>
     </button>
   </div>
 
   <!-- Hadis Veritabanı, Store, Leaderboard ve Kur'an Hatim Modülleri -->
-  <script src="js/hadisler.js?v=5.2"></script>
-  <script src="js/store.js?v=5.2"></script>
-  <script src="js/leaderboard.js?v=5.2"></script>
-  <script src="js/quran-tracker.js?v=5.2"></script>
+  <script src="js/hadisler.js?v=5.3"></script>
+  <script src="js/store.js?v=5.3"></script>
+  <script src="js/leaderboard.js?v=5.3"></script>
+  <script src="js/quran-tracker.js?v=5.3"></script>
 
   <!-- Pano TV Yönetim Motoru (v4.4) -->
   <script>
@@ -314,99 +308,32 @@
       isPaused: false,
       syncInterval: null,
 
-      // --- Yönetici Yetki Kontrolü ---
+      // --- TV Koridor Panosu: Doğrudan ve Kesintisiz Açılış ---
       isAuthorized() {
-        // URL parametresi ile otomatik Kiosk/TV başlatma (?kiosk=1 veya ?pin=123 veya ?tv=1 veya ?autostart=1)
-        try {
-          const urlParams = new URLSearchParams(window.location.search);
-          if (urlParams.get('kiosk') === '1' || urlParams.get('tv') === '1' || urlParams.get('autostart') === '1' || urlParams.get('pin') === '123' || urlParams.get('pin') === '1234') {
-            localStorage.setItem('pano_admin_authorized', 'true');
-            return true;
-          }
-        } catch (e) {}
-
-        // 1. Cihaz / Kiosk TV kalıcı veya oturum yetkisi
-        if (localStorage.getItem('pano_admin_authorized') === 'true' || sessionStorage.getItem('pano_admin_authorized') === 'true') {
-          return true;
-        }
-
-        // 2. Ana panelden giriş yapmış aktif yönetici oturumu
-        try {
-          const raw = sessionStorage.getItem('yoklama_active_session') || localStorage.getItem('yoklama_active_session');
-          if (raw) {
-            const session = JSON.parse(raw);
-            if (session) {
-              if (session.role === 'superadmin' || session.canManageStaff || session.staffId === 'admin_root') {
-                return true;
-              }
-            }
-          }
-        } catch (e) {}
-
-        return false;
+        return true;
       },
 
       quickKioskAuth() {
-        if (this._kioskAutoTimer) {
-          clearInterval(this._kioskAutoTimer);
-          this._kioskAutoTimer = null;
-        }
-        localStorage.setItem('pano_admin_authorized', 'true');
         const lockEl = document.getElementById('pano-lock-screen');
-        if (lockEl) lockEl.classList.add('hidden');
+        if (lockEl) {
+          lockEl.classList.add('hidden');
+          lockEl.style.setProperty('display', 'none', 'important');
+        }
         this.startSlides();
       },
 
       checkAuth() {
         const lockEl = document.getElementById('pano-lock-screen');
-        if (this.isAuthorized()) {
-          if (lockEl) lockEl.classList.add('hidden');
-          return true;
-        } else {
-          if (lockEl) lockEl.classList.remove('hidden');
-          const passInput = document.getElementById('pano-admin-pass');
-          if (passInput) {
-            passInput.value = '';
-          }
-
-          // TV / Kiosk için 5 saniye içinde otomatik başlatma sayacı (TV kumandası aramaya gerek kalmaz)
-          let countdown = 5;
-          const autoStartEl = document.getElementById('pano-auto-kiosk-countdown');
-          if (autoStartEl) autoStartEl.textContent = `(${countdown}s)`;
-
-          if (this._kioskAutoTimer) clearInterval(this._kioskAutoTimer);
-          this._kioskAutoTimer = setInterval(() => {
-            countdown--;
-            if (autoStartEl) autoStartEl.textContent = `(${countdown}s)`;
-            if (countdown <= 0) {
-              clearInterval(this._kioskAutoTimer);
-              this._kioskAutoTimer = null;
-              this.quickKioskAuth();
-            }
-          }, 1000);
-
-          if (passInput) {
-            passInput.addEventListener('input', () => {
-              if (this._kioskAutoTimer) {
-                clearInterval(this._kioskAutoTimer);
-                this._kioskAutoTimer = null;
-                if (autoStartEl) autoStartEl.textContent = '';
-              }
-            }, { once: true });
-          }
-
-          return false;
+        if (lockEl) {
+          lockEl.classList.add('hidden');
+          lockEl.style.setProperty('display', 'none', 'important');
         }
+        return true;
       },
 
       handleAuthSubmit(e) {
         if (e) e.preventDefault();
-        if (this._kioskAutoTimer) {
-          clearInterval(this._kioskAutoTimer);
-          this._kioskAutoTimer = null;
-        }
         const passInput = document.getElementById('pano-admin-pass');
-        const rememberCheck = document.getElementById('pano-remember');
         const errEl = document.getElementById('pano-auth-error');
         if (!passInput) return;
 
@@ -414,38 +341,26 @@
         if (!enteredPass) return;
 
         let isValid = false;
-
-        // 1. Store içindeki Kurum Yönetici şifresi kontrolü
         if (window.Store) {
           try {
             const settings = window.Store.getSettings();
             const adminPass = (settings.adminPassword || '123').toString().trim();
-            if (enteredPass === adminPass) {
-              isValid = true;
-            }
+            if (enteredPass === adminPass) isValid = true;
           } catch (err) {}
         }
-
-        // 2. Master PIN / Varsayılan Yönetici Şifreleri (123 veya 1234)
-        if (enteredPass === '123' || enteredPass === '1234') {
-          isValid = true;
-        }
+        if (enteredPass === '123' || enteredPass === '1234') isValid = true;
 
         if (isValid) {
           if (errEl) errEl.classList.add('hidden');
-          if (rememberCheck && rememberCheck.checked) {
-            localStorage.setItem('pano_admin_authorized', 'true');
-          } else {
-            sessionStorage.setItem('pano_admin_authorized', 'true');
-          }
-
           const lockEl = document.getElementById('pano-lock-screen');
-          if (lockEl) lockEl.classList.add('hidden');
-
+          if (lockEl) {
+            lockEl.classList.add('hidden');
+            lockEl.style.setProperty('display', 'none', 'important');
+          }
           this.startSlides();
         } else {
           if (errEl) {
-            errEl.textContent = '❌ Hatalı yönetici şifresi! Bu pano yalnızca kurum yöneticilerine açıktır.';
+            errEl.textContent = '❌ Hatalı şifre!';
             errEl.classList.remove('hidden');
           }
           passInput.select();
@@ -453,25 +368,14 @@
       },
 
       lockPano() {
-        if (this._kioskAutoTimer) {
-          clearInterval(this._kioskAutoTimer);
-          this._kioskAutoTimer = null;
-        }
-        localStorage.removeItem('pano_admin_authorized');
-        sessionStorage.removeItem('pano_admin_authorized');
-        sessionStorage.removeItem('yoklama_active_session');
-
         if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
         if (this.syncInterval) clearInterval(this.syncInterval);
 
-        const slideContainer = document.getElementById('slide-container');
-        if (slideContainer) slideContainer.innerHTML = '';
-
-        const progressEl = document.getElementById('slide-progress');
-        if (progressEl) progressEl.style.width = '0%';
-
         const lockEl = document.getElementById('pano-lock-screen');
-        if (lockEl) lockEl.classList.remove('hidden');
+        if (lockEl) {
+          lockEl.classList.remove('hidden');
+          lockEl.style.setProperty('display', 'flex', 'important');
+        }
         const passInput = document.getElementById('pano-admin-pass');
         if (passInput) {
           passInput.value = '';
@@ -1825,9 +1729,13 @@
       }
     };
 
-    window.addEventListener('DOMContentLoaded', () => {
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', () => {
+        PanoApp.init();
+      });
+    } else {
       PanoApp.init();
-    });
+    }
   </script>
 </body>
 </html>
