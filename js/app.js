@@ -545,18 +545,24 @@ window.App = {
           </div>
         ` : ''}
 
-        <!-- 5. SADECE YÖNETİCİ: ÜST BARDA DOĞRUDAN CANLI EXCEL TABLOSU BUTONU -->
-        ${(session.role === 'superadmin' || session.canEditStudents) ? `
-          <div class="flex-shrink-0 ml-auto">
-            <button onclick="window.App.setTab('ogrenciler_excel')" 
-              class="px-3.5 py-1.5 rounded-xl ${this.activeTab === 'ogrenciler_excel' ? 'bg-emerald-900 ring-2 ring-emerald-400 text-white font-black' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-black'} text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm">
-              <span>📊 Canlı Excel Tablosu</span>
+        <!-- 5. GÜNÜN GÖREVLİLERİ & YÖNETİCİ BUTONLARI -->
+        ${session.role !== 'parent' ? `
+          <div class="flex-shrink-0 ml-auto flex items-center gap-1.5">
+            <button onclick="window.App.setTab('gorevler')" 
+              class="px-2.5 sm:px-3 py-1.5 rounded-xl ${this.activeTab === 'gorevler' ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300 font-black' : 'bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold border border-amber-500/40'} text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm">
+              <span>🎯 Günün Görevlileri</span>
             </button>
+            ${(session.role === 'superadmin' || session.canEditStudents) ? `
+              <button onclick="window.App.setTab('ogrenciler_excel')" 
+                class="px-3 py-1.5 rounded-xl ${this.activeTab === 'ogrenciler_excel' ? 'bg-emerald-900 ring-2 ring-emerald-400 text-white font-black' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-black'} text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm">
+                <span>📊 Canlı Excel</span>
+              </button>
+            ` : ''}
           </div>
         ` : ''}
 
         <!-- 6. HER ZAMAN GÖRÜNÜR: SİSTEMİ & ÖNBELLEĞİ YENİLE BUTONU -->
-        <div class="flex-shrink-0 ${(session.role === 'superadmin' || session.canEditStudents) ? 'ml-1.5' : 'ml-auto'}">
+        <div class="flex-shrink-0 ml-1.5">
           <button type="button" onclick="window.App.hardRefreshApp()" 
             class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-sm border border-amber-500 active:scale-95"
             title="Sistemi ve önbelleği sıfırlayıp en güncel sürümü yükler">
@@ -844,6 +850,26 @@ window.App = {
             <span class="text-amber-600 font-bold">→</span>
           </button>
 
+          <!-- Günün Görevlileri (Yemekçi & Müezzin) -->
+          <button type="button" onclick="window.App.navigateFromDrawer('gorevler')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              this.activeTab === 'gorevler'
+                ? 'bg-amber-100 text-amber-950 font-black border border-amber-300 shadow-sm'
+                : 'text-slate-700 hover:bg-amber-50/60 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🎯</span>
+              <div>
+                <div class="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                  <span>Günün Görevlileri</span>
+                  <span class="text-[9px] bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Canlı TV</span>
+                </div>
+                <div class="text-[10px] text-slate-500 font-medium">Yemekhane nöbetçileri ve vakit müezzini atama</div>
+              </div>
+            </div>
+            <span class="text-amber-600 font-bold">→</span>
+          </button>
+
           <!-- Canlı TV / Koridor Panosu (Sadece Kurum Yöneticisine Özel) -->
           ${(session && (session.role === 'superadmin' || session.canManageStaff)) ? `
           <a href="pano.html" target="_blank" onclick="localStorage.setItem('pano_admin_authorized', 'true'); window.App.closeDrawer()"
@@ -983,6 +1009,23 @@ window.App = {
                 <div>
                   <div class="text-xs font-black">Personel & Şifre Yönetimi</div>
                   <div class="text-[10px] text-slate-400 font-medium">Hoca ekleme, silme ve şifreler</div>
+                </div>
+              </div>
+              <span class="text-slate-300">→</span>
+            </button>
+
+            <!-- Günün Görevlileri Yönetimi -->
+            <button type="button" onclick="window.App.navigateFromDrawer('gorevler')"
+              class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+                this.activeTab === 'gorevler'
+                  ? 'bg-amber-100 text-amber-950 font-black border border-amber-300 shadow-sm'
+                  : 'text-slate-700 hover:bg-slate-50 font-bold'
+              }">
+              <div class="flex items-center gap-3">
+                <span class="text-xl">🎯</span>
+                <div>
+                  <div class="text-xs font-black">Günün Görevlileri Yönetimi</div>
+                  <div class="text-[10px] text-slate-400 font-medium">Yemekhane nöbetçileri ve müezzin atama</div>
                 </div>
               </div>
               <span class="text-slate-300">→</span>
@@ -2572,6 +2615,7 @@ window.App = {
                 <!-- Manuel İsim Girişi Alternatifi -->
                 <div class="flex items-center gap-2 pt-1">
                   <input type="text" id="duty-yemekci-custom-text" placeholder="Veya manuel isim yazınız..."
+                    onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.App.addYemekciFromCustomText(); }"
                     class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
                   <button type="button" onclick="window.App.addYemekciFromCustomText()"
                     class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition cursor-pointer">
@@ -2661,6 +2705,7 @@ window.App = {
                   <input type="text" id="duty-muezzin-custom-text" placeholder="Veya manuel isim yazınız..."
                     value="${currentMuezzin && !students.some(s => currentMuezzin.startsWith(`${s.firstName} ${s.lastName}`)) ? currentMuezzin : ''}"
                     onchange="window.App.draftDutyMuezzin = this.value.trim(); window.App.renderDailyDutiesView();"
+                    onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.App.draftDutyMuezzin = this.value.trim(); window.App.renderDailyDutiesView(); }"
                     class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
                 </div>
               </div>

@@ -191,6 +191,23 @@ class DataStore {
       ];
       localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(sampleScores));
     }
+    if (!localStorage.getItem(STORAGE_KEYS.DUTIES)) {
+      const today = new Date().toISOString().split('T')[0];
+      const initialDuties = {
+        [today]: {
+          date: today,
+          yemekciler: ['ARDA YUSUF SAYGI (5-A)', 'ASİL MİRAÇ SOYLU (5-A)', 'ÖMER SAAT (5-A)'],
+          muezzin: 'AHMET HİLMİ EKİNCİ (7-A)',
+          note: 'Mutfak ve sofra intizamına dikkat edelim.',
+          updatedAt: new Date().toISOString()
+        },
+        date: today,
+        yemekciler: ['ARDA YUSUF SAYGI (5-A)', 'ASİL MİRAÇ SOYLU (5-A)', 'ÖMER SAAT (5-A)'],
+        muezzin: 'AHMET HİLMİ EKİNCİ (7-A)',
+        note: 'Mutfak ve sofra intizamına dikkat edelim.'
+      };
+      localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(initialDuties));
+    }
     if (this.getAttendance().length === 0) {
       this.seedDemoAttendance();
     }
@@ -374,7 +391,18 @@ class DataStore {
       customColumns: this.getCustomColumns(),
       passive_student_ids: this.getPassiveStudentIds(),
       deleted_student_ids: this.getDeletedStudentIds(),
-      dailyDuties: this.getDailyDuties(),
+      dailyDuties: (()=>{
+        try {
+          const r = localStorage.getItem(STORAGE_KEYS.DUTIES);
+          return r ? JSON.parse(r) : {};
+        } catch(e) { return {}; }
+      })(),
+      daily_duties: (()=>{
+        try {
+          const r = localStorage.getItem(STORAGE_KEYS.DUTIES);
+          return r ? JSON.parse(r) : {};
+        } catch(e) { return {}; }
+      })(),
       hadisler: this.getCustomHadisler(),
       hadisler_updatedAt: (localStorage.getItem('yoklama_custom_hadisler_meta_v1') ? JSON.parse(localStorage.getItem('yoklama_custom_hadisler_meta_v1')).updatedAt : new Date().toISOString()),
       quranTracker: this.getAllQuranRecords(),
@@ -675,10 +703,38 @@ class DataStore {
     }
 
     // 11. Günün Görevlileri (Yemekçi & Müezzin)
-    const cloudDuties = cloudData.dailyDuties || cloudData.daily_duties;
-    if (cloudDuties && typeof cloudDuties === 'object') {
-      localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(cloudDuties));
-      window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: cloudDuties }));
+    const rawDutiesA = cloudData.daily_duties;
+    const rawDutiesB = cloudData.dailyDuties;
+    let chosenDuties = null;
+
+    const getDutyScore = (obj) => {
+      if (!obj || typeof obj !== 'object') return -1;
+      let score = 0;
+      if (Array.isArray(obj.yemekciler) && obj.yemekciler.length > 0) score += 10;
+      if (obj.muezzin) score += 10;
+      const dateKeys = Object.keys(obj).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k));
+      score += dateKeys.length * 5;
+      return score;
+    };
+
+    if (getDutyScore(rawDutiesA) >= getDutyScore(rawDutiesB)) {
+      chosenDuties = { ...(rawDutiesB || {}), ...(rawDutiesA || {}) };
+    } else {
+      chosenDuties = { ...(rawDutiesA || {}), ...(rawDutiesB || {}) };
+    }
+
+    if (chosenDuties && typeof chosenDuties === 'object' && Object.keys(chosenDuties).length > 0) {
+      try {
+        const localRaw = localStorage.getItem(STORAGE_KEYS.DUTIES);
+        let localObj = localRaw ? JSON.parse(localRaw) : {};
+        if (typeof localObj !== 'object' || localObj === null) localObj = {};
+        const merged = { ...localObj, ...chosenDuties };
+        localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(merged));
+        window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: merged }));
+      } catch (e) {
+        localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(chosenDuties));
+        window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: chosenDuties }));
+      }
     }
 
     // 12. Özel Hadis-i Şerif Listesi (Akıllı birleştirme: En güncel updatedAt kazanır)
@@ -768,8 +824,28 @@ class DataStore {
             }
           } else if (path.startsWith('dailyDuties') || path.startsWith('daily_duties')) {
             if (data && typeof data === 'object') {
-              localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(data));
-              window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: data }));
+              try {
+                const localRaw = localStorage.getItem(STORAGE_KEYS.DUTIES);
+                let localObj = localRaw ? JSON.parse(localRaw) : {};
+                if (typeof localObj !== 'object' || localObj === null) localObj = {};
+                let merged;
+                if (path === 'dailyDuties' || path === 'daily_duties') {
+                  merged = { ...localObj, ...data };
+                } else {
+                  const subKey = path.split('/')[1];
+                  if (subKey) {
+                    localObj[subKey] = data;
+                    merged = localObj;
+                  } else {
+                    merged = { ...localObj, ...data };
+                  }
+                }
+                localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(merged));
+                window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: merged }));
+              } catch (e) {
+                localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(data));
+                window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: data }));
+              }
             }
           } else if (path.startsWith('quranTracker')) {
             this.handleRealtimeQuranTracker(path, data);
@@ -3330,6 +3406,7 @@ class DataStore {
 
       if (this.isCloudEnabled()) {
         this.syncToCloud('kurs_data/daily_duties', storeObj);
+        this.syncToCloud('kurs_data/dailyDuties', storeObj);
       }
       window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: dutyData }));
       return { success: true, data: dutyData };
