@@ -2395,8 +2395,28 @@ class DataStore {
 
     infractions.sort((a, b) => a.date.localeCompare(b.date));
 
+    // =========================================================================
+    // İZİN ÇIKIŞINDA 3 KUSUR AFFI KURALI:
+    // İlk 3 kusur affedilir (0 dk ceza, standart saatte çıkış).
+    // Yalnızca 3'ten fazla olan kusurlar telafiye kalır (+30 dk ek süre).
+    // =========================================================================
+    const EXCUSED_QUOTA = 3;
     const totalInfractions = infractions.length;
-    const penaltyMinutes = infractions.reduce((sum, inf) => sum + (inf.penaltyMinutes || 30), 0);
+    const excusedCount = Math.min(EXCUSED_QUOTA, totalInfractions);
+    const activeInfractionsCount = Math.max(0, totalInfractions - EXCUSED_QUOTA);
+
+    infractions.forEach((inf, idx) => {
+      if (idx < EXCUSED_QUOTA) {
+        inf.isExcused = true;
+        inf.effectivePenalty = 0;
+      } else {
+        inf.isExcused = false;
+        inf.effectivePenalty = inf.penaltyMinutes || 30;
+      }
+    });
+
+    const activeInfractions = infractions.filter(inf => !inf.isExcused);
+    const penaltyMinutes = activeInfractions.reduce((sum, inf) => sum + (inf.effectivePenalty || 0), 0);
     const calculatedExitTime = this.calculateExitTime(baseExitTime, penaltyMinutes);
     const penaltyFormatted = this.formatPenaltyDuration(penaltyMinutes);
 
@@ -2406,14 +2426,19 @@ class DataStore {
       baseExitTime,
       calculatedExitTime,
       totalInfractions,
+      excusedCount,
+      activeInfractionsCount,
       penaltyMinutes,
       penaltyFormatted,
+      hasPenalty: penaltyMinutes > 0,
       namazInfractionsCount,
       yatakInfractionsCount,
       okulInfractionsCount,
       leaveReturnInfractionsCount,
       leaveReturnPenaltyMinutes,
-      infractions
+      infractions,
+      activeInfractions,
+      excusedInfractions: infractions.filter(inf => inf.isExcused)
     };
   }
 
@@ -2431,7 +2456,8 @@ class DataStore {
     reports.forEach(item => {
       totalInfractionsAll += item.report.totalInfractions;
       totalPenaltyMinutesAll += item.report.penaltyMinutes;
-      if (item.report.totalInfractions === 0) {
+      // 3 kusur affı: Sadece penaltyMinutes > 0 olanlar (3'ten fazla kusuru olanlar) telafiye kalır
+      if (item.report.penaltyMinutes === 0) {
         onTimeCount++;
       } else {
         delayedCount++;
@@ -2469,8 +2495,11 @@ class DataStore {
         const entry = clearedMap[stId];
         const isCleared = entry === true || (entry && entry.cleared);
         if (isCleared) {
-          clearedCount++;
-        } else if (item.report && item.report.totalInfractions > 0) {
+          if (item.report && item.report.penaltyMinutes > 0) {
+            clearedCount++;
+          }
+        } else if (item.report && item.report.penaltyMinutes > 0) {
+          // Sadece 3'ten fazla kusuru olup ek telafi süresi alanlar TV panosunda listelenir!
           penalizedStudents.push(item);
         }
       });
@@ -2483,7 +2512,7 @@ class DataStore {
         weekInfo,
         baseExitTime,
         totalStudents: students.length,
-        onTimeCount: batch.onTimeCount,
+        onTimeCount: (batch.onTimeCount || 0) + clearedCount,
         clearedCount,
         totalPenalizedCount: penalizedStudents.length,
         penalizedStudents
@@ -3373,46 +3402,6 @@ class DataStore {
     }
     window.dispatchEvent(new CustomEvent('hadisler-updated', { detail: hadisList }));
     return { success: true, count: hadisList.length, data: hadisList };
-  }
-
-  // ========================================================
-  // --- PANODA GÖSTERİLECEK TELAFİLİLER VE İNTİZAM LİSTESİ ---
-  // ========================================================
-  getPanoPenalizedStudents(referenceDate) {
-    try {
-      const today = referenceDate || new Date().toISOString().split('T')[0];
-      const students = this.getStudents(false); // Aktif öğrenciler
-      const weekInfo = this.getWeekRange(today);
-      const weekKey = `week_${weekInfo.startDate}`;
-      const baseExitTime = (window.LeaveTrackerModule && window.LeaveTrackerModule.baseExitTime) 
-        || localStorage.getItem('yoklama_base_exit_time') 
-        || '13:00';
-      const reportData = this.getLeaveReportBatch(students, weekInfo.dates, baseExitTime);
-
-      // Telafisi olan tüm talebeler
-      const allPenalized = (reportData.reports || [])
-        .filter(item => item && item.report && item.report.totalInfractions > 0);
-
-      // TELAFİSİNİ TAMAMLAYANLAR (isPenaltyCleared) TV panosundan otomatik düşer!
-      const activePenalized = allPenalized
-        .filter(item => item.student && !this.isPenaltyCleared(weekKey, item.student.id))
-        .sort((a, b) => (b.report?.penaltyMinutes || 0) - (a.report?.penaltyMinutes || 0));
-
-      const clearedCount = allPenalized.length - activePenalized.length;
-
-      return {
-        weekKey,
-        totalPenalizedCount: activePenalized.length,
-        allPenalizedCount: allPenalized.length,
-        clearedCount: clearedCount,
-        penalizedStudents: activePenalized,
-        totalStudents: students.length,
-        onTimeCount: (reportData.onTimeCount || 0) + clearedCount
-      };
-    } catch (e) {
-      console.error('[getPanoPenalizedStudents] error:', e);
-      return { totalPenalizedCount: 0, allPenalizedCount: 0, clearedCount: 0, penalizedStudents: [], totalStudents: 0, onTimeCount: 0 };
-    }
   }
 
   // ========================================================
