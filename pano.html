@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
   <meta name="description" content="Ömer Avniyel Akademi Canlı TV Bilgi ve Duyuru Panosu">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v5.4) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v5.5) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20260930_v5.4_TELAFILER_LIST_AND_3_INFRACTION_PARDON';
+      var CURRENT_BUILD = '20260930_v5.5_DAILY_DUTIES_REPAIR_AND_DRAWER_NAV';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -287,15 +287,15 @@
   <div class="fixed bottom-10 right-4 z-40 opacity-70 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-3 py-1.5 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[11px] font-black shadow-lg flex items-center gap-1.5 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v5.4)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v5.5)</span>
     </button>
   </div>
 
   <!-- Hadis Veritabanı, Store, Leaderboard ve Kur'an Hatim Modülleri -->
-  <script src="js/hadisler.js?v=5.4"></script>
-  <script src="js/store.js?v=5.4"></script>
-  <script src="js/leaderboard.js?v=5.4"></script>
-  <script src="js/quran-tracker.js?v=5.4"></script>
+  <script src="js/hadisler.js?v=5.5"></script>
+  <script src="js/store.js?v=5.5"></script>
+  <script src="js/leaderboard.js?v=5.5"></script>
+  <script src="js/quran-tracker.js?v=5.5"></script>
 
   <!-- Pano TV Yönetim Motoru (v4.4) -->
   <script>
@@ -405,7 +405,12 @@
         // Canlı veritabanı senkronizasyonunda ve anlık veri değişimlerinde slaytı anında tazele
         const refreshCurrent = () => {
           if (this.isAuthorized()) {
-            try { this.renderCurrentSlide(); } catch (e) {}
+            try { 
+              if (window.Store && typeof window.Store.getDailyDuties === 'function') {
+                this.updateTickerWithDuties(window.Store.getDailyDuties());
+              }
+              this.renderCurrentSlide(); 
+            } catch (e) {}
           }
         };
         window.addEventListener('cloud-sync-done', refreshCurrent);
@@ -421,6 +426,13 @@
         // Canlı bulut dinleyicisini aktifleştir
         if (window.Store && typeof window.Store.initRealtimeListener === 'function') {
           try { window.Store.initRealtimeListener(); } catch (e) {}
+        }
+
+        // Başlangıçta alt haber bandını (ticker) günün görevlileri ile doldur
+        if (window.Store && typeof window.Store.getDailyDuties === 'function') {
+          try {
+            this.updateTickerWithDuties(window.Store.getDailyDuties());
+          } catch(e) {}
         }
 
         // Kurum adı & logosu ayarla
