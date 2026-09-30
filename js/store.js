@@ -2446,6 +2446,51 @@ class DataStore {
     };
   }
 
+  getPanoPenalizedStudents(dateStr = new Date().toISOString().split('T')[0]) {
+    try {
+      const weekInfo = this.getWeekRange(dateStr);
+      const weekKey = `week_${weekInfo.startDate}`;
+      const baseExitTime = (window.LeaveTrackerModule && window.LeaveTrackerModule.baseExitTime) 
+        || localStorage.getItem('yoklama_base_exit_time') 
+        || '13:00';
+      const students = this.getStudents(false); // Sadece aktif öğrenciler
+      const batch = this.getLeaveReportBatch(students, weekInfo.dates, baseExitTime);
+      const clearedMap = this.getClearedPenaltiesForWeek(weekKey);
+
+      let clearedCount = 0;
+      const penalizedStudents = [];
+
+      batch.reports.forEach(item => {
+        const stId = item.student ? item.student.id : null;
+        if (!stId) return;
+        const entry = clearedMap[stId];
+        const isCleared = entry === true || (entry && entry.cleared);
+        if (isCleared) {
+          clearedCount++;
+        } else if (item.report && item.report.totalInfractions > 0) {
+          penalizedStudents.push(item);
+        }
+      });
+
+      // En çok telafisi olandan en aza doğru sırala
+      penalizedStudents.sort((a, b) => (b.report?.penaltyMinutes || 0) - (a.report?.penaltyMinutes || 0));
+
+      return {
+        weekKey,
+        weekInfo,
+        baseExitTime,
+        totalStudents: students.length,
+        onTimeCount: batch.onTimeCount,
+        clearedCount,
+        totalPenalizedCount: penalizedStudents.length,
+        penalizedStudents
+      };
+    } catch (e) {
+      console.error('[getPanoPenalizedStudents] Hata:', e);
+      return { totalPenalizedCount: 0, penalizedStudents: [], totalStudents: 0, onTimeCount: 0, clearedCount: 0 };
+    }
+  }
+
   getGateCheckoutStatus(weekKey) {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.LEAVE_CHECKOUT);
@@ -3147,14 +3192,71 @@ class DataStore {
       if (data) {
         const parsed = JSON.parse(data);
         if (parsed && typeof parsed === 'object') {
-          if (parsed[today]) return parsed[today];
-          if (parsed.date === today) return parsed;
-          return {
-            date: today,
-            yemekciler: Array.isArray(parsed.yemekciler) ? parsed.yemekciler : [],
-            muezzin: parsed.muezzin || '',
-            note: parsed.note || ''
-          };
+          // 1. Bugünün kaydı varsa ve içinde yemekçi veya müezzin varsa
+          const todayEntry = parsed[today];
+          if (todayEntry && ((Array.isArray(todayEntry.yemekciler) && todayEntry.yemekciler.length > 0) || todayEntry.muezzin)) {
+            return {
+              date: today,
+              yemekciler: Array.isArray(todayEntry.yemekciler) ? todayEntry.yemekciler : [],
+              muezzin: todayEntry.muezzin || '',
+              note: todayEntry.note || '',
+              isToday: true,
+              isLatestFallback: false
+            };
+          }
+          if (parsed.date === today && ((Array.isArray(parsed.yemekciler) && parsed.yemekciler.length > 0) || parsed.muezzin)) {
+            return {
+              date: today,
+              yemekciler: Array.isArray(parsed.yemekciler) ? parsed.yemekciler : [],
+              muezzin: parsed.muezzin || '',
+              note: parsed.note || '',
+              isToday: true,
+              isLatestFallback: false
+            };
+          }
+
+          // 2. Bugün henüz atanmamışsa, en son girilmiş geçerli görev kaydını bul
+          const dateKeys = Object.keys(parsed)
+            .filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k))
+            .sort()
+            .reverse();
+          for (const dKey of dateKeys) {
+            const entry = parsed[dKey];
+            if (entry && ((Array.isArray(entry.yemekciler) && entry.yemekciler.length > 0) || entry.muezzin)) {
+              return {
+                date: dKey,
+                yemekciler: Array.isArray(entry.yemekciler) ? entry.yemekciler : [],
+                muezzin: entry.muezzin || '',
+                note: entry.note || '',
+                isToday: false,
+                isLatestFallback: true
+              };
+            }
+          }
+
+          // 3. Kök nesnede yemekciler veya muezzin varsa
+          if ((Array.isArray(parsed.yemekciler) && parsed.yemekciler.length > 0) || parsed.muezzin) {
+            return {
+              date: parsed.date || today,
+              yemekciler: Array.isArray(parsed.yemekciler) ? parsed.yemekciler : [],
+              muezzin: parsed.muezzin || '',
+              note: parsed.note || '',
+              isToday: parsed.date === today,
+              isLatestFallback: parsed.date !== today
+            };
+          }
+
+          // 4. İçi boş olsa dahi bugünün kaydı varsa
+          if (todayEntry) {
+            return {
+              date: today,
+              yemekciler: Array.isArray(todayEntry.yemekciler) ? todayEntry.yemekciler : [],
+              muezzin: todayEntry.muezzin || '',
+              note: todayEntry.note || '',
+              isToday: true,
+              isLatestFallback: false
+            };
+          }
         }
       }
     } catch (e) {
@@ -3164,7 +3266,9 @@ class DataStore {
       date: today,
       yemekciler: [],
       muezzin: '',
-      note: ''
+      note: '',
+      isToday: true,
+      isLatestFallback: false
     };
   }
 
