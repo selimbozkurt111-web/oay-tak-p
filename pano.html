@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
   <meta name="description" content="Ömer Avniyel Akademi Canlı TV Bilgi ve Duyuru Panosu">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v5.0) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v5.1) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20260928_v5.0_KARARLI_NOT_GIRIS_FIX';
+      var CURRENT_BUILD = '20260930_v5.1_PANO_VE_CANLI_SENKRON_FIX';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -148,7 +148,7 @@
         <button type="button" onclick="PanoApp.quickKioskAuth()"
           class="w-full py-2.5 bg-slate-800/90 hover:bg-slate-800 border border-amber-500/40 text-amber-300 hover:text-white font-black text-xs rounded-xl shadow transition flex items-center justify-center gap-2 cursor-pointer">
           <span>📺</span>
-          <span>TV / Kiosk Modunda Hemen Başlat (Şifresiz)</span>
+          <span>TV / Kiosk Modunda Hemen Başlat <span id="pano-auto-kiosk-countdown" class="text-amber-400 font-mono font-bold">(5s)</span></span>
         </button>
       </form>
 
@@ -285,15 +285,15 @@
   <div class="fixed bottom-10 right-4 z-40 opacity-70 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-3 py-1.5 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[11px] font-black shadow-lg flex items-center gap-1.5 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v4.9)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v5.1)</span>
     </button>
   </div>
 
   <!-- Hadis Veritabanı, Store, Leaderboard ve Kur'an Hatim Modülleri -->
-  <script src="js/hadisler.js?v=4.9"></script>
-  <script src="js/store.js?v=4.9"></script>
-  <script src="js/leaderboard.js?v=4.9"></script>
-  <script src="js/quran-tracker.js?v=4.9"></script>
+  <script src="js/hadisler.js?v=5.1"></script>
+  <script src="js/store.js?v=5.1"></script>
+  <script src="js/leaderboard.js?v=5.1"></script>
+  <script src="js/quran-tracker.js?v=5.1"></script>
 
   <!-- Pano TV Yönetim Motoru (v4.4) -->
   <script>
@@ -339,6 +339,10 @@
       },
 
       quickKioskAuth() {
+        if (this._kioskAutoTimer) {
+          clearInterval(this._kioskAutoTimer);
+          this._kioskAutoTimer = null;
+        }
         localStorage.setItem('pano_admin_authorized', 'true');
         const lockEl = document.getElementById('pano-lock-screen');
         if (lockEl) lockEl.classList.add('hidden');
@@ -355,14 +359,44 @@
           const passInput = document.getElementById('pano-admin-pass');
           if (passInput) {
             passInput.value = '';
-            setTimeout(() => passInput.focus(), 150);
           }
+
+          // TV / Kiosk için 5 saniye içinde otomatik başlatma sayacı (TV kumandası aramaya gerek kalmaz)
+          let countdown = 5;
+          const autoStartEl = document.getElementById('pano-auto-kiosk-countdown');
+          if (autoStartEl) autoStartEl.textContent = `(${countdown}s)`;
+
+          if (this._kioskAutoTimer) clearInterval(this._kioskAutoTimer);
+          this._kioskAutoTimer = setInterval(() => {
+            countdown--;
+            if (autoStartEl) autoStartEl.textContent = `(${countdown}s)`;
+            if (countdown <= 0) {
+              clearInterval(this._kioskAutoTimer);
+              this._kioskAutoTimer = null;
+              this.quickKioskAuth();
+            }
+          }, 1000);
+
+          if (passInput) {
+            passInput.addEventListener('input', () => {
+              if (this._kioskAutoTimer) {
+                clearInterval(this._kioskAutoTimer);
+                this._kioskAutoTimer = null;
+                if (autoStartEl) autoStartEl.textContent = '';
+              }
+            }, { once: true });
+          }
+
           return false;
         }
       },
 
       handleAuthSubmit(e) {
         if (e) e.preventDefault();
+        if (this._kioskAutoTimer) {
+          clearInterval(this._kioskAutoTimer);
+          this._kioskAutoTimer = null;
+        }
         const passInput = document.getElementById('pano-admin-pass');
         const rememberCheck = document.getElementById('pano-remember');
         const errEl = document.getElementById('pano-auth-error');
@@ -411,6 +445,10 @@
       },
 
       lockPano() {
+        if (this._kioskAutoTimer) {
+          clearInterval(this._kioskAutoTimer);
+          this._kioskAutoTimer = null;
+        }
         localStorage.removeItem('pano_admin_authorized');
         sessionStorage.removeItem('pano_admin_authorized');
         sessionStorage.removeItem('yoklama_active_session');
@@ -452,11 +490,26 @@
           if (e.key === 'f' || e.key === 'F11') this.toggleFullscreen();
         });
 
-        window.addEventListener('penalty-cleared-updated', () => {
-          if (this.currentSlide === 6) {
+        // Canlı veritabanı senkronizasyonunda ve anlık veri değişimlerinde slaytı anında tazele
+        const refreshCurrent = () => {
+          if (this.isAuthorized()) {
             try { this.renderCurrentSlide(); } catch (e) {}
           }
+        };
+        window.addEventListener('cloud-sync-done', refreshCurrent);
+        window.addEventListener('quran-tracker-updated', refreshCurrent);
+        window.addEventListener('daily-duties-updated', (ev) => {
+          const duties = ev.detail || (window.Store ? window.Store.getDailyDuties() : null);
+          if (duties) this.updateTickerWithDuties(duties);
+          refreshCurrent();
         });
+        window.addEventListener('hadisler-updated', refreshCurrent);
+        window.addEventListener('penalty-cleared-updated', refreshCurrent);
+
+        // Canlı bulut dinleyicisini aktifleştir
+        if (window.Store && typeof window.Store.initRealtimeListener === 'function') {
+          try { window.Store.initRealtimeListener(); } catch (e) {}
+        }
 
         // Kurum adı & logosu ayarla
         const settings = window.Store ? window.Store.getSettings() : {};
@@ -1479,15 +1532,24 @@
         let totalLifetimePages = 0;
         let totalCompletedHatims = 0;
         Object.values(allRecords).forEach(r => {
-          const stats = window.Store.calculateQuranStats(r.currentPage, r.hatimCount);
-          totalLifetimePages += stats.totalLifetimePages;
-          totalCompletedHatims += stats.hatimCount;
+          if (r && typeof window.Store?.calculateQuranStats === 'function') {
+            const stats = window.Store.calculateQuranStats(r.currentPage, r.hatimCount);
+            totalLifetimePages += (stats?.totalLifetimePages || 0);
+            totalCompletedHatims += (stats?.hatimCount || 0);
+          }
         });
 
         const top1 = leaderboard[0] || null;
         const top2 = leaderboard[1] || null;
         const top3 = leaderboard[2] || null;
         const restList = leaderboard.slice(3, 9);
+
+        const s1 = (top1 && top1.student) || { firstName: '1. Talebe', lastName: '', className: '-' };
+        const st1 = (top1 && top1.stats) || { currentPage: 0, percentRead: 0, cuzNo: 1, cuzPageRange: '1 - 20', hatimCount: 0, pagesLeftInHatim: 604, percentLeft: 100 };
+        const s2 = (top2 && top2.student) || { firstName: '2. Talebe', lastName: '', className: '-' };
+        const st2 = (top2 && top2.stats) || { currentPage: 0, percentRead: 0, cuzNo: 1, cuzPageRange: '1 - 20', hatimCount: 0, pagesLeftInHatim: 604, percentLeft: 100 };
+        const s3 = (top3 && top3.student) || { firstName: '3. Talebe', lastName: '', className: '-' };
+        const st3 = (top3 && top3.stats) || { currentPage: 0, percentRead: 0, cuzNo: 1, cuzPageRange: '1 - 20', hatimCount: 0, pagesLeftInHatim: 604, percentLeft: 100 };
 
         container.innerHTML = `
           <div class="space-y-4 animate-fade-in w-full max-w-7xl mx-auto">
@@ -1540,28 +1602,28 @@
                       <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-slate-400 to-slate-200"></div>
                       <div class="text-3xl mb-0.5">🥈</div>
                       <div class="text-[9px] font-black uppercase text-slate-400 tracking-wider">2. SIRA • GÜMÜŞ</div>
-                      <h4 class="text-sm font-black text-white mt-1 truncate" title="${top2.student.firstName} ${top2.student.lastName}">
-                        ${top2.student.firstName} ${top2.student.lastName}
+                      <h4 class="text-sm font-black text-white mt-1 truncate" title="${s2.firstName} ${s2.lastName}">
+                        ${s2.firstName} ${s2.lastName}
                       </h4>
-                      <div class="text-[10px] text-slate-400 mb-2">${top2.student.className} • ${top2.diniGrup || '-'}</div>
+                      <div class="text-[10px] text-slate-400 mb-2">${s2.className} • ${top2.diniGrup || '-'}</div>
 
                       <!-- İlerleme Çubuğu -->
                       <div class="space-y-1 p-2 bg-slate-950/80 rounded-xl border border-slate-800 mb-2">
                         <div class="flex items-center justify-between text-[10px]">
-                          <span class="text-slate-400">Sayfa: <strong class="text-emerald-400 font-mono">${top2.stats.currentPage}</strong> / 604</span>
-                          <span class="text-emerald-400 font-black font-mono">%${top2.stats.percentRead}</span>
+                          <span class="text-slate-400">Sayfa: <strong class="text-emerald-400 font-mono">${st2.currentPage}</strong> / 604</span>
+                          <span class="text-emerald-400 font-black font-mono">%${st2.percentRead}</span>
                         </div>
                         <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
-                          <div class="h-full bg-gradient-to-r from-slate-400 to-slate-200 rounded-full" style="width: ${top2.stats.percentRead}%"></div>
+                          <div class="h-full bg-gradient-to-r from-slate-400 to-slate-200 rounded-full" style="width: ${st2.percentRead}%"></div>
                         </div>
                         <div class="text-[9px] text-slate-400 flex items-center justify-between pt-0.5">
-                          <span>${top2.stats.cuzNo}. Cüz</span>
-                          <span class="text-amber-400 font-bold">${top2.stats.hatimCount} Hatim</span>
+                          <span>${st2.cuzNo}. Cüz</span>
+                          <span class="text-amber-400 font-bold">${st2.hatimCount} Hatim</span>
                         </div>
                       </div>
 
                       <div class="text-[10px] text-slate-400 font-medium">
-                        Kalan: <strong class="text-amber-300">${top2.stats.pagesLeftInHatim} sf</strong> (%${top2.stats.percentLeft})
+                        Kalan: <strong class="text-amber-300">${st2.pagesLeftInHatim} sf</strong> (%${st2.percentLeft})
                       </div>
                     </div>
                   ` : '<div class="text-center text-slate-600 text-xs p-6 bg-slate-900/40 rounded-2xl border border-slate-800">2. Bekleniyor</div>'}
@@ -1581,28 +1643,28 @@
                       </div>
 
                       <div class="text-[10px] font-black uppercase text-amber-300 tracking-wider">KUR'AN-I KERİM LİDERİ</div>
-                      <h3 class="text-base sm:text-lg font-black text-white mt-1 truncate" title="${top1.student.firstName} ${top1.student.lastName}">
-                        ${top1.student.firstName} ${top1.student.lastName}
+                      <h3 class="text-base sm:text-lg font-black text-white mt-1 truncate" title="${s1.firstName} ${s1.lastName}">
+                        ${s1.firstName} ${s1.lastName}
                       </h3>
-                      <div class="text-xs text-amber-300/80 font-bold mb-3">${top1.student.className} • ${top1.diniGrup || '-'}</div>
+                      <div class="text-xs text-amber-300/80 font-bold mb-3">${s1.className} • ${top1.diniGrup || '-'}</div>
 
                       <!-- İlerleme Çubuğu -->
                       <div class="space-y-1.5 p-2.5 bg-slate-950/90 rounded-2xl border border-amber-500/40 mb-2">
                         <div class="flex items-center justify-between text-xs">
-                          <span class="text-slate-300">Sayfa: <strong class="text-amber-400 font-mono text-sm">${top1.stats.currentPage}</strong> / 604</span>
-                          <span class="text-amber-300 font-black font-mono text-sm">%${top1.stats.percentRead}</span>
+                          <span class="text-slate-300">Sayfa: <strong class="text-amber-400 font-mono text-sm">${st1.currentPage}</strong> / 604</span>
+                          <span class="text-amber-300 font-black font-mono text-sm">%${st1.percentRead}</span>
                         </div>
                         <div class="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden">
-                          <div class="h-full bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-400 rounded-full shadow-xs" style="width: ${top1.stats.percentRead}%"></div>
+                          <div class="h-full bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-400 rounded-full shadow-xs" style="width: ${st1.percentRead}%"></div>
                         </div>
                         <div class="text-[10px] text-slate-300 flex items-center justify-between pt-0.5">
-                          <span>${top1.stats.cuzNo}. Cüz (${top1.stats.cuzPageRange}. sf)</span>
-                          <span class="text-amber-300 font-black">🌟 ${top1.stats.hatimCount} Biten Hatim</span>
+                          <span>${st1.cuzNo}. Cüz (${st1.cuzPageRange}. sf)</span>
+                          <span class="text-amber-300 font-black">🌟 ${st1.hatimCount} Biten Hatim</span>
                         </div>
                       </div>
 
                       <div class="text-[11px] text-slate-300 font-medium">
-                        Kalan: <strong class="text-amber-400 font-bold">${top1.stats.pagesLeftInHatim} sayfa</strong> (%${top1.stats.percentLeft})
+                        Kalan: <strong class="text-amber-400 font-bold">${st1.pagesLeftInHatim} sayfa</strong> (%${st1.percentLeft})
                       </div>
                     </div>
                   ` : '<div class="text-center text-slate-600 text-xs p-6 bg-slate-900/40 rounded-2xl border border-slate-800">1. Bekleniyor</div>'}
@@ -1615,28 +1677,28 @@
                       <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-700 to-amber-600"></div>
                       <div class="text-3xl mb-0.5">🥉</div>
                       <div class="text-[9px] font-black uppercase text-amber-500 tracking-wider">3. SIRA • BRONZ</div>
-                      <h4 class="text-sm font-black text-white mt-1 truncate" title="${top3.student.firstName} ${top3.student.lastName}">
-                        ${top3.student.firstName} ${top3.student.lastName}
+                      <h4 class="text-sm font-black text-white mt-1 truncate" title="${s3.firstName} ${s3.lastName}">
+                        ${s3.firstName} ${s3.lastName}
                       </h4>
-                      <div class="text-[10px] text-slate-400 mb-2">${top3.student.className} • ${top3.diniGrup || '-'}</div>
+                      <div class="text-[10px] text-slate-400 mb-2">${s3.className} • ${top3.diniGrup || '-'}</div>
 
                       <!-- İlerleme Çubuğu -->
                       <div class="space-y-1 p-2 bg-slate-950/80 rounded-xl border border-slate-800 mb-2">
                         <div class="flex items-center justify-between text-[10px]">
-                          <span class="text-slate-400">Sayfa: <strong class="text-emerald-400 font-mono">${top3.stats.currentPage}</strong> / 604</span>
-                          <span class="text-emerald-400 font-black font-mono">%${top3.stats.percentRead}</span>
+                          <span class="text-slate-400">Sayfa: <strong class="text-emerald-400 font-mono">${st3.currentPage}</strong> / 604</span>
+                          <span class="text-emerald-400 font-black font-mono">%${st3.percentRead}</span>
                         </div>
                         <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
-                          <div class="h-full bg-gradient-to-r from-amber-700 to-amber-500 rounded-full" style="width: ${top3.stats.percentRead}%"></div>
+                          <div class="h-full bg-gradient-to-r from-amber-700 to-amber-500 rounded-full" style="width: ${st3.percentRead}%"></div>
                         </div>
                         <div class="text-[9px] text-slate-400 flex items-center justify-between pt-0.5">
-                          <span>${top3.stats.cuzNo}. Cüz</span>
-                          <span class="text-amber-400 font-bold">${top3.stats.hatimCount} Hatim</span>
+                          <span>${st3.cuzNo}. Cüz</span>
+                          <span class="text-amber-400 font-bold">${st3.hatimCount} Hatim</span>
                         </div>
                       </div>
 
                       <div class="text-[10px] text-slate-400 font-medium">
-                        Kalan: <strong class="text-amber-300">${top3.stats.pagesLeftInHatim} sf</strong> (%${top3.stats.percentLeft})
+                        Kalan: <strong class="text-amber-300">${st3.pagesLeftInHatim} sf</strong> (%${st3.percentLeft})
                       </div>
                     </div>
                   ` : '<div class="text-center text-slate-600 text-xs p-6 bg-slate-900/40 rounded-2xl border border-slate-800">3. Bekleniyor</div>'}
@@ -1660,12 +1722,12 @@
                         Diğer sıralamalar güncelleniyor...
                       </div>
                     ` : restList.map(item => {
-                      const s = item.student;
-                      const st = item.stats;
+                      const s = (item && item.student) || { firstName: 'Talebe', lastName: '', className: '-' };
+                      const st = (item && item.stats) || { currentPage: 0, percentRead: 0, cuzNo: 1, hatimCount: 0 };
                       return `
                         <div class="p-2 bg-slate-950/70 hover:bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between gap-2 text-xs transition">
                           <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="w-5 text-center font-mono font-black text-slate-500 text-[11px]">${item.rank}</span>
+                            <span class="w-5 text-center font-mono font-black text-slate-500 text-[11px]">${item.rank || '-'}</span>
                             <div class="truncate">
                               <div class="font-bold text-white text-xs truncate">${s.firstName} ${s.lastName}</div>
                               <div class="text-[10px] text-slate-400 truncate">${s.className} • ${item.diniGrup || '-'}</div>
