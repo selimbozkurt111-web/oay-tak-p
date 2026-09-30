@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
   <meta name="description" content="Ömer Avniyel Akademi Canlı TV Bilgi ve Duyuru Panosu">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v5.3) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v5.4) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20260930_v5.3_PANO_DIRECT_PLAY_AND_CRASH_FIX';
+      var CURRENT_BUILD = '20260930_v5.4_TELAFILER_LIST_AND_3_INFRACTION_PARDON';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -287,15 +287,15 @@
   <div class="fixed bottom-10 right-4 z-40 opacity-70 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-3 py-1.5 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[11px] font-black shadow-lg flex items-center gap-1.5 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v5.3)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v5.4)</span>
     </button>
   </div>
 
   <!-- Hadis Veritabanı, Store, Leaderboard ve Kur'an Hatim Modülleri -->
-  <script src="js/hadisler.js?v=5.3"></script>
-  <script src="js/store.js?v=5.3"></script>
-  <script src="js/leaderboard.js?v=5.3"></script>
-  <script src="js/quran-tracker.js?v=5.3"></script>
+  <script src="js/hadisler.js?v=5.4"></script>
+  <script src="js/store.js?v=5.4"></script>
+  <script src="js/leaderboard.js?v=5.4"></script>
+  <script src="js/quran-tracker.js?v=5.4"></script>
 
   <!-- Pano TV Yönetim Motoru (v4.4) -->
   <script>
@@ -1345,7 +1345,7 @@
                   </span>
                 </div>
                 <p class="text-xs text-slate-400 mt-0.5">
-                  Namaz, oda/yatak nizamı, okul ve izin vakitlerine göre ek telafi süresiyle çıkacak talebeler
+                  İlk 3 kusur affedilmiş olup, 3'ü aşan intizam kusurları ek telafi süresi olarak yansıtılmıştır.
                 </p>
               </div>
 
@@ -1356,7 +1356,7 @@
                   </div>
                 ` : ''}
                 <div class="text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
-                  İntizamlı: <span class="text-emerald-400 font-black">${res.onTimeCount || 0}</span>
+                  Zamanında Çıkış: <span class="text-emerald-400 font-black">${res.onTimeCount || 0}</span>
                 </div>
                 <div class="text-xs font-bold text-rose-300 bg-rose-950/40 px-3 py-1.5 rounded-xl border border-rose-800/60">
                   Aktif Telafili: <span class="text-rose-400 font-black">${res.totalPenalizedCount || 0} Talebe</span>
@@ -1379,37 +1379,95 @@
                 <p class="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-lg mx-auto">
                   ${(res.clearedCount || 0) > 0 
                     ? `Bu hafta oluşan intizam telafileri talebelerimiz tarafından tamamlanmış ve intizam sağlanmıştır. Gayretlerinden ötürü tüm talebelerimizi tebrik ederiz.`
-                    : `Tüm talebelerimiz 5 vakit namazlarına, oda ve yatak nizamına, okul ve izin vakitlerine tam riayet etmiştir. Bu güzel intizamın devamını dileriz.`}
+                    : `Haftalık 3 kusur affı ve tam intizam gayreti sayesinde tüm talebelerimiz standart izin saatinde (${res.baseExitTime || '13:00'}) çıkış yapabilecektir.`}
                 </p>
               </div>
             ` : `
-              <!-- TV Uyumlu, Büyük ve Yüksek Kontrastlı Telafi Kartları Grid Düzeni -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 max-h-[62vh] overflow-y-auto no-scrollbar">
-                ${list.map((item, idx) => {
-                  const st = item.student || {};
-                  const rep = item.report || {};
-                  const infractions = rep.infractions || [];
+              <!-- TV UYUMLU ŞIK VE NET LİSTE DÜZENİ -->
+              <div class="bg-slate-900/90 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
+                <!-- Liste Başlığı -->
+                <div class="grid grid-cols-12 bg-slate-950/90 px-4 py-3 text-[11px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-800 items-center">
+                  <div class="col-span-1 text-center">SIRA</div>
+                  <div class="col-span-3">TALEBE BİLGİSİ</div>
+                  <div class="col-span-2 text-center">KUSUR / AF DURUMU</div>
+                  <div class="col-span-3">TELAFİ SEBEPLERİ (3'Ü AŞANLAR)</div>
+                  <div class="col-span-1 text-center">EK SÜRE</div>
+                  <div class="col-span-2 text-right pr-3">KAPI ÇIKIŞ SAATİ</div>
+                </div>
 
-                  return `
-                    <div class="p-3.5 sm:p-4 rounded-2xl bg-slate-900/90 border border-rose-500/30 hover:border-rose-500/60 shadow-lg flex flex-col justify-between transition gap-2.5">
-                      <div class="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
-                        <div class="flex items-center gap-2.5 overflow-hidden">
-                          <span class="w-7 h-7 rounded-xl bg-rose-500/20 text-rose-300 font-mono font-black text-xs flex items-center justify-center border border-rose-500/30 shrink-0">
+                <!-- Liste Satırları -->
+                <div class="divide-y divide-slate-800/70 max-h-[60vh] overflow-y-auto no-scrollbar">
+                  ${list.map((item, idx) => {
+                    const st = item.student || {};
+                    const rep = item.report || {};
+                    const activeInf = (rep.activeInfractions && rep.activeInfractions.length > 0)
+                      ? rep.activeInfractions
+                      : (rep.infractions ? rep.infractions.slice(3) : []);
+
+                    return `
+                      <div class="grid grid-cols-12 items-center px-4 py-3 hover:bg-slate-800/40 transition gap-2">
+                        <!-- 1. Sıra No -->
+                        <div class="col-span-1 text-center">
+                          <span class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-300 font-mono font-black text-xs inline-flex items-center justify-center border border-rose-500/30">
                             #${idx + 1}
                           </span>
-                          <div class="truncate">
-                            <div class="font-black text-base sm:text-lg text-white tracking-tight leading-tight truncate">
-                              ${st.firstName} ${st.lastName}
-                            </div>
-                            <div class="text-[11px] text-slate-400 font-bold">
-                              ${st.className || ''} ${st.studentNo ? '• No: ' + st.studentNo : ''}
-                            </div>
+                        </div>
+
+                        <!-- 2. Talebe Adı Soyadı & Sınıfı -->
+                        <div class="col-span-3">
+                          <div class="font-black text-base text-white tracking-tight truncate">
+                            ${st.firstName} ${st.lastName}
+                          </div>
+                          <div class="text-[11px] text-slate-400 font-bold truncate">
+                            ${st.className || ''} ${st.studentNo ? '• No: ' + st.studentNo : ''}
                           </div>
                         </div>
 
-                        <div class="text-right shrink-0">
-                          <div class="text-[9px] uppercase font-black text-slate-400 tracking-wider">KAPI ÇIKIŞI</div>
-                          <div class="font-mono font-black text-lg sm:text-xl text-rose-400 leading-tight">
+                        <!-- 3. Kusur Sayısı & Af Durumu -->
+                        <div class="col-span-2 text-center">
+                          <div class="inline-flex flex-col items-center">
+                            <span class="px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-black text-xs font-mono">
+                              ${rep.totalInfractions || (activeInf.length + 3)} Kusur
+                            </span>
+                            <span class="text-[9px] text-emerald-400 font-bold mt-0.5">
+                              (3'ü Affedildi • ${rep.activeInfractionsCount || activeInf.length} Telafi)
+                            </span>
+                          </div>
+                        </div>
+
+                        <!-- 4. Telafi Sebepleri -->
+                        <div class="col-span-3">
+                          <div class="flex flex-wrap items-center gap-1.5 max-h-12 overflow-hidden">
+                            ${activeInf.length === 0 ? `
+                              <span class="text-slate-500 text-xs">-</span>
+                            ` : activeInf.map(inf => {
+                              let badgeClass = 'bg-slate-950 text-slate-300 border-slate-800';
+                              let icon = '⏱️';
+                              if (inf.category === 'namaz') { badgeClass = 'bg-amber-950/40 text-amber-300 border-amber-800/50'; icon = '🕌'; }
+                              else if (inf.category === 'yatak') { badgeClass = 'bg-teal-950/40 text-teal-300 border-teal-800/50'; icon = '🛏️'; }
+                              else if (inf.category === 'okul') { badgeClass = 'bg-blue-950/40 text-blue-300 border-blue-800/50'; icon = '🎒'; }
+                              else if (inf.category === 'izin_donusu') { badgeClass = 'bg-purple-950/40 text-purple-300 border-purple-800/50'; icon = '🏠'; }
+
+                              return `
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-bold ${badgeClass}">
+                                  <span>${icon}</span>
+                                  <span class="truncate max-w-[120px]">${inf.subLabel || inf.desc || ''}</span>
+                                </span>
+                              `;
+                            }).join('')}
+                          </div>
+                        </div>
+
+                        <!-- 5. Ek Telafi Süresi -->
+                        <div class="col-span-1 text-center">
+                          <span class="px-2 py-1 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono font-black text-xs inline-block shadow-sm">
+                            +${rep.penaltyFormatted || (rep.penaltyMinutes + ' Dk')}
+                          </span>
+                        </div>
+
+                        <!-- 6. Kapı Çıkış Saati -->
+                        <div class="col-span-2 text-right pr-3">
+                          <div class="font-mono font-black text-xl text-rose-400 leading-tight">
                             ${rep.calculatedExitTime || '13:00'}
                           </div>
                           <div class="text-[10px] text-slate-500 font-mono">
@@ -1417,37 +1475,9 @@
                           </div>
                         </div>
                       </div>
-
-                      <div class="flex items-center justify-between gap-2">
-                        <div class="flex flex-wrap items-center gap-1.5 flex-1">
-                          ${infractions.length === 0 ? `
-                            <span class="text-slate-500 text-[11px]">-</span>
-                          ` : infractions.map(inf => {
-                            let badgeClass = 'bg-slate-950 text-slate-300 border-slate-800';
-                            let icon = '⏱️';
-                            if (inf.category === 'namaz') { badgeClass = 'bg-amber-950/40 text-amber-300 border-amber-800/50'; icon = '🕌'; }
-                            else if (inf.category === 'yatak') { badgeClass = 'bg-teal-950/40 text-teal-300 border-teal-800/50'; icon = '🛏️'; }
-                            else if (inf.category === 'okul') { badgeClass = 'bg-blue-950/40 text-blue-300 border-blue-800/50'; icon = '🎒'; }
-                            else if (inf.category === 'izin_donusu') { badgeClass = 'bg-purple-950/40 text-purple-300 border-purple-800/50'; icon = '🏠'; }
-
-                            return `
-                              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[11px] font-bold ${badgeClass}">
-                                <span>${icon} ${inf.categoryLabel || 'İntizam'}:</span>
-                                <span class="font-normal text-slate-200">${inf.subLabel || inf.desc || ''}</span>
-                                <span class="text-rose-400 font-mono font-black ml-0.5">(+${inf.penaltyMinutes || 30}dk)</span>
-                              </span>
-                            `;
-                          }).join('')}
-                        </div>
-
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono font-black text-xs shrink-0 shadow-sm">
-                          <span>⏱️</span>
-                          <span>+${rep.penaltyFormatted || (rep.penaltyMinutes + ' Dk')}</span>
-                        </span>
-                      </div>
-                    </div>
-                  `;
-                }).join('')}
+                    `;
+                  }).join('')}
+                </div>
               </div>
             `}
           </div>

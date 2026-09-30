@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v5.3 - Pano Doğrudan Başlatma ve Hata Onarımı)
-const CACHE_NAME = 'oay-takip-cache-v5.3';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v5.4 - Telafiler Liste Görünümü ve 3 Kusur Affı)
+const CACHE_NAME = 'oay-takip-cache-v5.4';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [
