@@ -2246,8 +2246,11 @@ class DataStore {
   }
 
   getLeaveReportForStudent(studentId, weekDates, baseExitTime = '13:00') {
+    if (!Array.isArray(weekDates) || weekDates.length === 0) {
+      weekDates = (this.getWeekRange && this.getWeekRange().dates) || [];
+    }
     const allAtt = this.getAttendance();
-    const studentRecords = allAtt.filter(a => a.studentId === studentId && weekDates.includes(a.date));
+    const studentRecords = allAtt.filter(a => a.studentId === studentId && Array.isArray(weekDates) && weekDates.includes(a.date));
 
     const infractions = [];
     let namazInfractionsCount = 0;
@@ -3376,32 +3379,40 @@ class DataStore {
   // --- PANODA GÖSTERİLECEK TELAFİLİLER VE İNTİZAM LİSTESİ ---
   // ========================================================
   getPanoPenalizedStudents(referenceDate) {
-    const today = referenceDate || new Date().toISOString().split('T')[0];
-    const students = this.getStudents(false); // Aktif öğrenciler
-    const weekInfo = this.getWeekRange(today);
-    const weekKey = `week_${weekInfo.startDate}`;
-    const reportData = this.getLeaveReportBatch(students, undefined, '13:00');
+    try {
+      const today = referenceDate || new Date().toISOString().split('T')[0];
+      const students = this.getStudents(false); // Aktif öğrenciler
+      const weekInfo = this.getWeekRange(today);
+      const weekKey = `week_${weekInfo.startDate}`;
+      const baseExitTime = (window.LeaveTrackerModule && window.LeaveTrackerModule.baseExitTime) 
+        || localStorage.getItem('yoklama_base_exit_time') 
+        || '13:00';
+      const reportData = this.getLeaveReportBatch(students, weekInfo.dates, baseExitTime);
 
-    // Telafisi olan tüm talebeler
-    const allPenalized = (reportData.reports || [])
-      .filter(item => item && item.report && item.report.penaltyMinutes > 0);
+      // Telafisi olan tüm talebeler
+      const allPenalized = (reportData.reports || [])
+        .filter(item => item && item.report && item.report.totalInfractions > 0);
 
-    // TELAFİSİNİ TAMAMLAYANLAR (isPenaltyCleared) TV panosundan otomatik düşer!
-    const activePenalized = allPenalized
-      .filter(item => !this.isPenaltyCleared(weekKey, item.student.id))
-      .sort((a, b) => b.report.penaltyMinutes - a.report.penaltyMinutes);
+      // TELAFİSİNİ TAMAMLAYANLAR (isPenaltyCleared) TV panosundan otomatik düşer!
+      const activePenalized = allPenalized
+        .filter(item => item.student && !this.isPenaltyCleared(weekKey, item.student.id))
+        .sort((a, b) => (b.report?.penaltyMinutes || 0) - (a.report?.penaltyMinutes || 0));
 
-    const clearedCount = allPenalized.length - activePenalized.length;
+      const clearedCount = allPenalized.length - activePenalized.length;
 
-    return {
-      weekKey,
-      totalPenalizedCount: activePenalized.length,
-      allPenalizedCount: allPenalized.length,
-      clearedCount: clearedCount,
-      penalizedStudents: activePenalized,
-      totalStudents: students.length,
-      onTimeCount: reportData.onTimeCount + clearedCount
-    };
+      return {
+        weekKey,
+        totalPenalizedCount: activePenalized.length,
+        allPenalizedCount: allPenalized.length,
+        clearedCount: clearedCount,
+        penalizedStudents: activePenalized,
+        totalStudents: students.length,
+        onTimeCount: (reportData.onTimeCount || 0) + clearedCount
+      };
+    } catch (e) {
+      console.error('[getPanoPenalizedStudents] error:', e);
+      return { totalPenalizedCount: 0, allPenalizedCount: 0, clearedCount: 0, penalizedStudents: [], totalStudents: 0, onTimeCount: 0 };
+    }
   }
 
   // ========================================================
