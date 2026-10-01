@@ -180,6 +180,8 @@ class DataStore {
     }
     // Mevcut öğrencilerin şubelerini (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) otomatik güncelle
     this.autoMigrateStudentClasses();
+    // Dini ders grupları ve Dahili Hoca senkronizasyonunu otomatik sağla
+    this.autoSyncDahiliHocalarAndQuran();
 
     if (!localStorage.getItem(STORAGE_KEYS.ACADEMIC_SCORES)) {
       const today = new Date().toISOString().split('T')[0];
@@ -270,6 +272,91 @@ class DataStore {
       localStorage.setItem('yoklama_migrated_classes_done_v2', 'true');
     } catch (e) {
       console.warn('[autoMigrateStudentClasses] Hata:', e);
+    }
+  }
+
+  // Dini Ders Grupları ve Kur'an Takip Senkronizasyonu (Dahili Hoca = Dini Ders Grubu)
+  autoSyncDahiliHocalarAndQuran() {
+    try {
+      // 1. Öğrenci kütüğünü (yoklama_students) kontrol et ve eksik/hatalı dahiliHoca'ları SEED_STUDENTS'ten onar
+      const seedMap = {};
+      SEED_STUDENTS.forEach(seed => {
+        if (seed.id) seedMap[seed.id] = seed;
+        if (seed.studentNo) seedMap[seed.studentNo] = seed;
+      });
+
+      const studentsRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      let students = studentsRaw ? JSON.parse(studentsRaw) : [];
+      let studentsChanged = false;
+
+      if (Array.isArray(students) && students.length > 0) {
+        students = students.map(s => {
+          if (!s) return s;
+          const seed = seedMap[s.id] || seedMap[s.studentNo];
+          const currentHoca = (s.dahiliHoca || '').trim();
+          // Eğer dahiliHoca boşsa, 'Genel' ise, 'Seviye' ile başlıyorsa veya SEED'deki resmi hocadan farklıysa
+          if (seed && seed.dahiliHoca) {
+            const seedHoca = seed.dahiliHoca.trim();
+            if (!currentHoca || currentHoca === 'Genel' || currentHoca.startsWith('Seviye') || (!this.isStudentLocallyEdited(s.id) && currentHoca !== seedHoca)) {
+              studentsChanged = true;
+              return { ...s, dahiliHoca: seedHoca };
+            }
+          }
+          return s;
+        });
+
+        if (studentsChanged) {
+          localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+          if (this.isCloudEnabled()) {
+            this.syncToCloud('kurs_data/students', students);
+          }
+        }
+      }
+
+      // 2. Kur'an Takip Kayıtlarını (yoklama_quran_tracker_v1) Onar ve Senkronize Et
+      const quranRaw = localStorage.getItem(STORAGE_KEYS.QURAN_TRACKER);
+      let quranRecords = quranRaw ? JSON.parse(quranRaw) : {};
+      if (typeof quranRecords !== 'object' || quranRecords === null) quranRecords = {};
+      let quranChanged = false;
+
+      const activeStudents = this.getStudents(false);
+      activeStudents.forEach(s => {
+        if (!s || !s.id) return;
+        const seed = seedMap[s.id] || seedMap[s.studentNo];
+        const properHoca = (s.dahiliHoca || (seed ? seed.dahiliHoca : '') || '').trim();
+        if (!properHoca) return;
+
+        if (!quranRecords[s.id]) {
+          quranRecords[s.id] = {
+            studentId: s.id,
+            currentPage: 1,
+            hatimCount: 0,
+            diniGrup: properHoca,
+            note: '',
+            updatedAt: new Date().toISOString(),
+            history: []
+          };
+          quranChanged = true;
+        } else {
+          const curGroup = (quranRecords[s.id].diniGrup || '').trim();
+          // Eğer mevcut grup boşsa, 'Genel' ise, 'Seviye' ile başlıyorsa ya da dahiliHoca'dan farklıysa düzelt!
+          if (!curGroup || curGroup === 'Genel' || curGroup.startsWith('Seviye') || curGroup !== properHoca) {
+            quranRecords[s.id].diniGrup = properHoca;
+            quranRecords[s.id].updatedAt = new Date().toISOString();
+            quranChanged = true;
+          }
+        }
+      });
+
+      if (quranChanged) {
+        localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(quranRecords));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/quranTracker', quranRecords);
+        }
+        window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: quranRecords }));
+      }
+    } catch (e) {
+      console.warn('[autoSyncDahiliHocalarAndQuran] Hata:', e);
     }
   }
 
@@ -599,9 +686,10 @@ class DataStore {
             preferLocal = localTs >= cloudTs;
           }
 
+          let mergedSt;
           if (preferLocal) {
             const finalPassive = localSt.isPassive === true || localSt.status === 'passive';
-            return {
+            mergedSt = {
               ...cloudSt,
               ...localSt,
               isPassive: finalPassive,
@@ -609,21 +697,39 @@ class DataStore {
             };
           } else {
             const finalPassive = cloudSt.isPassive === true || cloudSt.status === 'passive';
-            return {
+            mergedSt = {
               ...localSt,
               ...cloudSt,
               isPassive: finalPassive,
               status: finalPassive ? 'passive' : 'active'
             };
           }
+
+          // dahiliHoca koruması: Asla boş veya jenerik bırakma
+          const curDahili = (mergedSt.dahiliHoca || '').trim();
+          if (!curDahili || curDahili === 'Genel' || curDahili.startsWith('Seviye')) {
+            if (localSt && localSt.dahiliHoca && localSt.dahiliHoca.trim()) {
+              mergedSt.dahiliHoca = localSt.dahiliHoca.trim();
+            } else {
+              const seed = SEED_STUDENTS.find(s => s.id === mergedSt.id || s.studentNo === mergedSt.studentNo);
+              if (seed && seed.dahiliHoca) mergedSt.dahiliHoca = seed.dahiliHoca;
+            }
+          }
+          return mergedSt;
         }
 
         const finalPassive = (passiveMap[cloudSt.id] && passiveMap[cloudSt.id].isPassive === true) || cloudSt.isPassive === true || cloudSt.status === 'passive';
-        return {
+        const singleSt = {
           ...cloudSt,
           isPassive: finalPassive,
           status: finalPassive ? 'passive' : 'active'
         };
+        const curDahiliSingle = (singleSt.dahiliHoca || '').trim();
+        if (!curDahiliSingle || curDahiliSingle === 'Genel' || curDahiliSingle.startsWith('Seviye')) {
+          const seed = SEED_STUDENTS.find(s => s.id === singleSt.id || s.studentNo === singleSt.studentNo);
+          if (seed && seed.dahiliHoca) singleSt.dahiliHoca = seed.dahiliHoca;
+        }
+        return singleSt;
       });
 
       // Bulutta henüz olmayan yerel yeni eklenmiş öğrenciler varsa onları da koru (AMA SİLİNENLERİ ASLA EKLEME!)
@@ -770,11 +876,24 @@ class DataStore {
     if (cloudData.quranTracker && typeof cloudData.quranTracker === 'object') {
       const localQuran = this.getAllQuranRecords();
       const mergedQuran = { ...localQuran };
+      const currentStudents = this.getStudents(false);
+      const studentMap = {};
+      currentStudents.forEach(s => { if (s && s.id) studentMap[s.id] = s; });
+
       Object.keys(cloudData.quranTracker).forEach(stId => {
         const cloudRec = cloudData.quranTracker[stId];
         const localRec = mergedQuran[stId];
         if (!localRec || !localRec.updatedAt || (cloudRec && cloudRec.updatedAt && new Date(cloudRec.updatedAt) >= new Date(localRec.updatedAt))) {
-          mergedQuran[stId] = cloudRec;
+          mergedQuran[stId] = { ...(cloudRec || {}) };
+        }
+        // Buluttan gelen kayıtta diniGrup bozuksa veya 'Seviye'/'Genel' ise öğrencinin dahiliHoca'sı ile düzelt
+        if (mergedQuran[stId]) {
+          const curG = (mergedQuran[stId].diniGrup || '').trim();
+          const stObj = studentMap[stId];
+          const properHoca = stObj ? (stObj.dahiliHoca || '').trim() : '';
+          if (properHoca && (!curG || curG === 'Genel' || curG.startsWith('Seviye'))) {
+            mergedQuran[stId].diniGrup = properHoca;
+          }
         }
       });
       localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(mergedQuran));
@@ -1542,6 +1661,29 @@ class DataStore {
         updatedAt: new Date().toISOString()
       };
       this.saveStudents(students);
+
+      // Eğer dahiliHoca güncellendiyse Kur'an Takip kaydındaki diniGrup'u da ANINDA senkronize et!
+      if (updatedData.dahiliHoca !== undefined && updatedData.dahiliHoca !== null) {
+        try {
+          const cleanHoca = (updatedData.dahiliHoca || '').toString().trim();
+          const quranRaw = localStorage.getItem(STORAGE_KEYS.QURAN_TRACKER);
+          if (quranRaw) {
+            const quranAll = JSON.parse(quranRaw);
+            if (quranAll[id] && quranAll[id].diniGrup !== cleanHoca) {
+              quranAll[id].diniGrup = cleanHoca;
+              quranAll[id].updatedAt = new Date().toISOString();
+              localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(quranAll));
+              if (this.isCloudEnabled()) {
+                this.syncToCloud(`kurs_data/quranTracker/${id}/diniGrup`, cleanHoca);
+              }
+              window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: quranAll }));
+            }
+          }
+        } catch (errQ) {
+          console.warn('[updateStudent] Kur\'an diniGrup senkronizasyon uyarısı:', errQ);
+        }
+      }
+
       return students[index];
     }
     return null;
@@ -1740,6 +1882,23 @@ class DataStore {
       if (s && s.dahiliHoca) hocalar.add(s.dahiliHoca.trim());
     });
     return [...hocalar].filter(Boolean).sort();
+  }
+
+  getDahiliHocalari() {
+    const hocalar = new Set([
+      'YASİN EKİNCİ',
+      'AHMED MUBARİZ',
+      'ABDUSSAMED TAV',
+      'EMİR TALHA TARIM',
+      'BURAK BODUR',
+      'TUNAHAN TAŞKIN',
+      'SELİM BOZKURT',
+      'YAVUZ SELİM SEVEN'
+    ]);
+    this.getStudents().forEach(s => {
+      if (s && s.dahiliHoca && s.dahiliHoca.trim()) hocalar.add(s.dahiliHoca.trim());
+    });
+    return [...hocalar].sort((a, b) => a.localeCompare(b, 'tr'));
   }
 
   // --- Canlı Excel Özel Sütun (Dinamik Sütun) İşlemleri ---
@@ -3487,37 +3646,44 @@ class DataStore {
   getAllQuranRecords() {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.QURAN_TRACKER);
-      if (raw) return JSON.parse(raw);
+      let records = raw ? JSON.parse(raw) : null;
+      if (!records || typeof records !== 'object') {
+        records = {};
+      }
 
-      // İlk çalıştırmada boşsa talebelerin seviyelerine uygun gerçekçi başlangıç verileri hazırla
+      // Aktif talebeleri tara: Kaydı olmayanları ekle, diniGrup'u boş/Genel/Seviye olanları dahiliHoca ile senkronize et
       const students = this.getStudents(false);
-      const initial = {};
+      let changed = false;
+
       students.forEach(s => {
-        let page = 1;
-        let hatim = 0;
-        const numSeed = parseInt(s.studentNo || s.id.replace(/\D/g, '') || '1', 10);
-        if (s.seviye === 'Seviye 3') {
-          page = 240 + ((numSeed * 17) % 260);
-          hatim = (numSeed % 2 === 0) ? 1 : 0;
-        } else if (s.seviye === 'Seviye 2') {
-          page = 120 + ((numSeed * 13) % 160);
-          hatim = 0;
+        if (!s || !s.id) return;
+        const targetGroup = (s.dahiliHoca || '').trim() || 'Genel';
+
+        if (!records[s.id]) {
+          records[s.id] = {
+            studentId: s.id,
+            currentPage: 1,
+            hatimCount: 0,
+            diniGrup: targetGroup,
+            note: '',
+            updatedAt: new Date().toISOString(),
+            history: []
+          };
+          changed = true;
         } else {
-          page = 25 + ((numSeed * 7) % 95);
-          hatim = 0;
+          const cur = (records[s.id].diniGrup || '').trim();
+          if (!cur || cur === 'Genel' || cur.startsWith('Seviye') || (targetGroup !== 'Genel' && cur !== targetGroup)) {
+            records[s.id].diniGrup = targetGroup;
+            changed = true;
+          }
         }
-        initial[s.id] = {
-          studentId: s.id,
-          currentPage: page,
-          hatimCount: hatim,
-          diniGrup: s.dahiliHoca || s.seviye || 'Genel',
-          note: '',
-          updatedAt: new Date().toISOString(),
-          history: []
-        };
       });
-      localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(initial));
-      return initial;
+
+      if (changed) {
+        localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(records));
+      }
+
+      return records;
     } catch (e) {
       console.warn('getAllQuranRecords error:', e);
       return {};
@@ -3528,14 +3694,19 @@ class DataStore {
     if (!studentId) return null;
     const all = this.getAllQuranRecords();
     const student = this.getStudentById(studentId) || {};
-    const defaultGroup = student.dahiliHoca || student.seviye || 'Genel';
+    const defaultGroup = (student.dahiliHoca || '').trim() || student.seviye || 'Genel';
     
     if (all[studentId]) {
+      const curGroup = (all[studentId].diniGrup || '').trim();
+      const resolvedGroup = (student.dahiliHoca && (!curGroup || curGroup === 'Genel' || curGroup.startsWith('Seviye')))
+        ? student.dahiliHoca.trim()
+        : (curGroup || defaultGroup);
+
       return {
         studentId,
         currentPage: typeof all[studentId].currentPage === 'number' ? all[studentId].currentPage : 1,
         hatimCount: typeof all[studentId].hatimCount === 'number' ? all[studentId].hatimCount : 0,
-        diniGrup: all[studentId].diniGrup || defaultGroup,
+        diniGrup: resolvedGroup,
         note: all[studentId].note || '',
         updatedAt: all[studentId].updatedAt || null,
         history: Array.isArray(all[studentId].history) ? all[studentId].history : []
@@ -3589,7 +3760,9 @@ class DataStore {
       
       const newPage = Math.min(604, Math.max(0, parseInt(pageInput, 10) || 0));
       const newHatim = Math.max(0, parseInt(hatimCountInput !== undefined && hatimCountInput !== null ? hatimCountInput : existing.hatimCount, 10) || 0);
-      const newGroup = customGroup !== null ? customGroup : (existing.diniGrup || student.dahiliHoca || student.seviye || 'Genel');
+      const newGroup = (customGroup !== null && customGroup !== undefined && customGroup.trim()) 
+        ? customGroup.trim() 
+        : ((student.dahiliHoca || existing.diniGrup || 'Genel').trim());
       
       const nowIso = new Date().toISOString();
       const todayStr = nowIso.split('T')[0];
@@ -3637,6 +3810,11 @@ class DataStore {
         this.syncToCloud(`kurs_data/quranTracker/${studentId}`, updatedRecord);
       }
 
+      // Eğer hoca/grup modal üzerinden değiştirildiyse öğrencinin dahiliHoca'sını da senkronize et
+      if (student && student.id && newGroup && student.dahiliHoca !== newGroup) {
+        this.updateStudent(studentId, { dahiliHoca: newGroup });
+      }
+
       window.dispatchEvent(new CustomEvent('quran-tracker-updated', { 
         detail: { studentId, record: updatedRecord, all } 
       }));
@@ -3663,11 +3841,15 @@ class DataStore {
     let list = students.map(s => {
       const rec = allRecords[s.id] || { currentPage: 1, hatimCount: 0, diniGrup: s.dahiliHoca || s.seviye || 'Genel' };
       const stats = this.calculateQuranStats(rec.currentPage, rec.hatimCount);
+      const curG = (rec.diniGrup || '').trim();
+      const resolvedG = (s.dahiliHoca && (!curG || curG === 'Genel' || curG.startsWith('Seviye')))
+        ? s.dahiliHoca.trim()
+        : (curG || s.dahiliHoca || 'Genel');
       return {
         student: s,
         record: rec,
         stats,
-        diniGrup: rec.diniGrup || s.dahiliHoca || s.seviye || 'Genel'
+        diniGrup: resolvedG
       };
     });
 
@@ -3716,7 +3898,10 @@ class DataStore {
 
     students.forEach(s => {
       const rec = allRecords[s.id] || { currentPage: 1, hatimCount: 0, diniGrup: s.dahiliHoca || s.seviye || 'Genel' };
-      const grp = rec.diniGrup || s.dahiliHoca || 'Genel Grup';
+      const curG = (rec.diniGrup || '').trim();
+      const grp = (s.dahiliHoca && (!curG || curG === 'Genel' || curG.startsWith('Seviye')))
+        ? s.dahiliHoca.trim()
+        : (curG || s.dahiliHoca || 'Genel Grup');
       const stats = this.calculateQuranStats(rec.currentPage, rec.hatimCount);
 
       if (!groupMap[grp]) {

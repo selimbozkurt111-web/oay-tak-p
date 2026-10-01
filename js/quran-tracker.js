@@ -178,15 +178,17 @@ window.QuranTrackerModule = {
     if (!this.editingStudentId) return;
     const noteInput = document.getElementById('quran-modal-note-input');
     const note = noteInput ? noteInput.value.trim() : this.tempNote;
+    const groupSelect = document.getElementById('quran-modal-group-select');
+    const selectedGroup = groupSelect ? groupSelect.value : null;
 
-    const res = window.Store.saveQuranRecord(this.editingStudentId, this.tempPage, this.tempHatim, note);
+    const res = window.Store.saveQuranRecord(this.editingStudentId, this.tempPage, this.tempHatim, note, selectedGroup);
     if (res.success) {
       if (res.stats.isHatimComplete) {
         this.closeEditModal();
         this.openHatimCompleteModal(this.editingStudentId);
       } else {
         if (window.App && typeof window.App.showToast === 'function') {
-          window.App.showToast('Kur\'an-ı Kerim ilerlemesi başarıyla kaydedildi!', 'success');
+          window.App.showToast('Kur\'an-ı Kerim ilerlemesi ve dini ders grubu başarıyla kaydedildi!', 'success');
         }
         this.closeEditModal();
         this.renderView();
@@ -341,11 +343,27 @@ window.QuranTrackerModule = {
               </div>
 
               <div>
-                <label class="block text-xs font-black uppercase text-slate-700 mb-1">
-                  Hoca / Dini Ders Grubu:
+                <label class="block text-xs font-black uppercase text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Dini Ders Grubu / Hocası:</span>
+                  <span class="text-[10px] text-emerald-600 font-bold lowercase">değiştirilebilir</span>
                 </label>
-                <input type="text" value="${rec.diniGrup || student.dahiliHoca || ''}" readonly
-                  class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 cursor-not-allowed">
+                <select id="quran-modal-group-select"
+                  class="w-full px-3 py-2 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-black text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none transition shadow-2xs">
+                  ${(window.Store && typeof window.Store.getDahiliHocalari === 'function' ? window.Store.getDahiliHocalari() : [
+                    'YASİN EKİNCİ',
+                    'AHMED MUBARİZ',
+                    'ABDUSSAMED TAV',
+                    'EMİR TALHA TARIM',
+                    'BURAK BODUR',
+                    'TUNAHAN TAŞKIN',
+                    'SELİM BOZKURT',
+                    'YAVUZ SELİM SEVEN'
+                  ]).map(h => {
+                    const currentGroup = (rec.diniGrup || student.dahiliHoca || '').trim();
+                    const isSelected = currentGroup === h;
+                    return `<option value="${h}" ${isSelected ? 'selected' : ''}>${h}</option>`;
+                  }).join('')}
+                </select>
               </div>
             </div>
 
@@ -396,18 +414,23 @@ window.QuranTrackerModule = {
     // Benzersiz Dini Ders Grupları (Dahili Hoca veya custom)
     const groups = Array.from(new Set(allStudents.map(s => {
       const rec = allRecords[s.id];
-      return (rec && rec.diniGrup) ? rec.diniGrup : (s.dahiliHoca || 'Genel');
-    }))).filter(Boolean).sort();
+      const curG = (rec && rec.diniGrup) ? rec.diniGrup.trim() : '';
+      const hoca = (s.dahiliHoca || '').trim();
+      return (curG && curG !== 'Genel' && !curG.startsWith('Seviye')) ? curG : (hoca || 'Genel');
+    }))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'tr'));
 
     // Filtreleme
     let filtered = allStudents.map(s => {
-      const rec = allRecords[s.id] || { currentPage: 1, hatimCount: 0, diniGrup: s.dahiliHoca || s.seviye || 'Genel' };
+      const rec = allRecords[s.id] || { currentPage: 1, hatimCount: 0, diniGrup: s.dahiliHoca || 'Genel' };
       const stats = window.Store.calculateQuranStats(rec.currentPage, rec.hatimCount);
+      const curG = (rec && rec.diniGrup) ? rec.diniGrup.trim() : '';
+      const hoca = (s.dahiliHoca || '').trim();
+      const resolvedG = (curG && curG !== 'Genel' && !curG.startsWith('Seviye')) ? curG : (hoca || 'Genel');
       return {
         student: s,
         record: rec,
         stats,
-        diniGrup: rec.diniGrup || s.dahiliHoca || s.seviye || 'Genel'
+        diniGrup: resolvedG
       };
     });
 
@@ -592,7 +615,10 @@ window.QuranTrackerModule = {
                   const isSel = this.selectedGroup === grp;
                   const count = allStudents.filter(s => {
                     const rec = allRecords[s.id];
-                    return ((rec && rec.diniGrup) ? rec.diniGrup : (s.dahiliHoca || 'Genel')) === grp;
+                    const curG = (rec && rec.diniGrup) ? rec.diniGrup.trim() : '';
+                    const hoca = (s.dahiliHoca || '').trim();
+                    const rG = (curG && curG !== 'Genel' && !curG.startsWith('Seviye')) ? curG : (hoca || 'Genel');
+                    return rG === grp;
                   }).length;
                   return `
                     <button type="button" onclick="window.QuranTrackerModule.setGroup('${grp}')"
