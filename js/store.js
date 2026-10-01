@@ -471,6 +471,7 @@ class DataStore {
       attendance: this.getAttendance(),
       performance: this.getPerformances(),
       academicScores: this.getAcademicScores(),
+      testResults: this.getTestResults(),
       gateCheckouts: this.getAllGateCheckouts(),
       penaltiesCleared: this.getAllClearedPenalties(),
       leaveReturns: this.getAllLeaveReturns(),
@@ -556,16 +557,26 @@ class DataStore {
   applyFullCloudSync(cloudData) {
     if (!cloudData || typeof cloudData !== 'object') return;
 
+    const toArray = (val) => {
+      if (!val) return [];
+      if (Array.isArray(val)) return val.filter(Boolean);
+      if (typeof val === 'object') return Object.values(val).filter(Boolean);
+      return [];
+    };
+
     // 1. Yoklamaları birleştir
-    if (Array.isArray(cloudData.attendance)) {
+    const cloudAttendance = toArray(cloudData.attendance);
+    if (cloudAttendance.length > 0) {
       const localAtt = this.getAttendance();
       const attMap = new Map();
-      localAtt.forEach(a => { if (a && a.id) attMap.set(a.id, a); });
-      cloudData.attendance.forEach(a => {
-        if (a && a.id) {
-          const existing = attMap.get(a.id);
+      const getAttKey = a => a.id || (`${a.category || 'namaz'}_${a.studentId}_${a.date}_${a.prayerTime || a.subType || a.subKey || 'Sabah'}`);
+      localAtt.forEach(a => { if (a && a.studentId) attMap.set(getAttKey(a), a); });
+      cloudAttendance.forEach(a => {
+        if (a && a.studentId) {
+          const key = getAttKey(a);
+          const existing = attMap.get(key);
           if (!existing || (a.recordedAt && (!existing.recordedAt || new Date(a.recordedAt) >= new Date(existing.recordedAt)))) {
-            attMap.set(a.id, a);
+            attMap.set(key, a);
           }
         }
       });
@@ -573,21 +584,38 @@ class DataStore {
     }
 
     // 2. Performans notlarını birleştir
-    if (Array.isArray(cloudData.performance)) {
+    const cloudPerf = toArray(cloudData.performance);
+    if (cloudPerf.length > 0) {
       const localPerf = this.getPerformances();
       const perfMap = new Map();
-      localPerf.forEach(p => { if (p && p.id) perfMap.set(p.id, p); });
-      cloudData.performance.forEach(p => { if (p && p.id) perfMap.set(p.id, p); });
+      const getPerfKey = p => p.id || (`${p.studentId}_${p.date}_${p.criteriaKey || (p.criteria && p.criteria.key) || 'default'}`);
+      localPerf.forEach(p => { if (p && p.studentId) perfMap.set(getPerfKey(p), p); });
+      cloudPerf.forEach(p => {
+        if (p && p.studentId) {
+          const key = getPerfKey(p);
+          const existing = perfMap.get(key);
+          if (!existing || (p.createdAt && (!existing.createdAt || new Date(p.createdAt) >= new Date(existing.createdAt)))) {
+            perfMap.set(key, p);
+          }
+        }
+      });
       localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(Array.from(perfMap.values())));
     }
 
     // 3. Takviye ders notlarını birleştir
-    if (Array.isArray(cloudData.academicScores)) {
+    const cloudAcad = toArray(cloudData.academicScores || cloudData.academic_scores);
+    if (cloudAcad.length > 0) {
       const localAcad = this.getAcademicScores();
       const acadMap = new Map();
       localAcad.forEach(s => { if (s && s.studentId) acadMap.set(`${s.studentId}_${s.date}_${s.subject}`, s); });
-      cloudData.academicScores.forEach(s => {
-        if (s && s.studentId) acadMap.set(`${s.studentId}_${s.date}_${s.subject}`, s);
+      cloudAcad.forEach(s => {
+        if (s && s.studentId) {
+          const key = `${s.studentId}_${s.date}_${s.subject}`;
+          const existing = acadMap.get(key);
+          if (!existing || (s.updatedAt && (!existing.updatedAt || new Date(s.updatedAt) >= new Date(existing.updatedAt)))) {
+            acadMap.set(key, s);
+          }
+        }
       });
       localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(Array.from(acadMap.values())));
     }
@@ -745,8 +773,9 @@ class DataStore {
     }
 
     // 5. Hoca listesi
-    if (Array.isArray(cloudData.staff) && cloudData.staff.length > 0) {
-      localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(cloudData.staff));
+    const cloudStaff = toArray(cloudData.staff);
+    if (cloudStaff.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(cloudStaff));
     }
 
     // 6. İzin kapı çıkışları
@@ -787,9 +816,38 @@ class DataStore {
       localStorage.setItem(STORAGE_KEYS.LEAVE_RETURN, JSON.stringify(mergedReturns));
     }
 
-    // 8. Hoca Takdir / Bonus Puanları
-    if (Array.isArray(cloudData.bonusPoints)) {
-      localStorage.setItem(STORAGE_KEYS.BONUS_POINTS, JSON.stringify(cloudData.bonusPoints));
+    // 8. Hoca Takdir / Bonus Puanları (ID bazlı akıllı birleştirme)
+    const cloudBonus = toArray(cloudData.bonusPoints);
+    if (cloudBonus.length > 0) {
+      const localBonus = this.getAllBonusPoints();
+      const bonusMap = new Map();
+      localBonus.forEach(b => { if (b && b.id) bonusMap.set(b.id, b); });
+      cloudBonus.forEach(b => {
+        if (b && b.id) {
+          const existing = bonusMap.get(b.id);
+          if (!existing || (b.createdAt && (!existing.createdAt || new Date(b.createdAt) >= new Date(existing.createdAt)))) {
+            bonusMap.set(b.id, b);
+          }
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.BONUS_POINTS, JSON.stringify(Array.from(bonusMap.values())));
+    }
+
+    // 8b. Haftalık Test Neticeleri
+    const cloudTests = toArray(cloudData.testResults || cloudData.test_results);
+    if (cloudTests.length > 0) {
+      const localTests = this.getTestResults();
+      const testMap = new Map();
+      localTests.forEach(t => { if (t && t.id) testMap.set(t.id, t); });
+      cloudTests.forEach(t => {
+        if (t && t.id) {
+          const existing = testMap.get(t.id);
+          if (!existing || (t.updatedAt && (!existing.updatedAt || new Date(t.updatedAt) >= new Date(existing.updatedAt)))) {
+            testMap.set(t.id, t);
+          }
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.TEST_RESULTS, JSON.stringify(Array.from(testMap.values())));
     }
 
     // 9. Ayarlar (Tarih, Pazar/Pazartesi saatleri vb. ortak ayarlar)
@@ -803,8 +861,8 @@ class DataStore {
     }
 
     // 10. Canlı Excel Özel Sütunları
-    const cloudCols = cloudData.customColumns || cloudData.custom_columns;
-    if (Array.isArray(cloudCols)) {
+    const cloudCols = toArray(cloudData.customColumns || cloudData.custom_columns);
+    if (cloudCols.length > 0) {
       localStorage.setItem(STORAGE_KEYS.CUSTOM_COLUMNS, JSON.stringify(cloudCols));
     }
 
@@ -1463,10 +1521,10 @@ class DataStore {
 
       list.forEach(s => {
         if (!s || !s.id) return;
-        const isExplicitlyPassive = s.isPassive === true || s.status === 'passive';
-        const inPassiveMap = passiveMap[s.id] && passiveMap[s.id].isPassive === true;
+        const inPassiveMap = !!(passiveMap[s.id] && passiveMap[s.id].isPassive === true);
+        const shouldBePassive = (s.isPassive === true || s.status === 'passive' || inPassiveMap);
 
-        if (isExplicitlyPassive) {
+        if (shouldBePassive) {
           if (!s.isPassive || s.status !== 'passive') {
             s.isPassive = true;
             s.status = 'passive';
@@ -1481,10 +1539,6 @@ class DataStore {
             s.isPassive = false;
             s.status = 'active';
             listChanged = true;
-          }
-          if (passiveMap[s.id]) {
-            delete passiveMap[s.id];
-            mapChanged = true;
           }
         }
       });
@@ -1543,20 +1597,19 @@ class DataStore {
     sanitizedStudents.forEach(s => {
       if (!s || !s.id) return;
       if (!s.updatedAt) s.updatedAt = nowIso;
-      if (s.isPassive === true || s.status === 'passive') {
+      const inPassiveMap = !!(passiveMap[s.id] && passiveMap[s.id].isPassive === true);
+      const shouldBePassive = (s.isPassive === true || s.status === 'passive' || inPassiveMap);
+
+      if (shouldBePassive) {
         s.isPassive = true;
         s.status = 'passive';
-        if (!passiveMap[s.id] || !passiveMap[s.id].isPassive) {
+        if (!inPassiveMap) {
           passiveMap[s.id] = { isPassive: true, updatedAt: s.updatedAt || nowIso };
           mapChanged = true;
         }
       } else {
         s.isPassive = false;
         s.status = 'active';
-        if (passiveMap[s.id]) {
-          delete passiveMap[s.id];
-          mapChanged = true;
-        }
       }
     });
 
@@ -3089,6 +3142,26 @@ class DataStore {
   }
 
   getStudentCompetitionScore(studentId, dates) {
+    const passiveMap = this.getPassiveStudentIds();
+    const deletedMap = this.getDeletedStudentIds();
+    const student = this.getStudentById(studentId);
+
+    // Pasif, silinmiş veya geçersiz talebeler yarışma puanı ALAMAZ (0 puan)
+    if (!student || student.isPassive === true || student.status === 'passive' || 
+        (passiveMap[studentId] && passiveMap[studentId].isPassive === true) ||
+        (deletedMap[studentId] && deletedMap[studentId].isDeleted === true)) {
+      return {
+        studentId,
+        totalScore: 0,
+        namaz: { points: 0, basePoints: 0, varCount: 0, gecCount: 0, takkesizCount: 0, gecTakkesizCount: 0, yokCount: 0, izinliCount: 0, fullBonusCount: 0, fullBonusPoints: 0 },
+        yatak: { points: 0, iyiCount: 0, ortaCount: 0, kotuCount: 0 },
+        okul: { points: 0, geldiCount: 0, gecCount: 0, gelmediCount: 0 },
+        izin: { points: 0, izinCount: 0, onTimeCount: 0, lateCount: 0 },
+        academic: { points: 0, count: 0, scores: [] },
+        bonus: { points: 0, count: 0, items: [] }
+      };
+    }
+
     const allAtt = this.getAttendance();
     const studentAtt = allAtt.filter(a => a.studentId === studentId && dates.includes(a.date));
 
@@ -3135,12 +3208,9 @@ class DataStore {
 
         dayPrayersTakenCount++;
 
-        // Talebenin bu vakit için özel durumu var mı?
-        let st = namazGrid[d] ? namazGrid[d][p] : null;
-        // Yoklama alındığı halde devamsız yazılmadıysa mevcut (VAR)
-        if (!st) {
-          st = 'VAR';
-        }
+        // Talebenin bu vakit için kaydı var mı?
+        const st = namazGrid[d] ? namazGrid[d][p] : null;
+        if (!st) return; // Kaydı olmayan (gelmeyen / pasif) talebeye asla bedava puan verilmez!
 
         if (st === 'VAR') {
           namazPoints += 10;
@@ -3193,7 +3263,8 @@ class DataStore {
     let kotuCount = 0;
 
     takenYatakDays.forEach(d => {
-      const st = studentYatakMap[d] || 'IYI';
+      const st = studentYatakMap[d];
+      if (!st) return; // Kayıt yoksa bedava puan verilmez!
       if (st === 'IYI' || st === 'VAR') {
         yatakPoints += 15;
         iyiCount++;
@@ -3223,7 +3294,8 @@ class DataStore {
     let gelmediCount = 0;
 
     takenOkulDays.forEach(d => {
-      const st = studentOkulMap[d] || 'GELDI';
+      const st = studentOkulMap[d];
+      if (!st) return; // Kayıt yoksa bedava puan verilmez!
       if (st === 'GELDI' || st === 'VAR') {
         okulPoints += 10;
         geldiCount++;
@@ -3353,6 +3425,18 @@ class DataStore {
       : this.getMonthRange(targetDate.substring(0, 7));
 
     let students = this.getStudents();
+    const passiveMap = this.getPassiveStudentIds();
+    const deletedMap = this.getDeletedStudentIds();
+
+    // Pasif ve silinmiş talebeler ASLA sıralamaya ve liderlik tablosuna dahil edilmez!
+    students = students.filter(s => {
+      if (!s || !s.id) return false;
+      if (s.isPassive === true || s.status === 'passive') return false;
+      if (passiveMap[s.id] && passiveMap[s.id].isPassive === true) return false;
+      if (deletedMap[s.id] && deletedMap[s.id].isDeleted === true) return false;
+      return true;
+    });
+
     if (classFilter && classFilter !== 'ALL') {
       const cf = String(classFilter).trim();
       students = students.filter(s => {
