@@ -234,18 +234,23 @@ window.AttendanceModule = {
     this.draftAttendance[studentId].status = finalStatusCode;
 
     const subKey = this.currentCategory === 'namaz' ? this.currentPrayer : this.currentCategory;
+    const activeUser = window.Store.getCurrentUserName();
 
     window.Store.saveSingleAttendance(
       studentId,
       this.currentDate,
       subKey,
       finalStatusCode,
-      this.currentCategory
+      this.currentCategory,
+      activeUser
     );
 
     const scrollY = window.scrollY;
     this.renderStudentRows();
     this.renderSummary();
+    if (typeof this.renderPrayerAuditPanel === 'function') {
+      this.renderPrayerAuditPanel();
+    }
     if (scrollY > 0) {
       requestAnimationFrame(() => {
         window.scrollTo(0, scrollY);
@@ -259,6 +264,7 @@ window.AttendanceModule = {
 
     const defaultStatus = this.getDefaultStatus();
     const subKey = this.currentCategory === 'namaz' ? this.currentPrayer : this.currentCategory;
+    const activeUser = window.Store.getCurrentUserName();
 
     const records = allStudents.map(s => {
       const draft = this.draftAttendance[s.id];
@@ -269,17 +275,17 @@ window.AttendanceModule = {
         date: this.currentDate,
         subKey: subKey,
         status: status,
-        category: this.currentCategory
+        category: this.currentCategory,
+        recordedBy: activeUser
       };
     });
 
-    window.Store.saveAttendanceBatch(records);
-    this.renderSummary();
-    this.renderStudentRows();
+    window.Store.saveAttendanceBatch(records, activeUser);
+    this.renderView();
 
     const label = this.currentCategory === 'namaz' ? `${this.currentPrayer} Namazı` : (this.currentCategory === 'yatak' ? 'Yatak Yoklaması' : 'Okul Dönüşü');
     if (window.App && typeof window.App.showToast === 'function') {
-      window.App.showToast(`✅ ${label} başarıyla tamamlandı ve kaydedildi! (${records.length} Talebe)`, 'success');
+      window.App.showToast(`✅ ${label} başarıyla tamamlandı ve kaydedildi! (${records.length} Talebe • Alan: ${activeUser})`, 'success');
     }
   },
 
@@ -289,6 +295,7 @@ window.AttendanceModule = {
 
     const defaultStatus = this.getDefaultStatus();
     const subKey = this.currentCategory === 'namaz' ? this.currentPrayer : this.currentCategory;
+    const activeUser = window.Store.getCurrentUserName();
 
     const records = allStudents.map(s => {
       this.draftAttendance[s.id] = { status: defaultStatus };
@@ -297,17 +304,17 @@ window.AttendanceModule = {
         date: this.currentDate,
         subKey: subKey,
         status: defaultStatus,
-        category: this.currentCategory
+        category: this.currentCategory,
+        recordedBy: activeUser
       };
     });
 
-    window.Store.saveAttendanceBatch(records);
-    this.renderSummary();
-    this.renderStudentRows();
+    window.Store.saveAttendanceBatch(records, activeUser);
+    this.renderView();
 
     const statusLabel = defaultStatus === 'VAR' ? 'Var' : (defaultStatus === 'IYI' ? 'İyi' : 'Geldi');
     if (window.App && typeof window.App.showToast === 'function') {
-      window.App.showToast(`✅ Tüm talebeler "${statusLabel}" olarak kaydedildi! (${records.length} Talebe)`, 'success');
+      window.App.showToast(`✅ Tüm talebeler "${statusLabel}" olarak kaydedildi! (${records.length} Talebe • Alan: ${activeUser})`, 'success');
     }
   },
 
@@ -893,10 +900,105 @@ window.AttendanceModule = {
     `;
   },
 
+  // --- Yönetici Canlı Vakit Denetim Şeridi HTML Oluşturucu (5 Vakit ve Yoklamayı Alan Hesap) ---
+  renderPrayerAuditPanelHtml(prayerSummary, dayName) {
+    if (this.currentCategory !== 'namaz' || !prayerSummary) return '';
+
+    return `
+      <div class="p-3 sm:p-3.5 bg-slate-50/90 rounded-2xl border border-slate-200 space-y-2.5 animate-fade-in">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="text-sm">🕌</span>
+            <span class="font-black text-slate-800 uppercase tracking-wide">Yönetici Vakit Denetim Paneli:</span>
+            <span class="text-[11px] text-slate-500 font-bold">(${dayName}, ${this.currentDate})</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-black border ${
+              prayerSummary.isFullyCompleted
+                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                : (prayerSummary.totalTakenCount > 0 ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-rose-100 text-rose-800 border-rose-300')
+            }">
+              ${prayerSummary.totalTakenCount} / 5 Vakit Alındı ${prayerSummary.isFullyCompleted ? '🎉' : ''}
+            </span>
+          </div>
+        </div>
+
+        <!-- 5 Vakit Durum Kartları (Tıklanabilir Hızlı Geçiş & Alan Hesap Rozeti) -->
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+          ${this.prayerTimes.map(p => {
+            const pData = prayerSummary.summary[p.name];
+            const isTaken = pData && pData.isTaken;
+            const isCurrent = this.currentPrayer === p.name;
+            const timeStr = pData && pData.lastRecordedAt ? new Date(pData.lastRecordedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '';
+            const recUser = (pData && pData.recordedBy) ? pData.recordedBy : '';
+            
+            return `
+              <div onclick="window.AttendanceModule.setPrayer('${p.name}')" 
+                class="p-2.5 rounded-xl border transition cursor-pointer select-none flex flex-col justify-between ${
+                  isCurrent 
+                    ? 'ring-2 ring-emerald-500 bg-white shadow-xs' 
+                    : 'bg-white hover:bg-slate-100/70 border-slate-200'
+                }"
+                title="${p.name} Namazı yoklamasına geç${recUser ? ` • Alan: ${recUser}` : ''}">
+                <div>
+                  <div class="flex items-center justify-between">
+                    <span class="font-black text-slate-800 flex items-center gap-1">
+                      <span>${p.icon}</span> <span>${p.name}</span>
+                    </span>
+                    ${isTaken ? `
+                      <span class="w-4 h-4 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center shadow-2xs">✓</span>
+                    ` : `
+                      <span class="w-4 h-4 rounded-full bg-slate-200 text-slate-500 font-bold text-[10px] flex items-center justify-center">⏳</span>
+                    `}
+                  </div>
+
+                  <div class="mt-1.5">
+                    ${isTaken ? `
+                      <div class="font-black text-emerald-700 text-[11px] flex items-center gap-1">
+                        <span>Alındı</span>
+                        <span class="text-slate-400 font-normal">(${pData.totalRecorded} T.)</span>
+                      </div>
+                      <div class="text-[10px] text-slate-500 mt-0.5 font-medium truncate">
+                        ${pData.counts.VAR} Var${pData.counts.YOK > 0 ? `, <strong class="text-rose-600">${pData.counts.YOK} Yok</strong>` : ''}${timeStr ? ` • ${timeStr}` : ''}
+                      </div>
+                    ` : `
+                      <div class="font-bold text-amber-700 text-[11px]">Alınmadı</div>
+                      <div class="text-[10px] text-slate-400 mt-0.5">Henüz girilmedi</div>
+                    `}
+                  </div>
+                </div>
+
+                ${isTaken ? `
+                  <div class="mt-2 pt-1.5 border-t border-slate-100 flex items-center gap-1 text-[10px] ${recUser ? 'text-indigo-700 bg-indigo-50/80 border border-indigo-100' : 'text-slate-500 bg-slate-50 border border-slate-100'} px-1.5 py-0.5 rounded-lg truncate" title="Yoklamayı Alan Yetkili: ${recUser || 'Sistem Kaydı'}">
+                    <span class="shrink-0">${recUser ? '👤' : '📝'}</span>
+                    <span class="truncate font-bold">${recUser || 'Sistem Kaydı'}</span>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  },
+
+  renderPrayerAuditPanel() {
+    const container = document.getElementById('prayer-audit-panel-container');
+    if (!container || this.currentCategory !== 'namaz') return;
+    const dayName = this.getDayName(this.currentDate);
+    const prayerSummary = (window.Store && typeof window.Store.getDailyPrayerAttendanceSummary === 'function')
+      ? window.Store.getDailyPrayerAttendanceSummary(this.currentDate)
+      : null;
+    container.innerHTML = this.renderPrayerAuditPanelHtml(prayerSummary, dayName);
+  },
+
   // --- 2. GÜNLÜK YOKLAMA ALMA GÖRÜNÜMÜ ---
   renderDailyYoklamaView(container) {
     const classes = window.Store.getClasses();
     const dayName = this.getDayName(this.currentDate);
+    const prayerSummary = (this.currentCategory === 'namaz' && window.Store && typeof window.Store.getDailyPrayerAttendanceSummary === 'function')
+      ? window.Store.getDailyPrayerAttendanceSummary(this.currentDate)
+      : null;
     this.loadDailyDraft();
 
     container.innerHTML = `
@@ -905,7 +1007,7 @@ window.AttendanceModule = {
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
           <!-- Üst Satır: Tarih & Gün Adı & 5 Vakit Namaz Butonları -->
           <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
-            <div class="space-y-1.5">
+            <div class="space-y-1.5 w-full">
               <div class="flex items-center gap-2">
                 <span class="text-xs font-black text-slate-800 uppercase tracking-wide">
                   ${this.currentCategory === 'namaz' ? 'YOKLAMA TARİHİ & NAMAZ VAKTİ:' : (this.currentCategory === 'yatak' ? 'YATAK YOKLAMA TARİHİ:' : 'OKUL DÖNÜŞÜ TARİHİ:')}
@@ -931,15 +1033,27 @@ window.AttendanceModule = {
                   <div class="inline-flex flex-wrap p-1 bg-slate-100 rounded-2xl border border-slate-200 gap-1 shadow-inner">
                     ${this.prayerTimes.map(p => {
                       const isSelected = this.currentPrayer === p.name;
+                      const pData = prayerSummary ? prayerSummary.summary[p.name] : null;
+                      const isTaken = pData && pData.isTaken;
+                      const count = pData ? pData.totalRecorded : 0;
+                      const recUser = (pData && pData.recordedBy) ? pData.recordedBy : '';
                       return `
                         <button type="button" onclick="window.AttendanceModule.setPrayer('${p.name}')"
-                          class="py-1.5 px-3 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                          class="py-1.5 px-2.5 sm:px-3 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
                             isSelected 
                               ? 'bg-emerald-600 text-white shadow-md scale-102 ring-2 ring-emerald-400' 
-                              : 'bg-white text-slate-700 hover:bg-slate-200'
-                          }">
+                              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200/80'
+                          }"
+                          title="${p.name} Namazı • ${isTaken ? `Alındı (${count} Talebe)${recUser ? ` • Alan: ${recUser}` : ''}` : 'Henüz Alınmadı'}">
                           <span>${p.icon}</span>
                           <span>${p.name}</span>
+                          <span class="text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                            isSelected 
+                              ? 'bg-white/25 text-white' 
+                              : (isTaken ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-200/80 text-slate-500 border border-slate-300/60')
+                          }">
+                            ${isTaken ? `✓ ${count}` : '⏳'}
+                          </span>
                         </button>
                       `;
                     }).join('')}
@@ -948,6 +1062,73 @@ window.AttendanceModule = {
               </div>
             </div>
           </div>
+
+          <!-- Yönetici Canlı Vakit Denetim Şeridi (Günün 5 Vakit Özeti & Durum Kartları) -->
+          <div id="prayer-audit-panel-container">
+            ${this.renderPrayerAuditPanelHtml(prayerSummary, dayName)}
+          </div>
+
+          ${this.currentCategory === 'yatak' ? `
+            <div class="p-3 bg-slate-50/90 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs animate-fade-in">
+              <div class="flex items-center gap-2">
+                <span>🛏️</span>
+                <span class="font-black text-slate-800">Günün Yatak & Oda Kontrolü Durumu:</span>
+                <span class="text-slate-500 font-bold">(${dayName}, ${this.currentDate})</span>
+              </div>
+              ${(() => {
+                const yRecs = window.Store.getAttendanceByCategory(this.currentDate, 'yatak', 'yatak');
+                const isTaken = yRecs && yRecs.length > 0;
+                const recUsers = isTaken ? Array.from(new Set(yRecs.map(r => r.recordedBy).filter(Boolean))).join(', ') : null;
+                return isTaken ? `
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-black flex items-center gap-1">
+                      <span>✓</span> <span>Bugünün Yatak Yoklaması Alındı (${yRecs.length} Talebe)</span>
+                    </span>
+                    ${recUsers ? `
+                      <span class="px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold text-xs flex items-center gap-1 shadow-2xs" title="Yoklamayı Alan Yetkili">
+                        <span>👤</span> <span>${recUsers}</span>
+                      </span>
+                    ` : ''}
+                  </div>
+                ` : `
+                  <span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-black flex items-center gap-1">
+                    <span>⏳</span> <span>Henüz Yatak Yoklaması Girilmedi</span>
+                  </span>
+                `;
+              })()}
+            </div>
+          ` : ''}
+
+          ${this.currentCategory === 'okul_donusu' ? `
+            <div class="p-3 bg-slate-50/90 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs animate-fade-in">
+              <div class="flex items-center gap-2">
+                <span>🎒</span>
+                <span class="font-black text-slate-800">Günün Okul Dönüşü Yoklama Durumu:</span>
+                <span class="text-slate-500 font-bold">(${dayName}, ${this.currentDate})</span>
+              </div>
+              ${(() => {
+                const oRecs = window.Store.getAttendanceByCategory(this.currentDate, 'okul_donusu', 'okul_donusu');
+                const isTaken = oRecs && oRecs.length > 0;
+                const recUsers = isTaken ? Array.from(new Set(oRecs.map(r => r.recordedBy).filter(Boolean))).join(', ') : null;
+                return isTaken ? `
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-black flex items-center gap-1">
+                      <span>✓</span> <span>Bugünün Okul Dönüşü Yoklaması Alındı (${oRecs.length} Talebe)</span>
+                    </span>
+                    ${recUsers ? `
+                      <span class="px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold text-xs flex items-center gap-1 shadow-2xs" title="Yoklamayı Alan Yetkili">
+                        <span>👤</span> <span>${recUsers}</span>
+                      </span>
+                    ` : ''}
+                  </div>
+                ` : `
+                  <span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-black flex items-center gap-1">
+                    <span>⏳</span> <span>Henüz Okul Dönüşü Yoklaması Girilmedi</span>
+                  </span>
+                `;
+              })()}
+            </div>
+          ` : ''}
 
           <!-- Alt Satır: Çoklu Sınıf Filtresi & Arama -->
           <div class="space-y-3 pt-1">

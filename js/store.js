@@ -2032,14 +2032,82 @@ class DataStore {
     return records && records.length > 0;
   }
 
+  // Aktif oturumdaki kullanıcının (Hoca / Yönetici) adını tespit etme
+  getCurrentUserName() {
+    try {
+      const s = (window.App && window.App.currentSession) ||
+        JSON.parse(sessionStorage.getItem('yoklama_active_session') || localStorage.getItem('yoklama_active_session') || '{}');
+      return s.name || s.fullName || (s.role === 'superadmin' ? 'Kurum Yöneticisi' : (s.staffRole || 'Eğitmen'));
+    } catch (e) {
+      return 'Eğitmen';
+    }
+  }
+
+  // Günün 5 Vakit Namaz Yoklama Durumu Özeti (Yönetici & Eğitmen Denetimi - Yoklamayı Alan Hesap Bilgisi Dahil)
+  getDailyPrayerAttendanceSummary(dateStr = null) {
+    const date = dateStr || new Date().toISOString().split('T')[0];
+    const prayers = ['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Yatsı'];
+    const allAtt = this.getAttendance();
+    const dayAtt = allAtt.filter(a => a.date === date && (a.category || 'namaz') === 'namaz');
+
+    const summary = {};
+    prayers.forEach(p => {
+      const records = dayAtt.filter(a => (a.prayerTime || 'Sabah') === p);
+      const isTaken = records.length > 0;
+      const counts = { VAR: 0, YOK: 0, GEC: 0, TAKKESIZ: 0, GEC_TAKKESIZ: 0, IZINLI: 0 };
+      let lastRecordedAt = null;
+      const recordedBySet = new Set();
+
+      records.forEach(r => {
+        const st = this.normalizeStatusCode(r.status);
+        if (counts[st] !== undefined) counts[st]++;
+        if (r.recordedAt && (!lastRecordedAt || new Date(r.recordedAt) > new Date(lastRecordedAt))) {
+          lastRecordedAt = r.recordedAt;
+        }
+        if (r.recordedBy && typeof r.recordedBy === 'string' && r.recordedBy.trim()) {
+          recordedBySet.add(r.recordedBy.trim());
+        }
+      });
+
+      const recordedBy = Array.from(recordedBySet).join(', ') || null;
+
+      summary[p] = {
+        name: p,
+        isTaken,
+        totalRecorded: records.length,
+        counts,
+        lastRecordedAt,
+        recordedBy
+      };
+    });
+
+    const totalTaken = prayers.filter(p => summary[p].isTaken).length;
+
+    return {
+      date,
+      summary,
+      totalTakenCount: totalTaken,
+      isFullyCompleted: totalTaken === 5
+    };
+  }
+
+  // Belirli bir vakit için yoklama yapıldı mı kontrolü
+  isPrayerAttendanceDone(dateStr, prayerTime) {
+    const date = dateStr || new Date().toISOString().split('T')[0];
+    const pTime = prayerTime || 'Sabah';
+    const recs = this.getAttendanceByCategory(date, 'namaz', pTime);
+    return recs && recs.length > 0;
+  }
+
   getAttendanceForStudent(studentId) {
     return this.getAttendance().filter(a => a.studentId === studentId).sort((a, b) => new Date(b.date) - new Date(a.date));
   }
 
-  saveSingleAttendance(studentId, date, subKey, status, category = 'namaz') {
+  saveSingleAttendance(studentId, date, subKey, status, category = 'namaz', recordedBy = null) {
     const all = this.getAttendance();
     const cat = category || 'namaz';
     const sub = subKey || (cat === 'namaz' ? 'Sabah' : cat);
+    const activeUser = recordedBy || this.getCurrentUserName();
     const idx = all.findIndex(a => 
       a.studentId === studentId && 
       a.date === date && 
@@ -2055,6 +2123,7 @@ class DataStore {
       subType: cat !== 'namaz' ? sub : undefined,
       status,
       note: '',
+      recordedBy: activeUser,
       recordedAt: new Date().toISOString()
     };
     if (idx !== -1) {
@@ -2069,11 +2138,14 @@ class DataStore {
     return rec;
   }
 
-  saveAttendanceBatch(records) {
+  saveAttendanceBatch(records, recordedBy = null) {
     const all = this.getAttendance();
+    const activeUser = recordedBy || this.getCurrentUserName();
+    const nowIso = new Date().toISOString();
     records.forEach(newRec => {
       const cat = newRec.category || 'namaz';
       const sub = newRec.prayerTime || newRec.subKey || (cat === 'namaz' ? 'Sabah' : cat);
+      const user = newRec.recordedBy || activeUser;
       const idx = all.findIndex(a => 
         a.studentId === newRec.studentId && 
         a.date === newRec.date && 
@@ -2085,7 +2157,8 @@ class DataStore {
         ...newRec,
         category: cat,
         prayerTime: cat === 'namaz' ? sub : undefined,
-        recordedAt: new Date().toISOString()
+        recordedBy: user,
+        recordedAt: nowIso
       };
       if (idx !== -1) {
         all[idx] = { ...all[idx], ...rec };
