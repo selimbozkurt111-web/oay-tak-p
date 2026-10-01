@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v5.5 - Günün Görevlileri ve Çift Yönlü Bulut Senkronu)
-const CACHE_NAME = 'oay-takip-cache-v5.5';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v5.7 - Liderlik Sıralaması & Derin Bulut Senkronizasyonu)
+const CACHE_NAME = 'oay-takip-cache-v5.7';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [
