@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v6.5 - Görevli Menü Temizliği, Soru Sayısı ve 5/20 Not Skalası Düzenlemesi)
-const CACHE_NAME = 'oay-takip-cache-v6.5';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v6.6 - Kesintisiz Not Girişi & Sabit Sıralama Güvencesi)
+const CACHE_NAME = 'oay-takip-cache-v6.6';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [
