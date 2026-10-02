@@ -26,6 +26,7 @@ window.TestResultsModule = {
 
   // Öğrenci puanları: { [studentId]: { correct: 0, wrong: 0, empty: 20, net: 0, score: 0, note: '' } }
   scores: {},
+  existingAllScores: {},
 
   // Filtreler
   selectedGrade: 'ALL',          // 'ALL' | '5' | '6' | '7' | '8'
@@ -51,7 +52,9 @@ window.TestResultsModule = {
   },
 
   ensureStudentScores() {
-    const students = window.Store.getStudents();
+    const students = (window.Store && typeof window.Store.getStudentsForActiveUser === 'function')
+      ? window.Store.getStudentsForActiveUser()
+      : window.Store.getStudents();
     const total = parseInt(this.testMeta.totalQuestions, 10) || 20;
     
     students.forEach(st => {
@@ -92,7 +95,9 @@ window.TestResultsModule = {
   },
 
   getCurrentlyDisplayedStudents() {
-    let students = window.Store.getStudents();
+    let students = (window.Store && typeof window.Store.getStudentsForActiveUser === 'function')
+      ? window.Store.getStudentsForActiveUser()
+      : window.Store.getStudents();
 
     // 1. Sınıf Filtresi (5, 6, 7, 8)
     if (this.selectedGrade && this.selectedGrade !== 'ALL') {
@@ -739,7 +744,19 @@ window.TestResultsModule = {
 
   // 2. GEÇMİŞ TEST ARŞİVİ
   renderHistoryView(container) {
-    const list = window.Store.getTestResults();
+    let list = window.Store.getTestResults();
+    const isAdmin = !(window.Store && typeof window.Store.isCurrentUserAdmin === 'function') || window.Store.isCurrentUserAdmin();
+    let myStudentIdSet = null;
+
+    if (!isAdmin) {
+      const myStudents = window.Store.getStudentsForActiveUser();
+      myStudentIdSet = new Set(myStudents.map(s => s.id));
+      list = list.filter(t => {
+        if (window.App && window.App.currentSession && t.author === window.App.currentSession.name) return true;
+        if (!t.scores) return false;
+        return Object.keys(t.scores).some(id => myStudentIdSet.has(id));
+      });
+    }
 
     container.innerHTML = `
       <div class="space-y-4 max-w-7xl mx-auto animate-fade-in pb-8 px-1 sm:px-2">
@@ -771,6 +788,7 @@ window.TestResultsModule = {
               let evalCount = 0;
 
               scoreKeys.forEach(k => {
+                if (myStudentIdSet && !myStudentIdSet.has(k)) return;
                 const s = t.scores[k];
                 if (s && (s.correct > 0 || s.wrong > 0)) {
                   sumScore += (s.score || 0);
@@ -781,6 +799,7 @@ window.TestResultsModule = {
 
               const avgScore = evalCount > 0 ? Math.round(sumScore / evalCount) : 0;
               const avgNet = evalCount > 0 ? (sumNet / evalCount).toFixed(1) : '0.0';
+              const canDelete = isAdmin || (window.App && window.App.currentSession && t.author === window.App.currentSession.name);
 
               return `
                 <div class="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col justify-between space-y-3">
@@ -816,11 +835,13 @@ window.TestResultsModule = {
                       class="flex-1 py-1.5 px-3 bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white rounded-xl font-bold text-xs transition text-center shadow-2xs">
                       ✏️ Düzenle / Gör
                     </button>
-                    <button type="button" onclick="window.TestResultsModule.deleteTest('${t.id}')"
-                      class="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded-xl font-bold text-xs transition shadow-2xs"
-                      title="Testi Sil">
-                      🗑️
-                    </button>
+                    ${canDelete ? `
+                      <button type="button" onclick="window.TestResultsModule.deleteTest('${t.id}')"
+                        class="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded-xl font-bold text-xs transition shadow-2xs"
+                        title="Testi Sil">
+                        🗑️
+                      </button>
+                    ` : ''}
                   </div>
                 </div>
               `;
@@ -832,16 +853,23 @@ window.TestResultsModule = {
   },
 
   getEtutSubeleri() {
-    return [
+    const list = [
       { id: '5-A|YASİN EKİNCİ', label: '5-A • Yasin Ekinci', grade: '5', branch: '5-A', hoca: 'YASİN EKİNCİ' },
       { id: '5-B|AHMED MUBARİZ', label: '5-B • Ahmed Mubariz', grade: '5', branch: '5-B', hoca: 'AHMED MUBARİZ' },
       { id: '6-A|ABDUSSAMED TAV', label: '6-A • Abdussamed Tav (Oda 201)', grade: '6', branch: '6-A', hoca: 'ABDUSSAMED TAV' },
       { id: '6-B|ABDUSSAMED TAV', label: '6-B • Abdussamed Tav (Oda 202)', grade: '6', branch: '6-B', hoca: 'ABDUSSAMED TAV' },
       { id: '7-A|EMİR TALHA TARIM', label: '7-A • Emir Talha Tarım', grade: '7', branch: '7-A', hoca: 'EMİR TALHA TARIM' },
       { id: '7-B|BURAK BODUR', label: '7-B • Burak Bodur', grade: '7', branch: '7-B', hoca: 'BURAK BODUR' },
-      { id: '8-A|TUNAHAN TAŞKIN', label: '8-A • Tunahan Taşkın', grade: '8', branch: '8-A', hoca: 'TUNAHAN TAŞKIN' },
-      { id: '8-B|YAVUZ SELİM SEVEN', label: '8-B • Yavuz Selim Seven', grade: '8', branch: '8-B', hoca: 'YAVUZ SELİM SEVEN' }
+      { id: '8-A|YAVUZ SELİM SEVEN', label: '8-A • Yavuz Selim Seven', grade: '8', branch: '8-A', hoca: 'YAVUZ SELİM SEVEN' },
+      { id: '8-B|TUNAHAN TAŞKIN', label: '8-B • Tunahan Taşkın', grade: '8', branch: '8-B', hoca: 'TUNAHAN TAŞKIN' }
     ];
+
+    if (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && !window.Store.isCurrentUserAdmin()) {
+      const myStudents = window.Store.getStudentsForActiveUser();
+      const myClasses = new Set(myStudents.map(s => (s.className || '').trim().toUpperCase()));
+      return list.filter(e => myClasses.has(e.branch.toUpperCase()));
+    }
+    return list;
   },
 
   selectGrade(gradeNum) {
@@ -899,6 +927,40 @@ window.TestResultsModule = {
 
   renderClassFilterButtonsHtml() {
     const etutList = this.getEtutSubeleri();
+
+    // ETÜT HOCALARI İÇİN: Sadece kendi şubelerini ve talebelerini gösteren sade ve net görünüm
+    if (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && !window.Store.isCurrentUserAdmin()) {
+      const myCount = this.getCurrentlyDisplayedStudents().length;
+      return `
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 font-bold text-xs shadow-2xs">
+            <span>📚</span>
+            <span><strong>Şubeniz:</strong> ${etutList.map(e => e.label).join(' & ')}</span>
+            <span class="bg-emerald-200 text-emerald-900 text-[10px] px-2 py-0.5 rounded-full font-black">Sadece Kendi Talebeleriniz (${myCount} Talebe)</span>
+          </div>
+          ${etutList.length > 1 ? `
+            <div class="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200 shadow-2xs">
+              <button type="button" onclick="window.TestResultsModule.toggleAll()"
+                class="px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                  (!this.selectedEtut || this.selectedEtut === 'ALL') ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white'
+                }">
+                Tümü
+              </button>
+              ${etutList.map(e => `
+                <button type="button" onclick="window.TestResultsModule.setEtutFilter('${e.id}')"
+                  class="px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                    this.selectedEtut === e.id ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white'
+                  }">
+                  ${e.branch}
+                </button>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    // KURUM YÖNETİCİSİ İÇİN: Tüm sınıfları ve şubeleri kapsayan tam kontrol
     const isAll = (!this.selectedGrade || this.selectedGrade === 'ALL') && 
                   (!this.selectedEtut || this.selectedEtut === 'ALL');
 
@@ -990,6 +1052,7 @@ window.TestResultsModule = {
 
   resetForm() {
     this.currentTestId = null;
+    this.existingAllScores = {};
     this.testMeta = {
       title: 'Haftalık Etüt Tarama Testi',
       subject: 'Matematik',
@@ -1009,6 +1072,7 @@ window.TestResultsModule = {
     if (!test) return;
 
     this.currentTestId = test.id;
+    this.existingAllScores = test.scores ? { ...test.scores } : {};
     this.testMeta = {
       title: test.title || 'Etüt Testi',
       subject: test.subject || 'Matematik',
@@ -1020,7 +1084,9 @@ window.TestResultsModule = {
     };
 
     this.scores = {};
-    const students = window.Store.getStudents();
+    const students = (window.Store && typeof window.Store.getStudentsForActiveUser === 'function')
+      ? window.Store.getStudentsForActiveUser()
+      : window.Store.getStudents();
     students.forEach(st => {
       if (test.scores && test.scores[st.id]) {
         this.scores[st.id] = { ...test.scores[st.id] };
@@ -1049,6 +1115,11 @@ window.TestResultsModule = {
       return;
     }
 
+    const mergedScores = {
+      ...(this.existingAllScores || {}),
+      ...this.scores
+    };
+
     const testRecord = {
       id: this.currentTestId,
       title: this.testMeta.title.trim(),
@@ -1058,12 +1129,13 @@ window.TestResultsModule = {
       date: this.testMeta.date,
       totalQuestions: parseInt(this.testMeta.totalQuestions, 10) || 20,
       wrongPenalty: parseFloat(this.testMeta.wrongPenalty) || 0,
-      scores: this.scores,
+      scores: mergedScores,
       author: author
     };
 
     const saved = window.Store.saveTestResult(testRecord);
     this.currentTestId = saved.id;
+    this.existingAllScores = mergedScores;
 
     alert(`✅ "${saved.title}" başlıklı test sonuçları başarıyla kaydedildi!`);
   },

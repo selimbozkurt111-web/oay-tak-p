@@ -2313,6 +2313,91 @@ class DataStore {
     }
   }
 
+  // Aktif oturumdaki kullanıcının Yönetici (Kurum Yöneticisi / Superadmin) olup olmadığı
+  isCurrentUserAdmin() {
+    try {
+      const s = (window.App && window.App.currentSession) ||
+        JSON.parse(sessionStorage.getItem('yoklama_active_session') || localStorage.getItem('yoklama_active_session') || '{}');
+      if (!s) return false;
+      return s.role === 'superadmin' || s.staffId === 'admin_root' || s.canManageStaff === true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Aktif oturumdaki kullanıcının (Etüt Hocası veya Yönetici) yetkili olduğu öğrenci listesi
+  // Yönetici ise tüm öğrencileri; Etüt hocası ise yalnızca kendi şube/öğrencilerini döndürür.
+  getStudentsForActiveUser(includePassive = false) {
+    const allStudents = this.getStudents(includePassive);
+    if (this.isCurrentUserAdmin()) {
+      return allStudents;
+    }
+
+    const session = (window.App && window.App.currentSession) ||
+      JSON.parse(sessionStorage.getItem('yoklama_active_session') || localStorage.getItem('yoklama_active_session') || '{}');
+
+    if (!session || session.role !== 'staff') {
+      return allStudents;
+    }
+
+    const staffName = (session.name || session.fullName || '').trim().toUpperCase();
+    const staffRole = (session.staffRole || '').trim().toUpperCase();
+    const normStaffName = this.normalizeSearchKey(staffName);
+
+    return allStudents.filter(st => {
+      if (!st) return false;
+      const sEtut = (st.etutHocasi || '').trim().toUpperCase();
+      const normEtut = this.normalizeSearchKey(sEtut);
+      const sClass = (st.className || '').trim().toUpperCase();
+
+      // 1. İsim eşleşmesi (etutHocasi)
+      if (normEtut && normStaffName && (normEtut === normStaffName || normEtut.includes(normStaffName) || normStaffName.includes(normEtut))) {
+        return true;
+      }
+      if (staffName && sEtut && (sEtut === staffName || sEtut.includes(staffName) || staffName.includes(sEtut))) {
+        return true;
+      }
+
+      // 2. Hocanın rolündeki şube (Örn: "5-A", "6-A", "6-B", "7-A", "7-B", "8-A", "8-B")
+      if (sClass && staffRole && staffRole.includes(sClass)) {
+        return true;
+      }
+
+      return false;
+    });
+  }
+
+  // Belirli bir öğrencinin aktif oturumdaki hocaya ait olup olmadığı kontrolü
+  isStudentBelongsToActiveUser(student) {
+    if (!student) return false;
+    if (this.isCurrentUserAdmin()) return true;
+
+    const session = (window.App && window.App.currentSession) ||
+      JSON.parse(sessionStorage.getItem('yoklama_active_session') || localStorage.getItem('yoklama_active_session') || '{}');
+
+    if (!session || session.role !== 'staff') return true;
+
+    const staffName = (session.name || session.fullName || '').trim().toUpperCase();
+    const staffRole = (session.staffRole || '').trim().toUpperCase();
+    const normStaffName = this.normalizeSearchKey(staffName);
+
+    const sEtut = (student.etutHocasi || '').trim().toUpperCase();
+    const normEtut = this.normalizeSearchKey(sEtut);
+    const sClass = (student.className || '').trim().toUpperCase();
+
+    if (normEtut && normStaffName && (normEtut === normStaffName || normEtut.includes(normStaffName) || normStaffName.includes(normEtut))) {
+      return true;
+    }
+    if (staffName && sEtut && (sEtut === staffName || sEtut.includes(staffName) || staffName.includes(sEtut))) {
+      return true;
+    }
+    if (sClass && staffRole && staffRole.includes(sClass)) {
+      return true;
+    }
+
+    return false;
+  }
+
   // Günün 5 Vakit Namaz Yoklama Durumu Özeti (Yönetici & Eğitmen Denetimi - Yoklamayı Alan Hesap Bilgisi Dahil)
   getDailyPrayerAttendanceSummary(dateStr = null) {
     const date = dateStr || new Date().toISOString().split('T')[0];

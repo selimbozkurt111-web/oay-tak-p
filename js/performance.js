@@ -67,16 +67,23 @@ window.AkademiModule = {
   },
 
   getEtutSubeleri() {
-    return [
+    const list = [
       { id: '5-A|YASİN EKİNCİ', label: '5-A • Yasin Ekinci', grade: '5', branch: '5-A', hoca: 'YASİN EKİNCİ' },
       { id: '5-B|AHMED MUBARİZ', label: '5-B • Ahmed Mubariz', grade: '5', branch: '5-B', hoca: 'AHMED MUBARİZ' },
       { id: '6-A|ABDUSSAMED TAV', label: '6-A • Abdussamed Tav (Oda 201)', grade: '6', branch: '6-A', hoca: 'ABDUSSAMED TAV' },
       { id: '6-B|ABDUSSAMED TAV', label: '6-B • Abdussamed Tav (Oda 202)', grade: '6', branch: '6-B', hoca: 'ABDUSSAMED TAV' },
       { id: '7-A|EMİR TALHA TARIM', label: '7-A • Emir Talha Tarım', grade: '7', branch: '7-A', hoca: 'EMİR TALHA TARIM' },
       { id: '7-B|BURAK BODUR', label: '7-B • Burak Bodur', grade: '7', branch: '7-B', hoca: 'BURAK BODUR' },
-      { id: '8-A|TUNAHAN TAŞKIN', label: '8-A • Tunahan Taşkın', grade: '8', branch: '8-A', hoca: 'TUNAHAN TAŞKIN' },
-      { id: '8-B|YAVUZ SELİM SEVEN', label: '8-B • Yavuz Selim Seven', grade: '8', branch: '8-B', hoca: 'YAVUZ SELİM SEVEN' }
+      { id: '8-A|YAVUZ SELİM SEVEN', label: '8-A • Yavuz Selim Seven', grade: '8', branch: '8-A', hoca: 'YAVUZ SELİM SEVEN' },
+      { id: '8-B|TUNAHAN TAŞKIN', label: '8-B • Tunahan Taşkın', grade: '8', branch: '8-B', hoca: 'TUNAHAN TAŞKIN' }
     ];
+
+    if (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && !window.Store.isCurrentUserAdmin()) {
+      const myStudents = window.Store.getStudentsForActiveUser();
+      const myClasses = new Set(myStudents.map(s => (s.className || '').trim().toUpperCase()));
+      return list.filter(e => myClasses.has(e.branch.toUpperCase()));
+    }
+    return list;
   },
 
   selectGrade(gradeNum) {
@@ -133,6 +140,40 @@ window.AkademiModule = {
 
   renderClassFilterButtonsHtml() {
     const etutList = this.getEtutSubeleri();
+
+    // ETÜT HOCALARI İÇİN: Sadece kendi şubelerini ve talebelerini gösteren sade ve net görünüm
+    if (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && !window.Store.isCurrentUserAdmin()) {
+      const myCount = this.getFilteredStudents().length;
+      return `
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 font-bold text-xs shadow-2xs">
+            <span>📚</span>
+            <span><strong>Şubeniz:</strong> ${etutList.map(e => e.label).join(' & ')}</span>
+            <span class="bg-blue-200 text-blue-900 text-[10px] px-2 py-0.5 rounded-full font-black">Sadece Kendi Talebeleriniz (${myCount} Talebe)</span>
+          </div>
+          ${etutList.length > 1 ? `
+            <div class="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200 shadow-2xs">
+              <button type="button" onclick="window.AkademiModule.toggleAll()"
+                class="px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                  (!this.selectedEtut || this.selectedEtut === 'ALL') ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white'
+                }">
+                Tümü
+              </button>
+              ${etutList.map(e => `
+                <button type="button" onclick="window.AkademiModule.setEtutFilter('${e.id}')"
+                  class="px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                    this.selectedEtut === e.id ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white'
+                  }">
+                  ${e.branch}
+                </button>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    // KURUM YÖNETİCİSİ İÇİN: Tüm sınıfları ve şubeleri kapsayan tam kontrol
     const isAll = (!this.selectedGrade || this.selectedGrade === 'ALL') && 
                   (!this.selectedEtut || this.selectedEtut === 'ALL');
 
@@ -316,7 +357,9 @@ window.AkademiModule = {
   },
 
   getFilteredStudents() {
-    let students = window.Store.getStudents();
+    let students = (window.Store && typeof window.Store.getStudentsForActiveUser === 'function')
+      ? window.Store.getStudentsForActiveUser()
+      : window.Store.getStudents();
 
     // 1. Sınıf Filtresi (5, 6, 7, 8)
     if (this.selectedGrade && this.selectedGrade !== 'ALL') {
@@ -1422,7 +1465,9 @@ Talebemizin azim ve gayretinin daim olmasını temenni eder, başarılar dileriz
 
   // --- 2. GENEL GELİŞİM & KARNE GÖRÜNÜMÜ ---
   renderGenelKarneView(container) {
-    const students = window.Store.getStudents();
+    const students = (window.Store && typeof window.Store.getStudentsForActiveUser === 'function')
+      ? window.Store.getStudentsForActiveUser()
+      : window.Store.getStudents();
     const today = new Date().toISOString().split('T')[0];
 
     container.innerHTML = `
@@ -1674,6 +1719,13 @@ Talebemizin azim ve gayretinin daim olmasını temenni eder, başarılar dileriz
     if (!container) return;
 
     let perfs = window.Store.getPerformances();
+
+    // ETÜT HOCALARI İÇİN: Sadece kendi talebelerine ait değerlendirmeleri göster
+    if (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && !window.Store.isCurrentUserAdmin()) {
+      const myStudents = window.Store.getStudentsForActiveUser();
+      const myStudentIds = new Set(myStudents.map(s => s.id));
+      perfs = perfs.filter(p => myStudentIds.has(p.studentId));
+    }
 
     if (this.searchQuery) {
       perfs = perfs.filter(p => {
