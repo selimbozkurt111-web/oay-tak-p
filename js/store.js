@@ -627,12 +627,11 @@ class DataStore {
       Object.keys(cloudData.passive_student_ids).forEach(stId => {
         const cloudRec = cloudData.passive_student_ids[stId];
         const localRec = localPassiveMap[stId];
-        if (!localRec || (cloudRec && cloudRec.updatedAt && (!localRec.updatedAt || new Date(cloudRec.updatedAt) >= new Date(localRec.updatedAt)))) {
-          if (cloudRec && cloudRec.isPassive) {
-            mergedPassiveMap[stId] = cloudRec;
-          } else {
-            delete mergedPassiveMap[stId];
-          }
+        const isCloudPassive = cloudRec === true || cloudRec === 'passive' || cloudRec === 'pasif' || (cloudRec && typeof cloudRec === 'object' && (cloudRec.isPassive === true || cloudRec.status === 'passive' || cloudRec.status === 'pasif'));
+        if (isCloudPassive) {
+          mergedPassiveMap[stId] = (typeof cloudRec === 'object' && cloudRec !== null) ? cloudRec : { isPassive: true, updatedAt: new Date().toISOString() };
+        } else if (cloudRec === false || (cloudRec && typeof cloudRec === 'object' && cloudRec.isPassive === false)) {
+          delete mergedPassiveMap[stId];
         }
       });
       localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify(mergedPassiveMap));
@@ -892,7 +891,28 @@ class DataStore {
         const localRaw = localStorage.getItem(STORAGE_KEYS.DUTIES);
         let localObj = localRaw ? JSON.parse(localRaw) : {};
         if (typeof localObj !== 'object' || localObj === null) localObj = {};
-        const merged = { ...localObj, ...chosenDuties };
+
+        const merged = { ...localObj };
+        Object.keys(chosenDuties).forEach(k => {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(k)) {
+            const cloudEntry = chosenDuties[k];
+            const localEntry = localObj[k];
+            if (!localEntry || !localEntry.updatedAt || (cloudEntry && cloudEntry.updatedAt && new Date(cloudEntry.updatedAt) >= new Date(localEntry.updatedAt))) {
+              merged[k] = cloudEntry;
+            }
+          } else {
+            merged[k] = chosenDuties[k];
+          }
+        });
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (merged[todayStr]) {
+          merged.date = todayStr;
+          merged.yemekciler = merged[todayStr].yemekciler || [];
+          merged.muezzin = merged[todayStr].muezzin || '';
+          merged.note = merged[todayStr].note || '';
+        }
+
         localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(merged));
         window.dispatchEvent(new CustomEvent('daily-duties-updated', { detail: merged }));
       } catch (e) {
@@ -1040,6 +1060,8 @@ class DataStore {
                 window.dispatchEvent(new CustomEvent('students-cloud-updated', { detail: studentsArr }));
               }
             }
+          } else if (path.startsWith('attendance')) {
+            this.handleRealtimeAttendance(path, data);
           } else {
             this.syncFromCloud();
           }
@@ -1053,6 +1075,42 @@ class DataStore {
       };
     } catch (err) {
       console.warn('[RealtimeSync] EventSource başlatılamadı:', err);
+    }
+  }
+
+  handleRealtimeAttendance(path, data) {
+    try {
+      if (!data) return;
+      const toArray = (val) => {
+        if (!val) return [];
+        if (Array.isArray(val)) return val.filter(Boolean);
+        if (typeof val === 'object') return Object.values(val).filter(Boolean);
+        return [];
+      };
+
+      const incoming = toArray(data);
+      if (incoming.length > 0) {
+        const localAtt = this.getAttendance();
+        const attMap = new Map();
+        const getAttKey = a => a.id || (`${a.category || 'namaz'}_${a.studentId}_${a.date}_${a.prayerTime || a.subType || a.subKey || 'Sabah'}`);
+        localAtt.forEach(a => { if (a && a.studentId) attMap.set(getAttKey(a), a); });
+        
+        incoming.forEach(a => {
+          if (a && a.studentId) {
+            const key = getAttKey(a);
+            const existing = attMap.get(key);
+            if (!existing || !existing.recordedAt || !a.recordedAt || new Date(a.recordedAt) >= new Date(existing.recordedAt)) {
+              attMap.set(key, a);
+            }
+          }
+        });
+
+        const mergedList = Array.from(attMap.values());
+        localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(mergedList));
+        window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: { attendance: mergedList } }));
+      }
+    } catch (e) {
+      console.warn('[handleRealtimeAttendance] Hata:', e);
     }
   }
 
@@ -1429,7 +1487,28 @@ class DataStore {
   isStudentPassive(studentId) {
     if (!studentId) return false;
     const map = this.getPassiveStudentIds();
-    return !!(map[studentId] && map[studentId].isPassive === true);
+    const entry = map[studentId];
+    if (entry === true || entry === 'passive' || entry === 'pasif') return true;
+    if (entry && typeof entry === 'object' && (entry.isPassive === true || entry.status === 'passive' || entry.status === 'pasif')) return true;
+
+    // Ayrıca kayıtlı listedeki öğrenci nesnesini doğrudan kontrol et
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          const s = parsed.find(item => item && item.id === studentId);
+          if (s) {
+            if (s.isPassive === true || s.isPassive === 'true' || s.isPassive === 1) return true;
+            const st = (s.status || '').toString().toLowerCase().trim();
+            if (st === 'passive' || st === 'pasif') return true;
+            if (s.aktif === false || s.active === false) return true;
+          }
+        }
+      }
+    } catch (e) {}
+
+    return false;
   }
 
   // --- Silinenler Sicili Metodları (Tombstone - Cihazlar ve Sürümler Arası Hortlamayı %100 Engeller) ---
@@ -1561,12 +1640,28 @@ class DataStore {
   getStudents(includePassive = false) {
     const list = this.getAllStudents();
     if (includePassive) return list;
-    return list.filter(s => s && !s.isPassive && s.status !== 'passive');
+    return list.filter(s => {
+      if (!s || !s.id) return false;
+      if (this.isStudentPassive(s.id)) return false;
+      if (s.isPassive === true || s.isPassive === 'true' || s.isPassive === 1) return false;
+      const st = (s.status || '').toString().toLowerCase().trim();
+      if (st === 'passive' || st === 'pasif') return false;
+      if (s.aktif === false || s.active === false) return false;
+      return true;
+    });
   }
 
   // Sadece pasife alınmış öğrencileri listeler
   getPassiveStudents() {
-    return this.getAllStudents().filter(s => s && (s.isPassive === true || s.status === 'passive'));
+    return this.getAllStudents().filter(s => {
+      if (!s || !s.id) return false;
+      if (this.isStudentPassive(s.id)) return true;
+      if (s.isPassive === true || s.isPassive === 'true' || s.isPassive === 1) return true;
+      const st = (s.status || '').toString().toLowerCase().trim();
+      if (st === 'passive' || st === 'pasif') return true;
+      if (s.aktif === false || s.active === false) return true;
+      return false;
+    });
   }
 
   getStudentById(id) {
@@ -1626,6 +1721,43 @@ class DataStore {
     if (this.isCloudEnabled()) {
       this.syncToCloud('kurs_data/students', sanitizedStudents);
     }
+
+    // Dini Ders Grupları & Kur'an Takip Senkronizasyonu
+    try {
+      const quranRaw = localStorage.getItem(STORAGE_KEYS.QURAN_TRACKER);
+      let quranAll = quranRaw ? JSON.parse(quranRaw) : {};
+      let quranChanged = false;
+      sanitizedStudents.forEach(s => {
+        if (!s || !s.id) return;
+        const targetGroup = (s.dahiliHoca || '').trim() || 'Genel';
+        if (!quranAll[s.id]) {
+          quranAll[s.id] = {
+            studentId: s.id,
+            currentPage: 1,
+            hatimCount: 0,
+            diniGrup: targetGroup,
+            note: '',
+            updatedAt: nowIso,
+            history: []
+          };
+          quranChanged = true;
+        } else {
+          const cur = (quranAll[s.id].diniGrup || '').trim();
+          if (targetGroup && targetGroup !== 'Genel' && cur !== targetGroup) {
+            quranAll[s.id].diniGrup = targetGroup;
+            quranAll[s.id].updatedAt = nowIso;
+            quranChanged = true;
+          }
+        }
+      });
+      if (quranChanged) {
+        localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(quranAll));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/quranTracker', quranAll);
+        }
+        window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: quranAll }));
+      }
+    } catch (e) {}
   }
 
   addStudent(student) {
@@ -3504,9 +3636,17 @@ class DataStore {
     // Pasif ve silinmiş talebeler ASLA sıralamaya ve liderlik tablosuna dahil edilmez!
     students = students.filter(s => {
       if (!s || !s.id) return false;
-      if (s.isPassive === true || s.status === 'passive') return false;
-      if (passiveMap[s.id] && passiveMap[s.id].isPassive === true) return false;
-      if (deletedMap[s.id] && deletedMap[s.id].isDeleted === true) return false;
+      if (this.isStudentPassive(s.id)) return false;
+      if (this.isStudentDeleted(s.id)) return false;
+      if (s.isPassive === true || s.isPassive === 'true' || s.isPassive === 1) return false;
+      const st = (s.status || '').toString().toLowerCase().trim();
+      if (st === 'passive' || st === 'pasif') return false;
+      if (s.aktif === false || s.active === false) return false;
+      const pEntry = passiveMap[s.id];
+      if (pEntry === true || pEntry === 'passive' || pEntry === 'pasif') return false;
+      if (pEntry && typeof pEntry === 'object' && (pEntry.isPassive === true || pEntry.status === 'passive' || pEntry.status === 'pasif')) return false;
+      const dEntry = deletedMap[s.id];
+      if (dEntry === true || (dEntry && dEntry.isDeleted === true)) return false;
       return true;
     });
 
@@ -3609,77 +3749,73 @@ class DataStore {
   // ========================================================
   // --- GÜNÜN GÖREVLİLERİ (YEMEKÇİ & MÜEZZİN) ---
   // ========================================================
-  getDailyDuties(targetDate) {
+  getDailyDuties(targetDate, allowFallback = true) {
     const today = targetDate || new Date().toISOString().split('T')[0];
     try {
       const data = localStorage.getItem(STORAGE_KEYS.DUTIES);
       if (data) {
         const parsed = JSON.parse(data);
         if (parsed && typeof parsed === 'object') {
-          // 1. Bugünün kaydı varsa ve içinde yemekçi veya müezzin varsa
-          const todayEntry = parsed[today];
-          if (todayEntry && ((Array.isArray(todayEntry.yemekciler) && todayEntry.yemekciler.length > 0) || todayEntry.muezzin)) {
+          // 1. Hedef tarihin doğrudan kaydı varsa (dolu veya temizlenmiş/boş fark etmeksizin)
+          if (parsed[today] && typeof parsed[today] === 'object') {
+            const entry = parsed[today];
             return {
               date: today,
-              yemekciler: Array.isArray(todayEntry.yemekciler) ? todayEntry.yemekciler : [],
-              muezzin: todayEntry.muezzin || '',
-              note: todayEntry.note || '',
-              isToday: true,
-              isLatestFallback: false
-            };
-          }
-          if (parsed.date === today && ((Array.isArray(parsed.yemekciler) && parsed.yemekciler.length > 0) || parsed.muezzin)) {
-            return {
-              date: today,
-              yemekciler: Array.isArray(parsed.yemekciler) ? parsed.yemekciler : [],
-              muezzin: parsed.muezzin || '',
-              note: parsed.note || '',
+              yemekciler: Array.isArray(entry.yemekciler) ? entry.yemekciler : [],
+              muezzin: entry.muezzin || '',
+              note: entry.note || '',
+              updatedAt: entry.updatedAt || null,
               isToday: true,
               isLatestFallback: false
             };
           }
 
-          // 2. Bugün henüz atanmamışsa, en son girilmiş geçerli görev kaydını bul
-          const dateKeys = Object.keys(parsed)
-            .filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k))
-            .sort()
-            .reverse();
-          for (const dKey of dateKeys) {
-            const entry = parsed[dKey];
-            if (entry && ((Array.isArray(entry.yemekciler) && entry.yemekciler.length > 0) || entry.muezzin)) {
+          // 2. Kök nesnede hedef tarihin kaydı varsa
+          if (parsed.date === today) {
+            return {
+              date: today,
+              yemekciler: Array.isArray(parsed.yemekciler) ? parsed.yemekciler : [],
+              muezzin: parsed.muezzin || '',
+              note: parsed.note || '',
+              updatedAt: parsed.updatedAt || null,
+              isToday: true,
+              isLatestFallback: false
+            };
+          }
+
+          // 3. Sadece allowFallback=true ise ve hedef tarihe henüz HİÇBİR kayıt girilmemişse en son kaydı bul
+          if (allowFallback) {
+            const dateKeys = Object.keys(parsed)
+              .filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k < today)
+              .sort()
+              .reverse();
+            for (const dKey of dateKeys) {
+              const entry = parsed[dKey];
+              if (entry && ((Array.isArray(entry.yemekciler) && entry.yemekciler.length > 0) || entry.muezzin)) {
+                return {
+                  date: dKey,
+                  yemekciler: Array.isArray(entry.yemekciler) ? entry.yemekciler : [],
+                  muezzin: entry.muezzin || '',
+                  note: entry.note || '',
+                  updatedAt: entry.updatedAt || null,
+                  isToday: false,
+                  isLatestFallback: true
+                };
+              }
+            }
+
+            // Kök nesnede eski tarihli bir kayıt varsa
+            if (parsed.date && parsed.date !== today && ((Array.isArray(parsed.yemekciler) && parsed.yemekciler.length > 0) || parsed.muezzin)) {
               return {
-                date: dKey,
-                yemekciler: Array.isArray(entry.yemekciler) ? entry.yemekciler : [],
-                muezzin: entry.muezzin || '',
-                note: entry.note || '',
+                date: parsed.date,
+                yemekciler: Array.isArray(parsed.yemekciler) ? parsed.yemekciler : [],
+                muezzin: parsed.muezzin || '',
+                note: parsed.note || '',
+                updatedAt: parsed.updatedAt || null,
                 isToday: false,
                 isLatestFallback: true
               };
             }
-          }
-
-          // 3. Kök nesnede yemekciler veya muezzin varsa
-          if ((Array.isArray(parsed.yemekciler) && parsed.yemekciler.length > 0) || parsed.muezzin) {
-            return {
-              date: parsed.date || today,
-              yemekciler: Array.isArray(parsed.yemekciler) ? parsed.yemekciler : [],
-              muezzin: parsed.muezzin || '',
-              note: parsed.note || '',
-              isToday: parsed.date === today,
-              isLatestFallback: parsed.date !== today
-            };
-          }
-
-          // 4. İçi boş olsa dahi bugünün kaydı varsa
-          if (todayEntry) {
-            return {
-              date: today,
-              yemekciler: Array.isArray(todayEntry.yemekciler) ? todayEntry.yemekciler : [],
-              muezzin: todayEntry.muezzin || '',
-              note: todayEntry.note || '',
-              isToday: true,
-              isLatestFallback: false
-            };
           }
         }
       }
@@ -3691,6 +3827,7 @@ class DataStore {
       yemekciler: [],
       muezzin: '',
       note: '',
+      updatedAt: null,
       isToday: true,
       isLatestFallback: false
     };
@@ -3838,6 +3975,9 @@ class DataStore {
 
       if (changed) {
         localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(records));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/quranTracker', records);
+        }
       }
 
       return records;

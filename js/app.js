@@ -51,9 +51,24 @@ window.App = {
           window.LeaveTrackerModule.renderView();
         } else if (this.activeTab === 'yoklama' && window.AttendanceModule) {
           window.AttendanceModule.renderView();
-        } else if (this.activeTab !== 'ogrenciler_excel' && this.activeTab !== 'ayarlar' && this.activeTab !== 'gorevler') {
+        } else if (this.activeTab === 'gorevler') {
+          this.draftDutyYemekciler = null;
+          this.draftDutyMuezzin = null;
+          this.draftDutyNote = null;
+          this.renderDailyDutiesView();
+        } else if (this.activeTab !== 'ogrenciler_excel' && this.activeTab !== 'ayarlar') {
           this.renderMainContent();
         }
+      }
+    });
+
+    // Görevliler başka cihazda güncellendiğinde anında yenile
+    window.addEventListener('daily-duties-updated', () => {
+      if (this.currentSession && this.activeTab === 'gorevler') {
+        this.draftDutyYemekciler = null;
+        this.draftDutyMuezzin = null;
+        this.draftDutyNote = null;
+        this.renderDailyDutiesView();
       }
     });
 
@@ -1321,7 +1336,7 @@ window.App = {
                 class="w-full py-2.5 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-black border-2 border-amber-300 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
                 title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
                 <span class="text-sm">🔄</span>
-                <span>Sistemi & Önbelleği Sıfırla (v4.9)</span>
+                <span>Sistemi & Önbelleği Sıfırla (v5.9)</span>
               </button>
             </div>
           </div>
@@ -1354,6 +1369,7 @@ window.App = {
         window.TestResultsModule.init();
       }
     } else if (this.activeTab === 'leaderboard') {
+      main.innerHTML = `<div id="leaderboard-container"></div>`;
       if (window.LeaderboardModule) {
         window.LeaderboardModule.init();
       }
@@ -2514,7 +2530,7 @@ window.App = {
     }
     const targetDate = this.selectedDutyDate;
     const storeDuties = (window.Store && typeof window.Store.getDailyDuties === 'function')
-      ? window.Store.getDailyDuties(targetDate)
+      ? window.Store.getDailyDuties(targetDate, false)
       : { yemekciler: [], muezzin: '', note: '' };
 
     if (this.draftDutyYemekciler === null) {
@@ -2845,6 +2861,9 @@ window.App = {
 
     if (window.Store && typeof window.Store.saveDailyDuties === 'function') {
       const res = window.Store.saveDailyDuties(payload);
+      this.draftDutyYemekciler = [...payload.yemekciler];
+      this.draftDutyMuezzin = payload.muezzin;
+      this.draftDutyNote = payload.note;
       if (res && res.success) {
         this.showToast(`✓ ${date} tarihli görevliler başarıyla kaydedildi ve TV panosuna iletildi!`, 'success');
       } else {
