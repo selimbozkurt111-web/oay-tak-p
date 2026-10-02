@@ -16,6 +16,7 @@ window.QuranTrackerModule = {
   selectedGroup: 'ALL',
   selectedLevel: 'ALL',
   selectedClass: 'ALL',
+  selectedClasses: [], // Çoklu şube seçimi (5-A, 5-B vb.)
   searchQuery: '',
   viewMode: 'cards', // 'cards' | 'table' | 'groups'
   editingStudentId: null,
@@ -51,6 +52,26 @@ window.QuranTrackerModule = {
 
   setClass(cls) {
     this.selectedClass = cls;
+    this.selectedClasses = [];
+    this.renderView();
+  },
+
+  toggleClass(className) {
+    if (!this.selectedClasses) this.selectedClasses = [];
+    const upper = (className || '').trim().toUpperCase();
+    const idx = this.selectedClasses.findIndex(c => c.toUpperCase() === upper);
+    if (idx !== -1) {
+      this.selectedClasses.splice(idx, 1);
+    } else {
+      this.selectedClasses.push(className.trim());
+    }
+    this.selectedClass = 'ALL';
+    this.renderView();
+  },
+
+  clearClasses() {
+    this.selectedClasses = [];
+    this.selectedClass = 'ALL';
     this.renderView();
   },
 
@@ -444,8 +465,11 @@ window.QuranTrackerModule = {
       filtered = filtered.filter(item => item.student.seviye === this.selectedLevel);
     }
 
-    // Sınıf filtresi
-    if (this.selectedClass !== 'ALL') {
+    // Sınıf filtresi (Çoklu şube desteği)
+    if (this.selectedClasses && this.selectedClasses.length > 0) {
+      const selUpper = this.selectedClasses.map(c => c.trim().toUpperCase());
+      filtered = filtered.filter(item => selUpper.includes((item.student.className || '').trim().toUpperCase()));
+    } else if (this.selectedClass !== 'ALL') {
       filtered = filtered.filter(item => item.student.className === this.selectedClass);
     }
 
@@ -656,16 +680,34 @@ window.QuranTrackerModule = {
                   </select>
                 </div>
 
-                <!-- Sınıf Filtresi -->
-                <div class="flex items-center gap-1">
-                  <span class="text-[10px] font-black text-slate-400 uppercase">SINIF:</span>
-                  <select onchange="window.QuranTrackerModule.setClass(this.value)"
-                    class="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none">
-                    <option value="ALL" ${this.selectedClass === 'ALL' ? 'selected' : ''}>Tüm Sınıflar</option>
-                    ${classes.map(c => `
-                      <option value="${c}" ${this.selectedClass === c ? 'selected' : ''}>${c}</option>
-                    `).join('')}
-                  </select>
+                <!-- Sınıf / Şube Filtresi (Çoklu Seçilebilir) -->
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-[10px] font-black text-slate-400 uppercase">ŞUBELER:</span>
+                  <div class="flex flex-wrap items-center gap-1">
+                    <button type="button" onclick="window.QuranTrackerModule.clearClasses()"
+                      class="px-2 py-1 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                        (!this.selectedClasses || this.selectedClasses.length === 0) && this.selectedClass === 'ALL'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }">
+                      Tümü
+                    </button>
+                    ${classes.map(c => {
+                      const isSel = (this.selectedClasses || []).some(sc => sc.toUpperCase() === c.toUpperCase()) || (this.selectedClass === c);
+                      return `
+                        <button type="button" onclick="window.QuranTrackerModule.toggleClass('${c}')"
+                          class="px-2 py-1 rounded-lg text-[10px] font-black transition border flex items-center gap-1 cursor-pointer ${
+                            isSel 
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }"
+                          title="${c} şubesini seç / kaldır">
+                          <span>${isSel ? '✓' : ''}</span>
+                          <span>${c}</span>
+                        </button>
+                      `;
+                    }).join('')}
+                  </div>
                 </div>
               </div>
 
