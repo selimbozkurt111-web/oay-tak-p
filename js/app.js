@@ -2465,6 +2465,9 @@ window.App = {
     const container = document.getElementById('duties-container');
     if (!container) return;
 
+    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
+      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
+
     if (!this.selectedDutyDate) {
       this.selectedDutyDate = new Date().toISOString().split('T')[0];
     }
@@ -2505,11 +2508,17 @@ window.App = {
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <h3 class="font-black text-white text-lg sm:text-xl">Günün Görevlileri Yönetimi</h3>
-                <span class="px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-black text-[10px] uppercase tracking-wider">Canlı Pano</span>
+                <h3 class="font-black text-white text-lg sm:text-xl">
+                  ${isAdmin ? 'Günün Görevlileri Yönetimi' : 'Günün Görevlileri'}
+                </h3>
+                <span class="px-2 py-0.5 rounded-lg ${isAdmin ? 'bg-amber-500 text-slate-950' : 'bg-blue-500 text-white'} font-black text-[10px] uppercase tracking-wider flex items-center gap-1">
+                  <span>${isAdmin ? '👑 YÖNETİCİ ATAMA PANELİ' : '👁️ GÖREVLİ LİSTESİ'}</span>
+                </span>
               </div>
               <p class="text-xs text-amber-200/80 mt-0.5">
-                ${dateFormatted} • Yemekhane nöbetçileri ve vakit müezzini seçimi
+                ${isAdmin 
+                  ? `${dateFormatted} • Yemekhane nöbetçileri ve vakit müezzinini atayınız; TV panosu ve hocalar anında canlı görsün.`
+                  : `${dateFormatted} • Kurum Yöneticisi tarafından belirlenen günün nöbetçileri`}
               </p>
             </div>
           </div>
@@ -2530,6 +2539,16 @@ window.App = {
           </div>
         </div>
 
+        <!-- Diğer Hocalar İçin Bilgilendirme Rozeti -->
+        ${!isAdmin ? `
+          <div class="p-3.5 bg-blue-50/90 border border-blue-200 rounded-2xl flex items-center gap-3 text-xs text-blue-900 shadow-2xs">
+            <span class="text-xl shrink-0">ℹ️</span>
+            <div class="leading-relaxed">
+              <strong>Bilgilendirme:</strong> Günün görevlileri (yemekhane nöbetçileri ve vakit müezzini) yalnızca <strong>Kurum Yöneticisi</strong> tarafından atanmaktadır. Bu ekranda belirlenen görevlileri canlı olarak görüntülemektesiniz.
+            </div>
+          </div>
+        ` : ''}
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           
           <!-- 🍽️ 1. GÜNÜN YEMEKÇİLERİ KARTI -->
@@ -2542,52 +2561,58 @@ window.App = {
                   </div>
                   <div>
                     <h4 class="font-bold text-slate-900 text-base">Günün Yemekçileri</h4>
-                    <p class="text-xs text-slate-500">Mutfak ve sofra görevlileri (${currentYemekciler.length} seçildi)</p>
+                    <p class="text-xs text-slate-500">Mutfak ve sofra görevlileri (${currentYemekciler.length} ${isAdmin ? 'seçildi' : 'görevli'})</p>
                   </div>
                 </div>
               </div>
 
-              <!-- Hızlı Talebe Ekleme Formu -->
-              <div class="space-y-3 mb-4">
-                <label class="block text-[11px] font-bold text-slate-600 uppercase">
-                  TALEBE SEÇİP EKLEYİNİZ
-                </label>
-                <div class="flex items-center gap-2">
-                  <select id="duty-yemekci-select" 
-                    class="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:bg-white focus:border-amber-500">
-                    <option value="">-- Talebe Seçiniz --</option>
-                    ${students.map(s => `
-                      <option value="${s.firstName} ${s.lastName} (${s.className})">
-                        ${s.firstName} ${s.lastName} (${s.className} • No: ${s.studentNo})
-                      </option>
-                    `).join('')}
-                  </select>
-                  <button type="button" onclick="window.App.addYemekciFromSelect()"
-                    class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl shadow transition cursor-pointer">
-                    + Ekle
-                  </button>
-                </div>
+              ${isAdmin ? `
+                <!-- YALNIZCA YÖNETİCİ: Hızlı Talebe Ekleme Formu -->
+                <div class="space-y-3 mb-4">
+                  <label class="block text-[11px] font-bold text-slate-600 uppercase">
+                    TALEBE SEÇİP EKLEYİNİZ
+                  </label>
+                  <div class="flex items-center gap-2">
+                    <select id="duty-yemekci-select" 
+                      class="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:bg-white focus:border-amber-500">
+                      <option value="">-- Talebe Seçiniz --</option>
+                      ${students.map(s => `
+                        <option value="${s.firstName} ${s.lastName} (${s.className})">
+                          ${s.firstName} ${s.lastName} (${s.className} • No: ${s.studentNo})
+                        </option>
+                      `).join('')}
+                    </select>
+                    <button type="button" onclick="window.App.addYemekciFromSelect()"
+                      class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl shadow transition cursor-pointer">
+                      + Ekle
+                    </button>
+                  </div>
 
-                <!-- Manuel İsim Girişi Alternatifi -->
-                <div class="flex items-center gap-2 pt-1">
-                  <input type="text" id="duty-yemekci-custom-text" placeholder="Veya manuel isim yazınız..."
-                    onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.App.addYemekciFromCustomText(); }"
-                    class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
-                  <button type="button" onclick="window.App.addYemekciFromCustomText()"
-                    class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition cursor-pointer">
-                    Ekle
-                  </button>
+                  <!-- Manuel İsim Girişi Alternatifi -->
+                  <div class="flex items-center gap-2 pt-1">
+                    <input type="text" id="duty-yemekci-custom-text" placeholder="Veya manuel isim yazınız..."
+                      onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.App.addYemekciFromCustomText(); }"
+                      class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
+                    <button type="button" onclick="window.App.addYemekciFromCustomText()"
+                      class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition cursor-pointer">
+                      Ekle
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ` : ''}
 
-              <!-- Seçilen Yemekçiler Listesi -->
+              <!-- Yemekçiler Listesi -->
               <div class="space-y-2">
                 <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   NÖBETÇİ LİSTESİ (${currentYemekciler.length})
                 </div>
                 ${currentYemekciler.length === 0 ? `
-                  <div class="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
-                    Henüz yemekçi atanmadı. Yukarıdan talebe seçip "+ Ekle" butonuna basınız.
+                  <div class="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400 space-y-1">
+                    <div class="text-2xl mb-1">🍽️</div>
+                    <div class="font-bold text-slate-700">Henüz yemekhane nöbetçisi atanmadı.</div>
+                    <div class="text-[11px] text-slate-400">
+                      ${isAdmin ? 'Yukarıdan talebe seçip "+ Ekle" butonuna basınız.' : 'Kurum Yöneticisi tarafından görev atandığında burada listelenecektir.'}
+                    </div>
                   </div>
                 ` : `
                   <div class="space-y-1.5">
@@ -2599,11 +2624,17 @@ window.App = {
                           </span>
                           <span class="font-bold text-xs text-amber-950">${name}</span>
                         </div>
-                        <button type="button" onclick="window.App.removeYemekciAtIndex(${idx})"
-                          class="w-6 h-6 rounded-lg bg-white hover:bg-rose-50 text-rose-500 hover:text-rose-700 border border-rose-200 text-xs font-bold transition flex items-center justify-center cursor-pointer"
-                          title="Listeden Çıkar">
-                          ✕
-                        </button>
+                        ${isAdmin ? `
+                          <button type="button" onclick="window.App.removeYemekciAtIndex(${idx})"
+                            class="w-6 h-6 rounded-lg bg-white hover:bg-rose-50 text-rose-500 hover:text-rose-700 border border-rose-200 text-xs font-bold transition flex items-center justify-center cursor-pointer"
+                            title="Listeden Çıkar">
+                            ✕
+                          </button>
+                        ` : `
+                          <span class="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[10px]">
+                            🍽️ Görevli
+                          </span>
+                        `}
                       </div>
                     `).join('')}
                   </div>
@@ -2613,7 +2644,7 @@ window.App = {
 
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
               <span>TV Panosunda "Günün Yemekçileri" slaytında görünür</span>
-              ${currentYemekciler.length > 0 ? `
+              ${(isAdmin && currentYemekciler.length > 0) ? `
                 <button type="button" onclick="window.App.clearAllYemekciler()" class="text-rose-500 hover:underline cursor-pointer">
                   Tümünü Temizle
                 </button>
@@ -2636,37 +2667,39 @@ window.App = {
                 </div>
               </div>
 
-              <!-- Müezzin Seçici -->
-              <div class="space-y-3 mb-6">
-                <label class="block text-[11px] font-bold text-slate-600 uppercase">
-                  MÜEZZİN TALEBEYİ SEÇİNİZ
-                </label>
-                <select id="duty-muezzin-select" 
-                  onchange="window.App.draftDutyMuezzin = this.value; window.App.renderDailyDutiesView();"
-                  class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-500">
-                  <option value="">-- Müezzin Talebeyi Seçiniz --</option>
-                  ${students.map(s => {
-                    const fullName = `${s.firstName} ${s.lastName} (${s.className})`;
-                    const isSelected = currentMuezzin.startsWith(`${s.firstName} ${s.lastName}`);
-                    return `
-                      <option value="${fullName}" ${isSelected ? 'selected' : ''}>
-                        ${s.firstName} ${s.lastName} (${s.className} • No: ${s.studentNo})
-                      </option>
-                    `;
-                  }).join('')}
-                </select>
+              ${isAdmin ? `
+                <!-- YALNIZCA YÖNETİCİ: Müezzin Seçici -->
+                <div class="space-y-3 mb-6">
+                  <label class="block text-[11px] font-bold text-slate-600 uppercase">
+                    MÜEZZİN TALEBEYİ SEÇİNİZ
+                  </label>
+                  <select id="duty-muezzin-select" 
+                    onchange="window.App.draftDutyMuezzin = this.value; window.App.renderDailyDutiesView();"
+                    class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-500">
+                    <option value="">-- Müezzin Talebeyi Seçiniz --</option>
+                    ${students.map(s => {
+                      const fullName = `${s.firstName} ${s.lastName} (${s.className})`;
+                      const isSelected = currentMuezzin.startsWith(`${s.firstName} ${s.lastName}`);
+                      return `
+                        <option value="${fullName}" ${isSelected ? 'selected' : ''}>
+                          ${s.firstName} ${s.lastName} (${s.className} • No: ${s.studentNo})
+                        </option>
+                      `;
+                    }).join('')}
+                  </select>
 
-                <!-- Manuel Müezzin Girişi Alternatifi -->
-                <div class="flex items-center gap-2 pt-1">
-                  <input type="text" id="duty-muezzin-custom-text" placeholder="Veya manuel isim yazınız..."
-                    value="${currentMuezzin && !students.some(s => currentMuezzin.startsWith(`${s.firstName} ${s.lastName}`)) ? currentMuezzin : ''}"
-                    onchange="window.App.draftDutyMuezzin = this.value.trim(); window.App.renderDailyDutiesView();"
-                    onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.App.draftDutyMuezzin = this.value.trim(); window.App.renderDailyDutiesView(); }"
-                    class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
+                  <!-- Manuel Müezzin Girişi Alternatifi -->
+                  <div class="flex items-center gap-2 pt-1">
+                    <input type="text" id="duty-muezzin-custom-text" placeholder="Veya manuel isim yazınız..."
+                      value="${currentMuezzin && !students.some(s => currentMuezzin.startsWith(`${s.firstName} ${s.lastName}`)) ? currentMuezzin : ''}"
+                      onchange="window.App.draftDutyMuezzin = this.value.trim(); window.App.renderDailyDutiesView();"
+                      onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.App.draftDutyMuezzin = this.value.trim(); window.App.renderDailyDutiesView(); }"
+                      class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
+                  </div>
                 </div>
-              </div>
+              ` : ''}
 
-              <!-- Seçili Müezzin Rozeti -->
+              <!-- Müezzin Durum Rozeti -->
               <div class="p-5 bg-gradient-to-tr from-indigo-50 via-purple-50 to-slate-50 rounded-2xl border-2 border-indigo-200 text-center">
                 <div class="text-3xl mb-1">🕌</div>
                 <div class="text-[10px] font-black uppercase text-indigo-700 tracking-wider">GÜNÜN MÜEZZİNİ</div>
@@ -2675,17 +2708,22 @@ window.App = {
                     ${currentMuezzin}
                   </h4>
                   <div class="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
-                    <span>🟢</span> <span>Görev Atandı</span>
+                    <span>🟢</span> <span>5 Vakit Ezan & Cemaat Görevi Atandı</span>
                   </div>
-                  <div class="mt-3">
-                    <button type="button" onclick="window.App.draftDutyMuezzin = ''; window.App.renderDailyDutiesView();"
-                      class="text-xs text-rose-600 hover:underline font-bold cursor-pointer">
-                      Görevi Kaldır
-                    </button>
-                  </div>
+                  ${isAdmin ? `
+                    <div class="mt-3">
+                      <button type="button" onclick="window.App.draftDutyMuezzin = ''; window.App.renderDailyDutiesView();"
+                        class="text-xs text-rose-600 hover:underline font-bold cursor-pointer">
+                        Görevi Kaldır
+                      </button>
+                    </div>
+                  ` : ''}
                 ` : `
-                  <div class="text-xs text-slate-400 font-bold mt-1">
+                  <div class="text-xs text-slate-500 font-bold mt-1">
                     Henüz atanmadı
+                  </div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">
+                    ${isAdmin ? 'Yukarıdan müezzin seçimi yapınız' : 'Yönetici tarafından atandığında burada görüntülenecektir'}
                   </div>
                 `}
               </div>
@@ -2699,33 +2737,64 @@ window.App = {
         </div>
 
         <!-- 📌 GÜNÜN ÖZEL DUYURUSU / NOTU -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-3">
-          <label class="block text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
-            <span>📌</span> <span>GÜNÜN DUYURUSU VEYA ÖZEL NOTU (İSTEĞE BAĞLI)</span>
-          </label>
-          <input type="text" id="duty-note-input"
-            value="${currentNote}"
-            oninput="window.App.draftDutyNote = this.value;"
-            placeholder="Örn: Bugün öğle yemeği 12:45'te başlayacaktır. Akşam ikramı yemekhanededir."
-            class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-amber-500">
-          <p class="text-[11px] text-slate-400">
-            Bu not TV Panosunda Görevliler slaytının altında özel kutucuk olarak yayınlanır.
-          </p>
-        </div>
-
-        <!-- KAYDET VE TV PANOSUNA GÖNDER BUTONU -->
-        <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-900 text-white p-5 rounded-3xl shadow-xl">
-          <div class="text-xs">
-            <span class="font-black text-amber-400">Canlı Senkronizasyon:</span>
-            <span class="text-slate-300 ml-1">Kaydettiğiniz anda TV Panosu ve tüm açık cihazlar anında güncellenir.</span>
+        ${isAdmin ? `
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-3">
+            <label class="block text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+              <span>📌</span> <span>GÜNÜN DUYURUSU VEYA ÖZEL NOTU (İSTEĞE BAĞLI)</span>
+            </label>
+            <input type="text" id="duty-note-input"
+              value="${currentNote}"
+              oninput="window.App.draftDutyNote = this.value;"
+              placeholder="Örn: Bugün öğle yemeği 12:45'te başlayacaktır. Akşam ikramı yemekhanededir."
+              class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-amber-500">
+            <p class="text-[11px] text-slate-400">
+              Bu not TV Panosunda Görevliler slaytının altında özel kutucuk olarak yayınlanır.
+            </p>
           </div>
+        ` : (currentNote ? `
+          <div class="bg-amber-50/70 border border-amber-200 rounded-3xl p-5 sm:p-6 space-y-2">
+            <div class="text-xs font-black text-amber-900 uppercase flex items-center gap-1.5">
+              <span>📌</span> <span>GÜNÜN DUYURUSU & NOTU</span>
+            </div>
+            <div class="p-4 bg-white rounded-2xl border border-amber-200 text-xs sm:text-sm text-slate-800 font-semibold leading-relaxed shadow-2xs">
+              ${currentNote}
+            </div>
+          </div>
+        ` : `
+          <div class="bg-white rounded-3xl border border-slate-200 p-4 text-center text-xs text-slate-400">
+            <span>📌 Bugün için iletilen özel bir görevli duyurusu bulunmamaktadır.</span>
+          </div>
+        `)}
 
-          <button type="button" onclick="window.App.saveDailyDutiesSubmit()"
-            class="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer text-sm">
-            <span>💾</span>
-            <span>Görevlileri Kaydet ve TV Panosuna Gönder</span>
-          </button>
-        </div>
+        <!-- ALT BUTON / BİLGİLENDİRME BARI -->
+        ${isAdmin ? `
+          <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-900 text-white p-5 rounded-3xl shadow-xl">
+            <div class="text-xs">
+              <span class="font-black text-amber-400">Canlı Senkronizasyon:</span>
+              <span class="text-slate-300 ml-1">Kaydettiğiniz anda TV Panosu ve tüm hocaların ekranı anında güncellenir.</span>
+            </div>
+
+            <button type="button" onclick="window.App.saveDailyDutiesSubmit()"
+              class="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer text-sm">
+              <span>💾</span>
+              <span>Görevlileri Kaydet ve TV Panosuna Gönder</span>
+            </button>
+          </div>
+        ` : `
+          <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-900 text-white p-4 sm:p-5 rounded-3xl shadow-xl">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl">📺</span>
+              <div class="text-xs">
+                <div class="font-black text-amber-400">Canlı Koridor Panosu Senkronizasyonu</div>
+                <div class="text-slate-300 text-[11px]">Görevli talebeler koridordaki TV ekranında ve panoda otomatik yayınlanmaktadır.</div>
+              </div>
+            </div>
+            <a href="pano.html" target="_blank"
+              class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs border border-amber-500/40 shadow transition flex items-center gap-1.5 cursor-pointer">
+              <span>📺 Canlı TV Panosunda Gör ↗</span>
+            </a>
+          </div>
+        `}
 
       </div>
     `;
@@ -2741,6 +2810,13 @@ window.App = {
   },
 
   addYemekciFromSelect() {
+    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
+      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
+    if (!isAdmin) {
+      this.showToast('Günün görevlilerini atama ve değiştirme yetkisi yalnızca Kurum Yöneticisine aittir.', 'warning');
+      return;
+    }
+
     const sel = document.getElementById('duty-yemekci-select');
     if (!sel || !sel.value) {
       this.showToast('Lütfen listeden bir talebe seçiniz.', 'warning');
@@ -2760,6 +2836,13 @@ window.App = {
   },
 
   addYemekciFromCustomText() {
+    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
+      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
+    if (!isAdmin) {
+      this.showToast('Günün görevlilerini atama ve değiştirme yetkisi yalnızca Kurum Yöneticisine aittir.', 'warning');
+      return;
+    }
+
     const input = document.getElementById('duty-yemekci-custom-text');
     if (!input || !input.value.trim()) return;
     const val = input.value.trim();
@@ -2776,6 +2859,13 @@ window.App = {
   },
 
   removeYemekciAtIndex(idx) {
+    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
+      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
+    if (!isAdmin) {
+      this.showToast('Günün görevlilerini atama ve değiştirme yetkisi yalnızca Kurum Yöneticisine aittir.', 'warning');
+      return;
+    }
+
     if (Array.isArray(this.draftDutyYemekciler)) {
       this.draftDutyYemekciler.splice(idx, 1);
       this.renderDailyDutiesView();
@@ -2783,11 +2873,25 @@ window.App = {
   },
 
   clearAllYemekciler() {
+    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
+      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
+    if (!isAdmin) {
+      this.showToast('Günün görevlilerini atama ve değiştirme yetkisi yalnızca Kurum Yöneticisine aittir.', 'warning');
+      return;
+    }
+
     this.draftDutyYemekciler = [];
     this.renderDailyDutiesView();
   },
 
   saveDailyDutiesSubmit() {
+    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
+      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
+    if (!isAdmin) {
+      this.showToast('Günün görevlilerini atama ve kaydetme yetkisi yalnızca Kurum Yöneticisine aittir.', 'warning');
+      return;
+    }
+
     const noteInput = document.getElementById('duty-note-input');
     const note = noteInput ? noteInput.value.trim() : (this.draftDutyNote || '');
     const date = this.selectedDutyDate || new Date().toISOString().split('T')[0];
@@ -2807,7 +2911,7 @@ window.App = {
       if (res && res.success) {
         this.showToast(`✓ ${date} tarihli görevliler başarıyla kaydedildi ve TV panosuna iletildi!`, 'success');
       } else {
-        this.showToast('Görevliler kaydedildi.', 'success');
+        this.showToast(res.message || 'Görevliler kaydedildi.', 'success');
       }
     }
     this.renderDailyDutiesView();

@@ -4066,6 +4066,9 @@ class DataStore {
   }
 
   saveDailyDuties(duties) {
+    if (!this.isCurrentUserAdmin()) {
+      return { success: false, message: 'Günün görevlilerini yalnızca Kurum Yöneticisi atayabilir ve kaydedebilir.' };
+    }
     const today = (duties && duties.date) || new Date().toISOString().split('T')[0];
     const dutyData = {
       date: today,
