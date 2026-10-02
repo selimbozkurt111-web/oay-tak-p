@@ -42,6 +42,27 @@ window.App = {
     window.addEventListener('cloud-sync-done', () => {
       this.renderHeader();
       if (this.currentSession) {
+        // 1. KULLANICI ŞU ANDA HERHANGİ BİR KUTUYA NOT/YAZI GİRİYORSA EKRANI ASLA YENİDEN ÇİZME!
+        const isInputFocused = document.activeElement && 
+          (document.activeElement.tagName === 'INPUT' || 
+           document.activeElement.tagName === 'TEXTAREA' || 
+           document.activeElement.tagName === 'SELECT');
+        if (isInputFocused) {
+          return; // Klavyenin kapanmasını ve ekranın başa zıplamasını %100 engeller
+        }
+
+        // 2. Takviye Notları, Test Neticeleri, Canlı Excel ve Ayarlar kendi durumunu yönetir;
+        // Arka plan senkronizasyonu bu ekranların DOM'unu ve odağını ASLA ezmemelidir!
+        if (
+          this.activeTab === 'performans' || 
+          this.activeTab === 'akademi' || 
+          this.activeTab === 'test_results' || 
+          this.activeTab === 'ogrenciler_excel' || 
+          this.activeTab === 'ayarlar'
+        ) {
+          return;
+        }
+
         if (this.activeTab === 'izin_donusu' && window.LeaveReturnModule) {
           if (typeof window.LeaveReturnModule.refreshSettings === 'function') {
             window.LeaveReturnModule.refreshSettings();
@@ -56,7 +77,7 @@ window.App = {
           this.draftDutyMuezzin = null;
           this.draftDutyNote = null;
           this.renderDailyDutiesView();
-        } else if (this.activeTab !== 'ogrenciler_excel' && this.activeTab !== 'ayarlar') {
+        } else {
           this.renderMainContent();
         }
       }

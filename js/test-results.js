@@ -173,8 +173,15 @@ window.TestResultsModule = {
         return (a.firstName || '').localeCompare(b.firstName || '', 'tr');
       });
     } else {
-      // İsim Sırası
-      students.sort((a, b) => (a.firstName || '').localeCompare(b.firstName || '', 'tr'));
+      // SABİT LİSTE SIRASI: Sınıf -> Okul No -> İsim (Hoca sırala demediği sürece asla yer değiştirmez)
+      students.sort((a, b) => {
+        const clsComp = (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true });
+        if (clsComp !== 0) return clsComp;
+        const noA = parseInt(a.studentNo, 10) || 0;
+        const noB = parseInt(b.studentNo, 10) || 0;
+        if (noA !== 0 && noB !== 0 && noA !== noB) return noA - noB;
+        return (a.firstName || '').localeCompare(b.firstName || '', 'tr');
+      });
     }
 
     return students;
@@ -244,13 +251,14 @@ window.TestResultsModule = {
       scoreEl.className = `inline-block px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-xs border shadow-2xs transition-all ${this.getScoreBadgeClass(updated.score)}`;
     }
 
-    // Input değerini clamp edilmiş haliyle düzelt
+    // Input değerini sadece odaklanılmamış kutuda ve sınır aşımı varsa düzelt (yazarken imleci ASLA bozma)
+    const activeEl = document.activeElement;
     const cInput = document.getElementById(`input-c-${studentId}`);
-    if (cInput && parseInt(cInput.value, 10) !== updated.correct) {
+    if (cInput && cInput !== activeEl && cInput.value !== '' && parseInt(cInput.value, 10) !== updated.correct) {
       cInput.value = updated.correct;
     }
     const wInput = document.getElementById(`input-w-${studentId}`);
-    if (wInput && parseInt(wInput.value, 10) !== updated.wrong) {
+    if (wInput && wInput !== activeEl && wInput.value !== '' && parseInt(wInput.value, 10) !== updated.wrong) {
       wInput.value = updated.wrong;
     }
 
@@ -260,7 +268,15 @@ window.TestResultsModule = {
   // Giriş tamamlanıp kutudan çıkıldığında (blur)
   handleInputBlur(studentId) {
     if (studentId) {
-      this.calculateRow(studentId);
+      const updated = this.calculateRow(studentId);
+      const cInput = document.getElementById(`input-c-${studentId}`);
+      if (cInput && cInput.value !== '') {
+        cInput.value = updated.correct;
+      }
+      const wInput = document.getElementById(`input-w-${studentId}`);
+      if (wInput && wInput.value !== '') {
+        wInput.value = updated.wrong;
+      }
     }
     this.updateSummaryCounters();
     // NOT: Kullanıcı kutudan çıktığında sayfayı ASLA yeniden çizme!
@@ -517,7 +533,7 @@ window.TestResultsModule = {
                   ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
                   : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
               }">
-              <span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '🔤 İsim Sıralı'}</span>
+              <span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '📋 Sabit Liste Sırası'}</span>
             </button>
           </div>
 

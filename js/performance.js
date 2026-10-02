@@ -299,7 +299,7 @@ window.AkademiModule = {
     this.sortBy = this.sortBy === 'score_desc' ? 'name' : 'score_desc';
     const btn = document.getElementById('btn-matrix-sort');
     if (btn) {
-      btn.innerHTML = `<span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '🔤 İsim Sıralı'}</span>`;
+      btn.innerHTML = `<span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '📋 Sabit Liste Sırası'}</span>`;
       btn.className = `px-2.5 py-1 rounded-xl text-[11px] font-black transition flex items-center gap-1 border shadow-2xs ${
         this.sortBy === 'score_desc' 
           ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
@@ -475,8 +475,15 @@ window.AkademiModule = {
         return (a.firstName || '').localeCompare(b.firstName || '', 'tr');
       });
     } else {
-      // İsim Alfabetik Sıra
-      students.sort((a, b) => (a.firstName || '').localeCompare(b.firstName || '', 'tr'));
+      // SABİT LİSTE SIRASI: Sınıf -> Okul No -> İsim (Hoca sırala demediği sürece asla yer değiştirmez)
+      students.sort((a, b) => {
+        const clsComp = (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true });
+        if (clsComp !== 0) return clsComp;
+        const noA = parseInt(a.studentNo, 10) || 0;
+        const noB = parseInt(b.studentNo, 10) || 0;
+        if (noA !== 0 && noB !== 0 && noA !== noB) return noA - noB;
+        return (a.firstName || '').localeCompare(b.firstName || '', 'tr');
+      });
     }
 
     return students;
@@ -594,7 +601,7 @@ window.AkademiModule = {
                   ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
                   : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
               }">
-              <span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '🔤 İsim Sıralı'}</span>
+              <span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '📋 Sabit Liste Sırası'}</span>
             </button>
           </div>
 
