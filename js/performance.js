@@ -552,10 +552,10 @@ window.AkademiModule = {
             </div>
           </div>
 
-          <!-- Renk Skalası Kılavuzu (Legend) -->
+          <!-- Renk Kuralı Kılavuzu -->
           <div class="flex flex-wrap items-center justify-between gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 text-xs">
             <span class="font-black text-slate-700 text-[10px] sm:text-[11px] uppercase tracking-wide flex items-center gap-1">
-              <span>🎨</span> Kural:
+              <span>🎨</span> Renk Skalası:
             </span>
             <div class="flex flex-wrap items-center gap-1 sm:gap-1.5 text-[10px] sm:text-[11px]">
               <span class="px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 font-black">
@@ -850,8 +850,12 @@ window.AkademiModule = {
 
   // --- HÜCREYE NOT YAZILDIĞINDA ANINDA CANLI HESAPLAMA & KAYIT ---
   handleMatrixInput(studentId, subjectKey, value) {
-    const cleanVal = (value || '').toString().trim();
-    const num = (cleanVal === '' || isNaN(cleanVal)) ? null : Math.min(100, Math.max(0, parseInt(cleanVal, 10)));
+    let cleanVal = (value || '').toString().trim();
+    let num = (cleanVal === '' || isNaN(cleanVal)) ? null : parseInt(cleanVal, 10);
+
+    if (num !== null) {
+      num = Math.min(100, Math.max(0, num));
+    }
 
     // 1. Hücrenin renk ve stilini anında güncelle (85 altı kırmızı, 85-100 yeşile geçiş, 100 tam yeşil)
     const cell = document.getElementById(`cell-${studentId}-${subjectKey}`);
@@ -897,18 +901,19 @@ window.AkademiModule = {
   },
 
   handleMatrixBlur(studentId, subjectKey, value) {
-    const cleanVal = (value || '').toString().trim();
-    const num = (cleanVal === '' || isNaN(cleanVal)) ? null : Math.min(100, Math.max(0, parseInt(cleanVal, 10)));
+    let cleanVal = (value || '').toString().trim();
+    let num = (cleanVal === '' || isNaN(cleanVal)) ? null : parseInt(cleanVal, 10);
+
+    if (num !== null) {
+      num = Math.min(100, Math.max(0, num));
+    }
+
     window.Store.saveSingleAcademicScore(
       studentId,
       this.currentDate,
       subjectKey,
       num
     );
-    const cell = document.getElementById(`cell-${studentId}-${subjectKey}`);
-    if (cell && num !== null) {
-      cell.value = num;
-    }
     // NOT: Kullanıcı kutudan çıktığında tabloyu ASLA otomatik yeniden çizme!
     // Bu sayede imleç yerinde kalır, sayfa başa/sona zıplamaz ve mobil klavye kapanmaz.
   },

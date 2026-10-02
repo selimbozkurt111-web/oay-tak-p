@@ -558,13 +558,9 @@ window.App = {
           </div>
         ` : ''}
 
-        <!-- 5. GÜNÜN GÖREVLİLERİ & YÖNETİCİ BUTONLARI -->
+        <!-- 5. YÖNETİCİ HIZLI ERİŞİM BUTONLARI -->
         ${session.role !== 'parent' ? `
           <div class="flex-shrink-0 ml-auto flex items-center gap-1.5">
-            <button onclick="window.App.setTab('gorevler')" 
-              class="px-2.5 sm:px-3 py-1.5 rounded-xl ${this.activeTab === 'gorevler' ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300 font-black' : 'bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold border border-amber-500/40'} text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm">
-              <span>🎯 Günün Görevlileri</span>
-            </button>
             ${(session.role === 'superadmin' || session.canEditStudents) ? `
               <button onclick="window.App.setTab('ogrenciler')" 
                 class="px-3 py-1.5 rounded-xl ${this.activeTab === 'ogrenciler' ? 'bg-emerald-900 ring-2 ring-emerald-400 text-white font-black' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-black'} text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm">
@@ -762,20 +758,20 @@ window.App = {
           <button type="button" onclick="window.App.navigateFromDrawer('gorevler')"
             class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
               this.activeTab === 'gorevler'
-                ? 'bg-amber-50 text-amber-900 font-black border border-amber-200 shadow-sm'
-                : 'text-slate-700 hover:bg-slate-50 font-bold'
+                ? 'bg-amber-100 text-amber-950 font-black border border-amber-300 shadow-sm'
+                : 'text-slate-700 hover:bg-amber-50/50 font-bold'
             }">
             <div class="flex items-center gap-3">
               <span class="text-xl">🎯</span>
               <div>
-                <div class="text-xs font-black flex items-center gap-1.5">
+                <div class="text-xs font-black text-amber-900 flex items-center gap-1.5">
                   <span>Günün Görevlileri</span>
-                  <span class="text-[9px] bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded font-black tracking-wider uppercase">Pano</span>
+                  <span class="text-[9px] bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Pano & TV</span>
                 </div>
-                <div class="text-[10px] text-slate-400 font-medium">Günün Yemekçileri & Müezzini Seçimi</div>
+                <div class="text-[10px] text-slate-500 font-medium">Yemekhane nöbetçileri ve vakit müezzini atama</div>
               </div>
             </div>
-            <span class="text-slate-300">→</span>
+            <span class="text-amber-600 font-bold">→</span>
           </button>
         </div>
 
@@ -863,25 +859,6 @@ window.App = {
             <span class="text-amber-600 font-bold">→</span>
           </button>
 
-          <!-- Günün Görevlileri (Yemekçi & Müezzin) -->
-          <button type="button" onclick="window.App.navigateFromDrawer('gorevler')"
-            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
-              this.activeTab === 'gorevler'
-                ? 'bg-amber-100 text-amber-950 font-black border border-amber-300 shadow-sm'
-                : 'text-slate-700 hover:bg-amber-50/60 font-bold'
-            }">
-            <div class="flex items-center gap-3">
-              <span class="text-xl">🎯</span>
-              <div>
-                <div class="text-xs font-black text-amber-900 flex items-center gap-1.5">
-                  <span>Günün Görevlileri</span>
-                  <span class="text-[9px] bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Canlı TV</span>
-                </div>
-                <div class="text-[10px] text-slate-500 font-medium">Yemekhane nöbetçileri ve vakit müezzini atama</div>
-              </div>
-            </div>
-            <span class="text-amber-600 font-bold">→</span>
-          </button>
 
           <!-- Canlı TV / Koridor Panosu (Sadece Kurum Yöneticisine Özel) -->
           ${(session && (session.role === 'superadmin' || session.canManageStaff)) ? `
