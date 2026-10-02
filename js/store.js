@@ -950,20 +950,53 @@ class DataStore {
       }
     }
 
-    // 13. Kur'an-ı Kerim & Hatim Takibi (Akıllı birleştirme: En güncel updatedAt kazanır)
-    if (cloudData.quranTracker && typeof cloudData.quranTracker === 'object') {
+    // 13. Kur'an-ı Kerim & Hatim Takibi (Akıllı ve güvenli birleştirme: Gerçek veri default veriyi her zaman ezer!)
+    const cloudQuran = cloudData.quranTracker || cloudData.quran_tracker;
+    if (cloudQuran && typeof cloudQuran === 'object') {
       const localQuran = this.getAllQuranRecords();
       const mergedQuran = { ...localQuran };
       const currentStudents = this.getStudents(false);
       const studentMap = {};
       currentStudents.forEach(s => { if (s && s.id) studentMap[s.id] = s; });
 
-      Object.keys(cloudData.quranTracker).forEach(stId => {
-        const cloudRec = cloudData.quranTracker[stId];
+      let localHasHigherData = false;
+
+      Object.keys(cloudQuran).forEach(stId => {
+        const cloudRec = cloudQuran[stId];
         const localRec = mergedQuran[stId];
-        if (!localRec || !localRec.updatedAt || (cloudRec && cloudRec.updatedAt && new Date(cloudRec.updatedAt) >= new Date(localRec.updatedAt))) {
-          mergedQuran[stId] = { ...(cloudRec || {}) };
+        if (!cloudRec) return;
+
+        const cloudIsReal = (Number(cloudRec.currentPage) > 1) || (Number(cloudRec.hatimCount) > 0) || (Array.isArray(cloudRec.history) && cloudRec.history.length > 0);
+        const localIsReal = localRec && ((Number(localRec.currentPage) > 1) || (Number(localRec.hatimCount) > 0) || (Array.isArray(localRec.history) && localRec.history.length > 0));
+
+        if (cloudIsReal && !localIsReal) {
+          // Bulutta gerçek veri var, yerelde yok/1 -> Buluttaki gerçek veriyi al
+          mergedQuran[stId] = { ...cloudRec };
+        } else if (localIsReal && !cloudIsReal) {
+          // Yerelde gerçek okuma verisi var, bulutta sadece boş 1 var -> YEREL KORUNUR! Bulutun 1'i yereli ASLA EZEMEZ!
+          localHasHigherData = true;
+        } else if (localIsReal && cloudIsReal) {
+          // Her ikisinde de veri varsa: Daha ilerideki sayfayı veya en yeni kaydı al
+          const cPage = Number(cloudRec.currentPage) || 0;
+          const lPage = Number(localRec.currentPage) || 0;
+          const cHatim = Number(cloudRec.hatimCount) || 0;
+          const lHatim = Number(localRec.hatimCount) || 0;
+          const cTotal = cHatim * 604 + cPage;
+          const lTotal = lHatim * 604 + lPage;
+
+          if (cTotal > lTotal) {
+            mergedQuran[stId] = { ...cloudRec };
+          } else if (lTotal > cTotal) {
+            localHasHigherData = true;
+          } else {
+            if (cloudRec.updatedAt && (!localRec.updatedAt || new Date(cloudRec.updatedAt) >= new Date(localRec.updatedAt))) {
+              mergedQuran[stId] = { ...cloudRec };
+            }
+          }
+        } else {
+          if (!localRec) mergedQuran[stId] = { ...cloudRec };
         }
+
         // Buluttan gelen kayıtta diniGrup bozuksa veya 'Seviye'/'Genel' ise öğrencinin dahiliHoca'sı ile düzelt
         if (mergedQuran[stId]) {
           const curG = (mergedQuran[stId].diniGrup || '').trim();
@@ -974,7 +1007,16 @@ class DataStore {
           }
         }
       });
+
       localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(mergedQuran));
+      try { localStorage.setItem('yoklama_quran_tracker_backup_v1', JSON.stringify(mergedQuran)); } catch (e) {}
+
+      // Eğer cihazda buluttan daha ileri okuma verisi varsa bulutu otomatik iyileştir (heal cloud)
+      if (localHasHigherData && this.isCloudEnabled()) {
+        console.log('[CloudHealing] Yereldeki gerçek Kur\'an sayfaları buluta otomatik kurtarıldı/aktarıldı.');
+        this.syncToCloud('kurs_data/quranTracker', mergedQuran);
+      }
+
       window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: mergedQuran }));
     }
 
@@ -1118,18 +1160,44 @@ class DataStore {
     try {
       const parts = path.split('/');
       const all = this.getAllQuranRecords();
+      let hasChange = false;
+
       if (parts.length === 2) {
         const studentId = parts[1];
         if (data === null) {
           delete all[studentId];
+          hasChange = true;
         } else {
-          all[studentId] = data;
+          const existing = all[studentId];
+          const incomingIsReal = (Number(data.currentPage) > 1) || (Number(data.hatimCount) > 0) || (Array.isArray(data.history) && data.history.length > 0);
+          const existingIsReal = existing && ((Number(existing.currentPage) > 1) || (Number(existing.hatimCount) > 0) || (Array.isArray(existing.history) && existing.history.length > 0));
+
+          if (incomingIsReal || !existingIsReal) {
+            all[studentId] = data;
+            hasChange = true;
+          }
         }
-      } else if (parts.length === 1 && typeof data === 'object') {
-        Object.assign(all, data || {});
+      } else if (parts.length === 1 && typeof data === 'object' && data !== null) {
+        Object.keys(data).forEach(stId => {
+          const inc = data[stId];
+          const ext = all[stId];
+          if (!inc) return;
+
+          const incIsReal = (Number(inc.currentPage) > 1) || (Number(inc.hatimCount) > 0) || (Array.isArray(inc.history) && inc.history.length > 0);
+          const extIsReal = ext && ((Number(ext.currentPage) > 1) || (Number(ext.hatimCount) > 0) || (Array.isArray(ext.history) && ext.history.length > 0));
+
+          if (incIsReal || !extIsReal) {
+            all[stId] = inc;
+            hasChange = true;
+          }
+        });
       }
-      localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(all));
-      window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: all }));
+
+      if (hasChange) {
+        localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(all));
+        try { localStorage.setItem('yoklama_quran_tracker_backup_v1', JSON.stringify(all)); } catch (e) {}
+        window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: all }));
+      }
     } catch (e) {
       console.warn('[handleRealtimeQuranTracker] Hata:', e);
     }
@@ -1722,40 +1790,32 @@ class DataStore {
       this.syncToCloud('kurs_data/students', sanitizedStudents);
     }
 
-    // Dini Ders Grupları & Kur'an Takip Senkronizasyonu
+    // Dini Ders Grupları & Kur'an Takip Senkronizasyonu (Yalnızca hoca grubunu günceller, sayfaları asla 1 yapmaz!)
     try {
       const quranRaw = localStorage.getItem(STORAGE_KEYS.QURAN_TRACKER);
-      let quranAll = quranRaw ? JSON.parse(quranRaw) : {};
-      let quranChanged = false;
-      sanitizedStudents.forEach(s => {
-        if (!s || !s.id) return;
-        const targetGroup = (s.dahiliHoca || '').trim() || 'Genel';
-        if (!quranAll[s.id]) {
-          quranAll[s.id] = {
-            studentId: s.id,
-            currentPage: 1,
-            hatimCount: 0,
-            diniGrup: targetGroup,
-            note: '',
-            updatedAt: nowIso,
-            history: []
-          };
-          quranChanged = true;
-        } else {
-          const cur = (quranAll[s.id].diniGrup || '').trim();
-          if (targetGroup && targetGroup !== 'Genel' && cur !== targetGroup) {
-            quranAll[s.id].diniGrup = targetGroup;
-            quranAll[s.id].updatedAt = nowIso;
-            quranChanged = true;
+      if (quranRaw) {
+        let quranAll = JSON.parse(quranRaw);
+        if (quranAll && typeof quranAll === 'object') {
+          let quranChanged = false;
+          sanitizedStudents.forEach(s => {
+            if (!s || !s.id || !quranAll[s.id]) return;
+            const targetGroup = (s.dahiliHoca || '').trim();
+            const cur = (quranAll[s.id].diniGrup || '').trim();
+            if (targetGroup && targetGroup !== 'Genel' && cur !== targetGroup) {
+              quranAll[s.id].diniGrup = targetGroup;
+              quranAll[s.id].updatedAt = nowIso;
+              quranChanged = true;
+              if (this.isCloudEnabled()) {
+                this.syncToCloud(`kurs_data/quranTracker/${s.id}/diniGrup`, targetGroup);
+              }
+            }
+          });
+          if (quranChanged) {
+            localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(quranAll));
+            try { localStorage.setItem('yoklama_quran_tracker_backup_v1', JSON.stringify(quranAll)); } catch (e) {}
+            window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: quranAll }));
           }
         }
-      });
-      if (quranChanged) {
-        localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(quranAll));
-        if (this.isCloudEnabled()) {
-          this.syncToCloud('kurs_data/quranTracker', quranAll);
-        }
-        window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: quranAll }));
       }
     } catch (e) {}
   }
@@ -3713,6 +3773,7 @@ class DataStore {
       customColumns: this.getCustomColumns(),
       passive_student_ids: this.getPassiveStudentIds(),
       deleted_student_ids: this.getDeletedStudentIds(),
+      quranTracker: this.getAllQuranRecords(),
       settings: this.getSettings()
     }, null, 2);
   }
@@ -3739,6 +3800,14 @@ class DataStore {
       if (parsed.customColumns) localStorage.setItem(STORAGE_KEYS.CUSTOM_COLUMNS, JSON.stringify(parsed.customColumns));
       if (parsed.dailyDuties) localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(parsed.dailyDuties));
       if (parsed.hadisler) localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(parsed.hadisler));
+      if (parsed.quranTracker && typeof parsed.quranTracker === 'object') {
+        localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(parsed.quranTracker));
+        try { localStorage.setItem('yoklama_quran_tracker_backup_v1', JSON.stringify(parsed.quranTracker)); } catch (e) {}
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/quranTracker', parsed.quranTracker);
+        }
+        window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: parsed.quranTracker }));
+      }
       if (parsed.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(parsed.settings));
       return { success: true };
     } catch (err) {
@@ -3940,12 +4009,39 @@ class DataStore {
   getAllQuranRecords() {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.QURAN_TRACKER);
-      let records = raw ? JSON.parse(raw) : null;
+      let records = null;
+      if (raw) {
+        try { records = JSON.parse(raw); } catch (e) {}
+      }
+
+      // Eğer ana anahtar boşsa, yedek anahtarları tara ve kurtar
+      if (!records || typeof records !== 'object' || Object.keys(records).length === 0) {
+        const backupKeys = [
+          'yoklama_quran_tracker_backup_v1',
+          'yoklama_quran_tracker',
+          'quran_tracker',
+          'yoklama_quran_backup'
+        ];
+        for (const bKey of backupKeys) {
+          const bVal = localStorage.getItem(bKey);
+          if (bVal) {
+            try {
+              const bParsed = JSON.parse(bVal);
+              if (bParsed && typeof bParsed === 'object' && Object.keys(bParsed).length > 0) {
+                console.log(`[QuranRecovery] Yedek anahtardan (${bKey}) Kur'an verileri bulundu ve kurtarıldı!`);
+                records = bParsed;
+                break;
+              }
+            } catch (e) {}
+          }
+        }
+      }
+
       if (!records || typeof records !== 'object') {
         records = {};
       }
 
-      // Aktif talebeleri tara: Kaydı olmayanları ekle, diniGrup'u boş/Genel/Seviye olanları dahiliHoca ile senkronize et
+      // Aktif talebeleri tara
       const students = this.getStudents(false);
       let changed = false;
 
@@ -3960,11 +4056,26 @@ class DataStore {
             hatimCount: 0,
             diniGrup: targetGroup,
             note: '',
-            updatedAt: new Date().toISOString(),
+            updatedAt: null, // Boş varsayılan kaydın updatedAt'i null kalır ki gerçek verileri asla ezmesin!
             history: []
           };
           changed = true;
         } else {
+          // EĞER talebenin sayfası 1 ama geçmişinde (history) daha yüksek sayfa varsa OTOMATİK KURTAR!
+          const curP = Number(records[s.id].currentPage) || 0;
+          if (curP <= 1 && Array.isArray(records[s.id].history) && records[s.id].history.length > 0) {
+            const historyPages = records[s.id].history.map(h => Number(h.page) || 0).filter(p => p > 1);
+            if (historyPages.length > 0) {
+              const maxHistPage = Math.max(...historyPages);
+              if (maxHistPage > 1) {
+                console.log(`[QuranRecovery] ${s.id} talebesi için geçmişten sayfa kurtarıldı: ${maxHistPage}`);
+                records[s.id].currentPage = maxHistPage;
+                records[s.id].updatedAt = new Date().toISOString();
+                changed = true;
+              }
+            }
+          }
+
           const cur = (records[s.id].diniGrup || '').trim();
           if (!cur || cur === 'Genel' || cur.startsWith('Seviye') || (targetGroup !== 'Genel' && cur !== targetGroup)) {
             records[s.id].diniGrup = targetGroup;
@@ -3975,15 +4086,87 @@ class DataStore {
 
       if (changed) {
         localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(records));
-        if (this.isCloudEnabled()) {
-          this.syncToCloud('kurs_data/quranTracker', records);
-        }
+        try { localStorage.setItem('yoklama_quran_tracker_backup_v1', JSON.stringify(records)); } catch (e) {}
+        // DİKKAT: Burada ASLA wholesale this.syncToCloud ÇAĞRILMAZ!
+        // Aksi takdirde boş bir cihaz buluttaki tüm gerçek verileri 1 ile ezer!
       }
 
       return records;
     } catch (e) {
       console.warn('getAllQuranRecords error:', e);
       return {};
+    }
+  }
+
+  // Acil Durum Kur'an Verisi Kurtarma ve Onarma Motoru
+  recoverQuranRecordsFromStorage() {
+    try {
+      let recoveredCount = 0;
+      const all = this.getAllQuranRecords();
+      const backupKeys = [
+        'yoklama_quran_tracker_backup_v1',
+        'yoklama_quran_tracker',
+        'quran_tracker',
+        'yoklama_quran_backup'
+      ];
+
+      // 1. Yedek anahtarlardan tarama
+      backupKeys.forEach(key => {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            Object.keys(parsed).forEach(stId => {
+              const rec = parsed[stId];
+              if (!rec) return;
+              const curPage = Number(rec.currentPage) || 0;
+              const hatim = Number(rec.hatimCount) || 0;
+              const existing = all[stId];
+              const extPage = existing ? (Number(existing.currentPage) || 0) : 0;
+              const extHatim = existing ? (Number(existing.hatimCount) || 0) : 0;
+
+              const incTotal = hatim * 604 + curPage;
+              const extTotal = extHatim * 604 + extPage;
+
+              if (incTotal > extTotal) {
+                all[stId] = { ...(existing || {}), ...rec };
+                recoveredCount++;
+              }
+            });
+          }
+        } catch (e) {}
+      });
+
+      // 2. Geçmiş (history) dizisinden tarama
+      Object.keys(all).forEach(stId => {
+        const rec = all[stId];
+        if (rec && rec.currentPage <= 1 && Array.isArray(rec.history) && rec.history.length > 0) {
+          const pages = rec.history.map(h => Number(h.page) || 0).filter(p => p > 1);
+          if (pages.length > 0) {
+            const maxPage = Math.max(...pages);
+            if (maxPage > (Number(rec.currentPage) || 0)) {
+              rec.currentPage = maxPage;
+              rec.updatedAt = new Date().toISOString();
+              recoveredCount++;
+            }
+          }
+        }
+      });
+
+      if (recoveredCount > 0) {
+        localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(all));
+        localStorage.setItem('yoklama_quran_tracker_backup_v1', JSON.stringify(all));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/quranTracker', all);
+        }
+        window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: all }));
+      }
+
+      return { success: true, recoveredCount, records: all };
+    } catch (err) {
+      console.warn('recoverQuranRecordsFromStorage error:', err);
+      return { success: false, recoveredCount: 0, error: err.message };
     }
   }
 

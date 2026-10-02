@@ -535,6 +535,11 @@ window.QuranTrackerModule = {
             </div>
 
             <div class="flex items-center gap-2">
+              <button type="button" onclick="window.QuranTrackerModule.openRecoveryModal()"
+                class="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                title="Hafızadaki Kur'an verilerini kurtar, yedekle veya toplu düzenle">
+                <span>🛡️</span> <span>Verileri Kurtar & Yedekle</span>
+              </button>
               <a href="pano.html" target="_blank"
                 class="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-2xs">
                 <span>📺 Canlı Pano Vitrini</span>
@@ -991,5 +996,275 @@ window.QuranTrackerModule = {
         </div>
       </div>
     `;
+  },
+
+  // ========================================================
+  // --- KUR'AN VERİLERİNİ KURTARMA, YEDEKLEME & TOPLU GİRİŞ ---
+  // ========================================================
+  openRecoveryModal() {
+    let wrapper = document.getElementById('quran-recovery-modal-wrapper');
+    if (!wrapper) {
+      wrapper = document.createElement('div');
+      wrapper.id = 'quran-recovery-modal-wrapper';
+      document.body.appendChild(wrapper);
+    }
+
+    const allStudents = window.Store.getStudents(false);
+    const allRecords = window.Store.getAllQuranRecords();
+
+    wrapper.innerHTML = `
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-3 sm:p-4 animate-fade-in no-print"
+        onclick="if(event.target === this) window.QuranTrackerModule.closeRecoveryModal()">
+        <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-3xl w-full p-5 sm:p-6 space-y-5 max-h-[95vh] overflow-y-auto">
+          
+          <!-- Başlık -->
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-900 font-black text-2xl flex items-center justify-center shadow-inner">
+                🛡️
+              </div>
+              <div>
+                <h3 class="font-black text-base sm:text-lg text-slate-900">Kur'an-ı Kerim Veri Kurtarma & Yedekleme Merkezi</h3>
+                <p class="text-xs text-slate-500">Kayıp sayfaları kurtarma, cihazlar arası eşitlik sağlama ve hızlı toplu giriş</p>
+              </div>
+            </div>
+            <button onclick="window.QuranTrackerModule.closeRecoveryModal()" 
+              class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 font-black transition flex items-center justify-center cursor-pointer">
+              ✕
+            </button>
+          </div>
+
+          <!-- 1. OTOMATİK KURTARMA BUTONU & BİLGİ KUTUSU -->
+          <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
+            <div class="flex items-start gap-3">
+              <span class="text-2xl">🔍</span>
+              <div>
+                <h4 class="font-black text-xs sm:text-sm text-emerald-950">1. Yerel Hafızadan & Geçmişten Otomatik Kurtarma</h4>
+                <p class="text-xs text-emerald-800 leading-relaxed mt-0.5">
+                  Tarayıcınızın geçmiş kayıtlarını ve yerel yedeklerini tarar. 1 yazan talebelerin daha önce girilmiş gerçek sayfaları varsa anında kurtarır ve buluta işler.
+                </p>
+              </div>
+            </div>
+            <button type="button" onclick="window.QuranTrackerModule.runAutoRecovery()"
+              class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer">
+              <span>🚀</span> <span>Geçmiş Hafızayı Tara ve Sayfaları Kurtar</span>
+            </button>
+          </div>
+
+          <!-- 2. BAŞKA CİHAZDA GİRİLDİYSE KURTARMA REHBERİ -->
+          <div class="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-950 space-y-2">
+            <div class="flex items-center gap-2 font-black text-amber-900">
+              <span>📱</span> <span>Sayfaları Başka Bir Telefonda veya Bilgisayarda mı Girdiniz?</span>
+            </div>
+            <p class="leading-relaxed text-amber-900">
+              Eğer Kur'an sayfalarını <strong>telefonunuzdan, evdeki bilgisayardan veya başka bir tarayıcıdan</strong> yazdıysanız endişe etmeyiniz! 
+              Yeni <strong>v5.9 Koruma Kalkanı</strong> sayesinde o cihazda bu takip ekranını bir kez açtığınız anda, sistem o cihazdaki gerçek sayfaları algılayacak ve buluta otomatik olarak geri yükleyecektir.
+            </p>
+          </div>
+
+          <!-- 3. YEDEK İNDİR / YÜKLE -->
+          <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-black text-xs uppercase text-slate-800">2. Yedek Dosyası İndir / Yükle</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" onclick="window.QuranTrackerModule.downloadQuranBackup()"
+                class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+                <span>📥</span> <span>Kur'an Verilerini İndir (Yedek Al)</span>
+              </button>
+              <label class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+                <span>📤</span> <span>Yedek Dosyası Yükle</span>
+                <input type="file" accept=".json" class="hidden" onchange="window.QuranTrackerModule.importQuranBackupFile(event)">
+              </label>
+            </div>
+          </div>
+
+          <!-- 4. HIZLI TOPLU SAYFA DÜZENLEME TABLOSU -->
+          <div class="space-y-2 pt-2 border-t border-slate-100">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="font-black text-xs uppercase text-slate-800">3. Hızlı Toplu Sayfa Düzenleyici (Excel Usulü)</h4>
+                <p class="text-[11px] text-slate-500">Tüm talebelerin sayfalarını tek ekranda topluca inceleyip saniyeler içinde güncelleyebilirsiniz.</p>
+              </div>
+            </div>
+
+            <form id="quran-batch-form" onsubmit="window.QuranTrackerModule.saveBatchPages(event)" class="space-y-3">
+              <div class="max-h-64 overflow-y-auto border border-slate-200 rounded-2xl">
+                <table class="w-full text-left text-xs border-collapse">
+                  <thead class="bg-slate-900 text-white sticky top-0 uppercase text-[10px]">
+                    <tr>
+                      <th class="p-2.5 w-10 text-center">#</th>
+                      <th class="p-2.5">Talebe</th>
+                      <th class="p-2.5 text-center w-16">Sınıf</th>
+                      <th class="p-2.5">Dini Grup</th>
+                      <th class="p-2.5 text-center w-24">Kaldığı Sayfa</th>
+                      <th class="p-2.5 text-center w-20">Hatim</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    ${allStudents.map((s, idx) => {
+                      const rec = allRecords[s.id] || { currentPage: 1, hatimCount: 0 };
+                      return `
+                        <tr class="hover:bg-slate-50">
+                          <td class="p-2 text-center text-slate-400 font-bold">${idx + 1}</td>
+                          <td class="p-2 font-black text-slate-900">
+                            ${s.firstName} ${s.lastName}
+                            <span class="text-[10px] text-slate-400 font-mono ml-1">#${s.studentNo || s.id}</span>
+                          </td>
+                          <td class="p-2 text-center font-bold text-slate-600">${s.className}</td>
+                          <td class="p-2 text-slate-700 text-[11px] font-medium">${rec.diniGrup || s.dahiliHoca || '-'}</td>
+                          <td class="p-2 text-center">
+                            <input type="number" min="0" max="604" name="page_${s.id}" value="${rec.currentPage || 1}"
+                              class="w-20 px-2 py-1 text-center bg-slate-50 border-2 border-slate-300 rounded-lg text-xs font-black text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none font-mono">
+                          </td>
+                          <td class="p-2 text-center">
+                            <input type="number" min="0" name="hatim_${s.id}" value="${rec.hatimCount || 0}"
+                              class="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none font-mono">
+                          </td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="flex items-center justify-between pt-2">
+                <span class="text-[11px] text-slate-500">Düzenlemeyi bitirdikten sonra aşağıdaki butona basınız:</span>
+                <button type="submit"
+                  class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition cursor-pointer flex items-center gap-1.5">
+                  <span>💾</span> <span>Tüm Sayfaları Toplu Kaydet & Buluta Yükle</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  closeRecoveryModal() {
+    const wrapper = document.getElementById('quran-recovery-modal-wrapper');
+    if (wrapper) wrapper.remove();
+  },
+
+  runAutoRecovery() {
+    const res = window.Store.recoverQuranRecordsFromStorage();
+    if (res.success && res.recoveredCount > 0) {
+      if (window.App && typeof window.App.showToast === 'function') {
+        window.App.showToast(`🎉 ${res.recoveredCount} talebenin Kur'an sayfası hafızadan kurtarıldı ve buluta işlendi!`, 'success');
+      }
+      this.closeRecoveryModal();
+      this.renderView();
+    } else {
+      if (window.App && typeof window.App.showToast === 'function') {
+        window.App.showToast('Bu tarayıcının yerel hafızasında eski kayıt bulunamadı. Sayfaları girdiğiniz diğer cihazı (telefon/tablet) açtığınızda sistem otomatik kurtaracaktır.', 'info');
+      }
+    }
+  },
+
+  downloadQuranBackup() {
+    try {
+      const records = window.Store.getAllQuranRecords();
+      const payload = {
+        type: 'OAY_QURAN_TRACKER_BACKUP',
+        version: '5.9',
+        exportedAt: new Date().toISOString(),
+        quranTracker: records
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kuran_hatim_takip_yedek_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      if (window.App && typeof window.App.showToast === 'function') {
+        window.App.showToast('Kur\'an takip verileri başarıyla bilgisayarınıza indirildi.', 'success');
+      }
+    } catch (e) {
+      console.error('downloadQuranBackup error:', e);
+    }
+  },
+
+  importQuranBackupFile(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        const data = parsed.quranTracker || parsed;
+        if (data && typeof data === 'object') {
+          localStorage.setItem('yoklama_quran_tracker_v1', JSON.stringify(data));
+          try { localStorage.setItem('yoklama_quran_tracker_backup_v1', JSON.stringify(data)); } catch (err) {}
+          if (window.Store && window.Store.isCloudEnabled()) {
+            window.Store.syncToCloud('kurs_data/quranTracker', data);
+          }
+          window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: data }));
+          if (window.App && typeof window.App.showToast === 'function') {
+            window.App.showToast('Yedek dosyasındaki Kur\'an verileri başarıyla yüklendi ve buluta aktarıldı!', 'success');
+          }
+          this.closeRecoveryModal();
+          this.renderView();
+        } else {
+          alert('Geçersiz yedek dosyası formatı.');
+        }
+      } catch (err) {
+        alert('Yedek dosyası okunamadı: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  },
+
+  saveBatchPages(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    const allStudents = window.Store.getStudents(false);
+    const allRecords = window.Store.getAllQuranRecords();
+    const nowIso = new Date().toISOString();
+    let updatedCount = 0;
+
+    allStudents.forEach(s => {
+      const pageVal = formData.get(`page_${s.id}`);
+      const hatimVal = formData.get(`hatim_${s.id}`);
+      if (pageVal !== null) {
+        const page = Math.min(604, Math.max(0, parseInt(pageVal, 10) || 0));
+        const hatim = Math.max(0, parseInt(hatimVal, 10) || 0);
+        const cur = allRecords[s.id] || {};
+        if (cur.currentPage !== page || cur.hatimCount !== hatim) {
+          allRecords[s.id] = {
+            ...cur,
+            studentId: s.id,
+            currentPage: page,
+            hatimCount: hatim,
+            diniGrup: cur.diniGrup || s.dahiliHoca || 'Genel',
+            updatedAt: nowIso
+          };
+          updatedCount++;
+        }
+      }
+    });
+
+    if (updatedCount > 0) {
+      localStorage.setItem('yoklama_quran_tracker_v1', JSON.stringify(allRecords));
+      try { localStorage.setItem('yoklama_quran_tracker_backup_v1', JSON.stringify(allRecords)); } catch (e) {}
+      if (window.Store && window.Store.isCloudEnabled()) {
+        window.Store.syncToCloud('kurs_data/quranTracker', allRecords);
+      }
+      window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: allRecords }));
+      if (window.App && typeof window.App.showToast === 'function') {
+        window.App.showToast(`✅ ${updatedCount} talebenin sayfası kaydedildi ve buluta eşitlendi!`, 'success');
+      }
+    } else {
+      if (window.App && typeof window.App.showToast === 'function') {
+        window.App.showToast('Herhangi bir değişiklik yapılmadı.', 'info');
+      }
+    }
+
+    this.closeRecoveryModal();
+    this.renderView();
   }
 };
