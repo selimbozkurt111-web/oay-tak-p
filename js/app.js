@@ -269,8 +269,8 @@ window.App = {
     localStorage.setItem('yoklama_active_session', JSON.stringify(session));
 
     if (session.role === 'superadmin' || session.staffId === 'admin_root') {
-      this.activeTab = 'ogrenciler_excel';
-      this.showToast(`👑 Hoş geldiniz Sayın ${session.name}! Canlı Excel Tablosu açıldı.`, 'success');
+      this.activeTab = 'ogrenciler';
+      this.showToast(`👑 Hoş geldiniz Sayın ${session.name}! Öğrenci Yönetim Paneli açıldı.`, 'success');
     } else if (session.role === 'staff') {
       this.activeTab = 'yoklama';
       this.showToast(`Hoş geldiniz Sayın ${session.name}`, 'success');
@@ -407,7 +407,7 @@ window.App = {
     this.loginMode = 'user';
     this.otpStep = 'password';
     this.lastGeneratedAdminOtp = '';
-    this.activeTab = 'ogrenciler_excel';
+    this.activeTab = 'ogrenciler';
 
     this.showToast('👑 Şifre ve E-posta doğrulaması başarılı! Ana Yönetici olarak giriş yapıldı.', 'success');
     this.renderHeader();
@@ -513,8 +513,6 @@ window.App = {
       activeTitle = '🧳 İzin Dönüşü Takibi';
     } else if (this.activeTab === 'ogrenciler') {
       activeTitle = '👥 Öğrenci Yönetimi';
-    } else if (this.activeTab === 'ogrenciler_excel') {
-      activeTitle = '📊 Canlı Excel Tablosu';
     } else if (this.activeTab === 'personel') {
       activeTitle = '👨‍🏫 Personel Yönetimi';
     } else if (this.activeTab === 'gorevler') {
@@ -568,9 +566,9 @@ window.App = {
               <span>🎯 Günün Görevlileri</span>
             </button>
             ${(session.role === 'superadmin' || session.canEditStudents) ? `
-              <button onclick="window.App.setTab('ogrenciler_excel')" 
-                class="px-3 py-1.5 rounded-xl ${this.activeTab === 'ogrenciler_excel' ? 'bg-emerald-900 ring-2 ring-emerald-400 text-white font-black' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-black'} text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm">
-                <span>📊 Canlı Excel</span>
+              <button onclick="window.App.setTab('ogrenciler')" 
+                class="px-3 py-1.5 rounded-xl ${this.activeTab === 'ogrenciler' ? 'bg-emerald-900 ring-2 ring-emerald-400 text-white font-black' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-black'} text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm">
+                <span>👥 Talebe Yönetimi</span>
               </button>
             ` : ''}
           </div>
@@ -963,54 +961,12 @@ window.App = {
             </div>
             <span class="text-slate-300">→</span>
           </button>
-
-          <!-- Canlı Excel Tablosu (ÖĞRENCİ & SINIF İçinde) -->
-          ${(session.canManageStaff || session.role === 'superadmin' || session.canEditStudents) ? `
-            <button type="button" onclick="window.App.navigateFromDrawer('ogrenciler_excel')"
-              class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
-                this.activeTab === 'ogrenciler_excel'
-                  ? 'bg-emerald-50 text-emerald-900 font-black border border-emerald-200 shadow-sm'
-                  : 'text-slate-700 hover:bg-slate-50 font-bold'
-              }">
-              <div class="flex items-center gap-3">
-                <span class="text-xl">📊</span>
-                <div>
-                  <div class="text-xs font-black flex items-center gap-1.5">
-                    <span>Canlı Excel Tablosu</span>
-                    <span class="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Yönetici</span>
-                  </div>
-                  <div class="text-[10px] text-slate-400 font-medium">Hücreden talebe bilgisi düzenleme & senkron</div>
-                </div>
-              </div>
-              <span class="text-slate-300">→</span>
-            </button>
-          ` : ''}
         </div>
 
         ${(session.canManageStaff || session.role === 'superadmin' || session.canEditSettings) ? `
           <!-- 3. YÖNETİCİ İŞLEMLERİ (Sadece Ana Yönetici) -->
           <div class="space-y-1.5 pt-3 border-t border-slate-100">
             <div class="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">YÖNETİCİ İŞLEMLERİ</div>
-
-            <!-- Canlı Excel Tablosu (Sadece Yönetici) -->
-            <button type="button" onclick="window.App.navigateFromDrawer('ogrenciler_excel')"
-              class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
-                this.activeTab === 'ogrenciler_excel'
-                  ? 'bg-emerald-50 text-emerald-900 font-black border border-emerald-200 shadow-sm'
-                  : 'text-slate-700 hover:bg-slate-50 font-bold'
-              }">
-              <div class="flex items-center gap-3">
-                <span class="text-xl">📊</span>
-                <div>
-                  <div class="text-xs font-black flex items-center gap-1.5">
-                    <span>Canlı Excel Tablosu</span>
-                    <span class="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Yönetici</span>
-                  </div>
-                  <div class="text-[10px] text-slate-400 font-medium">Hücreden talebe bilgisi düzenleme & senkron</div>
-                </div>
-              </div>
-              <span class="text-slate-300">→</span>
-            </button>
 
             <!-- Personel & Şifre Yönetimi -->
             <button type="button" onclick="window.App.navigateFromDrawer('personel')"
@@ -1392,8 +1348,9 @@ window.App = {
       main.innerHTML = `<div id="students-container"></div>`;
       this.renderStudentsView();
     } else if (this.activeTab === 'ogrenciler_excel') {
-      main.innerHTML = `<div id="student-excel-container"></div>`;
-      this.renderStudentExcelView();
+      this.activeTab = 'ogrenciler';
+      main.innerHTML = `<div id="students-container"></div>`;
+      this.renderStudentsView();
     } else if (this.activeTab === 'personel') {
       main.innerHTML = `<div id="staff-container"></div>`;
       this.renderStaffView();
@@ -1464,53 +1421,32 @@ window.App = {
     }
 
     container.innerHTML = `
-      <!-- CANLI EXCEL TABLOSU DOĞRUDAN GEÇİŞ AFİŞİ -->
-      <div class="bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-900 text-white rounded-3xl p-4 sm:p-5 mb-6 shadow-md border border-emerald-600/40 flex flex-wrap items-center justify-between gap-4 animate-fade-in">
-        <div class="flex items-center gap-3.5">
-          <div class="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-3xl shadow-inner border border-white/20 shrink-0">
-            📊
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h4 class="font-black text-white text-base sm:text-lg">Canlı Excel Tablosu (Hücreden Düzenleyici)</h4>
-              <span class="px-2 py-0.5 rounded-lg bg-emerald-500 text-white font-black text-[10px] uppercase tracking-wider">Tavsiye Edilen</span>
-            </div>
-            <p class="text-xs text-emerald-100/90 mt-0.5 max-w-xl leading-relaxed">
-              Tıpkı Excel gibi hücrelere doğrudan tıklayarak düzenleyebilir; <strong>➕ Yeni Satır</strong> ve <strong>📑 Yeni Sütun</strong> (Kan Grubu, TC No, vb.) ekleyebilirsiniz.
-            </p>
-          </div>
-        </div>
-        <button type="button" onclick="window.App.setTab('ogrenciler_excel')" 
-          class="px-5 py-2.5 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-transform hover:scale-105 cursor-pointer flex items-center gap-2 whitespace-nowrap">
-          <span>Canlı Excel Tablosunu Aç</span>
-          <span>→</span>
-        </button>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 animate-fade-in">
         <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
-            <h3 class="font-bold text-slate-900 text-lg flex items-center gap-2">
+            <h3 class="font-black text-slate-900 text-lg flex items-center gap-2">
               <span>👥 Öğrenci & Veli Giriş Şifreleri</span>
               ${!canEdit ? '<span class="text-xs px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold">(Salt Okunur Liste)</span>' : ''}
             </h3>
             <p class="text-xs text-slate-500">
-              ${canEdit ? 'Öğrencileri, aktif/pasif durumlarını ve velilerin giriş yapacağı şifreleri buradan yönetebilirsiniz.' : 'Eğitmenler listeyi inceleyebilir; düzenleme yetkisi Ana Yöneticidedir.'}
+              ${canEdit ? 'Öğrencileri, sınıflarını, hocalarını ve veli giriş şifrelerini buradan yönetebilirsiniz.' : 'Eğitmenler listeyi inceleyebilir; düzenleme yetkisi Ana Yöneticidedir.'}
             </p>
           </div>
 
           <div class="flex items-center gap-2.5">
-            <button onclick="window.App.setTab('ogrenciler_excel')" 
-              class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer">
-              <span>📊 Canlı Excel Tablosu</span>
+            <button onclick="window.App.exportStudentsToCsv()" 
+              class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer"
+              title="Tüm öğrenci tablosunu Excel uyumlu CSV dosyası olarak bilgisayarınıza indirin">
+              <span>📥</span>
+              <span>Excel (CSV) İndir</span>
             </button>
             ${canEdit ? `
               <button onclick="window.App.openBulkImportModal()" 
-                class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
                 <span>📋 Excel'den Toplu Ekle</span>
               </button>
               <button onclick="window.App.openStudentModal()" 
-                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5">
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5 cursor-pointer">
                 <span>+ Yeni Öğrenci Ekle</span>
               </button>
             ` : ''}
@@ -1625,19 +1561,22 @@ window.App = {
                     ${canEdit ? `
                       <td class="py-3 px-4 text-right">
                         <div class="flex items-center justify-end gap-1.5">
+                          <button onclick="window.App.openStudentModal('${s.id}')"
+                            class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs transition flex items-center gap-1 cursor-pointer" title="Düzenle / Şifre Değiştir">
+                            <span>✏️</span>
+                            <span>Düzenle</span>
+                          </button>
                           ${isPassive ? `
                             <button onclick="window.App.toggleStudentPassive('${s.id}')"
-                              class="p-1 text-emerald-600 hover:text-emerald-800 transition text-sm" 
+                              class="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition text-xs font-bold cursor-pointer" 
                               title="Talebeyi Tekrar Aktife Al (Yoklamalara dahil et)">▶️</button>
                           ` : `
                             <button onclick="window.App.toggleStudentPassive('${s.id}')"
-                              class="p-1 text-amber-500 hover:text-amber-700 transition text-sm" 
+                              class="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition text-xs font-bold cursor-pointer" 
                               title="Talebeyi Pasife Al (Yoklamalardan gizle, verileri silinmez)">⏸️</button>
                           `}
-                          <button onclick="window.App.openStudentModal('${s.id}')"
-                            class="p-1 text-slate-400 hover:text-slate-700 transition" title="Düzenle / Şifre Değiştir">✏️</button>
                           <button onclick="window.App.deleteStudent('${s.id}')"
-                            class="p-1 text-slate-400 hover:text-rose-600 transition" title="Kalıcı Olarak Sil">🗑️</button>
+                            class="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition text-xs cursor-pointer" title="Kalıcı Olarak Sil">🗑️</button>
                         </div>
                       </td>
                     ` : ''}
@@ -1651,64 +1590,65 @@ window.App = {
     `;
   },
 
-  // --- Canlı Excel Tablosu Görünümü (Sadece Kurum Yöneticisine Özel) ---
-  renderStudentExcelView() {
-    const container = document.getElementById('student-excel-container');
-    if (!container) return;
-
-    const isManager = this.canManageStudents();
-
-    if (!isManager) {
-      container.innerHTML = `
-        <div class="max-w-md mx-auto py-12 text-center animate-fade-in px-4">
-          <div class="p-8 bg-white rounded-3xl shadow-xl border border-rose-200 space-y-4">
-            <div class="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center text-3xl font-black mx-auto shadow-inner">
-              🔒
-            </div>
-            <h3 class="font-black text-slate-900 text-lg">Yetkisiz Erişim</h3>
-            <p class="text-xs text-slate-500 leading-relaxed">
-              Bu <strong>Canlı Excel Tablosu</strong> yalnızca Kurum Yöneticisine özel bir yönetim panelidir.
-            </p>
-            <button onclick="window.App.setTab('yoklama')" 
-              class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow transition cursor-pointer">
-              Ana Sayfaya Dön
-            </button>
-          </div>
-        </div>
-      `;
+  // --- Excel (CSV) Formatında İndirme (Türkçe Karakter ve Excel Uyumlu) ---
+  exportStudentsToCsv() {
+    let students = window.Store.getAllStudents ? window.Store.getAllStudents() : window.Store.getStudents(true);
+    if (!Array.isArray(students) || students.length === 0) {
+      this.showToast('İndirilecek öğrenci verisi bulunamadı.', 'warning');
       return;
     }
 
-    try {
-      if (window.StudentExcelModule && typeof window.StudentExcelModule.init === 'function') {
-        window.StudentExcelModule.init();
-      } else if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
-        window.StudentExcelModule.render();
-      } else {
-        container.innerHTML = `
-          <div class="p-8 text-center text-slate-500 font-bold space-y-2">
-            <div>Canlı Excel Modülü yükleniyor...</div>
-            <button onclick="window.App.renderStudentExcelView()" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold">
-              Tabloyu Yenile ⟳
-            </button>
-          </div>
-        `;
-      }
-    } catch (err) {
-      console.error('StudentExcelModule initialization error:', err);
-      container.innerHTML = `
-        <div class="max-w-lg mx-auto py-8 text-center px-4">
-          <div class="p-6 bg-amber-50 rounded-2xl border border-amber-200 space-y-3">
-            <div class="text-2xl">⚠️</div>
-            <div class="text-sm font-black text-amber-900">Canlı Excel Tablosu Yüklenirken Bir Hata Oluştu</div>
-            <div class="text-xs text-slate-600">${err.message || 'Bilinmeyen hata'}</div>
-            <button onclick="window.App.renderStudentExcelView()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition">
-              Yeniden Dene ⟳
-            </button>
-          </div>
-        </div>
-      `;
-    }
+    const headers = [
+      'Okul No', 'Adı', 'Soyadı', 'Sınıfı', 'Okulu', 'Seviye',
+      'Etüt Hocası', 'Dahili Hocası', 'Yatakhane', 'Veli Adı',
+      'Veli Telefon', 'Veli Giriş Şifresi', 'Ortak Aile Kodu', 'Kayıt Durumu'
+    ];
+
+    const escapeCsv = (val) => {
+      const s = (val || '').toString().replace(/"/g, '""');
+      return `"${s}"`;
+    };
+
+    let csvContent = '\uFEFF'; // Excel'in Türkçe karakterleri düzgün açması için UTF-8 BOM
+    csvContent += headers.map(escapeCsv).join(';') + '\r\n';
+
+    students.forEach(st => {
+      const isPassive = st && (st.isPassive === true || st.status === 'passive');
+      const row = [
+        st.studentNo || '',
+        st.firstName || '',
+        st.lastName || '',
+        st.className || '',
+        st.school || '',
+        st.seviye || '',
+        st.etutHocasi || '',
+        st.dahiliHoca || '',
+        st.yatakhane || '',
+        st.fatherName || '',
+        st.parentPhone || st.fatherPhone || '',
+        st.password || '123',
+        st.familyCode || '',
+        isPassive ? 'Pasif' : 'Aktif'
+      ];
+      csvContent += row.map(escapeCsv).join(';') + '\r\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.href = URL.createObjectURL(blob);
+    link.download = `OAY_Akademi_Ogrenci_Listesi_${dateStr}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+
+    this.showToast('Öğrenci tablosu Excel (CSV) olarak bilgisayarınıza indirildi!', 'success');
+  },
+
+  renderStudentExcelView() {
+    this.activeTab = 'ogrenciler';
+    this.renderStudentsView();
   },
 
   // --- SADECE ANA YÖNETİCİYE ÖZEL: Personel / Hoca ve Şifre Yönetimi ---
@@ -3352,9 +3292,6 @@ window.App = {
 
     this.closeStudentModal();
     this.renderStudentsView();
-    if (window.StudentExcelModule && typeof window.StudentExcelModule.renderTableBody === 'function') {
-      window.StudentExcelModule.renderTableBody();
-    }
   },
 
   // Talebeyi Pasife veya Aktife Al

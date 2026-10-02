@@ -292,14 +292,13 @@ class DataStore {
       if (Array.isArray(students) && students.length > 0) {
         students = students.map(s => {
           if (!s) return s;
-          const seed = seedMap[s.id] || seedMap[s.studentNo];
           const currentHoca = (s.dahiliHoca || '').trim();
-          // Eğer dahiliHoca boşsa, 'Genel' ise, 'Seviye' ile başlıyorsa veya SEED'deki resmi hocadan farklıysa
-          if (seed && seed.dahiliHoca) {
-            const seedHoca = seed.dahiliHoca.trim();
-            if (!currentHoca || currentHoca === 'Genel' || currentHoca.startsWith('Seviye') || (!this.isStudentLocallyEdited(s.id) && currentHoca !== seedHoca)) {
+          // Yalnızca dahiliHoca tamamen boşsa veya jenerikse varsayılan fallback ata, kullanıcının girdiği hiçbir hocayı asla ezme!
+          if (!currentHoca || currentHoca === 'Genel' || currentHoca.startsWith('Seviye')) {
+            const seed = seedMap[s.id] || seedMap[s.studentNo];
+            if (seed && seed.dahiliHoca) {
               studentsChanged = true;
-              return { ...s, dahiliHoca: seedHoca };
+              return { ...s, dahiliHoca: seed.dahiliHoca.trim() };
             }
           }
           return s;
@@ -313,7 +312,7 @@ class DataStore {
         }
       }
 
-      // 2. Kur'an Takip Kayıtlarını (yoklama_quran_tracker_v1) Onar ve Senkronize Et
+      // 2. Kur'an Takip Kayıtlarını (yoklama_quran_tracker_v1) Dini Grup ile Eşitle (Sayfaları asla 1 yapmaz!)
       const quranRaw = localStorage.getItem(STORAGE_KEYS.QURAN_TRACKER);
       let quranRecords = quranRaw ? JSON.parse(quranRaw) : {};
       if (typeof quranRecords !== 'object' || quranRecords === null) quranRecords = {};
@@ -333,26 +332,25 @@ class DataStore {
             hatimCount: 0,
             diniGrup: properHoca,
             note: '',
-            updatedAt: new Date().toISOString(),
+            updatedAt: null,
             history: []
           };
           quranChanged = true;
         } else {
           const curGroup = (quranRecords[s.id].diniGrup || '').trim();
-          // Eğer mevcut grup boşsa, 'Genel' ise, 'Seviye' ile başlıyorsa ya da dahiliHoca'dan farklıysa düzelt!
-          if (!curGroup || curGroup === 'Genel' || curGroup.startsWith('Seviye') || curGroup !== properHoca) {
+          if (curGroup !== properHoca && properHoca && properHoca !== 'Genel') {
             quranRecords[s.id].diniGrup = properHoca;
-            quranRecords[s.id].updatedAt = new Date().toISOString();
             quranChanged = true;
+            if (this.isCloudEnabled()) {
+              this.syncToCloud(`kurs_data/quranTracker/${s.id}/diniGrup`, properHoca);
+            }
           }
         }
       });
 
       if (quranChanged) {
         localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(quranRecords));
-        if (this.isCloudEnabled()) {
-          this.syncToCloud('kurs_data/quranTracker', quranRecords);
-        }
+        try { localStorage.setItem('yoklama_quran_tracker_backup_v1', JSON.stringify(quranRecords)); } catch (e) {}
         window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: quranRecords }));
       }
     } catch (e) {
@@ -1817,6 +1815,10 @@ class DataStore {
           }
         }
       }
+    } catch (e) {}
+
+    try {
+      window.dispatchEvent(new CustomEvent('students-updated', { detail: sanitizedStudents }));
     } catch (e) {}
   }
 
