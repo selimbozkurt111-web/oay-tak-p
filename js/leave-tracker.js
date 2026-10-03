@@ -15,6 +15,7 @@ window.LeaveTrackerModule = {
   filterOnlyDelayed: false,
   searchQuery: '',
   modalStudentId: null,
+  partialWaiverStudentId: null,
 
   init() {
     this.renderView();
@@ -113,11 +114,62 @@ window.LeaveTrackerModule = {
       const st = window.Store.getStudentById(studentId);
       const name = st ? `${st.firstName} ${st.lastName}` : 'Talebe';
       if (newState) {
-        window.App.showToast(`✓ ${name} telafisini tamamladı olarak işaretlendi ve TV panosundan düşürüldü.`, 'success');
+        window.App.showToast(`✓ ${name} için tam telafi affı uygulandı ve TV panosundan düşürüldü.`, 'success');
       } else {
-        window.App.showToast(`⚠️ ${name} telafi süresi tekrar aktif yapıldı (TV'de gösterilecek).`, 'info');
+        window.App.showToast(`🔄 ${name} için telafi affı kaldırıldı (asıl telafi TV'de gösterilecek).`, 'info');
       }
     }
+  },
+
+  openPartialWaiverModal(studentId) {
+    this.partialWaiverStudentId = studentId;
+    this.renderView();
+  },
+
+  closePartialWaiverModal() {
+    this.partialWaiverStudentId = null;
+    this.renderView();
+  },
+
+  applyPartialWaiver(studentId, minutes, note = '') {
+    const weekInfo = this.getWeekInfo();
+    const weekKey = `week_${weekInfo.startDate}`;
+    const mins = Math.max(0, parseInt(minutes, 10) || 0);
+    window.Store.setPartialPenaltyWaiver(weekKey, studentId, mins, note);
+    this.closePartialWaiverModal();
+    this.renderView();
+    if (window.App && window.App.showToast) {
+      const st = window.Store.getStudentById(studentId);
+      const name = st ? `${st.firstName} ${st.lastName}` : 'Talebe';
+      window.App.showToast(`✂️ ${name} için ${mins} dk telafi affı kaydedildi.`, 'success');
+    }
+  },
+
+  cancelPenaltyWaiver(studentId) {
+    const weekInfo = this.getWeekInfo();
+    const weekKey = `week_${weekInfo.startDate}`;
+    window.Store.cancelPenaltyWaiver(weekKey, studentId);
+    this.closePartialWaiverModal();
+    this.renderView();
+    if (window.App && window.App.showToast) {
+      const st = window.Store.getStudentById(studentId);
+      const name = st ? `${st.firstName} ${st.lastName}` : 'Talebe';
+      window.App.showToast(`🔄 ${name} için telafi affı kaldırıldı (asıl telafi aktif).`, 'info');
+    }
+  },
+
+  submitCustomWaiver(studentId) {
+    const inputEl = document.getElementById('partial-waiver-custom-mins');
+    const noteEl = document.getElementById('partial-waiver-custom-note');
+    const mins = parseInt(inputEl ? inputEl.value : 0, 10) || 0;
+    const note = noteEl ? noteEl.value.trim() : '';
+    if (mins <= 0) {
+      if (window.App && window.App.showToast) {
+        window.App.showToast('Lütfen affedilecek dakika miktarını giriniz (0\'dan büyük olmalı).', 'warning');
+      }
+      return;
+    }
+    this.applyPartialWaiver(studentId, mins, note);
   },
 
   sendWhatsAppExitNotice(studentId) {
@@ -146,9 +198,15 @@ window.LeaveTrackerModule = {
         reasons.push(`takviye dersi (< 85) telafisi (${rep.takviyeInfractionsCount} ders, +${rep.takviyePenaltyMinutes} dk)`);
       }
       const reasonText = reasons.length > 0 ? reasons.join(' ve ') : 'oluşan telafiler';
-      msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${st.firstName} ${st.lastName}, bu hafta ${reasonText} sebebiyle (+${rep.penaltyFormatted} gecikme) hafta sonu iznine saat ${rep.calculatedExitTime}'de çıkabilecektir (Standart çıkış: ${this.baseExitTime}). Bilgilerinize sunarız.`;
+      const partialNote = (rep.isPartiallyCleared && rep.waivedMinutes > 0)
+        ? ` (${rep.waivedMinutes} dakikalık telafisi affedilmiş olup kalan ${rep.penaltyMinutes} dk ek süre uygulanmaktadır)`
+        : '';
+      msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${st.firstName} ${st.lastName}, bu hafta ${reasonText} sebebiyle (+${rep.penaltyFormatted} gecikme${partialNote}) hafta sonu iznine saat ${rep.calculatedExitTime}'de çıkabilecektir (Standart çıkış: ${this.baseExitTime}). Bilgilerinize sunarız.`;
     } else {
-      msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${st.firstName} ${st.lastName}, bu haftayı tam intizam ve kusursuz olarak tamamlamış olup hafta sonu iznine vaktinde (Saat: ${this.baseExitTime}) çıkacaktır. Gayretlerinden ötürü tebrik eder, hayırlı günler dileriz.`;
+      const clearedNote = (rep.isFullyCleared && rep.rawPenaltyMinutes > 0)
+        ? ` (Oluşan ${rep.rawPenaltyFormatted} telafisi tamamlanmış ve affedilmiştir)`
+        : '';
+      msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${st.firstName} ${st.lastName}, bu haftayı tam intizam ve kusursuz olarak tamamlamış olup${clearedNote} hafta sonu iznine vaktinde (Saat: ${this.baseExitTime}) çıkacaktır. Gayretlerinden ötürü tebrik eder, hayırlı günler dileriz.`;
     }
 
     window.Store.sendWhatsAppMessage(phone, msg);
@@ -206,25 +264,38 @@ window.LeaveTrackerModule = {
     const batch = window.Store.getLeaveReportBatch(allStudents, weekInfo.dates, this.baseExitTime);
 
     let clearedCount = 0;
+    let partiallyClearedCount = 0;
+    let activePenalizedCount = 0;
+
     batch.reports.forEach(r => {
-      if (r.report.penaltyMinutes > 0 && window.Store.isPenaltyCleared(weekKey, r.student.id)) {
-        clearedCount++;
+      const rep = r.report;
+      if (rep.rawPenaltyMinutes > 0) {
+        if (rep.isFullyCleared) {
+          clearedCount++;
+        } else if (rep.isPartiallyCleared) {
+          partiallyClearedCount++;
+          activePenalizedCount++;
+        } else {
+          activePenalizedCount++;
+        }
       }
     });
-    const activePenalizedCount = Math.max(0, batch.delayedCount - clearedCount);
 
-    // Yalnızca gecikecekler filtresi aktifse (3'ten fazla kusuru olup ek süre alanlar)
+    // Yalnızca gecikecekler filtresi aktifse (ek süresi olan veya kısmi/tam af almış cezalılar)
     let displayedReports = batch.reports;
     if (this.filterOnlyDelayed) {
-      displayedReports = displayedReports.filter(r => r.report.penaltyMinutes > 0);
+      displayedReports = displayedReports.filter(r => r.report.rawPenaltyMinutes > 0 || r.report.hasActivePenalty);
     }
 
-    // Sıralama: Önce en çok gecikenler, sonra çıkış saatine göre
+    // Sıralama: Önce en çok kalan telafisi olanlar, sonra ham telafi, sonra numara
     displayedReports.sort((a, b) => {
-      if (b.report.penaltyMinutes !== a.report.penaltyMinutes) {
-        return b.report.penaltyMinutes - a.report.penaltyMinutes;
+      if ((b.report.penaltyMinutes || 0) !== (a.report.penaltyMinutes || 0)) {
+        return (b.report.penaltyMinutes || 0) - (a.report.penaltyMinutes || 0);
       }
-      return a.student.studentNo.localeCompare(b.student.studentNo, undefined, { numeric: true });
+      if ((b.report.rawPenaltyMinutes || 0) !== (a.report.rawPenaltyMinutes || 0)) {
+        return (b.report.rawPenaltyMinutes || 0) - (a.report.rawPenaltyMinutes || 0);
+      }
+      return (a.student.studentNo || '').localeCompare(b.student.studentNo || '', undefined, { numeric: true });
     });
 
     const isAllClasses = this.selectedClasses.length === 0;
@@ -335,11 +406,12 @@ window.LeaveTrackerModule = {
             <div class="absolute -right-2 -bottom-2 w-20 h-20 bg-rose-50 rounded-full opacity-60 pointer-events-none"></div>
             <div>
               <div class="text-[11px] font-bold uppercase text-rose-700 tracking-wider">EK SÜRELİ ÇIKACAKLAR</div>
-              <div class="text-2xl font-black text-rose-700 mt-1">${batch.delayedCount} Talebe</div>
+              <div class="text-2xl font-black text-rose-700 mt-1">${activePenalizedCount} Talebe</div>
               <div class="text-[11px] font-bold mt-1 flex flex-col gap-0.5">
-                ${clearedCount > 0 ? `<span class="text-emerald-700">✓ ${clearedCount} Talebe Telafisini Tamamladı (TV'den Düşürüldü)</span>` : ''}
+                ${clearedCount > 0 ? `<span class="text-emerald-700">✓ ${clearedCount} Talebe Tam Affedildi (TV'den Düşürüldü)</span>` : ''}
+                ${partiallyClearedCount > 0 ? `<span class="text-indigo-600">✂️ ${partiallyClearedCount} Talebeye Kısmi Af Uygulandı</span>` : ''}
                 ${activePenalizedCount > 0 
-                  ? `<span class="text-rose-600">⚠️ ${activePenalizedCount} Talebe TV'de Gösteriliyor (3'ü Aşanlar)</span>` 
+                  ? `<span class="text-rose-600">⚠️ ${activePenalizedCount} Talebe TV'de Gösteriliyor</span>` 
                   : `<span class="text-emerald-600">🎉 TV Panosu Temiz (Telafili Yok)</span>`}
               </div>
             </div>
@@ -495,11 +567,12 @@ window.LeaveTrackerModule = {
                   const s = item.student;
                   const rep = item.report;
                   const isCheckedOut = !!gateStatus[s.id];
-                  const hasPenalty = rep.penaltyMinutes > 0;
-                  const isCleared = hasPenalty && window.Store.isPenaltyCleared(weekKey, s.id);
+                  const hasPenalty = rep.rawPenaltyMinutes > 0;
+                  const isCleared = rep.isFullyCleared;
+                  const isPartiallyCleared = rep.isPartiallyCleared;
 
                   return `
-                    <tr class="hover:bg-slate-50/70 transition-colors ${isCheckedOut ? 'bg-slate-50/40 opacity-70' : ''} ${isCleared ? 'bg-emerald-50/20' : ''}">
+                    <tr class="hover:bg-slate-50/70 transition-colors ${isCheckedOut ? 'bg-slate-50/40 opacity-70' : ''} ${isCleared ? 'bg-emerald-50/20' : (isPartiallyCleared ? 'bg-indigo-50/20' : '')}">
                       <!-- Sıra & No -->
                       <td class="p-3 text-center font-bold text-slate-400">
                         ${idx + 1}
@@ -510,7 +583,7 @@ window.LeaveTrackerModule = {
                         <div class="flex items-center gap-2.5">
                           <div class="w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shadow-2xs ${
                             hasPenalty 
-                              ? (isCleared ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300' : 'bg-rose-100 text-rose-800') 
+                              ? (isCleared ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300' : (isPartiallyCleared ? 'bg-indigo-100 text-indigo-800 ring-1 ring-indigo-300' : 'bg-rose-100 text-rose-800')) 
                               : 'bg-emerald-100 text-emerald-800'
                           }">
                             ${s.studentNo}
@@ -518,7 +591,8 @@ window.LeaveTrackerModule = {
                           <div>
                             <div class="font-black text-slate-900 text-xs flex items-center gap-1.5">
                               <span>${s.firstName} ${s.lastName}</span>
-                              ${isCleared ? '<span class="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[9px] font-black">✓ Telafi Tamam</span>' : ''}
+                              ${isCleared ? '<span class="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[9px] font-black">✓ Tam Af</span>' : ''}
+                              ${isPartiallyCleared ? `<span class="px-1.5 py-0.2 bg-indigo-100 text-indigo-800 border border-indigo-300 rounded text-[9px] font-black">✂️ -${rep.waivedMinutes} dk Af</span>` : ''}
                             </div>
                             <div class="text-[10px] text-slate-500 font-medium">
                               ${s.className} • ${s.dahiliHoca || '-'} • ${s.yatakhane || '-'}
@@ -586,7 +660,7 @@ window.LeaveTrackerModule = {
                       <td class="p-3 text-center">
                         <div class="inline-flex flex-col items-center">
                           <span class="px-2.5 py-1 rounded-xl font-black text-xs inline-block ${
-                            hasPenalty ? (isCleared ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-rose-600 text-white shadow-2xs') : (rep.totalInfractions > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold' : 'bg-slate-100 text-slate-500 font-bold')
+                            hasPenalty ? (isCleared ? 'bg-emerald-600 text-white shadow-2xs' : (isPartiallyCleared ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-rose-600 text-white shadow-2xs')) : (rep.totalInfractions > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold' : 'bg-slate-100 text-slate-500 font-bold')
                           }">
                             ${rep.totalInfractions} Adet
                           </span>
@@ -600,21 +674,44 @@ window.LeaveTrackerModule = {
 
                       <!-- Telafi Süresi -->
                       <td class="p-3 text-center">
-                        <span class="font-black text-xs ${hasPenalty ? (isCleared ? 'text-emerald-700' : 'text-rose-700') : 'text-emerald-700'}">
-                          ${hasPenalty ? `+${rep.penaltyFormatted}` : 'Telafi Yok'}
-                        </span>
+                        ${isCleared ? `
+                          <div class="inline-flex flex-col items-center">
+                            <span class="line-through text-slate-400 text-[10px]">+${rep.rawPenaltyFormatted}</span>
+                            <span class="font-black text-xs text-emerald-700">0 Dk (Tam Af)</span>
+                          </div>
+                        ` : (isPartiallyCleared ? `
+                          <div class="inline-flex flex-col items-center">
+                            <span class="line-through text-slate-400 text-[10px]">+${rep.rawPenaltyFormatted}</span>
+                            <span class="font-black text-xs text-indigo-700">+${rep.penaltyFormatted}</span>
+                            <span class="text-[9px] text-indigo-600 font-bold">(-${rep.waivedMinutes} dk af)</span>
+                          </div>
+                        ` : (hasPenalty ? `
+                          <span class="font-black text-xs text-rose-700">+${rep.penaltyFormatted}</span>
+                        ` : `
+                          <span class="text-emerald-700 font-bold text-xs">Telafi Yok</span>
+                        `))}
                       </td>
 
                       <!-- İzin Çıkış Saati -->
                       <td class="p-3 text-center">
                         <div class="inline-block px-3 py-1.5 rounded-xl font-black text-xs shadow-2xs border ${
-                          hasPenalty 
-                            ? (isCleared ? 'bg-emerald-50 text-emerald-900 border-emerald-300' : 'bg-rose-100 text-rose-900 border-rose-300 ring-1 ring-rose-200')
-                            : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                          isCleared 
+                            ? 'bg-emerald-50 text-emerald-900 border-emerald-300' 
+                            : (isPartiallyCleared
+                                ? 'bg-indigo-50 text-indigo-900 border-indigo-300 ring-1 ring-indigo-200'
+                                : (rep.hasActivePenalty
+                                    ? 'bg-rose-100 text-rose-900 border-rose-300 ring-1 ring-rose-200'
+                                    : 'bg-emerald-100 text-emerald-900 border-emerald-300'))
                         }">
                           <div class="text-sm leading-tight">${rep.calculatedExitTime}</div>
                           <div class="text-[9px] font-bold opacity-80 mt-0.5">
-                            ${hasPenalty ? (isCleared ? '✓ Telafisini Tamamladı' : `(+${rep.penaltyMinutes} dk ek süre)`) : (rep.totalInfractions > 0 ? '✓ 3 Kusur Affı' : 'Tam Vaktinde')}
+                            ${isCleared 
+                              ? '✓ Tam Af (Standart Çıkış)' 
+                              : (isPartiallyCleared 
+                                  ? `✂️ ${rep.waivedMinutes} dk Af (Kalan +${rep.penaltyMinutes} dk)` 
+                                  : (rep.hasActivePenalty 
+                                      ? `(+${rep.penaltyMinutes} dk ek süre)` 
+                                      : (rep.totalInfractions > 0 ? '✓ 3 Kusur Affı' : 'Tam Vaktinde')))}
                           </div>
                         </div>
                       </td>
@@ -623,21 +720,65 @@ window.LeaveTrackerModule = {
                       <td class="p-3 text-center no-print">
                         ${hasPenalty ? `
                           ${isCleared ? `
-                            <button type="button" onclick="window.LeaveTrackerModule.togglePenaltyCleared('${s.id}')"
-                              class="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-rose-600 text-white font-black text-[11px] transition shadow-xs flex items-center justify-center gap-1 mx-auto cursor-pointer group"
-                              title="Tıklandığında telafi süresini tekrar aktif yapar ve TV panosuna gönderir">
-                              <span>✓</span> <span>Telafisi Tamam</span>
-                              <span class="hidden group-hover:inline text-[9px] ml-0.5">(Geri Al)</span>
-                            </button>
-                            <div class="text-[9px] text-emerald-700 font-bold mt-0.5">TV'den Düşürüldü</div>
+                            <div class="inline-flex flex-col items-center gap-1">
+                              <span class="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-black text-[11px] shadow-xs flex items-center justify-center gap-1">
+                                <span>✓</span> <span>Tam Af</span>
+                              </span>
+                              <div class="flex items-center gap-1 mt-0.5">
+                                <button type="button" onclick="window.LeaveTrackerModule.openPartialWaiverModal('${s.id}')"
+                                  class="px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-bold transition cursor-pointer"
+                                  title="Affı düzenle">
+                                  ✏️ Düzenle
+                                </button>
+                                <button type="button" onclick="window.LeaveTrackerModule.cancelPenaltyWaiver('${s.id}')"
+                                  class="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 border border-slate-200 text-[10px] font-bold transition cursor-pointer"
+                                  title="Affı tamamen kaldır">
+                                  🔄 Geri Al
+                                </button>
+                              </div>
+                              <div class="text-[9px] text-emerald-700 font-bold">TV'den Düşürüldü</div>
+                            </div>
+                          ` : (isPartiallyCleared ? `
+                            <div class="inline-flex flex-col items-center gap-1">
+                              <span class="px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-900 border border-indigo-300 font-black text-[10px]">
+                                ✂️ -${rep.waivedMinutes} dk Af • Kalan: ${rep.penaltyMinutes} dk
+                              </span>
+                              <div class="flex items-center gap-1 mt-0.5">
+                                <button type="button" onclick="window.LeaveTrackerModule.openPartialWaiverModal('${s.id}')"
+                                  class="px-2 py-0.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold transition shadow-2xs cursor-pointer"
+                                  title="Affı düzenle">
+                                  ✂️ Düzenle
+                                </button>
+                                <button type="button" onclick="window.LeaveTrackerModule.applyPartialWaiver('${s.id}', ${rep.rawPenaltyMinutes}, 'Tam Af')"
+                                  class="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition shadow-2xs cursor-pointer"
+                                  title="Kalan telafinin tamamını affet">
+                                  ✓ Tam Af
+                                </button>
+                                <button type="button" onclick="window.LeaveTrackerModule.cancelPenaltyWaiver('${s.id}')"
+                                  class="px-1.5 py-0.5 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 text-[10px] font-bold transition cursor-pointer"
+                                  title="Affı kaldır">
+                                  ✕
+                                </button>
+                              </div>
+                              <div class="text-[9px] text-rose-600 font-bold">TV'de Kalan ${rep.penaltyMinutes} dk Yayında</div>
+                            </div>
                           ` : `
-                            <button type="button" onclick="window.LeaveTrackerModule.togglePenaltyCleared('${s.id}')"
-                              class="px-2.5 py-1 rounded-xl bg-amber-100 hover:bg-emerald-100 text-amber-900 hover:text-emerald-900 border border-amber-300 hover:border-emerald-400 font-black text-[11px] transition shadow-2xs flex items-center justify-center gap-1 mx-auto cursor-pointer"
-                              title="Talebe telafisini tamamladığında basınız; TV panosundaki telafililer listesinden anında düşer">
-                              <span>⏳</span> <span>Telafisi Tamam Yap</span>
-                            </button>
-                            <div class="text-[9px] text-rose-600 font-bold mt-0.5">TV'de Yayında</div>
-                          `}
+                            <div class="inline-flex flex-col items-center gap-1">
+                              <div class="flex items-center gap-1">
+                                <button type="button" onclick="window.LeaveTrackerModule.applyPartialWaiver('${s.id}', ${rep.rawPenaltyMinutes}, 'Tam Af')"
+                                  class="px-2 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                                  title="Talebenin tüm telafisini affet ve TV'den düşür">
+                                  <span>✓</span> <span>Tam Af</span>
+                                </button>
+                                <button type="button" onclick="window.LeaveTrackerModule.openPartialWaiverModal('${s.id}')"
+                                  class="px-2 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                                  title="Telafinin bir kısmını affet (30 dk, 60 dk vb.)">
+                                  <span>✂️</span> <span>Kısmi Af</span>
+                                </button>
+                              </div>
+                              <div class="text-[9px] text-rose-600 font-bold">TV'de Yayında</div>
+                            </div>
+                          `)}
                         ` : `
                           <span class="text-emerald-700 font-bold text-[11px]">${rep.totalInfractions > 0 ? '✓ Zamanında (Affedildi)' : '✓ Kusursuz'}</span>
                         `}
@@ -681,6 +822,9 @@ window.LeaveTrackerModule = {
 
         <!-- 5. ÖĞRENCİ KUSUR DETAY MODALI -->
         ${this.renderStudentDetailModal()}
+
+        <!-- 6. KISMİ / TAM TELAFİ AFFI DÜZENLEME MODALI -->
+        ${this.renderPartialWaiverModal()}
       </div>
     `;
   },
@@ -707,24 +851,31 @@ window.LeaveTrackerModule = {
               </div>
             </div>
             <button onclick="window.LeaveTrackerModule.closeDetailModal()"
-              class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 font-black transition flex items-center justify-center">
+              class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 font-black transition flex items-center justify-center cursor-pointer">
               ✕
             </button>
           </div>
 
-          <!-- Telafi & Çıkış Kartı -->
-          <div class="grid grid-cols-3 gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-center">
+          <!-- Telafi & Çıkış Kartı (Kısmi Af Uyumlu 4'lü Özet) -->
+          <div class="grid grid-cols-4 gap-2 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-center">
             <div>
-              <div class="text-[10px] font-bold text-slate-400 uppercase">TOPLAM KUSUR</div>
-              <div class="text-lg font-black text-rose-700 mt-0.5">${rep.totalInfractions} Adet</div>
+              <div class="text-[9px] font-bold text-slate-400 uppercase">TOPLAM KUSUR</div>
+              <div class="text-base font-black text-slate-800 mt-0.5">${rep.totalInfractions} Adet</div>
             </div>
             <div>
-              <div class="text-[10px] font-bold text-slate-400 uppercase">TELAFİ SÜRESİ</div>
-              <div class="text-lg font-black text-rose-700 mt-0.5">+${rep.penaltyFormatted}</div>
+              <div class="text-[9px] font-bold text-slate-400 uppercase">HAM TELAFİ</div>
+              <div class="text-base font-black text-rose-700 mt-0.5">+${rep.rawPenaltyFormatted}</div>
             </div>
             <div>
-              <div class="text-[10px] font-bold text-slate-400 uppercase">İZİN ÇIKIŞ SAATİ</div>
-              <div class="text-lg font-black text-slate-900 mt-0.5">${rep.calculatedExitTime}</div>
+              <div class="text-[9px] font-bold text-slate-400 uppercase">AFFEDİLEN</div>
+              <div class="text-base font-black text-emerald-700 mt-0.5">-${rep.waivedFormatted}</div>
+            </div>
+            <div>
+              <div class="text-[9px] font-bold text-slate-400 uppercase">KALAN / ÇIKIŞ</div>
+              <div class="text-base font-black ${rep.penaltyMinutes > 0 ? 'text-rose-700' : 'text-emerald-700'} mt-0.5">
+                ${rep.penaltyMinutes > 0 ? `+${rep.penaltyFormatted}` : '0 Dk'}
+              </div>
+              <div class="text-[10px] font-bold text-slate-700 mt-0.5">Saat: ${rep.calculatedExitTime}</div>
             </div>
           </div>
 
@@ -765,25 +916,167 @@ window.LeaveTrackerModule = {
 
           <!-- Alt İşlem & Kapat Butonları -->
           <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
-            <div class="flex items-center gap-2">
-              ${rep.totalInfractions > 0 ? `
-                <button type="button" onclick="window.LeaveTrackerModule.togglePenaltyCleared('${student.id}')"
+            <div class="flex flex-wrap items-center gap-2">
+              ${rep.rawPenaltyMinutes > 0 ? `
+                <button type="button" onclick="window.LeaveTrackerModule.applyPartialWaiver('${student.id}', ${rep.rawPenaltyMinutes}, 'Tam Af'); window.LeaveTrackerModule.renderView();"
                   class="px-3 py-2 rounded-xl font-black text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer ${
-                    window.Store.isPenaltyCleared(`week_${weekInfo.startDate}`, student.id)
-                      ? 'bg-emerald-600 text-white hover:bg-rose-600'
-                      : 'bg-amber-500 hover:bg-amber-600 text-white'
+                    rep.isFullyCleared
+                      ? 'bg-slate-200 text-slate-700 hover:bg-rose-100 hover:text-rose-700'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                   }">
-                  <span>${window.Store.isPenaltyCleared(`week_${weekInfo.startDate}`, student.id) ? '✓ Telafisi Tamam (Geri Al)' : '✓ Telafisini Tamamladı Yap'}</span>
+                  <span>${rep.isFullyCleared ? '✓ Tam Af Uygulandı' : '✓ Tam Af Uygula'}</span>
+                </button>
+                <button type="button" onclick="window.LeaveTrackerModule.openPartialWaiverModal('${student.id}')"
+                  class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer">
+                  <span>✂️</span>
+                  <span>Kısmi Af Düzenle</span>
                 </button>
               ` : ''}
               <button type="button" onclick="window.LeaveTrackerModule.sendWhatsAppExitNotice('${student.id}')"
-                class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer">
+                class="px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white border border-emerald-200 font-black text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer">
                 <span>📲</span>
-                <span>Veliye WhatsApp Bildirimi</span>
+                <span>Veliye WhatsApp</span>
               </button>
             </div>
             <button type="button" onclick="window.LeaveTrackerModule.closeDetailModal()"
               class="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer">
+              Kapat
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  renderPartialWaiverModal() {
+    if (!this.partialWaiverStudentId) return '';
+    const student = window.Store.getStudentById(this.partialWaiverStudentId);
+    if (!student) return '';
+
+    const weekInfo = this.getWeekInfo();
+    const rep = window.Store.getLeaveReportForStudent(student.id, weekInfo.dates, this.baseExitTime);
+    const rawPenalty = rep.rawPenaltyMinutes || 0;
+    const waivedMins = rep.waivedMinutes || 0;
+    const remainingMins = rep.penaltyMinutes || 0;
+
+    return `
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-xs animate-fade-in no-print">
+        <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-5">
+          <!-- Başlık -->
+          <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-700 font-black text-xl flex items-center justify-center shadow-inner">
+                ✂️
+              </div>
+              <div>
+                <h3 class="font-black text-base text-slate-900 flex items-center gap-2">
+                  <span>Telafi Affı Düzenle</span>
+                  ${rep.isPartiallyCleared ? '<span class="px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-800 text-[10px] font-black">Kısmi Af Aktif</span>' : (rep.isFullyCleared ? '<span class="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-black">Tam Af Aktif</span>' : '')}
+                </h3>
+                <p class="text-xs text-slate-500 font-bold">${student.studentNo} • ${student.firstName} ${student.lastName} (${student.className})</p>
+              </div>
+            </div>
+            <button onclick="window.LeaveTrackerModule.closePartialWaiverModal()"
+              class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 font-black transition flex items-center justify-center cursor-pointer">
+              ✕
+            </button>
+          </div>
+
+          <!-- Mevcut Durum Kartları -->
+          <div class="grid grid-cols-3 gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-center">
+            <div>
+              <div class="text-[9px] font-black text-slate-400 uppercase">HAM TELAFİ</div>
+              <div class="text-base font-black text-rose-700 mt-0.5">+${rep.rawPenaltyFormatted}</div>
+              <div class="text-[9px] text-slate-400">Toplam kusurdan</div>
+            </div>
+            <div>
+              <div class="text-[9px] font-black text-slate-400 uppercase">ŞU AN AFFEDİLEN</div>
+              <div class="text-base font-black ${waivedMins > 0 ? 'text-indigo-700' : 'text-slate-400'} mt-0.5">-${rep.waivedFormatted}</div>
+              <div class="text-[9px] ${waivedMins > 0 ? 'text-indigo-600 font-bold' : 'text-slate-400'}">${waivedMins > 0 ? 'İndirilen süre' : 'Henüz af yok'}</div>
+            </div>
+            <div>
+              <div class="text-[9px] font-black text-slate-400 uppercase">KALAN / ÇIKIŞ</div>
+              <div class="text-base font-black ${remainingMins > 0 ? 'text-rose-700' : 'text-emerald-700'} mt-0.5">
+                ${remainingMins > 0 ? `+${rep.penaltyFormatted}` : '0 Dk'}
+              </div>
+              <div class="text-[10px] font-bold ${remainingMins > 0 ? 'text-slate-700' : 'text-emerald-700'}">Saat: ${rep.calculatedExitTime}</div>
+            </div>
+          </div>
+
+          <!-- Hızlı Seçenek Butonları -->
+          <div class="space-y-2">
+            <div class="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center justify-between">
+              <span>HIZLI AF SEÇENEKLERİ:</span>
+              <span class="text-[10px] font-bold text-slate-400">Tek tıkla uygula</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <button type="button" onclick="window.LeaveTrackerModule.applyPartialWaiver('${student.id}', 30, '30 dk telafi affı')"
+                class="px-3 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-black text-xs transition border border-indigo-200 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer group">
+                <span>✂️</span> <span>-30 Dk Af</span>
+              </button>
+
+              <button type="button" onclick="window.LeaveTrackerModule.applyPartialWaiver('${student.id}', 60, '1 saat (60 dk) telafi affı')"
+                class="px-3 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-black text-xs transition border border-indigo-200 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer group">
+                <span>✂️</span> <span>-60 Dk Af (1 Sa)</span>
+              </button>
+
+              ${rawPenalty >= 90 ? `
+                <button type="button" onclick="window.LeaveTrackerModule.applyPartialWaiver('${student.id}', 90, '90 dk telafi affı')"
+                  class="px-3 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-black text-xs transition border border-indigo-200 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer group">
+                  <span>✂️</span> <span>-90 Dk Af (1.5 Sa)</span>
+                </button>
+              ` : `
+                <button type="button" onclick="window.LeaveTrackerModule.applyPartialWaiver('${student.id}', 45, '45 dk telafi affı')"
+                  class="px-3 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-black text-xs transition border border-indigo-200 flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer group">
+                  <span>✂️</span> <span>-45 Dk Af</span>
+                </button>
+              `}
+
+              <!-- Tam Af Butonu -->
+              <button type="button" onclick="window.LeaveTrackerModule.applyPartialWaiver('${student.id}', ${rawPenalty}, 'Tüm telafisi affedildi')"
+                class="px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer">
+                <span>✓</span> <span>Tam Af (${rawPenalty} Dk)</span>
+              </button>
+
+              <!-- Affı Sıfırla / Kaldır Butonu -->
+              <button type="button" onclick="window.LeaveTrackerModule.cancelPenaltyWaiver('${student.id}')"
+                class="px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700 border border-slate-200 font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer sm:col-span-2">
+                <span>🔄</span> <span>Affı İptal Et (Sıfırla)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Özel Dakika Girme Alanı -->
+          <div class="space-y-2 pt-2 border-t border-slate-100">
+            <div class="text-[11px] font-black uppercase tracking-wider text-slate-500">
+              VEYA İSTEDİĞİNİZ DAKİKAYI YAZIN:
+            </div>
+            <div class="flex flex-wrap sm:flex-nowrap items-center gap-2">
+              <div class="relative w-36">
+                <input type="number" id="partial-waiver-custom-mins" min="5" max="${Math.max(rawPenalty, 600)}" step="5"
+                  value="${waivedMins > 0 ? waivedMins : 30}"
+                  placeholder="Dakika"
+                  class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-black text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">Dk</span>
+              </div>
+              <input type="text" id="partial-waiver-custom-note" 
+                value="${rep.clearedNote || ''}"
+                placeholder="İsteğe bağlı açıklama / af sebebi..."
+                class="flex-1 min-w-[160px] px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-800 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <button type="button" onclick="window.LeaveTrackerModule.submitCustomWaiver('${student.id}')"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition shadow cursor-pointer shrink-0">
+                Kaydet
+              </button>
+            </div>
+            <p class="text-[10px] text-slate-400 leading-tight">
+              💡 Girilen dakika toplam telafiden düşülür. Kalan süre TV Panosunda güncel çıkış saati ile yayınlanmaya devam eder. Tamamı affedilirse öğrenci TV panosundan kendiliğinden düşer.
+            </p>
+          </div>
+
+          <!-- Kapat Butonu -->
+          <div class="pt-3 border-t border-slate-100 flex justify-end">
+            <button type="button" onclick="window.LeaveTrackerModule.closePartialWaiverModal()"
+              class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">
               Kapat
             </button>
           </div>
