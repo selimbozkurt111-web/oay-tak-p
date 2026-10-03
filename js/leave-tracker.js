@@ -137,7 +137,16 @@ window.LeaveTrackerModule = {
     
     let msg = '';
     if (rep.penaltyMinutes > 0) {
-      msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${st.firstName} ${st.lastName}, bu hafta oluşan intizam kusurları sebebiyle (+${rep.penaltyFormatted} gecikme) hafta sonu iznine saat ${rep.calculatedExitTime}'de çıkabilecektir (Standart çıkış: ${this.baseExitTime}). Bilgilerinize sunarız.`;
+      let reasons = [];
+      const intizamCount = rep.totalInfractions - (rep.takviyeInfractionsCount || 0);
+      if (intizamCount > 0) {
+        reasons.push('intizam kusurları');
+      }
+      if (rep.takviyeInfractionsCount > 0) {
+        reasons.push(`takviye dersi (< 85) telafisi (${rep.takviyeInfractionsCount} ders, +${rep.takviyePenaltyMinutes} dk)`);
+      }
+      const reasonText = reasons.length > 0 ? reasons.join(' ve ') : 'oluşan telafiler';
+      msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${st.firstName} ${st.lastName}, bu hafta ${reasonText} sebebiyle (+${rep.penaltyFormatted} gecikme) hafta sonu iznine saat ${rep.calculatedExitTime}'de çıkabilecektir (Standart çıkış: ${this.baseExitTime}). Bilgilerinize sunarız.`;
     } else {
       msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${st.firstName} ${st.lastName}, bu haftayı tam intizam ve kusursuz olarak tamamlamış olup hafta sonu iznine vaktinde (Saat: ${this.baseExitTime}) çıkacaktır. Gayretlerinden ötürü tebrik eder, hayırlı günler dileriz.`;
     }
@@ -441,7 +450,7 @@ window.LeaveTrackerModule = {
                 <span class="text-xs font-normal text-slate-500">(${displayedReports.length} Talebe Listeleniyor)</span>
               </h3>
               <p class="text-[11px] text-slate-400 mt-0.5">
-                Kusur Başı = <strong>+30 Dk</strong> • İzin Dönüşü Gecikmesi = <strong>Dakika Başı 3x Dk</strong> • Standart Çıkış Saati: <strong>${this.baseExitTime}</strong>
+                Kusur Başı = <strong>+30 Dk</strong> • İzin Dönüşü = <strong>Dakika Başı 3x Dk</strong> • Takviye (&lt; 85) = <strong>+60 Dk</strong> • Standart Çıkış Saati: <strong>${this.baseExitTime}</strong>
               </p>
             </div>
 
@@ -466,6 +475,7 @@ window.LeaveTrackerModule = {
                   <th class="p-3 font-black text-center">🛏️ YATAK</th>
                   <th class="p-3 font-black text-center">🎒 OKUL DÖNÜŞÜ</th>
                   <th class="p-3 font-black text-center">🧳 İZİN DÖNÜŞÜ (3x)</th>
+                  <th class="p-3 font-black text-center">📚 TAKVİYE (&lt; 85)</th>
                   <th class="p-3 font-black text-center">TOPLAM KUSUR</th>
                   <th class="p-3 font-black text-center">TELAFİ SÜRESİ</th>
                   <th class="p-3 font-black text-center">İZİN ÇIKIŞ SAATİ</th>
@@ -477,7 +487,7 @@ window.LeaveTrackerModule = {
               <tbody class="divide-y divide-slate-100">
                 ${displayedReports.length === 0 ? `
                   <tr>
-                    <td colspan="12" class="p-8 text-center text-slate-400">
+                    <td colspan="13" class="p-8 text-center text-slate-400">
                       Seçilen kriterlere uygun öğrenci bulunamadı.
                     </td>
                   </tr>
@@ -555,6 +565,17 @@ window.LeaveTrackerModule = {
                         ${(rep.leaveReturnInfractionsCount || 0) > 0 ? `
                           <span class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-900 border border-rose-300 font-black inline-block shadow-2xs">
                             +${rep.leaveReturnPenaltyMinutes} dk (3x)
+                          </span>
+                        ` : `
+                          <span class="text-slate-300 font-bold">-</span>
+                        `}
+                      </td>
+
+                      <!-- Takviye Dersi (< 85) -->
+                      <td class="p-3 text-center">
+                        ${(rep.takviyeInfractionsCount || 0) > 0 ? `
+                          <span class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-900 border border-rose-300 font-black inline-block shadow-2xs">
+                            +${rep.takviyePenaltyMinutes} dk (${rep.takviyeInfractionsCount} Ders)
                           </span>
                         ` : `
                           <span class="text-slate-300 font-bold">-</span>
@@ -722,7 +743,7 @@ window.LeaveTrackerModule = {
                 ${rep.infractions.map(inf => `
                   <div class="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs flex items-center justify-between gap-3">
                     <div class="flex items-center gap-2.5">
-                      <span class="text-lg">${inf.category === 'namaz' ? '🕌' : (inf.category === 'yatak' ? '🛏️' : (inf.category === 'izin_donusu' ? '🧳' : '🎒'))}</span>
+                      <span class="text-lg">${inf.category === 'namaz' ? '🕌' : (inf.category === 'yatak' ? '🛏️' : (inf.category === 'izin_donusu' ? '🧳' : (inf.category === 'takviye_dersi' ? '📚' : '🎒')))}</span>
                       <div>
                         <div class="font-bold text-xs text-slate-800">${inf.subLabel}</div>
                         <div class="text-[10px] text-slate-400">${inf.desc || `${inf.date} • ${inf.dayName}`}</div>

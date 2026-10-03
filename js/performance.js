@@ -43,7 +43,20 @@ window.AkademiModule = {
     { name: 'Tekrar Yapmalı', icon: '🔄', color: 'bg-orange-100 text-orange-800 border-orange-300' }
   ],
 
+  getSaturdayOfDate(dateStr) {
+    if (window.Store && typeof window.Store.getWeekRange === 'function') {
+      return window.Store.getWeekRange(dateStr).endDate;
+    }
+    const d = dateStr ? new Date(dateStr) : new Date();
+    const day = d.getDay();
+    const diff = 6 - day;
+    d.setDate(d.getDate() + diff);
+    return d.toISOString().split('T')[0];
+  },
+
   init() {
+    // Takviye dersleri sadece Cumartesi günleri yapılır:
+    this.currentDate = this.getSaturdayOfDate(this.currentDate);
     this.renderView();
   },
 
@@ -53,8 +66,29 @@ window.AkademiModule = {
   },
 
   setDate(date) {
-    this.currentDate = date;
+    if (!date) return;
+    const sat = this.getSaturdayOfDate(date);
+    this.currentDate = sat;
     this.renderView();
+    if (date !== sat && window.App && window.App.showToast) {
+      window.App.showToast(`Takviye dersleri sadece Cumartesi günleri yapıldığından ${sat} (Cumartesi) seçildi.`, 'info');
+    }
+  },
+
+  prevWeekSaturday() {
+    const d = new Date(this.currentDate);
+    d.setDate(d.getDate() - 7);
+    this.setDate(d.toISOString().split('T')[0]);
+  },
+
+  nextWeekSaturday() {
+    const d = new Date(this.currentDate);
+    d.setDate(d.getDate() + 7);
+    this.setDate(d.toISOString().split('T')[0]);
+  },
+
+  setThisWeekSaturday() {
+    this.setDate(new Date().toISOString().split('T')[0]);
   },
 
   getDayName(dateStr) {
@@ -520,7 +554,7 @@ window.AkademiModule = {
         <!-- Kontrol Kartı: Tarih, Gün Adı, Çoklu Sınıf Filtresi, Sıralama & Renk Kılavuzu -->
         <div class="bg-white rounded-2xl sm:rounded-3xl shadow-xs border border-slate-200 p-3 sm:p-5 space-y-3 sm:space-y-4 no-print">
           <div class="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
-            <!-- Tarih ve Gün Adı -->
+            <!-- Tarih ve Gün Adı & Cumartesi Hızlı Geçiş Butonları -->
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-[11px] sm:text-xs font-black text-slate-800 uppercase tracking-wide">
                 TARİH:
@@ -533,6 +567,27 @@ window.AkademiModule = {
                 <span>📅</span>
                 <span>${dayName}</span>
               </div>
+
+              <!-- Cumartesi Hızlı Hafta Atlama Butonları -->
+              <div class="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200 shadow-2xs gap-0.5">
+                <button type="button" onclick="window.AkademiModule.prevWeekSaturday()" title="Bir Önceki Cumartesi"
+                  class="px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold text-slate-700 hover:bg-white transition cursor-pointer">
+                  ◀ Önceki
+                </button>
+                <button type="button" onclick="window.AkademiModule.setThisWeekSaturday()" title="Bu Haftanın Cumartesisi"
+                  class="px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-black bg-blue-600 text-white shadow-xs transition cursor-pointer">
+                  Bu Cumartesi
+                </button>
+                <button type="button" onclick="window.AkademiModule.nextWeekSaturday()" title="Bir Sonraki Cumartesi"
+                  class="px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold text-slate-700 hover:bg-white transition cursor-pointer">
+                  Sonraki ▶
+                </button>
+              </div>
+
+              <span class="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-[10px] font-black">
+                <span>📌</span>
+                <span>Takviye Dersleri Sadece Cumartesi Yapılır</span>
+              </span>
             </div>
 
             <!-- Çıktı Alma, Resim İndirme & Canlı Kayıt Göstergesi -->
@@ -565,8 +620,8 @@ window.AkademiModule = {
               <span>🎨</span> Renk Skalası:
             </span>
             <div class="flex flex-wrap items-center gap-1 sm:gap-1.5 text-[10px] sm:text-[11px]">
-              <span class="px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 font-black">
-                &lt; 85: Kırmızı
+              <span class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 font-black flex items-center gap-1 shadow-2xs">
+                <span>⚠️ &lt; 85: Kırmızı (+1 Saat İzin Cezası)</span>
               </span>
               <span class="text-slate-300 font-bold">→</span>
               <span class="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 font-bold">

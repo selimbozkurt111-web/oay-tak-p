@@ -2564,6 +2564,10 @@ class DataStore {
   }
 
   getMonthRange(yearMonthStr) {
+    if (!yearMonthStr) {
+      const now = new Date();
+      yearMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
     const parts = yearMonthStr.split('-').map(Number);
     const year = parts[0];
     const month = parts[1];
@@ -2900,13 +2904,21 @@ class DataStore {
 
   normalizeStatusCode(code) {
     if (!code) return 'VAR';
-    const c = code.toString().toUpperCase().trim();
-    if (c === 'GEC_TAKKESIZ' || c === 'TAKKESIZ_GEC' || c === 'GEÇ_TAKKESİZ' || c === 'TAKKESİZ_GEÇ' || c === 'GT' || c === 'TG') return 'GEC_TAKKESIZ';
+    let c = code.toString().trim()
+      .replace(/İ/g, 'I').replace(/ı/g, 'i')
+      .replace(/Ö/g, 'O').replace(/ö/g, 'o')
+      .replace(/Ü/g, 'U').replace(/ü/g, 'u')
+      .replace(/Ç/g, 'C').replace(/ç/g, 'c')
+      .replace(/Ş/g, 'S').replace(/ş/g, 's')
+      .replace(/Ğ/g, 'G').replace(/ğ/g, 'g')
+      .toUpperCase();
+
+    if (c === 'GEC_TAKKESIZ' || c === 'TAKKESIZ_GEC' || c === 'GT' || c === 'TG') return 'GEC_TAKKESIZ';
     if (c === 'V' || c === 'VAR') return 'VAR';
     if (c === 'K' || c === 'Y' || c === 'YOK') return 'YOK';
-    if (c === 'G' || c === 'GEC' || c === 'GEÇ') return 'GEC';
-    if (c === 'T' || c === 'TAKKESIZ' || c === 'TAKKESİZ') return 'TAKKESIZ';
-    if (c === 'I' || c === 'İ' || c === 'IZINLI' || c === 'İZİNLİ') return 'IZINLI';
+    if (c === 'G' || c === 'GEC') return 'GEC';
+    if (c === 'T' || c === 'TAKKESIZ') return 'TAKKESIZ';
+    if (c === 'I' || c === 'IZINLI') return 'IZINLI';
     if (c === 'IYI' || c === 'ORTA' || c === 'KOTU' || c === 'GELDI' || c === 'GELMEDI') return c;
     return 'VAR';
   }
@@ -3109,22 +3121,57 @@ class DataStore {
       }
     });
 
-    infractions.sort((a, b) => a.date.localeCompare(b.date));
+    // Takviye Dersleri Cezası (Cumartesi günleri yapılır, 85 altı not alanlara ders başına 1 saat = 60 dk izin cezası)
+    let takviyeInfractionsCount = 0;
+    let takviyePenaltyMinutes = 0;
+    const allAcad = this.getAcademicScores();
+    const studentAcad = allAcad.filter(a => a.studentId === studentId && Array.isArray(weekDates) && weekDates.includes(a.date));
+
+    studentAcad.forEach(rec => {
+      if (rec.score !== null && rec.score !== undefined && rec.score !== '' && !isNaN(rec.score)) {
+        const sc = Number(rec.score);
+        if (sc < 85) {
+          takviyeInfractionsCount++;
+          takviyePenaltyMinutes += 60; // 1 saat
+          const dayName = this.getDayName(rec.date);
+          infractions.push({
+            id: 'acad_' + rec.date + '_' + studentId + '_' + (rec.subject || 'ders'),
+            date: rec.date,
+            dayName,
+            category: 'takviye_dersi',
+            categoryLabel: '📚 Takviye Dersi',
+            subKey: rec.subject || 'Takviye Dersi',
+            subLabel: `${rec.subject || 'Takviye'}: ${sc}/100 (< 85)`,
+            status: 'KOTU',
+            statusLabel: `${sc} Aldı (< 85)`,
+            statusBg: '#ef4444',
+            penaltyMinutes: 60,
+            score: sc,
+            desc: `${rec.date} ${dayName} • Takviye Dersi (${rec.subject}): ${sc}/100 (85 Altı) • +60 dk (1 Saat) İzin Cezası`
+          });
+        }
+      }
+    });
 
     // =========================================================================
     // İZİN ÇIKIŞINDA 3 KUSUR AFFI KURALI:
-    // İlk 3 kusur affedilir (0 dk ceza, standart saatte çıkış).
-    // Yalnızca 3'ten fazla olan kusurlar telafiye kalır (+30 dk ek süre).
+    // Yalnızca hafta içi intizam kusurları (Namaz, Yatak, Okul Dönüşü) için geçerlidir!
+    // İlk 3 intizam kusuru affedilir (0 dk ceza, standart saatte çıkış).
+    // 3'ten fazla olan intizam kusurları telafiye kalır (+30 dk ek süre).
+    // İzin Dönüşü Gecikmesi (3x) ve Takviye Dersi (85 altı alanlara 1 saat) doğrudan eklenir.
     // =========================================================================
     const EXCUSED_QUOTA = 3;
-    const totalInfractions = infractions.length;
-    const excusedCount = Math.min(EXCUSED_QUOTA, totalInfractions);
-    const activeInfractionsCount = Math.max(0, totalInfractions - EXCUSED_QUOTA);
+    let excusedSoFar = 0;
 
-    infractions.forEach((inf, idx) => {
-      if (idx < EXCUSED_QUOTA) {
+    // Tarihe göre sırala
+    infractions.sort((a, b) => a.date.localeCompare(b.date));
+
+    infractions.forEach(inf => {
+      const isStandardInfraction = (inf.category === 'namaz' || inf.category === 'yatak' || inf.category === 'okul_donusu');
+      if (isStandardInfraction && excusedSoFar < EXCUSED_QUOTA) {
         inf.isExcused = true;
         inf.effectivePenalty = 0;
+        excusedSoFar++;
       } else {
         inf.isExcused = false;
         inf.effectivePenalty = inf.penaltyMinutes || 30;
@@ -3141,15 +3188,17 @@ class DataStore {
       weekDates,
       baseExitTime,
       calculatedExitTime,
-      totalInfractions,
-      excusedCount,
-      activeInfractionsCount,
+      totalInfractions: infractions.length,
+      excusedCount: excusedSoFar,
+      activeInfractionsCount: activeInfractions.length,
       penaltyMinutes,
       penaltyFormatted,
       hasPenalty: penaltyMinutes > 0,
       namazInfractionsCount,
       yatakInfractionsCount,
       okulInfractionsCount,
+      takviyeInfractionsCount,
+      takviyePenaltyMinutes,
       leaveReturnInfractionsCount,
       leaveReturnPenaltyMinutes,
       infractions,
@@ -3583,8 +3632,9 @@ class DataStore {
         totalScore: 0,
         namaz: { points: 0, basePoints: 0, varCount: 0, gecCount: 0, takkesizCount: 0, gecTakkesizCount: 0, yokCount: 0, izinliCount: 0, fullBonusCount: 0, fullBonusPoints: 0 },
         yatak: { points: 0, iyiCount: 0, ortaCount: 0, kotuCount: 0 },
-        okul: { points: 0, geldiCount: 0, gecCount: 0, gelmediCount: 0 },
+        izinDonus: { points: 0, count: 0, onTimeCount: 0, lateCount: 0 },
         izin: { points: 0, izinCount: 0, onTimeCount: 0, lateCount: 0 },
+        akademi: { points: 0, count: 0, scores: [] },
         academic: { points: 0, count: 0, scores: [] },
         bonus: { points: 0, count: 0, items: [] }
       };
@@ -3760,35 +3810,57 @@ class DataStore {
 
     // 5. Takviye Ders Notları & Test Neticeleri Puanı
     const allAcad = this.getAcademicScores();
-    const studentAcad = allAcad.filter(s => s.studentId === studentId && dates.includes(s.date));
+    const studentAcad = allAcad.filter(s => s.studentId === studentId && dates.includes(s.date) && s.score !== null && s.score !== undefined && s.score !== '' && !isNaN(s.score));
     let akademiPoints = 0;
+    const academicItems = [];
+
     studentAcad.forEach(s => {
-      const score = Number(s.score) || 0;
+      const score = Math.min(100, Math.max(0, Number(s.score) || 0));
+      let pts = 0;
       if (score >= 100) {
-        akademiPoints += 50;
+        pts = 50;
       } else if (score >= 90) {
-        akademiPoints += 40;
+        pts = 40;
       } else if (score >= 85) {
-        akademiPoints += 30;
+        pts = 30;
       } else {
-        akademiPoints += Math.round(score / 3);
+        pts = Math.round(score / 3);
       }
+      akademiPoints += pts;
+      academicItems.push({
+        type: 'takviye',
+        subject: s.subject || 'Takviye Dersi',
+        title: s.subject || 'Takviye Dersi',
+        score: score,
+        pointsEarned: pts,
+        date: s.date
+      });
     });
 
     // Test Neticeleri modülünden gelen haftalık sınav puanları
     const allTests = (this.getTestResults && typeof this.getTestResults === 'function') ? this.getTestResults() : [];
-    const studentTests = allTests.filter(t => dates.includes(t.date) && t.scores && t.scores[studentId] && t.scores[studentId].score !== undefined);
+    const studentTests = allTests.filter(t => dates.includes(t.date) && t.scores && t.scores[studentId] && t.scores[studentId].score !== undefined && t.scores[studentId].score !== null && !isNaN(t.scores[studentId].score));
     studentTests.forEach(t => {
-      const score = Number(t.scores[studentId].score) || 0;
+      const score = Math.min(100, Math.max(0, Number(t.scores[studentId].score) || 0));
+      let pts = 0;
       if (score >= 100) {
-        akademiPoints += 50;
+        pts = 50;
       } else if (score >= 90) {
-        akademiPoints += 40;
+        pts = 40;
       } else if (score >= 85) {
-        akademiPoints += 30;
+        pts = 30;
       } else {
-        akademiPoints += Math.round(score / 3);
+        pts = Math.round(score / 3);
       }
+      akademiPoints += pts;
+      academicItems.push({
+        type: 'test',
+        subject: t.title || `${t.subject || 'Etüt'} Testi`,
+        title: t.title || `${t.subject || 'Etüt'} Testi`,
+        score: score,
+        pointsEarned: pts,
+        date: t.date
+      });
     });
 
     // 6. Hoca Takdir / Bonus Puanları
@@ -3836,8 +3908,8 @@ class DataStore {
       },
       akademi: {
         points: akademiPoints,
-        count: studentAcad.length,
-        scores: studentAcad
+        count: academicItems.length,
+        scores: academicItems
       },
       bonus: {
         points: bonusPoints,
@@ -3874,22 +3946,37 @@ class DataStore {
     });
 
     if (classFilter && classFilter !== 'ALL') {
-      const cf = String(classFilter).trim();
-      students = students.filter(s => {
-        if (!s || !s.className) return false;
-        const sc = s.className.trim();
-        // 1. Birebir eşitlik (örn: '5-A' === '5-A')
-        if (sc.toLowerCase() === cf.toLowerCase()) return true;
-
-        // 2. Şube fark etmeksizin sınıf seviyesi eşleme (örn: '5', '5. Sınıf', '5. Sınıflar' -> '5-A' ve '5-B'yi kapsar)
-        const filterDigit = cf.match(/^\d+/);
-        const studentDigit = sc.match(/^\d+/);
-        if (filterDigit && studentDigit && filterDigit[0] === studentDigit[0]) {
-          const isGenericGrade = /^\d+(\.|\s*sınıf|\s*sinif|\s*ler|\s*lar)*$/i.test(cf);
-          if (isGenericGrade) return true;
+      if (Array.isArray(classFilter)) {
+        if (classFilter.length > 0 && !classFilter.includes('ALL')) {
+          const selUpper = classFilter.map(c => String(c).trim().toUpperCase());
+          students = students.filter(s => {
+            if (!s || !s.className) return false;
+            const sc = s.className.trim().toUpperCase();
+            return selUpper.includes(sc) || selUpper.some(cf => {
+              const fDigit = cf.match(/^\d+/);
+              const sDigit = sc.match(/^\d+/);
+              return fDigit && sDigit && fDigit[0] === sDigit[0] && /^\d+(\.|\s*sınıf|\s*sinif|\s*ler|\s*lar)*$/i.test(cf);
+            });
+          });
         }
-        return false;
-      });
+      } else {
+        const cf = String(classFilter).trim();
+        students = students.filter(s => {
+          if (!s || !s.className) return false;
+          const sc = s.className.trim();
+          // 1. Birebir eşitlik (örn: '5-A' === '5-A')
+          if (sc.toLowerCase() === cf.toLowerCase()) return true;
+
+          // 2. Şube fark etmeksizin sınıf seviyesi eşleme (örn: '5', '5. Sınıf', '5. Sınıflar' -> '5-A' ve '5-B'yi kapsar)
+          const filterDigit = cf.match(/^\d+/);
+          const studentDigit = sc.match(/^\d+/);
+          if (filterDigit && studentDigit && filterDigit[0] === studentDigit[0]) {
+            const isGenericGrade = /^\d+(\.|\s*sınıf|\s*sinif|\s*ler|\s*lar)*$/i.test(cf);
+            if (isGenericGrade) return true;
+          }
+          return false;
+        });
+      }
     }
 
     const leaderboard = students.map(st => {
@@ -3900,8 +3987,21 @@ class DataStore {
       };
     });
 
-    // Puanlara göre büyükten küçüğe sırala
-    leaderboard.sort((a, b) => b.totalScore - a.totalScore);
+    // Puanlara göre büyükten küçüğe sırala (Averaj ve adil eşitlik bozma cascade kuralları ile)
+    leaderboard.sort((a, b) => {
+      // 1. Kriter: Toplam Puan
+      if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+      // 2. Kriter: 5 Vakit Namaz Puanı (Öncelikli kriter)
+      if (b.namaz.points !== a.namaz.points) return b.namaz.points - a.namaz.points;
+      // 3. Kriter: 5 Vakit Tam İbadet Bonusu Gün Sayısı
+      if (b.namaz.fullBonusCount !== a.namaz.fullBonusCount) return b.namaz.fullBonusCount - a.namaz.fullBonusCount;
+      // 4. Kriter: Yatak İntizam Puanı
+      if (b.yatak.points !== a.yatak.points) return b.yatak.points - a.yatak.points;
+      // 5. Kriter: Takviye & Test Akademik Başarı Puanı
+      if (b.akademi.points !== a.akademi.points) return b.akademi.points - a.akademi.points;
+      // 6. Kriter: İsim Alfabetik Sıra (Kararlı ve zıplamayan sıralama garantisi)
+      return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
+    });
 
     // Sıralama (rank) ata
     leaderboard.forEach((item, index) => {
