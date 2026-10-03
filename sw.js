@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v6.7 - TV Pano Ekran Taşma Düzeltmesi)
-const CACHE_NAME = 'oay-takip-cache-v6.7';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v6.9 - Takviye Cezası & Pano Canlı Oto-Tazeleme)
+const CACHE_NAME = 'oay-takip-cache-v6.9';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [

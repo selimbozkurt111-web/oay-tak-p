@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
   <meta name="description" content="Ömer Avniyel Akademi Canlı TV Bilgi ve Duyuru Panosu">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v6.7 - TV EKRAN TAŞMA ÖNLEYİCİ) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v6.9 - TAKVİYE CEZASI VE PANO OTO-YENİLEME) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20261003_v6.7_TV_PANO_OVERFLOW_FIT_FIX';
+      var CURRENT_BUILD = '20261003_v6.9_TAKVIYE_PENALTY_AND_PANO_AUTO_REFRESH';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -30,7 +30,7 @@
           localStorage.setItem('oay_pano_build_version', CURRENT_BUILD);
         } catch (e) {}
         setTimeout(function() {
-          window.location.href = window.location.pathname + '?reload=' + Date.now();
+          window.location.replace(window.location.pathname + '?build=' + CURRENT_BUILD + '&t=' + Date.now());
         }, 200);
       };
 
@@ -39,8 +39,17 @@
         try { localStorage.setItem('oay_pano_build_version', CURRENT_BUILD); } catch(e){}
         if ('caches' in window) {
           caches.keys().then(function(names) {
-            return Promise.all(names.map(function(n) { return caches.delete(n); }));
+            names.forEach(function(n) { caches.delete(n); });
           });
+        }
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            regs.forEach(function(r) { r.unregister(); });
+          });
+        }
+        // TV ve Kiosk cihazlarda yeni kodun derhal devreye girmesi için sayfayı tazeleyerek yönlendir
+        if (window.location.search.indexOf(CURRENT_BUILD) === -1) {
+          window.location.replace(window.location.pathname + '?build=' + CURRENT_BUILD + '&t=' + Date.now());
         }
       }
     })();
@@ -256,6 +265,10 @@
           class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold transition cursor-pointer">
           ⏭
         </button>
+        <button onclick="window.forcePurgePanoCache()" title="Panoyu ve Verileri Anında Yenile"
+          class="h-8 px-2.5 rounded-lg bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-700/60 flex items-center gap-1 text-xs font-black transition cursor-pointer shadow-sm">
+          <span>🔄</span> <span class="hidden sm:inline">Yenile</span>
+        </button>
         <button onclick="PanoApp.toggleFullscreen()" title="Tam Ekran (F11)"
           class="w-8 h-8 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center justify-center text-sm font-bold transition cursor-pointer">
           ⛶
@@ -297,17 +310,17 @@
   <div class="fixed bottom-8 right-3 z-40 opacity-60 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-2.5 py-1 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[10px] font-black shadow-lg flex items-center gap-1 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v6.7)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v6.9)</span>
     </button>
   </div>
 
-  <!-- Hadis Veritabanı, Store, Leaderboard ve Kur'an Hatim Modülleri (v6.7) -->
-  <script src="js/hadisler.js?v=6.7"></script>
-  <script src="js/store.js?v=6.7"></script>
-  <script src="js/leaderboard.js?v=6.7"></script>
-  <script src="js/quran-tracker.js?v=6.7"></script>
+  <!-- Hadis Veritabanı, Store, Leaderboard ve Kur'an Hatim Modülleri (v6.9) -->
+  <script src="js/hadisler.js?v=6.9"></script>
+  <script src="js/store.js?v=6.9"></script>
+  <script src="js/leaderboard.js?v=6.9"></script>
+  <script src="js/quran-tracker.js?v=6.9"></script>
 
-  <!-- Pano TV Yönetim Motoru (v6.7 - TV Ekran Taşma Önleyici) -->
+  <!-- Pano TV Yönetim Motoru (v6.9 - Takviye Cezası & Pano Canlı Oto-Tazeleme) -->
   <script>
     const PanoApp = {
       currentSlide: 0,
@@ -496,6 +509,14 @@
           }
         }
 
+        // TV Kiosk için her 2 saatte bir temiz tazeleme (Smart TV WebKit bellek şişmesini ve donmasını önler)
+        if (!this.tvKioskAutoRefreshTimer) {
+          this.tvKioskAutoRefreshTimer = setInterval(() => {
+            console.log('[TV Kiosk] Periyodik bellek tazeleme...');
+            window.location.reload();
+          }, 2 * 60 * 60 * 1000);
+        }
+
         // İlk slaytı aç ve saniye saniye işleyen Kalp Atışı motorunu başlat
         this.goToSlide(0);
         this.startHeartbeat();
@@ -582,6 +603,17 @@
         this.slideSecondsLeft = this.slideSecondsDuration;
         this.updateSlideButtons();
         this.updateProgressUI(this.isPaused);
+
+        // Her tam döngüde (1. slayta her dönüşte) bulut verilerini arka planda sessizce tazele
+        if (this.currentSlide === 0 && window.Store && typeof window.Store.syncFromCloud === 'function') {
+          window.Store.syncFromCloud().then(() => {
+            const statusEl = document.getElementById('sync-status');
+            if (statusEl) {
+              const now = new Date();
+              statusEl.textContent = `🟢 Canlı (${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')})`;
+            }
+          }).catch(() => {});
+        }
         try {
           this.renderCurrentSlide();
         } catch (err) {
@@ -1526,6 +1558,7 @@
                               else if (inf.category === 'yatak') { badgeClass = 'bg-teal-950/40 text-teal-300 border-teal-800/50'; icon = '🛏️'; }
                               else if (inf.category === 'okul') { badgeClass = 'bg-blue-950/40 text-blue-300 border-blue-800/50'; icon = '🎒'; }
                               else if (inf.category === 'izin_donusu') { badgeClass = 'bg-purple-950/40 text-purple-300 border-purple-800/50'; icon = '🏠'; }
+                              else if (inf.category === 'takviye_dersi') { badgeClass = 'bg-rose-950/50 text-rose-300 border-rose-800/60'; icon = '📚'; }
 
                               return `
                                 <span class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md border text-[9px] font-bold ${badgeClass}">
