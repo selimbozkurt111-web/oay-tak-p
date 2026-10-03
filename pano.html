@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
   <meta name="description" content="Ömer Avniyel Akademi Canlı TV Bilgi ve Duyuru Panosu">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v6.6) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v6.7 - TV EKRAN TAŞMA ÖNLEYİCİ) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20261002_v6.6_STABLE_INPUT_AND_FIXED_SORT';
+      var CURRENT_BUILD = '20261003_v6.7_TV_PANO_OVERFLOW_FIT_FIX';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -59,6 +59,11 @@
   <script src="https://cdn.tailwindcss.com"></script>
   
   <style>
+    html, body {
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+    }
     @keyframes pulse-glow {
       0%, 100% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.4); }
       50% { box-shadow: 0 0 45px rgba(245, 158, 11, 0.8); }
@@ -94,9 +99,14 @@
       -ms-overflow-style: none;
       scrollbar-width: none;
     }
+    /* TV Ekranına Otomatik Sığdırma Kapsayıcısı */
+    .tv-slide-wrapper {
+      transition: transform 0.25s ease-out;
+      will-change: transform;
+    }
   </style>
 </head>
-<body class="h-full bg-slate-950 text-slate-100 flex flex-col justify-between overflow-hidden select-none font-sans">
+<body class="h-screen max-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between overflow-hidden select-none font-sans">
 
   <!-- YÖNETİCİ GÜVENLİK KİLİT EKRANI (ADMIN SECURITY LOCK) -->
   <div id="pano-lock-screen" style="display: none !important;" class="hidden fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 transition-all duration-300">
@@ -162,96 +172,96 @@
     </div>
   </div>
 
-  <!-- 1. ÜST BİLGİ VE DURUM ÇUBUĞU (HEADER) -->
-  <header class="bg-slate-900/90 border-b border-slate-800/80 px-6 py-3.5 flex items-center justify-between shadow-2xl backdrop-blur z-20">
+  <!-- 1. ÜST BİLGİ VE DURUM ÇUBUĞU (HEADER - KOMPAKT TV UYUMLU) -->
+  <header class="bg-slate-900/95 border-b border-slate-800/80 px-4 sm:px-6 py-2 flex items-center justify-between shadow-2xl backdrop-blur z-20 flex-shrink-0">
     <!-- Sol: Logo & Kurum Başlığı -->
-    <div class="flex items-center gap-3.5">
-      <div class="w-12 h-12 rounded-2xl overflow-hidden bg-white p-1 border-2 border-amber-400/60 shadow-md flex items-center justify-center flex-shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl overflow-hidden bg-white p-1 border-2 border-amber-400/60 shadow-md flex items-center justify-center flex-shrink-0">
         <img id="pano-logo" src="kurs_logo.jpg" alt="Logo" class="w-full h-full object-contain"
-          onerror="this.parentElement.innerHTML='<span class=\'font-black text-amber-600 text-xl\'>ÖA</span>'">
+          onerror="this.parentElement.innerHTML='<span class=\'font-black text-amber-600 text-lg\'>ÖA</span>'">
       </div>
       <div>
         <div class="flex items-center gap-2">
-          <h1 id="pano-inst-name" class="text-lg sm:text-xl font-black tracking-tight text-white">
+          <h1 id="pano-inst-name" class="text-base sm:text-lg font-black tracking-tight text-white leading-tight">
             Ömer Avniyel Akademi
           </h1>
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-black uppercase tracking-wider">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase tracking-wider">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
             Canlı Pano
           </span>
         </div>
-        <p id="pano-sub-title" class="text-xs text-slate-400 font-medium">
+        <p id="pano-sub-title" class="text-[11px] text-slate-400 font-medium">
           Talebe İntizam, İbadet ve Akademik Başarı Liderlik Ekranı
         </p>
       </div>
     </div>
 
     <!-- Orta: Slayt Göstergeleri (Tabs) & Otomatik Geçiş Sayacı -->
-    <div class="hidden lg:flex items-center gap-1.5 bg-slate-950/70 p-1.5 rounded-2xl border border-slate-800">
-      <button onclick="PanoApp.goToSlide(0)" id="slide-btn-0" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 bg-amber-500 text-slate-950">
+    <div class="hidden lg:flex items-center gap-1 bg-slate-950/70 p-1 rounded-xl border border-slate-800">
+      <button onclick="PanoApp.goToSlide(0)" id="slide-btn-0" class="px-2 py-0.5 rounded-lg text-[11px] font-black transition flex items-center gap-1 bg-amber-500 text-slate-950 cursor-pointer">
         <span>🏆</span> <span>Şampiyonlar</span>
       </button>
-      <button onclick="PanoApp.goToSlide(1)" id="slide-btn-1" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
+      <button onclick="PanoApp.goToSlide(1)" id="slide-btn-1" class="px-2 py-0.5 rounded-lg text-[11px] font-black transition flex items-center gap-1 text-slate-400 hover:text-white cursor-pointer">
         <span>🎓</span> <span>Sınıf Liderleri</span>
       </button>
-      <button onclick="PanoApp.goToSlide(2)" id="slide-btn-2" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
+      <button onclick="PanoApp.goToSlide(2)" id="slide-btn-2" class="px-2 py-0.5 rounded-lg text-[11px] font-black transition flex items-center gap-1 text-slate-400 hover:text-white cursor-pointer">
         <span>📊</span> <span>İlk 10</span>
       </button>
-      <button onclick="PanoApp.goToSlide(3)" id="slide-btn-3" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
+      <button onclick="PanoApp.goToSlide(3)" id="slide-btn-3" class="px-2 py-0.5 rounded-lg text-[11px] font-black transition flex items-center gap-1 text-slate-400 hover:text-white cursor-pointer">
         <span>📋</span> <span>11-20</span>
       </button>
-      <button onclick="PanoApp.goToSlide(4)" id="slide-btn-4" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
+      <button onclick="PanoApp.goToSlide(4)" id="slide-btn-4" class="px-2 py-0.5 rounded-lg text-[11px] font-black transition flex items-center gap-1 text-slate-400 hover:text-white cursor-pointer">
         <span>🎯</span> <span>Günün Görevlileri</span>
       </button>
-      <button onclick="PanoApp.goToSlide(5)" id="slide-btn-5" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
+      <button onclick="PanoApp.goToSlide(5)" id="slide-btn-5" class="px-2 py-0.5 rounded-lg text-[11px] font-black transition flex items-center gap-1 text-slate-400 hover:text-white cursor-pointer">
         <span>🕌</span> <span>Günün Hadisi</span>
       </button>
-      <button onclick="PanoApp.goToSlide(6)" id="slide-btn-6" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
+      <button onclick="PanoApp.goToSlide(6)" id="slide-btn-6" class="px-2 py-0.5 rounded-lg text-[11px] font-black transition flex items-center gap-1 text-slate-400 hover:text-white cursor-pointer">
         <span>⚠️</span> <span>Telafiler</span>
       </button>
-      <button onclick="PanoApp.goToSlide(7)" id="slide-btn-7" class="px-2.5 py-1 rounded-xl text-xs font-black transition flex items-center gap-1 text-slate-400 hover:text-white">
+      <button onclick="PanoApp.goToSlide(7)" id="slide-btn-7" class="px-2 py-0.5 rounded-lg text-[11px] font-black transition flex items-center gap-1 text-slate-400 hover:text-white cursor-pointer">
         <span>📖</span> <span>Hatim Takibi</span>
       </button>
 
       <!-- Otomatik Geçiş Geri Sayım Rozeti -->
-      <div id="slide-timer-badge" class="ml-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-black font-mono flex items-center gap-1.5" title="Sonraki slayta kalan süre">
-        <span id="slide-timer-icon" class="animate-spin text-[10px]">⏳</span>
+      <div id="slide-timer-badge" class="ml-1 px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-black font-mono flex items-center gap-1" title="Sonraki slayta kalan süre">
+        <span id="slide-timer-icon" class="animate-spin text-[9px]">⏳</span>
         <span id="slide-timer-text">15s</span>
       </div>
     </div>
 
     <!-- Sağ: Dijital Saat, Tarih & Tam Ekran -->
-    <div class="flex items-center gap-4">
+    <div class="flex items-center gap-3">
       <div class="text-right">
-        <div id="pano-clock" class="text-xl sm:text-2xl font-black tracking-tight text-amber-400 font-mono">
+        <div id="pano-clock" class="text-lg sm:text-xl font-black tracking-tight text-amber-400 font-mono leading-none">
           00:00:00
         </div>
-        <div id="pano-date" class="text-xs font-medium text-slate-400">
+        <div id="pano-date" class="text-[11px] font-medium text-slate-400 mt-0.5 leading-none">
           16 Eylül 2026
         </div>
       </div>
 
       <!-- TV Kontrolleri -->
-      <div class="flex items-center gap-1.5 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+      <div class="flex items-center gap-1 bg-slate-950/60 p-0.5 rounded-xl border border-slate-800">
         <button onclick="PanoApp.prevSlide()" title="Önceki Slayt (Sol Ok Tuşu)"
-          class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold transition cursor-pointer">
+          class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold transition cursor-pointer">
           ⏮
         </button>
         <button onclick="PanoApp.togglePause()" id="pause-btn" title="Otomatik Geçişi Durdur / Başlat (Boşluk Tuşu)"
-          class="px-2.5 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-black gap-1.5 transition cursor-pointer">
+          class="px-2 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-black gap-1 transition cursor-pointer">
           <span id="pause-icon">⏸</span>
           <span id="pause-text" class="hidden sm:inline">Otomatik</span>
         </button>
         <button onclick="PanoApp.nextSlide()" title="Sonraki Slayt (Sağ Ok Tuşu)"
-          class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold transition cursor-pointer">
+          class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold transition cursor-pointer">
           ⏭
         </button>
         <button onclick="PanoApp.toggleFullscreen()" title="Tam Ekran (F11)"
-          class="w-9 h-9 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center justify-center text-base font-bold transition cursor-pointer">
+          class="w-8 h-8 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center justify-center text-sm font-bold transition cursor-pointer">
           ⛶
         </button>
         <button onclick="PanoApp.lockPano()" title="Panoyu Kilitle / Güvenli Çıkış"
-          class="h-9 px-2.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/50 flex items-center gap-1.5 text-xs font-bold transition cursor-pointer">
+          class="h-8 px-2 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/50 flex items-center gap-1 text-xs font-bold transition cursor-pointer">
           <span>🔒</span> <span class="hidden sm:inline">Kilitle</span>
         </button>
       </div>
@@ -259,21 +269,21 @@
   </header>
 
   <!-- İlerleme Çubuğu (Progress Bar for next slide) -->
-  <div class="w-full h-1.5 bg-slate-900 relative">
+  <div class="w-full h-1 bg-slate-900 relative flex-shrink-0">
     <div id="slide-progress" class="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 transition-all duration-300 w-0 shadow-sm shadow-amber-500/50"></div>
   </div>
 
-  <!-- 2. ANA SLAYT İÇERİK ALANI -->
-  <main id="slide-container" class="flex-1 p-4 sm:p-6 flex flex-col justify-center max-w-[1700px] w-full mx-auto relative overflow-y-auto no-scrollbar">
+  <!-- 2. ANA SLAYT İÇERİK ALANI (SIFIR TAŞMA & TV UYUMLU) -->
+  <main id="slide-container" class="flex-1 min-h-0 px-2 sm:px-4 lg:px-6 py-1 sm:py-2 flex flex-col justify-center max-w-[1700px] w-full mx-auto relative overflow-hidden select-none">
     <!-- JavaScript ile slaytlar buraya render edilir -->
   </main>
 
-  <!-- 3. ALT BİLGİ VE HABER BANTI (TICKER) -->
-  <footer class="bg-slate-900 border-t border-slate-800/80 px-6 py-2.5 flex items-center justify-between z-20">
-    <div class="flex items-center gap-2 bg-amber-500 text-slate-950 px-3 py-1 rounded-lg text-xs font-black uppercase tracking-wider flex-shrink-0 shadow-md">
+  <!-- 3. ALT BİLGİ VE HABER BANTI (TICKER - KOMPAKT TV) -->
+  <footer class="bg-slate-900 border-t border-slate-800/80 px-4 sm:px-6 py-1.5 flex items-center justify-between z-20 flex-shrink-0">
+    <div class="flex items-center gap-1.5 bg-amber-500 text-slate-950 px-2.5 py-0.5 rounded-lg text-[11px] font-black uppercase tracking-wider flex-shrink-0 shadow-md">
       <span>📢</span> <span>DUYURU</span>
     </div>
-    <div class="flex-1 overflow-hidden mx-4 text-xs font-semibold text-slate-300">
+    <div class="flex-1 overflow-hidden mx-3 text-xs font-semibold text-slate-300">
       <div id="pano-ticker" class="animate-marquee">
         Ömer Avniyel Akademi Canlı Liderlik Panosu • 🕌 5 Vakit namazını eksiksiz kılan talebelerimize günlük +15 puan İbadet Bonusu! • 🛏️ Sabah odasını ve yatağını nizami toplayana +15 puan • 📚 Takviye ders sınavlarında 100 tam puan alan talebelerimize +50 şampiyonluk puanı! • "İki günü birbirine eşit olan ziyandadır." (Hadis-i Şerif)
       </div>
@@ -284,20 +294,20 @@
   </footer>
 
   <!-- TV / Pano Acil Sıfırlama Butonu (Sağ Alt Köşe) -->
-  <div class="fixed bottom-10 right-4 z-40 opacity-70 hover:opacity-100 transition-opacity">
+  <div class="fixed bottom-8 right-3 z-40 opacity-60 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
-      class="px-3 py-1.5 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[11px] font-black shadow-lg flex items-center gap-1.5 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v6.4)</span>
+      class="px-2.5 py-1 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[10px] font-black shadow-lg flex items-center gap-1 cursor-pointer">
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v6.7)</span>
     </button>
   </div>
 
-  <!-- Hadis Veritabanı, Store, Leaderboard ve Kur'an Hatim Modülleri -->
-  <script src="js/hadisler.js?v=6.4"></script>
-  <script src="js/store.js?v=6.4"></script>
-  <script src="js/leaderboard.js?v=6.4"></script>
-  <script src="js/quran-tracker.js?v=6.4"></script>
+  <!-- Hadis Veritabanı, Store, Leaderboard ve Kur'an Hatim Modülleri (v6.7) -->
+  <script src="js/hadisler.js?v=6.7"></script>
+  <script src="js/store.js?v=6.7"></script>
+  <script src="js/leaderboard.js?v=6.7"></script>
+  <script src="js/quran-tracker.js?v=6.7"></script>
 
-  <!-- Pano TV Yönetim Motoru (v4.4) -->
+  <!-- Pano TV Yönetim Motoru (v6.7 - TV Ekran Taşma Önleyici) -->
   <script>
     const PanoApp = {
       currentSlide: 0,
@@ -400,6 +410,11 @@
             this.togglePause();
           }
           if (e.key === 'f' || e.key === 'F11') this.toggleFullscreen();
+        });
+
+        // TV Ekranı ve Çözünürlük Değişimlerinde Otomatik Sığdırma Dinleyicisi
+        window.addEventListener('resize', () => {
+          this.fitSlideToScreen();
         });
 
         // Canlı veritabanı senkronizasyonunda ve anlık veri değişimlerinde slaytı anında tazele
@@ -678,9 +693,46 @@
             default:
               this.renderSlidePodium(container, ranking, data);
           }
+
+          // TV Ekranına Sıfır Taşma ile Otomatik Sığdırma (Her slayt renderından hemen sonra)
+          this.fitSlideToScreen();
         } catch (err) {
           console.error('[Pano Error] renderCurrentSlide hatası:', err);
         }
+      },
+
+      // TV Ekranına ve Çözünürlüğe (1080p, 720p, Kiosk) Otomatik Sığdırma Motoru
+      fitSlideToScreen() {
+        requestAnimationFrame(() => {
+          const container = document.getElementById('slide-container');
+          if (!container) return;
+          const content = container.firstElementChild;
+          if (!content) return;
+
+          content.classList.add('tv-slide-wrapper');
+          content.style.transform = '';
+          content.style.transformOrigin = 'center center';
+          content.style.width = '100%';
+
+          const containerHeight = container.clientHeight;
+          const contentHeight = content.scrollHeight;
+          const containerWidth = container.clientWidth;
+          const contentWidth = content.scrollWidth;
+
+          let scale = 1.0;
+          if (contentHeight > containerHeight && containerHeight > 0) {
+            scale = Math.min(scale, (containerHeight - 4) / contentHeight);
+          }
+          if (contentWidth > containerWidth && containerWidth > 0) {
+            scale = Math.min(scale, (containerWidth - 4) / contentWidth);
+          }
+
+          if (scale < 0.999) {
+            scale = Math.max(0.55, scale);
+            content.style.transform = `scale(${scale})`;
+            content.style.transformOrigin = 'center center';
+          }
+        });
       },
 
       // SLAYT 0: 🏆 ALTIN PODYUM (1., 2. ve 3. SIRA)
@@ -711,36 +763,36 @@
         const score3 = (top3 && top3.totalScore) || 0;
 
         container.innerHTML = `
-          <div class="space-y-4 animate-fade-in">
+          <div class="space-y-2 sm:space-y-3 animate-fade-in w-full max-w-5xl mx-auto">
             <div class="text-center">
-              <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-black text-xs uppercase tracking-widest mb-1 shadow-lg">
+              <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-black text-[11px] uppercase tracking-widest mb-0.5 shadow-md">
                 <span>👑</span> HAFTANIN ŞAMPİYONLARI <span>👑</span>
               </div>
-              <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
                 Ömer Avniyel Akademi Şampiyonlar Kürsüsü
               </h2>
-              <p class="text-xs text-slate-400 font-medium">
+              <p class="text-[11px] text-slate-400 font-medium">
                 Dönem: ${data.startDate || ''} – ${data.endDate || ''} • Tüm Kurs Genel Başarı Puanları
               </p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end max-w-5xl mx-auto pt-6 pb-2">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 items-end max-w-4xl mx-auto pt-1 sm:pt-2">
               
               <!-- 🥈 2. SIRA (GÜMÜŞ) -->
               <div class="order-2 md:order-1">
                 ${top2 ? `
-                  <div class="bg-slate-900/90 rounded-3xl border-2 border-slate-500/60 p-6 text-center shadow-xl relative overflow-hidden">
-                    <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-slate-400 to-slate-200"></div>
-                    <div class="text-4xl mb-1">🥈</div>
-                    <div class="text-[11px] font-black uppercase text-slate-400 tracking-wider">2. SIRA • GÜMÜŞ</div>
-                    <h3 class="text-xl font-black text-white mt-1 truncate">
+                  <div class="bg-slate-900/90 rounded-2xl sm:rounded-3xl border-2 border-slate-500/60 p-3.5 sm:p-4 text-center shadow-xl relative overflow-hidden">
+                    <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-slate-400 to-slate-200"></div>
+                    <div class="text-3xl mb-0.5">🥈</div>
+                    <div class="text-[10px] font-black uppercase text-slate-400 tracking-wider">2. SIRA • GÜMÜŞ</div>
+                    <h3 class="text-base sm:text-lg font-black text-white mt-0.5 truncate">
                       ${s2.firstName} ${s2.lastName}
                     </h3>
-                    <div class="text-xs text-slate-400 font-bold mb-3">${s2.className} • No: ${s2.studentNo}</div>
+                    <div class="text-[11px] text-slate-400 font-bold mb-2">${s2.className} • No: ${s2.studentNo}</div>
 
-                    <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 mb-3">
-                      <div class="text-[10px] font-bold text-slate-400 uppercase">TOPLAM PUAN</div>
-                      <div class="text-3xl font-black text-slate-200">${score2}</div>
+                    <div class="p-2 bg-slate-950/80 rounded-xl border border-slate-800 mb-2">
+                      <div class="text-[9px] font-bold text-slate-400 uppercase">TOPLAM PUAN</div>
+                      <div class="text-2xl sm:text-3xl font-black text-slate-200">${score2}</div>
                     </div>
 
                     <div class="grid grid-cols-4 gap-1 text-[10px] text-slate-400">
@@ -750,66 +802,66 @@
                       <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">📚 +${a2.points}</div>
                     </div>
                   </div>
-                ` : '<div class="text-center text-slate-600">2. Bekleniyor</div>'}
+                ` : '<div class="text-center text-slate-600 text-xs p-6 bg-slate-900/40 rounded-2xl border border-slate-800">2. Bekleniyor</div>'}
               </div>
 
               <!-- 🥇 1. SIRA (ALTIN ŞAMPİYON) -->
-              <div class="order-1 md:order-2 transform md:-translate-y-4">
+              <div class="order-1 md:order-2">
                 ${top1 ? `
-                  <div class="bg-gradient-to-b from-amber-950/40 via-slate-900 to-slate-900 rounded-3xl border-3 border-amber-400 p-7 text-center shadow-2xl relative overflow-hidden gold-glow">
-                    <div class="absolute top-0 left-0 right-0 h-3 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500"></div>
+                  <div class="bg-gradient-to-b from-amber-950/40 via-slate-900 to-slate-900 rounded-2xl sm:rounded-3xl border-2 border-amber-400 p-4 sm:p-5 text-center shadow-2xl relative overflow-hidden gold-glow">
+                    <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500"></div>
                     
-                    <div class="relative inline-block mb-1">
-                      <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-white font-black text-4xl flex items-center justify-center shadow-xl mx-auto">
+                    <div class="relative inline-block mb-0.5">
+                      <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-white font-black text-3xl sm:text-4xl flex items-center justify-center shadow-xl mx-auto">
                         🏆
                       </div>
-                      <span class="absolute -top-3 -right-2 text-2xl animate-bounce">👑</span>
+                      <span class="absolute -top-2.5 -right-1.5 text-xl animate-bounce">👑</span>
                     </div>
 
-                    <div class="inline-block px-3.5 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-widest mt-2 shadow-md">
+                    <div class="inline-block px-3 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-widest mt-1 shadow-md">
                       🌟 HAFTANIN TALEBESİ 🌟
                     </div>
 
-                    <h3 class="text-2xl sm:text-3xl font-black text-amber-300 mt-2 truncate tracking-tight">
+                    <h3 class="text-xl sm:text-2xl font-black text-amber-300 mt-1 truncate tracking-tight">
                       ${s1.firstName} ${s1.lastName}
                     </h3>
-                    <div class="text-sm font-bold text-slate-300 mb-4">${s1.className} • No: ${s1.studentNo}</div>
+                    <div class="text-xs font-bold text-slate-300 mb-2">${s1.className} • No: ${s1.studentNo}</div>
 
-                    <div class="p-4 bg-slate-950/90 rounded-2xl border-2 border-amber-400/80 mb-4 shadow-inner">
-                      <div class="text-[11px] font-black uppercase text-amber-400 tracking-wider">ŞAMPİYONLUK PUANI</div>
-                      <div class="text-5xl font-black text-white my-1">${score1}</div>
+                    <div class="p-2.5 sm:p-3 bg-slate-950/90 rounded-2xl border-2 border-amber-400/80 mb-2.5 shadow-inner">
+                      <div class="text-[10px] font-black uppercase text-amber-400 tracking-wider">ŞAMPİYONLUK PUANI</div>
+                      <div class="text-3xl sm:text-4xl font-black text-white my-0.5">${score1}</div>
                       ${n1.fullBonusCount > 0 ? `
-                        <div class="text-[11px] font-black text-emerald-400 mt-1">
+                        <div class="text-[10px] font-black text-emerald-400 mt-0.5">
                           ⭐ ${n1.fullBonusCount} Gün 5 Vakit Tam İbadet Bonusu!
                         </div>
                       ` : ''}
                     </div>
 
-                    <div class="grid grid-cols-4 gap-2 text-xs font-bold">
-                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-emerald-400">🕌 +${n1.points}</div>
-                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-teal-400">🛏️ +${y1.points}</div>
-                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-blue-400">🎒 +${o1.points}</div>
-                      <div class="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-sky-400">📚 +${a1.points}</div>
+                    <div class="grid grid-cols-4 gap-1 text-[11px] font-bold">
+                      <div class="p-1.5 rounded-xl bg-slate-950/80 border border-slate-800 text-emerald-400">🕌 +${n1.points}</div>
+                      <div class="p-1.5 rounded-xl bg-slate-950/80 border border-slate-800 text-teal-400">🛏️ +${y1.points}</div>
+                      <div class="p-1.5 rounded-xl bg-slate-950/80 border border-slate-800 text-blue-400">🎒 +${o1.points}</div>
+                      <div class="p-1.5 rounded-xl bg-slate-950/80 border border-slate-800 text-sky-400">📚 +${a1.points}</div>
                     </div>
                   </div>
-                ` : '<div class="text-center text-slate-600">1. Bekleniyor</div>'}
+                ` : '<div class="text-center text-slate-600 text-xs p-6 bg-slate-900/40 rounded-2xl border border-slate-800">1. Bekleniyor</div>'}
               </div>
 
               <!-- 🥉 3. SIRA (BRONZ) -->
               <div class="order-3 md:order-3">
                 ${top3 ? `
-                  <div class="bg-slate-900/90 rounded-3xl border-2 border-amber-700/60 p-6 text-center shadow-xl relative overflow-hidden">
-                    <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-700 to-amber-500"></div>
-                    <div class="text-4xl mb-1">🥉</div>
-                    <div class="text-[11px] font-black uppercase text-amber-500 tracking-wider">3. SIRA • BRONZ</div>
-                    <h3 class="text-xl font-black text-white mt-1 truncate">
+                  <div class="bg-slate-900/90 rounded-2xl sm:rounded-3xl border-2 border-amber-700/60 p-3.5 sm:p-4 text-center shadow-xl relative overflow-hidden">
+                    <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-700 to-amber-500"></div>
+                    <div class="text-3xl mb-0.5">🥉</div>
+                    <div class="text-[10px] font-black uppercase text-amber-500 tracking-wider">3. SIRA • BRONZ</div>
+                    <h3 class="text-base sm:text-lg font-black text-white mt-0.5 truncate">
                       ${s3.firstName} ${s3.lastName}
                     </h3>
-                    <div class="text-xs text-slate-400 font-bold mb-3">${s3.className} • No: ${s3.studentNo}</div>
+                    <div class="text-[11px] text-slate-400 font-bold mb-2">${s3.className} • No: ${s3.studentNo}</div>
 
-                    <div class="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 mb-3">
-                      <div class="text-[10px] font-bold text-slate-400 uppercase">TOPLAM PUAN</div>
-                      <div class="text-3xl font-black text-slate-200">${score3}</div>
+                    <div class="p-2 bg-slate-950/80 rounded-xl border border-slate-800 mb-2">
+                      <div class="text-[9px] font-bold text-slate-400 uppercase">TOPLAM PUAN</div>
+                      <div class="text-2xl sm:text-3xl font-black text-slate-200">${score3}</div>
                     </div>
 
                     <div class="grid grid-cols-4 gap-1 text-[10px] text-slate-400">
@@ -819,7 +871,7 @@
                       <div class="p-1 rounded-lg bg-slate-950/60 border border-slate-800">📚 +${a3.points}</div>
                     </div>
                   </div>
-                ` : '<div class="text-center text-slate-600">3. Bekleniyor</div>'}
+                ` : '<div class="text-center text-slate-600 text-xs p-6 bg-slate-900/40 rounded-2xl border border-slate-800">3. Bekleniyor</div>'}
               </div>
 
             </div>
@@ -905,20 +957,20 @@
         });
 
         container.innerHTML = `
-          <div class="space-y-5 animate-fade-in max-w-6xl mx-auto w-full">
+          <div class="space-y-2 sm:space-y-3 animate-fade-in max-w-7xl mx-auto w-full">
             <div class="text-center">
-              <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-black text-xs uppercase tracking-widest mb-1 shadow-lg">
+              <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-black text-[11px] uppercase tracking-widest mb-0.5 shadow-md">
                 <span>🎓</span> SINIF BAZLI ŞAMPİYONLAR (ŞUBELER BİRLEŞİK) <span>🎓</span>
               </div>
-              <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
                 Her Sınıf Seviyesinin Haftalık Zirvedeki Liderleri
               </h2>
-              <p class="text-xs text-slate-400 font-medium">
-                Şube fark etmeksizin (A ve B şubeleri tek sınıf olarak) kendi akranları arasında en yüksek puanı toplayan sınıf şampiyonları
+              <p class="text-[11px] text-slate-400 font-medium">
+                Şube fark etmeksizin kendi akranları arasında en yüksek puanı toplayan sınıf şampiyonları
               </p>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 pt-3">
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 pt-1 sm:pt-2">
               ${gradeLeaders.map(item => {
                 const l = item.leader;
                 const r = item.runnerUp;
@@ -937,47 +989,47 @@
                 const rScore = (r && r.totalScore) || 0;
 
                 return `
-                  <div class="bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 rounded-3xl border-2 border-slate-800 hover:border-amber-400/70 p-5 sm:p-6 text-center shadow-xl relative overflow-hidden transition flex flex-col justify-between group">
-                    <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-400 via-indigo-500 to-purple-500"></div>
+                  <div class="bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 rounded-2xl border-2 border-slate-800 hover:border-amber-400/70 p-3 sm:p-3.5 text-center shadow-xl relative overflow-hidden transition flex flex-col justify-between group">
+                    <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-indigo-500 to-purple-500"></div>
                     
                     <div>
                       <!-- Sınıf Rozeti & Şube Bilgisi -->
-                      <div class="flex items-center justify-between gap-1.5 mb-2">
-                        <span class="px-2.5 py-1 rounded-xl bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-black text-xs uppercase">
+                      <div class="flex items-center justify-between gap-1 mb-1.5">
+                        <span class="px-2 py-0.5 rounded-lg bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 font-black text-[10px] uppercase">
                           ${item.gradeInfo.label}
                         </span>
-                        <span class="text-[10px] font-bold text-slate-400 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800/80">
+                        <span class="text-[9px] font-bold text-slate-400 bg-slate-950/80 px-1.5 py-0.5 rounded-md border border-slate-800/80 truncate max-w-[110px]">
                           ${branchesText}
                         </span>
                       </div>
 
                       ${l ? `
-                        <div class="relative inline-block my-2">
-                          <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-black text-3xl flex items-center justify-center shadow-lg mx-auto">
+                        <div class="relative inline-block my-1">
+                          <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-black text-xl sm:text-2xl flex items-center justify-center shadow-md mx-auto">
                             🥇
                           </div>
-                          <span class="absolute -top-2 -right-1 text-base">👑</span>
+                          <span class="absolute -top-1.5 -right-1 text-xs">👑</span>
                         </div>
 
-                        <h3 class="text-lg font-black text-white truncate group-hover:text-amber-300 transition">
+                        <h3 class="text-sm sm:text-base font-black text-white truncate group-hover:text-amber-300 transition leading-tight">
                           ${ls.firstName} ${ls.lastName}
                         </h3>
 
                         <!-- Şubesi ve Numarası -->
-                        <div class="flex items-center justify-center gap-2 text-xs font-bold mt-1 mb-3">
-                          <span class="px-2 py-0.5 rounded-md bg-amber-400/20 text-amber-300 border border-amber-400/30 font-black">
+                        <div class="flex items-center justify-center gap-1.5 text-[11px] font-bold my-1">
+                          <span class="px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30 font-black text-[10px]">
                             ${ls.className}
                           </span>
-                          <span class="text-slate-400 font-mono">No: ${ls.studentNo}</span>
+                          <span class="text-slate-400 font-mono text-[10px]">No: ${ls.studentNo}</span>
                         </div>
 
-                        <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 mb-3 shadow-inner">
-                          <div class="text-[10px] font-bold text-amber-400 uppercase tracking-wider">ŞAMPİYONLUK PUANI</div>
-                          <div class="text-3xl font-black text-white my-0.5">${lScore}</div>
-                          <div class="text-[10px] text-slate-400">Genel Seviye 1.'si</div>
+                        <div class="p-1.5 sm:p-2 bg-slate-950 rounded-xl border border-slate-800 mb-1.5 shadow-inner">
+                          <div class="text-[9px] font-bold text-amber-400 uppercase tracking-wider">ŞAMPİYONLUK PUANI</div>
+                          <div class="text-2xl font-black text-white my-0.5 leading-none">${lScore}</div>
+                          <div class="text-[9px] text-slate-400">Genel Seviye 1.'si</div>
                         </div>
 
-                        <div class="text-[11px] text-slate-400 space-y-1 text-left bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 mb-3">
+                        <div class="text-[10px] text-slate-400 space-y-0.5 text-left bg-slate-950/60 p-1.5 sm:p-2 rounded-xl border border-slate-800 mb-1.5">
                           <div class="flex justify-between"><span>🕌 Namaz:</span> <strong class="text-emerald-400">+${ln.points}</strong></div>
                           <div class="flex justify-between"><span>🛏️ Yatak:</span> <strong class="text-teal-400">+${ly.points}</strong></div>
                           <div class="flex justify-between"><span>🎒 Okul:</span> <strong class="text-blue-400">+${lo.points}</strong></div>
@@ -985,14 +1037,14 @@
                         </div>
 
                         ${r ? `
-                          <div class="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+                          <div class="pt-1 border-t border-slate-800/80 text-[10px] text-slate-400 flex items-center justify-between">
                             <span class="truncate">🥈 <strong>${rs.firstName} ${rs.lastName}</strong> (${rs.className})</span>
                             <span class="text-amber-400 font-bold shrink-0 ml-1">${rScore} P</span>
                           </div>
                         ` : ''}
 
                       ` : `
-                        <div class="py-14 text-slate-500 text-xs font-bold">
+                        <div class="py-10 text-slate-500 text-xs font-bold">
                           Bu seviyede henüz puan kaydı bulunmuyor.
                         </div>
                       `}
@@ -1019,41 +1071,41 @@
 
       renderTableSlide(container, items, title, subtitle, data) {
         container.innerHTML = `
-          <div class="space-y-4 animate-fade-in max-w-6xl mx-auto w-full">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="space-y-2 animate-fade-in max-w-6xl mx-auto w-full">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="text-xl">📊</span>
-                  <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">${title}</h2>
-                  <span class="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-bold text-xs">
+                  <span class="text-lg">📊</span>
+                  <h2 class="text-lg sm:text-xl font-black text-white tracking-tight leading-tight">${title}</h2>
+                  <span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-bold text-[11px]">
                     ${subtitle}
                   </span>
                 </div>
-                <p class="text-xs text-slate-400 mt-0.5">Dönem: ${data.startDate} – ${data.endDate}</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">Dönem: ${data.startDate} – ${data.endDate}</p>
               </div>
-              <div class="text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/20">
+              <div class="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/20">
                 ⭐ Canlı Sıralama
               </div>
             </div>
 
-            <div class="bg-slate-900/90 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
+            <div class="bg-slate-900/90 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
               <table class="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr class="bg-slate-950/80 text-[11px] font-black uppercase text-slate-400 border-b border-slate-800">
-                    <th class="p-3 text-center w-14">SIRA</th>
-                    <th class="p-3">TALEBE ADI & SINIFI</th>
-                    <th class="p-2.5 text-center">🕌 NAMAZ</th>
-                    <th class="p-2.5 text-center">🛏️ YATAK</th>
-                    <th class="p-2.5 text-center">🎒 OKUL</th>
-                    <th class="p-2.5 text-center">🏠 İZİN</th>
-                    <th class="p-2.5 text-center">📚 AKADEMİ</th>
-                    <th class="p-2.5 text-center">🌟 TAKDİR</th>
-                    <th class="p-3 text-center font-black">TOPLAM PUAN</th>
+                  <tr class="bg-slate-950/80 text-[10px] font-black uppercase text-slate-400 border-b border-slate-800">
+                    <th class="py-1.5 px-2 text-center w-12">SIRA</th>
+                    <th class="py-1.5 px-2">TALEBE ADI & SINIFI</th>
+                    <th class="py-1.5 px-1.5 text-center">🕌 NAMAZ</th>
+                    <th class="py-1.5 px-1.5 text-center">🛏️ YATAK</th>
+                    <th class="py-1.5 px-1.5 text-center">🎒 OKUL</th>
+                    <th class="py-1.5 px-1.5 text-center">🏠 İZİN</th>
+                    <th class="py-1.5 px-1.5 text-center">📚 AKADEMİ</th>
+                    <th class="py-1.5 px-1.5 text-center">🌟 TAKDİR</th>
+                    <th class="py-1.5 px-2 text-center font-black">TOPLAM PUAN</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-800/80">
                   ${items.length === 0 ? `
-                    <tr><td colspan="9" class="p-8 text-center text-slate-500">Bu grupta henüz öğrenci yok.</td></tr>
+                    <tr><td colspan="9" class="p-6 text-center text-slate-500">Bu grupta henüz öğrenci yok.</td></tr>
                   ` : items.map(i => {
                     const st = (i && i.student) || { firstName: 'Talebe', lastName: '', className: '', studentNo: '' };
                     const nPts = (i && i.namaz && i.namaz.points) || 0;
@@ -1065,34 +1117,34 @@
                     const totScore = (i && i.totalScore) || 0;
                     const rankNum = (i && i.rank) || '-';
 
-                    let rankBadge = `<span class="font-bold text-slate-400">#${rankNum}</span>`;
+                    let rankBadge = `<span class="font-bold text-slate-400 text-xs">#${rankNum}</span>`;
                     let rowBg = 'hover:bg-slate-800/50';
                     if (rankNum === 1) {
-                      rankBadge = `<span class="w-7 h-7 rounded-xl bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center mx-auto shadow-md">🥇 1</span>`;
+                      rankBadge = `<span class="w-6 h-6 rounded-lg bg-amber-400 text-slate-950 font-black text-[11px] flex items-center justify-center mx-auto shadow-sm">🥇 1</span>`;
                       rowBg = 'bg-amber-500/10 hover:bg-amber-500/20';
                     } else if (rankNum === 2) {
-                      rankBadge = `<span class="w-7 h-7 rounded-xl bg-slate-300 text-slate-950 font-black text-xs flex items-center justify-center mx-auto shadow-md">🥈 2</span>`;
+                      rankBadge = `<span class="w-6 h-6 rounded-lg bg-slate-300 text-slate-950 font-black text-[11px] flex items-center justify-center mx-auto shadow-sm">🥈 2</span>`;
                       rowBg = 'bg-slate-500/10 hover:bg-slate-500/20';
                     } else if (rankNum === 3) {
-                      rankBadge = `<span class="w-7 h-7 rounded-xl bg-amber-700 text-white font-black text-xs flex items-center justify-center mx-auto shadow-md">🥉 3</span>`;
+                      rankBadge = `<span class="w-6 h-6 rounded-lg bg-amber-700 text-white font-black text-[11px] flex items-center justify-center mx-auto shadow-sm">🥉 3</span>`;
                       rowBg = 'bg-amber-700/10 hover:bg-amber-700/20';
                     }
 
                     return `
                       <tr class="${rowBg} transition">
-                        <td class="p-3 text-center">${rankBadge}</td>
-                        <td class="p-3">
-                          <div class="font-black text-sm text-white">${st.firstName} ${st.lastName}</div>
-                          <div class="text-[10px] text-slate-400 font-medium">${st.className} • No: ${st.studentNo}</div>
+                        <td class="py-1 sm:py-1.5 px-2 text-center">${rankBadge}</td>
+                        <td class="py-1 sm:py-1.5 px-2">
+                          <div class="font-black text-xs sm:text-sm text-white leading-tight">${st.firstName} ${st.lastName}</div>
+                          <div class="text-[9px] sm:text-[10px] text-slate-400 font-medium">${st.className} • No: ${st.studentNo}</div>
                         </td>
-                        <td class="p-2.5 text-center font-bold text-emerald-400">+${nPts}</td>
-                        <td class="p-2.5 text-center font-bold text-teal-400">+${yPts}</td>
-                        <td class="p-2.5 text-center font-bold text-blue-400">+${oPts}</td>
-                        <td class="p-2.5 text-center font-bold text-indigo-400">+${izPts}</td>
-                        <td class="p-2.5 text-center font-bold text-sky-400">+${aPts}</td>
-                        <td class="p-2.5 text-center font-bold text-amber-400">+${bPts}</td>
-                        <td class="p-3 text-center">
-                          <span class="px-3.5 py-1 rounded-xl bg-slate-950 text-amber-300 border border-amber-500/40 font-black text-sm shadow-inner">
+                        <td class="py-1 sm:py-1.5 px-1.5 text-center font-bold text-emerald-400 text-xs sm:text-sm">+${nPts}</td>
+                        <td class="py-1 sm:py-1.5 px-1.5 text-center font-bold text-teal-400 text-xs sm:text-sm">+${yPts}</td>
+                        <td class="py-1 sm:py-1.5 px-1.5 text-center font-bold text-blue-400 text-xs sm:text-sm">+${oPts}</td>
+                        <td class="py-1 sm:py-1.5 px-1.5 text-center font-bold text-indigo-400 text-xs sm:text-sm">+${izPts}</td>
+                        <td class="py-1 sm:py-1.5 px-1.5 text-center font-bold text-sky-400 text-xs sm:text-sm">+${aPts}</td>
+                        <td class="py-1 sm:py-1.5 px-1.5 text-center font-bold text-amber-400 text-xs sm:text-sm">+${bPts}</td>
+                        <td class="py-1 sm:py-1.5 px-2 text-center">
+                          <span class="px-2.5 py-0.5 rounded-lg bg-slate-950 text-amber-300 border border-amber-500/40 font-black text-xs sm:text-sm shadow-inner">
                             ${totScore} Puan
                           </span>
                         </td>
@@ -1127,123 +1179,121 @@
           : `Tarih: ${dateFormatted} • Hizmet ve cemaat şuuruyla kardeşlerine rehber olan talebelerimiz`;
 
         container.innerHTML = `
-          <div class="space-y-4 sm:space-y-5 animate-fade-in max-w-6xl mx-auto w-full">
+          <div class="space-y-2 sm:space-y-3 animate-fade-in max-w-6xl mx-auto w-full">
             <div class="text-center">
-              <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-black text-xs uppercase tracking-widest mb-1 shadow-lg">
+              <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-black text-[11px] uppercase tracking-widest mb-0.5 shadow-md">
                 <span>🎯</span> KURS GÜNLÜK HİZMET VE İBADET NÖBETİ <span>🎯</span>
               </div>
-              <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
                 Günün Görevli Talebeleri
               </h2>
-              <p class="text-xs text-slate-400 font-medium">
+              <p class="text-[11px] text-slate-400 font-medium">
                 ${subtitleText}
               </p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 pt-0.5">
               
               <!-- 🍽️ 1. KART: GÜNÜN YEMEKÇİLERİ -->
-              <div class="bg-gradient-to-b from-slate-900 via-slate-900/95 to-amber-950/20 rounded-3xl border-2 border-amber-500/50 p-5 sm:p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between">
-                <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600"></div>
+              <div class="bg-gradient-to-b from-slate-900 via-slate-900/95 to-amber-950/20 rounded-2xl border-2 border-amber-500/50 p-3.5 sm:p-4 shadow-xl relative overflow-hidden flex flex-col justify-between">
+                <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600"></div>
                 
                 <div>
-                  <div class="flex items-center justify-between gap-3 mb-3">
-                    <div class="flex items-center gap-3">
-                      <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-2xl shadow-lg">
+                  <div class="flex items-center justify-between gap-2 mb-2">
+                    <div class="flex items-center gap-2.5">
+                      <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-xl shadow-md">
                         🍽️
                       </div>
                       <div>
-                        <div class="text-[10px] font-black uppercase tracking-wider text-amber-400">MUTFAK & YEMEKHANE</div>
-                        <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">Günün Yemekçileri</h3>
+                        <div class="text-[9px] font-black uppercase tracking-wider text-amber-400">MUTFAK & YEMEKHANE</div>
+                        <h3 class="text-base sm:text-lg font-black text-white tracking-tight leading-tight">Günün Yemekçileri</h3>
                       </div>
                     </div>
-                    <span class="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono font-black text-xs">
+                    <span class="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono font-black text-[11px]">
                       ${yemekciler.length} Talebe
                     </span>
                   </div>
 
-                  <p class="text-xs text-slate-400 mb-3 leading-relaxed">
+                  <p class="text-[11px] text-slate-400 mb-2 leading-tight">
                     Sofra düzeni, kardeşlerine ikram ve yemekhane intizamından sorumlu görevli talebelerimiz:
                   </p>
 
                   ${yemekciler.length > 0 ? `
-                    <div class="${yemekciler.length > 4 ? 'grid grid-cols-1 sm:grid-cols-2 gap-2' : 'space-y-2'}">
+                    <div class="${yemekciler.length > 4 ? 'grid grid-cols-2 gap-1.5' : 'space-y-1.5'}">
                       ${yemekciler.map((name, idx) => `
-                        <div class="p-2.5 sm:p-3 bg-slate-950/80 rounded-2xl border border-slate-800 hover:border-amber-500/50 flex items-center justify-between shadow-inner transition">
-                          <div class="flex items-center gap-2.5 overflow-hidden">
-                            <span class="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-300 font-black text-xs flex items-center justify-center border border-amber-500/30 shrink-0">
+                        <div class="p-1.5 sm:p-2 bg-slate-950/80 rounded-xl border border-slate-800 hover:border-amber-500/50 flex items-center justify-between shadow-inner transition">
+                          <div class="flex items-center gap-2 overflow-hidden">
+                            <span class="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-300 font-black text-[11px] flex items-center justify-center border border-amber-500/30 shrink-0">
                               #${idx + 1}
                             </span>
-                            <span class="font-black text-sm sm:text-base text-white tracking-wide truncate">
+                            <span class="font-black text-xs sm:text-sm text-white tracking-wide truncate">
                               ${name}
                             </span>
                           </div>
-                          <span class="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20 shrink-0">
+                          <span class="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 shrink-0">
                             Nöbetçi
                           </span>
                         </div>
                       `).join('')}
                     </div>
                   ` : `
-                    <div class="py-8 text-center bg-slate-950/60 rounded-2xl border border-slate-800">
-                      <div class="text-3xl mb-1.5 text-slate-600">🍲</div>
-                      <div class="text-sm font-bold text-slate-400">Bugün için yemekçi talebe henüz belirlenmedi.</div>
-                      <div class="text-[11px] text-slate-500 mt-1">Yönetim panelinden "Günün Görevlileri" sekmesinden atanabilir.</div>
+                    <div class="py-6 text-center bg-slate-950/60 rounded-xl border border-slate-800">
+                      <div class="text-2xl mb-1 text-slate-600">🍲</div>
+                      <div class="text-xs font-bold text-slate-400">Bugün için yemekçi talebe henüz belirlenmedi.</div>
                     </div>
                   `}
                 </div>
 
-                <div class="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-amber-400/90 font-medium italic flex items-center gap-2">
+                <div class="mt-2.5 pt-1.5 border-t border-slate-800/80 text-[10px] text-amber-400/90 font-medium italic flex items-center gap-1.5">
                   <span>✨</span>
                   <span>"Kavmin efendisi, onlara hizmet edendir." (Hadis-i Şerif)</span>
                 </div>
               </div>
 
               <!-- 📢 2. KART: GÜNÜN MÜEZZİNİ -->
-              <div class="bg-gradient-to-b from-slate-900 via-slate-900/95 to-indigo-950/20 rounded-3xl border-2 border-indigo-500/50 p-5 sm:p-6 shadow-2xl relative overflow-hidden flex flex-col justify-between">
-                <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-indigo-500 via-emerald-400 to-indigo-600"></div>
+              <div class="bg-gradient-to-b from-slate-900 via-slate-900/95 to-indigo-950/20 rounded-2xl border-2 border-indigo-500/50 p-3.5 sm:p-4 shadow-xl relative overflow-hidden flex flex-col justify-between">
+                <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-emerald-400 to-indigo-600"></div>
 
                 <div>
-                  <div class="flex items-center justify-between gap-3 mb-3">
-                    <div class="flex items-center gap-3">
-                      <div class="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center text-2xl shadow-lg">
+                  <div class="flex items-center justify-between gap-2 mb-2">
+                    <div class="flex items-center gap-2.5">
+                      <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center text-xl shadow-md">
                         📢
                       </div>
                       <div>
-                        <div class="text-[10px] font-black uppercase tracking-wider text-indigo-400">EZAN & CEMAAT ÇAĞRISI</div>
-                        <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">Günün Müezzini</h3>
+                        <div class="text-[9px] font-black uppercase tracking-wider text-indigo-400">EZAN & CEMAAT ÇAĞRISI</div>
+                        <h3 class="text-base sm:text-lg font-black text-white tracking-tight leading-tight">Günün Müezzini</h3>
                       </div>
                     </div>
-                    <span class="px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-mono font-black text-xs">
+                    <span class="px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 font-mono font-black text-[11px]">
                       5 Vakit
                     </span>
                   </div>
 
-                  <p class="text-xs text-slate-400 mb-3 leading-relaxed">
-                    Vakit ezanlarını okumak, cemaate çağrı yapmak ve namaz nizamını sağlamakla görevli talebemiz:
+                  <p class="text-[11px] text-slate-400 mb-2 leading-tight">
+                    Vakit ezanlarını okumak ve cemaat nizamını sağlamakla görevli talebemiz:
                   </p>
 
                   ${muezzin ? `
-                    <div class="p-5 sm:p-6 bg-gradient-to-tr from-slate-950 via-slate-950 to-indigo-950/60 rounded-3xl border-2 border-indigo-500/60 text-center shadow-inner relative overflow-hidden">
-                      <div class="text-3xl mb-1">🕌</div>
-                      <div class="text-[10px] font-black uppercase text-indigo-400 tracking-wider">BAŞ MÜEZZİN & CEMAAT REHBERİ</div>
-                      <h4 class="text-2xl sm:text-3xl font-black text-amber-300 mt-1 mb-2 tracking-tight">
+                    <div class="p-3.5 sm:p-4 bg-gradient-to-tr from-slate-950 via-slate-950 to-indigo-950/60 rounded-2xl border border-indigo-500/60 text-center shadow-inner relative overflow-hidden">
+                      <div class="text-2xl mb-0.5">🕌</div>
+                      <div class="text-[9px] font-black uppercase text-indigo-400 tracking-wider">BAŞ MÜEZZİN & CEMAAT REHBERİ</div>
+                      <h4 class="text-xl sm:text-2xl font-black text-amber-300 mt-0.5 mb-1.5 tracking-tight leading-tight">
                         ${muezzin}
                       </h4>
-                      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold shadow-sm">
+                      <div class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold shadow-sm">
                         <span>🟢 5 Vakit Ezan & Cemaat Nöbetinde</span>
                       </div>
                     </div>
                   ` : `
-                    <div class="py-8 text-center bg-slate-950/60 rounded-2xl border border-slate-800">
-                      <div class="text-3xl mb-1.5 text-slate-600">🕌</div>
-                      <div class="text-sm font-bold text-slate-400">Bugün için müezzin talebe henüz belirlenmedi.</div>
-                      <div class="text-[11px] text-slate-500 mt-1">Yönetim panelinden "Günün Görevlileri" sekmesinden atanabilir.</div>
+                    <div class="py-6 text-center bg-slate-950/60 rounded-xl border border-slate-800">
+                      <div class="text-2xl mb-1 text-slate-600">🕌</div>
+                      <div class="text-xs font-bold text-slate-400">Bugün için müezzin talebe henüz belirlenmedi.</div>
                     </div>
                   `}
                 </div>
 
-                <div class="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-indigo-300 font-medium italic flex items-center gap-2">
+                <div class="mt-2.5 pt-1.5 border-t border-slate-800/80 text-[10px] text-indigo-300 font-medium italic flex items-center gap-1.5">
                   <span>✨</span>
                   <span>"Müezzinler kıyamet günü insanların en şerefli olanlarıdır." (Hadis-i Şerif)</span>
                 </div>
@@ -1252,10 +1302,10 @@
             </div>
 
             ${note ? `
-              <div class="p-3 px-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3 shadow-md">
-                <span class="text-xl shrink-0">📌</span>
+              <div class="p-2 px-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2.5 shadow-sm">
+                <span class="text-base shrink-0">📌</span>
                 <div class="overflow-hidden">
-                  <span class="text-[10px] font-black text-amber-400 uppercase tracking-wider mr-2">GÜNÜN ÖZEL DUYURUSU:</span>
+                  <span class="text-[9px] font-black text-amber-400 uppercase tracking-wider mr-1.5">GÜNÜN ÖZEL DUYURUSU:</span>
                   <span class="text-xs sm:text-sm font-bold text-slate-200">${note}</span>
                 </div>
               </div>
@@ -1305,46 +1355,46 @@
         }
 
         container.innerHTML = `
-          <div class="space-y-4 sm:space-y-5 animate-fade-in max-w-5xl mx-auto w-full text-center py-2">
+          <div class="space-y-2 sm:space-y-3 animate-fade-in max-w-5xl mx-auto w-full text-center py-0.5">
             
-            <div class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-black text-xs uppercase tracking-widest shadow-lg">
+            <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-black text-[11px] uppercase tracking-widest shadow-md">
               <span>🕌</span> GÜNÜN HADİS-İ ŞERİFİ VE HİKMETİ <span>🕌</span>
             </div>
 
             <!-- Hadis / Hikmet Kartı -->
-            <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/60 rounded-3xl border-2 border-indigo-500/40 p-6 sm:p-8 md:p-10 shadow-2xl relative overflow-hidden">
-              <div class="text-4xl sm:text-5xl text-amber-400/40 font-serif mb-2 select-none">“</div>
+            <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/60 rounded-2xl sm:rounded-3xl border-2 border-indigo-500/40 p-4 sm:p-6 md:p-7 shadow-xl relative overflow-hidden">
+              <div class="text-3xl sm:text-4xl text-amber-400/40 font-serif mb-1 select-none leading-none">“</div>
               <p class="${textSizeClass} font-black text-white leading-relaxed tracking-tight max-w-3xl mx-auto">
                 ${quoteText}
               </p>
-              <div class="text-amber-400 font-black text-xs sm:text-sm md:text-base mt-4 uppercase tracking-widest">
+              <div class="text-amber-400 font-black text-xs sm:text-sm mt-3 uppercase tracking-widest">
                 — ${currentQuote.author || 'Hadis-i Şerif'}
               </div>
             </div>
 
             <!-- Kompakt Motivasyon Kutucukları (TV Uyumlu Tek Sıra) -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
-              <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-md flex items-start gap-3">
-                <span class="text-2xl shrink-0">🕌</span>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left">
+              <div class="p-2.5 sm:p-3 rounded-xl bg-slate-900/80 border border-slate-800 shadow-md flex items-start gap-2.5">
+                <span class="text-xl shrink-0">🕌</span>
                 <div>
-                  <div class="font-black text-xs sm:text-sm text-white">5 Vakit Cemaat</div>
-                  <div class="text-[11px] text-slate-400 leading-tight mt-0.5">Her vakit +10 Puan, 5 vakit tam kılanlara günlük +15 İbadet Bonusu!</div>
+                  <div class="font-black text-xs text-white">5 Vakit Cemaat</div>
+                  <div class="text-[10px] text-slate-400 leading-tight mt-0.5">Her vakit +10 Puan, 5 vakit tam kılanlara günlük +15 İbadet Bonusu!</div>
                 </div>
               </div>
 
-              <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-md flex items-start gap-3">
-                <span class="text-2xl shrink-0">🛏️</span>
+              <div class="p-2.5 sm:p-3 rounded-xl bg-slate-900/80 border border-slate-800 shadow-md flex items-start gap-2.5">
+                <span class="text-xl shrink-0">🛏️</span>
                 <div>
-                  <div class="font-black text-xs sm:text-sm text-white">Oda & Yatak Düzeni</div>
-                  <div class="text-[11px] text-slate-400 leading-tight mt-0.5">Sabah odasını, yatağını ve dolabını nizami toplayan talebelere +15 Puan!</div>
+                  <div class="font-black text-xs text-white">Oda & Yatak Düzeni</div>
+                  <div class="text-[10px] text-slate-400 leading-tight mt-0.5">Sabah odasını, yatağını ve dolabını nizami toplayan talebelere +15 Puan!</div>
                 </div>
               </div>
 
-              <div class="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-md flex items-start gap-3">
-                <span class="text-2xl shrink-0">📚</span>
+              <div class="p-2.5 sm:p-3 rounded-xl bg-slate-900/80 border border-slate-800 shadow-md flex items-start gap-2.5">
+                <span class="text-xl shrink-0">📚</span>
                 <div>
-                  <div class="font-black text-xs sm:text-sm text-white">Akademi & Gayret</div>
-                  <div class="text-[11px] text-slate-400 leading-tight mt-0.5">Takviye dersleri ve yüksek sınav notlarıyla haftanın zirvesine yerleş!</div>
+                  <div class="font-black text-xs text-white">Akademi & Gayret</div>
+                  <div class="text-[10px] text-slate-400 leading-tight mt-0.5">Takviye dersleri ve yüksek sınav notlarıyla haftanın zirvesine yerleş!</div>
                 </div>
               </div>
             </div>
@@ -1363,31 +1413,31 @@
         const list = res.penalizedStudents || [];
 
         container.innerHTML = `
-          <div class="space-y-4 animate-fade-in max-w-6xl mx-auto w-full">
-            <div class="flex flex-wrap items-center justify-between border-b border-slate-800 pb-3 gap-3">
+          <div class="space-y-2 animate-fade-in max-w-6xl mx-auto w-full">
+            <div class="flex flex-wrap items-center justify-between border-b border-slate-800 pb-1.5 gap-2">
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="text-2xl">⚠️</span>
-                  <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">Haftalık İntizam & Çıkış Telafi Raporu</h2>
-                  <span class="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-black text-xs">
+                  <span class="text-xl">⚠️</span>
+                  <h2 class="text-lg sm:text-xl font-black text-white tracking-tight leading-tight">Haftalık İntizam & Çıkış Telafi Raporu</h2>
+                  <span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-black text-[10px]">
                     Çıkış Telafileri
                   </span>
                 </div>
-                <p class="text-xs text-slate-400 mt-0.5">
+                <p class="text-[11px] text-slate-400 mt-0.5">
                   İlk 3 kusur affedilmiş olup, 3'ü aşan intizam kusurları ek telafi süresi olarak yansıtılmıştır.
                 </p>
               </div>
 
               <div class="flex items-center gap-2">
                 ${(res.clearedCount || 0) > 0 ? `
-                  <div class="text-xs font-bold text-emerald-300 bg-emerald-950/40 px-3 py-1.5 rounded-xl border border-emerald-800/60 flex items-center gap-1">
+                  <div class="text-[11px] font-bold text-emerald-300 bg-emerald-950/40 px-2.5 py-1 rounded-xl border border-emerald-800/60 flex items-center gap-1">
                     <span>✓</span> <span>Telafisi Tamam: <strong class="text-emerald-400">${res.clearedCount}</strong></span>
                   </div>
                 ` : ''}
-                <div class="text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
+                <div class="text-[11px] font-bold text-slate-300 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800">
                   Zamanında Çıkış: <span class="text-emerald-400 font-black">${res.onTimeCount || 0}</span>
                 </div>
-                <div class="text-xs font-bold text-rose-300 bg-rose-950/40 px-3 py-1.5 rounded-xl border border-rose-800/60">
+                <div class="text-[11px] font-bold text-rose-300 bg-rose-950/40 px-2.5 py-1 rounded-xl border border-rose-800/60">
                   Aktif Telafili: <span class="text-rose-400 font-black">${res.totalPenalizedCount || 0} Talebe</span>
                 </div>
               </div>
@@ -1395,17 +1445,17 @@
 
             ${list.length === 0 ? `
               <!-- Telafili Yoksa Kutlama Kartı -->
-              <div class="bg-gradient-to-b from-slate-900 via-emerald-950/20 to-slate-950 rounded-3xl border-2 border-emerald-500/40 p-8 sm:p-10 text-center shadow-2xl max-w-2xl mx-auto my-4">
-                <div class="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-3xl mx-auto mb-3 shadow-lg shadow-emerald-500/10">
+              <div class="bg-gradient-to-b from-slate-900 via-emerald-950/20 to-slate-950 rounded-2xl sm:rounded-3xl border-2 border-emerald-500/40 p-5 sm:p-7 text-center shadow-xl max-w-xl mx-auto my-2">
+                <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-2xl mx-auto mb-2 shadow-md shadow-emerald-500/10">
                   🌟
                 </div>
-                <div class="inline-block px-3.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 font-black text-xs uppercase tracking-widest mb-2">
+                <div class="inline-block px-3 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 font-black text-[10px] uppercase tracking-widest mb-1.5">
                   MAŞAALLAH • TAM İNTİZAM
                 </div>
-                <h3 class="text-xl sm:text-2xl font-black text-white tracking-tight mb-2">
+                <h3 class="text-lg sm:text-xl font-black text-white tracking-tight mb-1.5">
                   Şu Anda Kursumuzda Aktif Telafisi Olan Talebe Bulunmamaktadır!
                 </h3>
-                <p class="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-lg mx-auto">
+                <p class="text-xs text-slate-300 leading-relaxed max-w-md mx-auto">
                   ${(res.clearedCount || 0) > 0 
                     ? `Bu hafta oluşan intizam telafileri talebelerimiz tarafından tamamlanmış ve intizam sağlanmıştır. Gayretlerinden ötürü tüm talebelerimizi tebrik ederiz.`
                     : `Haftalık 3 kusur affı ve tam intizam gayreti sayesinde tüm talebelerimiz standart izin saatinde (${res.baseExitTime || '13:00'}) çıkış yapabilecektir.`}
@@ -1415,17 +1465,17 @@
               <!-- TV UYUMLU ŞIK VE NET LİSTE DÜZENİ -->
               <div class="bg-slate-900/90 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
                 <!-- Liste Başlığı -->
-                <div class="grid grid-cols-12 bg-slate-950/90 px-4 py-3 text-[11px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-800 items-center">
+                <div class="grid grid-cols-12 bg-slate-950/90 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-800 items-center">
                   <div class="col-span-1 text-center">SIRA</div>
                   <div class="col-span-3">TALEBE BİLGİSİ</div>
                   <div class="col-span-2 text-center">KUSUR / AF DURUMU</div>
                   <div class="col-span-3">TELAFİ SEBEPLERİ (3'Ü AŞANLAR)</div>
                   <div class="col-span-1 text-center">EK SÜRE</div>
-                  <div class="col-span-2 text-right pr-3">KAPI ÇIKIŞ SAATİ</div>
+                  <div class="col-span-2 text-right pr-2">KAPI ÇIKIŞ SAATİ</div>
                 </div>
 
                 <!-- Liste Satırları -->
-                <div class="divide-y divide-slate-800/70 max-h-[60vh] overflow-y-auto no-scrollbar">
+                <div class="divide-y divide-slate-800/70 max-h-[calc(100vh-230px)] overflow-y-auto no-scrollbar">
                   ${list.map((item, idx) => {
                     const st = item.student || {};
                     const rep = item.report || {};
@@ -1434,20 +1484,20 @@
                       : (rep.infractions ? rep.infractions.slice(3) : []);
 
                     return `
-                      <div class="grid grid-cols-12 items-center px-4 py-3 hover:bg-slate-800/40 transition gap-2">
+                      <div class="grid grid-cols-12 items-center px-3 py-1.5 hover:bg-slate-800/40 transition gap-2">
                         <!-- 1. Sıra No -->
                         <div class="col-span-1 text-center">
-                          <span class="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-300 font-mono font-black text-xs inline-flex items-center justify-center border border-rose-500/30">
+                          <span class="w-6 h-6 rounded-lg bg-rose-500/20 text-rose-300 font-mono font-black text-xs inline-flex items-center justify-center border border-rose-500/30">
                             #${idx + 1}
                           </span>
                         </div>
 
                         <!-- 2. Talebe Adı Soyadı & Sınıfı -->
                         <div class="col-span-3">
-                          <div class="font-black text-base text-white tracking-tight truncate">
+                          <div class="font-black text-xs sm:text-sm text-white tracking-tight truncate leading-tight">
                             ${st.firstName} ${st.lastName}
                           </div>
-                          <div class="text-[11px] text-slate-400 font-bold truncate">
+                          <div class="text-[10px] text-slate-400 font-bold truncate">
                             ${st.className || ''} ${st.studentNo ? '• No: ' + st.studentNo : ''}
                           </div>
                         </div>
@@ -1455,7 +1505,7 @@
                         <!-- 3. Kusur Sayısı & Af Durumu -->
                         <div class="col-span-2 text-center">
                           <div class="inline-flex flex-col items-center">
-                            <span class="px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-black text-xs font-mono">
+                            <span class="px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-black text-[11px] font-mono leading-none">
                               ${rep.totalInfractions || (activeInf.length + 3)} Kusur
                             </span>
                             <span class="text-[9px] text-emerald-400 font-bold mt-0.5">
@@ -1466,7 +1516,7 @@
 
                         <!-- 4. Telafi Sebepleri -->
                         <div class="col-span-3">
-                          <div class="flex flex-wrap items-center gap-1.5 max-h-12 overflow-hidden">
+                          <div class="flex flex-wrap items-center gap-1 max-h-10 overflow-hidden">
                             ${activeInf.length === 0 ? `
                               <span class="text-slate-500 text-xs">-</span>
                             ` : activeInf.map(inf => {
@@ -1478,9 +1528,9 @@
                               else if (inf.category === 'izin_donusu') { badgeClass = 'bg-purple-950/40 text-purple-300 border-purple-800/50'; icon = '🏠'; }
 
                               return `
-                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-bold ${badgeClass}">
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md border text-[9px] font-bold ${badgeClass}">
                                   <span>${icon}</span>
-                                  <span class="truncate max-w-[120px]">${inf.subLabel || inf.desc || ''}</span>
+                                  <span class="truncate max-w-[110px]">${inf.subLabel || inf.desc || ''}</span>
                                 </span>
                               `;
                             }).join('')}
@@ -1489,17 +1539,17 @@
 
                         <!-- 5. Ek Telafi Süresi -->
                         <div class="col-span-1 text-center">
-                          <span class="px-2 py-1 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono font-black text-xs inline-block shadow-sm">
+                          <span class="px-2 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/40 font-mono font-black text-xs inline-block shadow-sm">
                             +${rep.penaltyFormatted || (rep.penaltyMinutes + ' Dk')}
                           </span>
                         </div>
 
                         <!-- 6. Kapı Çıkış Saati -->
-                        <div class="col-span-2 text-right pr-3">
-                          <div class="font-mono font-black text-xl text-rose-400 leading-tight">
+                        <div class="col-span-2 text-right pr-2">
+                          <div class="font-mono font-black text-base sm:text-lg text-rose-400 leading-tight">
                             ${rep.calculatedExitTime || '13:00'}
                           </div>
-                          <div class="text-[10px] text-slate-500 font-mono">
+                          <div class="text-[9px] text-slate-500 font-mono">
                             Normal: ${rep.baseExitTime || '13:00'}
                           </div>
                         </div>
@@ -1542,68 +1592,68 @@
         const st3 = (top3 && top3.stats) || { currentPage: 0, percentRead: 0, cuzNo: 1, cuzPageRange: '1 - 20', hatimCount: 0, pagesLeftInHatim: 604, percentLeft: 100 };
 
         container.innerHTML = `
-          <div class="space-y-4 animate-fade-in w-full max-w-7xl mx-auto">
+          <div class="space-y-2 animate-fade-in w-full max-w-7xl mx-auto">
             <!-- 1. Üst Başlık & KPI Çubuğu -->
-            <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
-              <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 font-black text-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-slate-800">
+              <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 font-black text-xl flex items-center justify-center shadow-md">
                   📖
                 </div>
                 <div>
-                  <div class="flex items-center gap-2">
-                    <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-black uppercase tracking-wider">
+                  <div class="flex items-center gap-1.5">
+                    <span class="px-2 py-0.2 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[9px] font-black uppercase tracking-wider">
                       DİNİ DERSLER & TİLAVET
                     </span>
-                    <span class="text-xs text-slate-400 font-mono">Mushaf: 604 Sayfa</span>
+                    <span class="text-[10px] text-slate-400 font-mono">Mushaf: 604 Sayfa</span>
                   </div>
-                  <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  <h2 class="text-lg sm:text-xl font-black text-white tracking-tight leading-tight">
                     Kur'an-ı Kerim Hatim ve Tilavet Liderliği
                   </h2>
                 </div>
               </div>
 
               <!-- Toplam Sayaçlar -->
-              <div class="flex items-center gap-2 sm:gap-3 text-xs">
-                <div class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-center">
-                  <div class="text-[9px] font-bold text-slate-400 uppercase">Toplam Okunan</div>
-                  <div class="text-base font-black text-emerald-400 font-mono">${totalLifetimePages.toLocaleString('tr-TR')} sf</div>
+              <div class="flex items-center gap-2 text-xs">
+                <div class="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                  <div class="text-[8px] font-bold text-slate-400 uppercase">Toplam Okunan</div>
+                  <div class="text-xs sm:text-sm font-black text-emerald-400 font-mono leading-none">${totalLifetimePages.toLocaleString('tr-TR')} sf</div>
                 </div>
-                <div class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-center">
-                  <div class="text-[9px] font-bold text-slate-400 uppercase">Biten Hatim</div>
-                  <div class="text-base font-black text-amber-400 font-mono">${totalCompletedHatims} Hatim</div>
+                <div class="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                  <div class="text-[8px] font-bold text-slate-400 uppercase">Biten Hatim</div>
+                  <div class="text-xs sm:text-sm font-black text-amber-400 font-mono leading-none">${totalCompletedHatims} Hatim</div>
                 </div>
-                <div class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-center">
-                  <div class="text-[9px] font-bold text-slate-400 uppercase">Dini Ders Grubu</div>
-                  <div class="text-base font-black text-indigo-400 font-mono">${groupSummaries.length} Grup</div>
+                <div class="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-center">
+                  <div class="text-[8px] font-bold text-slate-400 uppercase">Dini Ders Grubu</div>
+                  <div class="text-xs sm:text-sm font-black text-indigo-400 font-mono leading-none">${groupSummaries.length} Grup</div>
                 </div>
               </div>
             </div>
 
             <!-- 2. İkili Düzen: Sol Podyum (Top 3) & Sağ Sıralama Listesi (Top 4-9) -->
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
               
               <!-- SOL: 🏆 İLK 3 PODYUMU (7 Kolon) -->
-              <div class="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+              <div class="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
                 
                 <!-- 🥈 2. SIRA (GÜMÜŞ) -->
                 <div class="order-2 sm:order-1">
                   ${top2 ? `
-                    <div class="bg-slate-900/90 rounded-3xl border-2 border-slate-600/60 p-4 text-center shadow-xl relative overflow-hidden">
+                    <div class="bg-slate-900/90 rounded-2xl border-2 border-slate-600/60 p-3 text-center shadow-lg relative overflow-hidden">
                       <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-slate-400 to-slate-200"></div>
-                      <div class="text-3xl mb-0.5">🥈</div>
+                      <div class="text-2xl mb-0.5">🥈</div>
                       <div class="text-[9px] font-black uppercase text-slate-400 tracking-wider">2. SIRA • GÜMÜŞ</div>
-                      <h4 class="text-sm font-black text-white mt-1 truncate" title="${s2.firstName} ${s2.lastName}">
+                      <h4 class="text-xs sm:text-sm font-black text-white mt-0.5 truncate" title="${s2.firstName} ${s2.lastName}">
                         ${s2.firstName} ${s2.lastName}
                       </h4>
-                      <div class="text-[10px] text-slate-400 mb-2">${s2.className} • ${top2.diniGrup || '-'}</div>
+                      <div class="text-[10px] text-slate-400 mb-1.5">${s2.className} • ${top2.diniGrup || '-'}</div>
 
                       <!-- İlerleme Çubuğu -->
-                      <div class="space-y-1 p-2 bg-slate-950/80 rounded-xl border border-slate-800 mb-2">
+                      <div class="space-y-0.5 p-1.5 bg-slate-950/80 rounded-xl border border-slate-800 mb-1.5">
                         <div class="flex items-center justify-between text-[10px]">
                           <span class="text-slate-400">Sayfa: <strong class="text-emerald-400 font-mono">${st2.currentPage}</strong> / 604</span>
                           <span class="text-emerald-400 font-black font-mono">%${st2.percentRead}</span>
                         </div>
-                        <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                        <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
                           <div class="h-full bg-gradient-to-r from-slate-400 to-slate-200 rounded-full" style="width: ${st2.percentRead}%"></div>
                         </div>
                         <div class="text-[9px] text-slate-400 flex items-center justify-between pt-0.5">
@@ -1616,69 +1666,69 @@
                         Kalan: <strong class="text-amber-300">${st2.pagesLeftInHatim} sf</strong> (%${st2.percentLeft})
                       </div>
                     </div>
-                  ` : '<div class="text-center text-slate-600 text-xs p-6 bg-slate-900/40 rounded-2xl border border-slate-800">2. Bekleniyor</div>'}
+                  ` : '<div class="text-center text-slate-600 text-xs p-5 bg-slate-900/40 rounded-xl border border-slate-800">2. Bekleniyor</div>'}
                 </div>
 
                 <!-- 🥇 1. SIRA (ALTIN LİDER) -->
-                <div class="order-1 sm:order-2 transform sm:-translate-y-2">
+                <div class="order-1 sm:order-2">
                   ${top1 ? `
-                    <div class="bg-gradient-to-b from-amber-950/30 via-slate-900 to-slate-900 rounded-3xl border-2 border-amber-400 p-5 text-center shadow-2xl relative overflow-hidden gold-glow">
-                      <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500"></div>
+                    <div class="bg-gradient-to-b from-amber-950/30 via-slate-900 to-slate-900 rounded-2xl border-2 border-amber-400 p-3.5 text-center shadow-xl relative overflow-hidden gold-glow">
+                      <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500"></div>
                       
-                      <div class="relative inline-block mb-1">
-                        <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-black text-2xl flex items-center justify-center shadow-xl mx-auto">
+                      <div class="relative inline-block mb-0.5">
+                        <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-black text-xl flex items-center justify-center shadow-md mx-auto">
                           👑
                         </div>
-                        <span class="absolute -top-2 -right-2 text-xl">🥇</span>
+                        <span class="absolute -top-2 -right-1.5 text-sm">🥇</span>
                       </div>
 
-                      <div class="text-[10px] font-black uppercase text-amber-300 tracking-wider">KUR'AN-I KERİM LİDERİ</div>
-                      <h3 class="text-base sm:text-lg font-black text-white mt-1 truncate" title="${s1.firstName} ${s1.lastName}">
+                      <div class="text-[9px] font-black uppercase text-amber-300 tracking-wider">KUR'AN-I KERİM LİDERİ</div>
+                      <h3 class="text-sm sm:text-base font-black text-white mt-0.5 truncate" title="${s1.firstName} ${s1.lastName}">
                         ${s1.firstName} ${s1.lastName}
                       </h3>
-                      <div class="text-xs text-amber-300/80 font-bold mb-3">${s1.className} • ${top1.diniGrup || '-'}</div>
+                      <div class="text-[11px] text-amber-300/80 font-bold mb-2">${s1.className} • ${top1.diniGrup || '-'}</div>
 
                       <!-- İlerleme Çubuğu -->
-                      <div class="space-y-1.5 p-2.5 bg-slate-950/90 rounded-2xl border border-amber-500/40 mb-2">
+                      <div class="space-y-1 p-2 bg-slate-950/90 rounded-xl border border-amber-500/40 mb-1.5">
                         <div class="flex items-center justify-between text-xs">
-                          <span class="text-slate-300">Sayfa: <strong class="text-amber-400 font-mono text-sm">${st1.currentPage}</strong> / 604</span>
-                          <span class="text-amber-300 font-black font-mono text-sm">%${st1.percentRead}</span>
+                          <span class="text-slate-300">Sayfa: <strong class="text-amber-400 font-mono">${st1.currentPage}</strong> / 604</span>
+                          <span class="text-amber-300 font-black font-mono">%${st1.percentRead}</span>
                         </div>
-                        <div class="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden">
+                        <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
                           <div class="h-full bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-400 rounded-full shadow-xs" style="width: ${st1.percentRead}%"></div>
                         </div>
-                        <div class="text-[10px] text-slate-300 flex items-center justify-between pt-0.5">
+                        <div class="text-[9px] text-slate-300 flex items-center justify-between pt-0.5">
                           <span>${st1.cuzNo}. Cüz (${st1.cuzPageRange}. sf)</span>
-                          <span class="text-amber-300 font-black">🌟 ${st1.hatimCount} Biten Hatim</span>
+                          <span class="text-amber-300 font-black">🌟 ${st1.hatimCount} Hatim</span>
                         </div>
                       </div>
 
-                      <div class="text-[11px] text-slate-300 font-medium">
-                        Kalan: <strong class="text-amber-400 font-bold">${st1.pagesLeftInHatim} sayfa</strong> (%${st1.percentLeft})
+                      <div class="text-[10px] text-slate-300 font-medium">
+                        Kalan: <strong class="text-amber-400 font-bold">${st1.pagesLeftInHatim} sf</strong> (%${st1.percentLeft})
                       </div>
                     </div>
-                  ` : '<div class="text-center text-slate-600 text-xs p-6 bg-slate-900/40 rounded-2xl border border-slate-800">1. Bekleniyor</div>'}
+                  ` : '<div class="text-center text-slate-600 text-xs p-5 bg-slate-900/40 rounded-xl border border-slate-800">1. Bekleniyor</div>'}
                 </div>
 
                 <!-- 🥉 3. SIRA (BRONZ) -->
                 <div class="order-3 sm:order-3">
                   ${top3 ? `
-                    <div class="bg-slate-900/90 rounded-3xl border-2 border-amber-700/60 p-4 text-center shadow-xl relative overflow-hidden">
+                    <div class="bg-slate-900/90 rounded-2xl border-2 border-amber-700/60 p-3 text-center shadow-lg relative overflow-hidden">
                       <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-700 to-amber-600"></div>
-                      <div class="text-3xl mb-0.5">🥉</div>
+                      <div class="text-2xl mb-0.5">🥉</div>
                       <div class="text-[9px] font-black uppercase text-amber-500 tracking-wider">3. SIRA • BRONZ</div>
-                      <h4 class="text-sm font-black text-white mt-1 truncate" title="${s3.firstName} ${s3.lastName}">
+                      <h4 class="text-xs sm:text-sm font-black text-white mt-0.5 truncate" title="${s3.firstName} ${s3.lastName}">
                         ${s3.firstName} ${s3.lastName}
                       </h4>
-                      <div class="text-[10px] text-slate-400 mb-2">${s3.className} • ${top3.diniGrup || '-'}</div>
+                      <div class="text-[10px] text-slate-400 mb-1.5">${s3.className} • ${top3.diniGrup || '-'}</div>
 
                       <!-- İlerleme Çubuğu -->
-                      <div class="space-y-1 p-2 bg-slate-950/80 rounded-xl border border-slate-800 mb-2">
+                      <div class="space-y-0.5 p-1.5 bg-slate-950/80 rounded-xl border border-slate-800 mb-1.5">
                         <div class="flex items-center justify-between text-[10px]">
                           <span class="text-slate-400">Sayfa: <strong class="text-emerald-400 font-mono">${st3.currentPage}</strong> / 604</span>
                           <span class="text-emerald-400 font-black font-mono">%${st3.percentRead}</span>
                         </div>
-                        <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                        <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
                           <div class="h-full bg-gradient-to-r from-amber-700 to-amber-500 rounded-full" style="width: ${st3.percentRead}%"></div>
                         </div>
                         <div class="text-[9px] text-slate-400 flex items-center justify-between pt-0.5">
@@ -1691,45 +1741,45 @@
                         Kalan: <strong class="text-amber-300">${st3.pagesLeftInHatim} sf</strong> (%${st3.percentLeft})
                       </div>
                     </div>
-                  ` : '<div class="text-center text-slate-600 text-xs p-6 bg-slate-900/40 rounded-2xl border border-slate-800">3. Bekleniyor</div>'}
+                  ` : '<div class="text-center text-slate-600 text-xs p-5 bg-slate-900/40 rounded-xl border border-slate-800">3. Bekleniyor</div>'}
                 </div>
 
               </div>
 
               <!-- SAĞ: 📋 EN ÇOK OKUYANLAR LİSTESİ (5 Kolon) -->
-              <div class="lg:col-span-5 bg-slate-900/90 rounded-3xl border border-slate-800 p-4 flex flex-col justify-between shadow-xl">
+              <div class="lg:col-span-5 bg-slate-900/90 rounded-2xl border border-slate-800 p-3 flex flex-col justify-between shadow-xl">
                 <div>
-                  <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-xs font-black text-slate-300">
+                  <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800 text-xs font-black text-slate-300">
                     <span class="flex items-center gap-1.5">
                       <span>✨</span> <span>En Çok Okuyan Talebeler</span>
                     </span>
-                    <span class="text-[10px] text-slate-500">Mushaf / 604 sf</span>
+                    <span class="text-[10px] text-slate-500 font-mono">Mushaf: 604 sf</span>
                   </div>
 
-                  <div class="space-y-1.5">
+                  <div class="space-y-1">
                     ${restList.length === 0 ? `
-                      <div class="py-6 text-center text-slate-500 text-xs">
+                      <div class="py-4 text-center text-slate-500 text-xs">
                         Diğer sıralamalar güncelleniyor...
                       </div>
                     ` : restList.map(item => {
                       const s = (item && item.student) || { firstName: 'Talebe', lastName: '', className: '-' };
                       const st = (item && item.stats) || { currentPage: 0, percentRead: 0, cuzNo: 1, hatimCount: 0 };
                       return `
-                        <div class="p-2 bg-slate-950/70 hover:bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between gap-2 text-xs transition">
-                          <div class="flex items-center gap-2 overflow-hidden">
-                            <span class="w-5 text-center font-mono font-black text-slate-500 text-[11px]">${item.rank || '-'}</span>
+                        <div class="p-1.5 bg-slate-950/70 hover:bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between gap-1.5 text-xs transition">
+                          <div class="flex items-center gap-1.5 overflow-hidden">
+                            <span class="w-4 text-center font-mono font-black text-slate-500 text-[10px]">${item.rank || '-'}</span>
                             <div class="truncate">
-                              <div class="font-bold text-white text-xs truncate">${s.firstName} ${s.lastName}</div>
-                              <div class="text-[10px] text-slate-400 truncate">${s.className} • ${item.diniGrup || '-'}</div>
+                              <div class="font-bold text-white text-xs truncate leading-tight">${s.firstName} ${s.lastName}</div>
+                              <div class="text-[9px] text-slate-400 truncate">${s.className} • ${item.diniGrup || '-'}</div>
                             </div>
                           </div>
 
                           <div class="text-right flex-shrink-0">
-                            <div class="font-mono font-black text-emerald-400 text-xs">
-                              ${st.currentPage}. sf <span class="text-slate-400 font-normal text-[10px]">(%${st.percentRead})</span>
+                            <div class="font-mono font-black text-emerald-400 text-xs leading-none">
+                              ${st.currentPage}. sf <span class="text-slate-400 font-normal text-[9px]">(%${st.percentRead})</span>
                             </div>
-                            <div class="text-[10px] text-slate-400">
-                              ${st.cuzNo}. Cüz ${st.hatimCount > 0 ? `• <span class="text-amber-400 font-bold">${st.hatimCount} Hatim</span>` : ''}
+                            <div class="text-[9px] text-slate-400 mt-0.5">
+                              ${st.cuzNo}. Cüz ${st.hatimCount > 0 ? `• <span class="text-amber-400 font-bold">${st.hatimCount} H.</span>` : ''}
                             </div>
                           </div>
                         </div>
@@ -1739,27 +1789,26 @@
                 </div>
 
                 <!-- Hadis-i Şerif Şeridi -->
-                <div class="mt-3 p-2.5 bg-emerald-950/30 rounded-2xl border border-emerald-800/40 text-center">
-                  <p class="text-[11px] text-emerald-200 font-medium italic">
-                    "Sizin en hayırlınız, Kur'an'ı öğrenen ve öğretendir."
+                <div class="mt-2 p-1.5 bg-emerald-950/30 rounded-xl border border-emerald-800/40 text-center">
+                  <p class="text-[10px] text-emerald-200 font-medium italic">
+                    "Sizin en hayırlınız, Kur'an'ı öğrenen ve öğretendir." (Buhârî)
                   </p>
-                  <span class="text-[9px] text-emerald-400/80 font-bold uppercase tracking-wider block mt-0.5">Hadis-i Şerif • Buhârî</span>
                 </div>
               </div>
 
             </div>
 
             <!-- 3. DİNİ DERS GRUPLARI ŞERİDİ (Alt Kısım) -->
-            <div class="pt-2">
-              <div class="text-[10px] font-black uppercase text-slate-500 tracking-wider mb-2 flex items-center gap-1.5">
+            <div class="pt-1">
+              <div class="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-1 flex items-center gap-1">
                 <span>🕌</span> <span>Dini Ders Grupları Hatim İlerleme Durumu:</span>
               </div>
-              <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+              <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5">
                 ${groupSummaries.slice(0, 7).map(g => `
-                  <div class="p-2 bg-slate-900/80 rounded-xl border border-slate-800 text-center text-xs">
-                    <div class="font-black text-slate-200 truncate text-[11px]">${g.groupName}</div>
-                    <div class="font-mono font-black text-emerald-400 text-xs mt-0.5">${g.totalLifetimePages.toLocaleString('tr-TR')} sf</div>
-                    <div class="text-[9px] text-slate-400 mt-0.5">%${g.avgPercent} Ortalama</div>
+                  <div class="p-1.5 bg-slate-900/80 rounded-xl border border-slate-800 text-center text-xs">
+                    <div class="font-black text-slate-200 truncate text-[10px]">${g.groupName}</div>
+                    <div class="font-mono font-black text-emerald-400 text-xs mt-0.5 leading-none">${g.totalLifetimePages.toLocaleString('tr-TR')} sf</div>
+                    <div class="text-[8px] text-slate-400 mt-0.5">%${g.avgPercent} Ortalama</div>
                   </div>
                 `).join('')}
               </div>
