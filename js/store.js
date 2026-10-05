@@ -20,6 +20,7 @@ const STORAGE_KEYS = {
   DUTIES: 'yoklama_daily_duties_v1',
   HADISLER: 'yoklama_custom_hadisler_v1',
   QURAN_TRACKER: 'yoklama_quran_tracker_v1',
+  MOCK_EXAMS: 'yoklama_mock_exams_v1',
   SETTINGS: 'yoklama_settings',
   INITIALIZED: 'yoklama_init_v5'
 };
@@ -141,31 +142,27 @@ const SEED_STUDENTS = [
   { id: "std_716", studentNo: "716", firstName: "SERKAN", lastName: "İNCEDERE", className: "7-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "BURAK BODUR", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 304", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "INCEDERE2026", password: "123" },
   { id: "std_717", studentNo: "717", firstName: "RAMAZAN", lastName: "ATASOY", className: "7-B", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "BURAK BODUR", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 304", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ATASOY2026", password: "123" },
 
-  // 8-A SINIFI (Yavuz Selim Seven Grubu)
-  { id: "std_801", studentNo: "801", firstName: "MEHMET YAKUP", lastName: "ÇEDİKÇİ", className: "8-A", school: "AYHAN ŞAHENK", seviye: "Seviye 1", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CEDIKCI2026", password: "123" },
-  { id: "std_802", studentNo: "802", firstName: "KERİM TUNA", lastName: "CİHAN", className: "8-A", school: "AYHAN ŞAHENK", seviye: "Seviye 1", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CIHAN2026", password: "123" },
-  { id: "std_803", studentNo: "803", firstName: "MUHAMMED", lastName: "CHOLAK", className: "8-A", school: "KADİR CİHAN", seviye: "Seviye 1", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CHOLAK2026", password: "123" },
-  { id: "std_804", studentNo: "804", firstName: "İBRAHİM", lastName: "UZTURK", className: "8-A", school: "KADİR CİHAN", seviye: "Seviye 1", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "UZTURK2026", password: "123" },
-  { id: "std_805", studentNo: "805", firstName: "AHMET EMRE", lastName: "AKYOL", className: "8-A", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "AKYOL2026", password: "123" },
+  // 8-A SINIFI (Yavuz Selim Seven Grubu - A Sınıfı: 9 Talebe)
+  { id: "std_814", studentNo: "814", firstName: "RUÇHAN ZEKİ", lastName: "YILDIZ", className: "8-A", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 404", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "YILDIZ2026", password: "123" },
+  { id: "std_815", studentNo: "815", firstName: "SEMİHCAN", lastName: "DEMİR", className: "8-A", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 404", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "DEMIR2026", password: "123" },
+  { id: "std_822", studentNo: "822", firstName: "ÖMER FARUK", lastName: "ÖZTÜRK", className: "8-A", school: "-", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZTURK2026", password: "123" },
   { id: "std_806", studentNo: "806", firstName: "MEHMET FATİHHAN", lastName: "POLAT", className: "8-A", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "POLAT2026", password: "123" },
-  { id: "std_807", studentNo: "807", firstName: "SAMED ENES", lastName: "ACAR", className: "8-A", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ACAR2026", password: "123" },
+  { id: "std_819", studentNo: "819", firstName: "ŞABAN", lastName: "ÖZDEMİR", className: "8-A", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZDEMIR2026", password: "123" },
+  { id: "std_820", studentNo: "820", firstName: "YİĞİT EMİR", lastName: "KILIÇ", className: "8-A", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KILIC2026", password: "123" },
+  { id: "std_802", studentNo: "802", firstName: "KERİM TUNA", lastName: "CİHAN", className: "8-A", school: "AYHAN ŞAHENK", seviye: "Seviye 1", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CIHAN2026", password: "123" },
   { id: "std_808", studentNo: "808", firstName: "MUHAMMED KERİM", lastName: "BAYBURT", className: "8-A", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "BAYBURT2026", password: "123" },
-  { id: "std_809", studentNo: "809", firstName: "ÖMER FARUK", lastName: "YAZICI", className: "8-A", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "YAZICI2026", password: "123" },
+  { id: "std_811", studentNo: "811", firstName: "EMİR SALİH", lastName: "DOĞAN", className: "8-A", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "DOGAN2026", password: "123" },
 
-  // 8-B SINIFI (Tunahan Taşkın Grubu)
-  { id: "std_810", studentNo: "810", firstName: "LATFULLAH ABID", lastName: "HUSSAIN", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "HUSSAIN2026", password: "123" },
-  { id: "std_811", studentNo: "811", firstName: "EMİR SALİH", lastName: "DOĞAN", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "DOGAN2026", password: "123" },
-  { id: "std_812", studentNo: "812", firstName: "BİLAL OSMAN", lastName: "ŞENGÜL", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SENGUL2026", password: "123" },
-  { id: "std_813", studentNo: "813", firstName: "ALPEREN", lastName: "UYGUN", className: "8-B", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "UYGUN2026", password: "123" },
-  { id: "std_814", studentNo: "814", firstName: "RÜÇHAN ZEKİ", lastName: "YILDIZ", className: "8-B", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 404", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "YILDIZ2026", password: "123" },
-  { id: "std_815", studentNo: "815", firstName: "SEMİH CAN", lastName: "DEMİR", className: "8-B", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 404", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "DEMIR2026", password: "123" },
+  // 8-B SINIFI (Tunahan Taşkın Grubu - B Sınıfı: 9 Talebe)
+  { id: "std_801", studentNo: "801", firstName: "MEHMET YAKUP", lastName: "ÇEDİKÇİ", className: "8-B", school: "AYHAN ŞAHENK", seviye: "Seviye 1", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CEDIKCI2026", password: "123" },
+  { id: "std_805", studentNo: "805", firstName: "AHMET EMRE", lastName: "AKYOL", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "AKYOL2026", password: "123" },
   { id: "std_816", studentNo: "816", firstName: "YUSUF", lastName: "ULUSOY", className: "8-B", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 404", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ULUSOY2026", password: "123" },
-  { id: "std_817", studentNo: "817", firstName: "SÜLEYMAN", lastName: "HASTÜRK", className: "8-B", school: "-", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 404", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "HASTURK2026", password: "123" },
-  { id: "std_818", studentNo: "818", firstName: "MUHAMMED SONER", lastName: "ERCİVAN", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ERCIVAN2026", password: "123" },
-  { id: "std_819", studentNo: "819", firstName: "ŞABAN", lastName: "ÖZDEMİR", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZDEMIR2026", password: "123" },
-  { id: "std_820", studentNo: "820", firstName: "YİĞİT EMİR", lastName: "KILIÇ", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KILIC2026", password: "123" },
+  { id: "std_810", studentNo: "810", firstName: "LÜTFULLAH ABİD", lastName: "HUSAİN", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "HUSAIN2026", password: "123" },
+  { id: "std_809", studentNo: "809", firstName: "ÖMER FARUK", lastName: "YAZICI", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "YAZICI2026", password: "123" },
   { id: "std_821", studentNo: "821", firstName: "İSA MERT", lastName: "KARABULUT", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KARABULUT2026", password: "123" },
-  { id: "std_822", studentNo: "822", firstName: "ÖMER FARUK", lastName: "ÖZTÜRK", className: "8-B", school: "-", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZTURK2026", password: "123" }
+  { id: "std_807", studentNo: "807", firstName: "SAMET ENES", lastName: "ACAR", className: "8-B", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ACAR2026", password: "123" },
+  { id: "std_813", studentNo: "813", firstName: "ALPEREN", lastName: "UYGUN", className: "8-B", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "UYGUN2026", password: "123" },
+  { id: "std_818", studentNo: "818", firstName: "SONER", lastName: "ERCİVAN", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ERCIVAN2026", password: "123" }
 ];
 
 class DataStore {
@@ -180,7 +177,9 @@ class DataStore {
     }
     // Mevcut öğrencilerin şubelerini (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) otomatik güncelle
     this.autoMigrateStudentClasses();
-    // 8-A ve 8-B hoca atamalarını (8-A Yavuz Selim Seven, 8-B Tunahan Taşkın) ve personel rollerini eşitle
+    // 8. Sınıf kütüğünü (8-A Yavuz Selim Seven [9 Talebe], 8-B Tunahan Taşkın [9 Talebe]) zorla onar ve buluta mühürle
+    this.forceRepair8thGradeClasses(true);
+    // 8-A ve 8-B hoca atamalarını ve personel rollerini eşitle
     this.autoSyncStaffAndClassTeachers();
     // Dini ders grupları ve Dahili Hoca senkronizasyonunu otomatik sağla
     this.autoSyncDahiliHocalarAndQuran();
@@ -255,7 +254,8 @@ class DataStore {
         } else if (currentClass.includes('7') || (no >= 700 && no < 800)) {
           newClass = (hoca.includes('EMİR TALHA') || (no >= 701 && no <= 707)) ? '7-A' : '7-B';
         } else if (currentClass.includes('8') || (no >= 800 && no < 900)) {
-          newClass = (hoca.includes('YAVUZ') || (no >= 801 && no <= 809)) ? '8-A' : '8-B';
+          const is8A = [814, 815, 822, 806, 819, 820, 802, 808, 811].includes(no) || hoca.includes('YAVUZ');
+          newClass = is8A ? '8-A' : '8-B';
         }
 
         if (newClass !== currentClass) {
@@ -274,6 +274,171 @@ class DataStore {
       localStorage.setItem('yoklama_migrated_classes_done_v2', 'true');
     } catch (e) {
       console.warn('[autoMigrateStudentClasses] Hata:', e);
+    }
+  }
+
+  // --- 8. Sınıf Kesin Kütük Onarıcısı (8-A: Yavuz Selim Seven [9], 8-B: Tunahan Taşkın [9] - Tam 18 Talebe) ---
+  forceRepair8thGradeClasses(forceCloudPush = true) {
+    try {
+      // 8-A Sınıfı (Yavuz Selim Seven): 9 Talebe
+      const class8ANumbers = new Set([814, 815, 822, 806, 819, 820, 802, 808, 811]);
+      const class8AIds = new Set(['std_814', 'std_815', 'std_822', 'std_806', 'std_819', 'std_820', 'std_802', 'std_808', 'std_811']);
+
+      // 8-B Sınıfı (Tunahan Taşkın): 9 Talebe
+      const class8BNumbers = new Set([801, 805, 816, 810, 809, 821, 807, 813, 818]);
+      const class8BIds = new Set(['std_801', 'std_805', 'std_816', 'std_810', 'std_809', 'std_821', 'std_807', 'std_813', 'std_818']);
+
+      // Listeden çıkarılan 4 yabancı/fazlalık öğrenci
+      const removed8thGradeIds = new Set(['std_803', 'std_804', 'std_812', 'std_817']);
+      const removed8thGradeNos = new Set([803, 804, 812, 817]);
+
+      // 1. Silinenler Sicili'ne (Tombstone) kaydet
+      const deletedMap = this.getDeletedStudentIds();
+      let deletedMapChanged = false;
+      removed8thGradeIds.forEach(id => {
+        if (!deletedMap[id] || !deletedMap[id].isDeleted) {
+          deletedMap[id] = { isDeleted: true, deletedAt: new Date().toISOString() };
+          deletedMapChanged = true;
+        }
+      });
+      if (deletedMapChanged) {
+        this.saveDeletedStudentIds(deletedMap);
+      }
+
+      // 2. Pasif Sicili'nden bu 18 öğrenciyi KESİNLİKLE çıkar (Hiçbiri pasif olamaz, hepsi aktif!)
+      const passiveMap = this.getPassiveStudentIds();
+      let passiveChanged = false;
+      const all18Ids = [...class8AIds, ...class8BIds];
+      all18Ids.forEach(id => {
+        if (passiveMap[id]) {
+          delete passiveMap[id];
+          passiveChanged = true;
+        }
+      });
+      removed8thGradeIds.forEach(id => {
+        if (passiveMap[id]) {
+          delete passiveMap[id];
+          passiveChanged = true;
+        }
+      });
+      if (passiveChanged) {
+        this.savePassiveStudentIds(passiveMap);
+      }
+
+      // 3. Öğrenci Listesini Yükle ve Onar
+      let studentsRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      let students = studentsRaw ? JSON.parse(studentsRaw) : [];
+      if (!Array.isArray(students) || students.length === 0) {
+        students = [...SEED_STUDENTS];
+      }
+
+      const initialCount = students.length;
+      let hasChanges = false;
+      const nowIso = new Date().toISOString();
+
+      // Silinecek 4 kişiyi ve ada göre eşleşen fazlalıkları çıkar
+      students = students.filter(s => {
+        if (!s) return false;
+        const no = parseInt(s.studentNo, 10);
+        const sid = (s.id || '').trim();
+        const fullName = `${s.firstName || ''} ${s.lastName || ''}`.toUpperCase();
+
+        if (removed8thGradeIds.has(sid) || removed8thGradeNos.has(no)) {
+          hasChanges = true;
+          return false;
+        }
+        if (fullName.includes('CHOLAK') || fullName.includes('UZTURK') || fullName.includes('ŞENGÜL') || fullName.includes('HASTÜRK')) {
+          hasChanges = true;
+          return false;
+        }
+        return true;
+      });
+
+      // Kalan 18 talebeyi harfiyen doğru sınıfa, hocaya ata ve aktif yap
+      students = students.map(s => {
+        if (!s) return s;
+        const no = parseInt(s.studentNo, 10);
+        const sid = (s.id || '').trim();
+        const fullName = `${s.firstName || ''} ${s.lastName || ''}`.toUpperCase();
+
+        let targetClass = null;
+        let targetTeacher = null;
+
+        if (class8ANumbers.has(no) || class8AIds.has(sid)) {
+          targetClass = '8-A';
+          targetTeacher = 'YAVUZ SELİM SEVEN';
+        } else if (class8BNumbers.has(no) || class8BIds.has(sid)) {
+          targetClass = '8-B';
+          targetTeacher = 'TUNAHAN TAŞKIN';
+        } else if (no >= 800 && no < 900) {
+          if (fullName.includes('RUÇHAN') || fullName.includes('SEMİH') || fullName.includes('POLAT') || fullName.includes('ŞABAN') || fullName.includes('YİĞİT EMİR') || fullName.includes('CİHAN') || fullName.includes('BAYBURT') || (fullName.includes('EMİR SALİH') && fullName.includes('DOĞAN'))) {
+            targetClass = '8-A';
+            targetTeacher = 'YAVUZ SELİM SEVEN';
+          } else if (fullName.includes('ÇEDİKÇİ') || fullName.includes('AKYOL') || fullName.includes('ULUSOY') || fullName.includes('HUSSAIN') || fullName.includes('HUSAİN') || fullName.includes('YAZICI') || fullName.includes('KARABULUT') || fullName.includes('ACAR') || fullName.includes('UYGUN') || fullName.includes('ERCİVAN')) {
+            targetClass = '8-B';
+            targetTeacher = 'TUNAHAN TAŞKIN';
+          }
+        }
+
+        if (targetClass && targetTeacher) {
+          this.markStudentLocallyEdited(s.id, ['className', 'etutHocasi', 'isPassive', 'status']);
+          const needsFix = s.className !== targetClass || s.etutHocasi !== targetTeacher || s.isPassive === true || s.status === 'passive';
+          if (needsFix) {
+            hasChanges = true;
+            return {
+              ...s,
+              className: targetClass,
+              etutHocasi: targetTeacher,
+              isPassive: false,
+              status: 'active',
+              updatedAt: nowIso
+            };
+          }
+        }
+        return s;
+      });
+
+      // Eksik 8. sınıf öğrencisi kalmışsa SEED_STUDENTS'ten ekle
+      const existingIds = new Set(students.map(s => s.id));
+      SEED_STUDENTS.forEach(seed => {
+        const sNo = parseInt(seed.studentNo, 10);
+        if ((class8ANumbers.has(sNo) || class8BNumbers.has(sNo)) && !existingIds.has(seed.id)) {
+          students.push({
+            ...seed,
+            isPassive: false,
+            status: 'active',
+            updatedAt: nowIso
+          });
+          this.markStudentLocallyEdited(seed.id, ['className', 'etutHocasi', 'isPassive', 'status']);
+          hasChanges = true;
+        }
+      });
+
+      if (hasChanges || students.length !== initialCount || forceCloudPush) {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+        this._lastStudentEditTime = Date.now();
+        this._lastStudentPushTime = Date.now();
+
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/students', students);
+          this.syncToCloud('kurs_data/deleted_student_ids', deletedMap);
+          this.syncToCloud('kurs_data/passive_student_ids', passiveMap);
+
+          const baseUrl = this.getFirebaseUrl();
+          if (baseUrl) {
+            removed8thGradeIds.forEach(delId => {
+              try {
+                fetch(`${baseUrl}/kurs_data/students/${delId}.json`, { method: 'DELETE' }).catch(() => {});
+              } catch (e) {}
+            });
+          }
+        }
+        window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
+      }
+      return { success: true, count: students.length };
+    } catch (err) {
+      console.warn('[forceRepair8thGradeClasses] Hata:', err);
+      return { success: false, error: err.message };
     }
   }
 
@@ -310,42 +475,8 @@ class DataStore {
         }
       }
 
-      // 2. Talebe Kütüğünü Eşitle (8-A -> YAVUZ SELİM SEVEN, 8-B -> TUNAHAN TAŞKIN)
-      const studentsRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      if (studentsRaw) {
-        let students = JSON.parse(studentsRaw);
-        if (Array.isArray(students) && students.length > 0) {
-          let studentsChanged = false;
-          students = students.map(s => {
-            if (!s) return s;
-            const cls = (s.className || '').trim().toUpperCase();
-            const no = parseInt(s.studentNo, 10);
-            
-            // 8-A Sınıfı (801 - 809): Yavuz Selim Seven
-            if (cls === '8-A' || (no >= 801 && no <= 809)) {
-              if (s.etutHocasi !== 'YAVUZ SELİM SEVEN' || s.className !== '8-A') {
-                studentsChanged = true;
-                return { ...s, className: '8-A', etutHocasi: 'YAVUZ SELİM SEVEN' };
-              }
-            }
-            // 8-B Sınıfı (810 - 825): Tunahan Taşkın
-            else if (cls === '8-B' || (no >= 810 && no <= 825)) {
-              if (s.etutHocasi !== 'TUNAHAN TAŞKIN' || s.className !== '8-B') {
-                studentsChanged = true;
-                return { ...s, className: '8-B', etutHocasi: 'TUNAHAN TAŞKIN' };
-              }
-            }
-            return s;
-          });
-          if (studentsChanged) {
-            localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-            if (this.isCloudEnabled()) {
-              this.syncToCloud('kurs_data/students', students);
-            }
-            window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
-          }
-        }
-      }
+      // 2. 8. Sınıf Kütüğünü Onar (8-A [9], 8-B [9])
+      this.forceRepair8thGradeClasses(false);
     } catch (e) {
       console.warn('[autoSyncStaffAndClassTeachers] Hata:', e);
     }
@@ -816,6 +947,23 @@ class DataStore {
               if (seed && seed.dahiliHoca) mergedSt.dahiliHoca = seed.dahiliHoca;
             }
           }
+
+          // 8. Sınıf Kesin Dağılım Koruması (Buluttan eski 8-A / 8-B şubeleri gelse bile asla ezilemez!)
+          const no8 = parseInt(mergedSt.studentNo, 10);
+          const c8ANos = [814, 815, 822, 806, 819, 820, 802, 808, 811];
+          const c8BNos = [801, 805, 816, 810, 809, 821, 807, 813, 818];
+          if (c8ANos.includes(no8)) {
+            mergedSt.className = '8-A';
+            mergedSt.etutHocasi = 'YAVUZ SELİM SEVEN';
+            mergedSt.isPassive = false;
+            mergedSt.status = 'active';
+          } else if (c8BNos.includes(no8)) {
+            mergedSt.className = '8-B';
+            mergedSt.etutHocasi = 'TUNAHAN TAŞKIN';
+            mergedSt.isPassive = false;
+            mergedSt.status = 'active';
+          }
+
           return mergedSt;
         }
 
@@ -830,6 +978,23 @@ class DataStore {
           const seed = SEED_STUDENTS.find(s => s.id === singleSt.id || s.studentNo === singleSt.studentNo);
           if (seed && seed.dahiliHoca) singleSt.dahiliHoca = seed.dahiliHoca;
         }
+
+        // 8. Sınıf Kesin Dağılım Koruması (Tekil bulut öğrencisi için)
+        const no8s = parseInt(singleSt.studentNo, 10);
+        const c8ANos = [814, 815, 822, 806, 819, 820, 802, 808, 811];
+        const c8BNos = [801, 805, 816, 810, 809, 821, 807, 813, 818];
+        if (c8ANos.includes(no8s)) {
+          singleSt.className = '8-A';
+          singleSt.etutHocasi = 'YAVUZ SELİM SEVEN';
+          singleSt.isPassive = false;
+          singleSt.status = 'active';
+        } else if (c8BNos.includes(no8s)) {
+          singleSt.className = '8-B';
+          singleSt.etutHocasi = 'TUNAHAN TAŞKIN';
+          singleSt.isPassive = false;
+          singleSt.status = 'active';
+        }
+
         return singleSt;
       });
 
@@ -840,8 +1005,16 @@ class DataStore {
         }
       });
 
-      // Silinenler siciline göre son kez arındır
-      const finalCleanList = mergedStudents.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+      // Silinenler siciline ve 8. sınıf fazlalıklarına (803, 804, 812, 817) göre son kez arındır
+      const removed8Nos = new Set([803, 804, 812, 817]);
+      const removed8Ids = new Set(['std_803', 'std_804', 'std_812', 'std_817']);
+      const finalCleanList = mergedStudents.filter(s => {
+        if (!s || !s.id) return false;
+        if (deletedMap[s.id] && deletedMap[s.id].isDeleted) return false;
+        const no = parseInt(s.studentNo, 10);
+        if (removed8Nos.has(no) || removed8Ids.has(s.id)) return false;
+        return true;
+      });
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(finalCleanList));
     }
 
@@ -922,6 +1095,23 @@ class DataStore {
         }
       });
       localStorage.setItem(STORAGE_KEYS.TEST_RESULTS, JSON.stringify(Array.from(testMap.values())));
+    }
+
+    // 8c. Kurumsal Deneme Sınavları & Kazanım Analizleri (Mock Exams)
+    const cloudMockExams = toArray(cloudData.mockExams || cloudData.mock_exams);
+    if (cloudMockExams.length > 0) {
+      const localExams = this.getMockExams();
+      const examMap = new Map();
+      localExams.forEach(e => { if (e && e.id) examMap.set(e.id, e); });
+      cloudMockExams.forEach(e => {
+        if (e && e.id) {
+          const existing = examMap.get(e.id);
+          if (!existing || (e.updatedAt && (!existing.updatedAt || new Date(e.updatedAt) >= new Date(existing.updatedAt)))) {
+            examMap.set(e.id, e);
+          }
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.MOCK_EXAMS, JSON.stringify(Array.from(examMap.values())));
     }
 
     // 9. Ayarlar (Tarih, Pazar/Pazartesi saatleri vb. ortak ayarlar)
@@ -1094,6 +1284,11 @@ class DataStore {
 
       window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: mergedQuran }));
     }
+
+    // 8-A / 8-B Hoca & Şube Eşitlemesini Bulut Senkronizasyonundan Sonra da Garantiye Al
+    try {
+      this.autoSyncStaffAndClassTeachers();
+    } catch (e) {}
 
     window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: cloudData }));
   }
@@ -2927,6 +3122,75 @@ class DataStore {
     return results.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
   }
 
+  // --- Kurumsal Deneme Sınavları & Kazanım Analizi Metodları ---
+  getMockExams() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.MOCK_EXAMS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  getMockExamById(id) {
+    if (!id) return null;
+    return this.getMockExams().find(e => e.id === id) || null;
+  }
+
+  saveMockExam(examData) {
+    const list = this.getMockExams();
+    const id = examData.id || ('mock_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5));
+    const nowIso = new Date().toISOString();
+
+    const record = {
+      ...examData,
+      id,
+      updatedAt: nowIso,
+      createdAt: examData.createdAt || nowIso
+    };
+
+    const idx = list.findIndex(e => e.id === id);
+    if (idx !== -1) {
+      list[idx] = record;
+    } else {
+      list.unshift(record);
+    }
+
+    localStorage.setItem(STORAGE_KEYS.MOCK_EXAMS, JSON.stringify(list));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/mockExams', list);
+    }
+    window.dispatchEvent(new CustomEvent('mock-exams-updated', { detail: list }));
+    return record;
+  }
+
+  deleteMockExam(id) {
+    let list = this.getMockExams().filter(e => e.id !== id);
+    localStorage.setItem(STORAGE_KEYS.MOCK_EXAMS, JSON.stringify(list));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/mockExams', list);
+    }
+    window.dispatchEvent(new CustomEvent('mock-exams-updated', { detail: list }));
+    return true;
+  }
+
+  getStudentMockExams(studentId) {
+    const list = this.getMockExams();
+    const results = [];
+    list.forEach(exam => {
+      if (exam.scores && exam.scores[studentId]) {
+        results.push({
+          examId: exam.id,
+          title: exam.title || 'Deneme Sınavı',
+          date: exam.date,
+          subjects: exam.subjects || [],
+          ...exam.scores[studentId]
+        });
+      }
+    });
+    return results.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }
+
   normalizeStatusCode(code) {
     if (!code) return 'VAR';
     let c = code.toString().trim()
@@ -4202,6 +4466,7 @@ class DataStore {
       passive_student_ids: this.getPassiveStudentIds(),
       deleted_student_ids: this.getDeletedStudentIds(),
       quranTracker: this.getAllQuranRecords(),
+      mockExams: this.getMockExams(),
       settings: this.getSettings()
     }, null, 2);
   }
@@ -4228,6 +4493,12 @@ class DataStore {
       if (parsed.customColumns) localStorage.setItem(STORAGE_KEYS.CUSTOM_COLUMNS, JSON.stringify(parsed.customColumns));
       if (parsed.dailyDuties) localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(parsed.dailyDuties));
       if (parsed.hadisler) localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(parsed.hadisler));
+      if (parsed.mockExams && Array.isArray(parsed.mockExams)) {
+        localStorage.setItem(STORAGE_KEYS.MOCK_EXAMS, JSON.stringify(parsed.mockExams));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/mockExams', parsed.mockExams);
+        }
+      }
       if (parsed.quranTracker && typeof parsed.quranTracker === 'object') {
         localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(parsed.quranTracker));
         try { localStorage.setItem('yoklama_quran_tracker_backup_v1', JSON.stringify(parsed.quranTracker)); } catch (e) {}

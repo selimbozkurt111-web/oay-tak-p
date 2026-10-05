@@ -35,6 +35,35 @@ window.TestResultsModule = {
   selectedClasses: [],           // Çoklu seçim desteği (5-A, 5-B vb.)
   searchQuery: '',
 
+  // Geçmiş Arşiv Görünüm & Gruplama Durumları (Yönetici & Eğitmen)
+  historyGroupBy: 'hoca',        // 'hoca' | 'class' | 'list'
+  historyFilterHoca: 'ALL',      // 'ALL' | Hoca Adı
+  historyFilterClass: 'ALL',     // 'ALL' | '5-A' vb.
+  historyFilterSubject: 'ALL',   // 'ALL' | 'Matematik' vb.
+  historySearchQuery: '',
+  historyCollapsed: {},          // { [groupKey]: boolean }
+
+  TEACHER_DEFINITIONS: [
+    { name: 'YASİN EKİNCİ', title: 'Yasin Ekinci', classes: ['5-A'], grade: '5', color: 'emerald', icon: '👔' },
+    { name: 'AHMED MUBARİZ', title: 'Ahmed Mubariz', classes: ['5-B'], grade: '5', color: 'teal', icon: '👔' },
+    { name: 'ABDUSSAMED TAV', title: 'Abdussamed Tav', classes: ['6-A', '6-B'], grade: '6', color: 'blue', icon: '👔' },
+    { name: 'EMİR TALHA TARIM', title: 'Emir Talha Tarım', classes: ['7-A'], grade: '7', color: 'indigo', icon: '👔' },
+    { name: 'BURAK BODUR', title: 'Burak Bodur', classes: ['7-B'], grade: '7', color: 'purple', icon: '👔' },
+    { name: 'YAVUZ SELİM SEVEN', title: 'Yavuz Selim Seven', classes: ['8-A'], grade: '8', color: 'amber', icon: '👔' },
+    { name: 'TUNAHAN TAŞKIN', title: 'Tunahan Taşkın', classes: ['8-B'], grade: '8', color: 'rose', icon: '👔' }
+  ],
+
+  CLASS_TEACHER_MAP: {
+    '5-A': 'YASİN EKİNCİ',
+    '5-B': 'AHMED MUBARİZ',
+    '6-A': 'ABDUSSAMED TAV',
+    '6-B': 'ABDUSSAMED TAV',
+    '7-A': 'EMİR TALHA TARIM',
+    '7-B': 'BURAK BODUR',
+    '8-A': 'YAVUZ SELİM SEVEN',
+    '8-B': 'TUNAHAN TAŞKIN'
+  },
+
   SUBJECT_OPTIONS: [
     'Matematik',
     'Türkçe',
@@ -435,7 +464,30 @@ window.TestResultsModule = {
             </div>
           </div>
 
-          <div class="flex items-center gap-1.5 flex-shrink-0">
+            <!-- 📷 CANLI OPTİK OKU -->
+            <button type="button" onclick="window.OMRScanner.openCameraScanner()"
+              title="Telefon veya bilgisayar kamerasıyla QR kodlu optik formları canlı tara"
+              class="px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[11px] sm:text-xs flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer">
+              <span>📷</span>
+              <span>Optik Oku</span>
+            </button>
+
+            <!-- 🔑 CEVAP ANAHTARI (A/B) -->
+            <button type="button" onclick="window.OMRScanner.openAnswerKeyModal()"
+              title="A ve B kitapçığı cevap anahtarlarını tanımla"
+              class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-[11px] sm:text-xs flex items-center gap-1 transition cursor-pointer">
+              <span>🔑</span>
+              <span class="hidden md:inline">Cevap Anahtarı</span>
+            </button>
+
+            <!-- 🖨️ QR'LI OPTİK FORM YAZDIR (A4) -->
+            <button type="button" onclick="window.OMRScanner.openPrintModal()"
+              title="Talebelerin QR kodlu optik cevap formlarını A4 olarak yazdır"
+              class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] sm:text-xs flex items-center gap-1 transition cursor-pointer">
+              <span>🖨️</span>
+              <span class="hidden md:inline">Optik Yazdır</span>
+            </button>
+
             <!-- Veli Görseli İndir -->
             <button type="button" onclick="window.TestResultsModule.downloadTableImage()"
               title="Velilere göndermek için tek tıkla liste resmi indir"
@@ -452,6 +504,14 @@ window.TestResultsModule = {
               <span class="bg-slate-300 text-slate-800 text-[9px] px-1.5 py-0.2 rounded-full font-black">
                 ${window.Store.getTestResults().length}
               </span>
+            </button>
+
+            <!-- 🎯 Deneme Sınavları (500P) Geçiş Butonu -->
+            <button type="button" onclick="window.App.navigateFromDrawer('denemeler')"
+              title="LGS 500 Puanlı ve MEB Kazanımlı Deneme Sınavları Modülüne Geç"
+              class="px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 font-black text-[11px] sm:text-xs flex items-center gap-1 transition cursor-pointer">
+              <span>🎯</span>
+              <span class="hidden md:inline">Deneme Sınavı</span>
             </button>
 
             <!-- Test Ayarlarını Aç/Kapat -->
@@ -765,112 +825,762 @@ window.TestResultsModule = {
     this.updateSummaryCounters();
   },
 
-  // 2. GEÇMİŞ TEST ARŞİVİ
+  // --- Kategori & Bilgi Çözümleyici Yardımcı Metodlar ---
+  getTestCategorizationInfo(t) {
+    const classes = new Set();
+    const hocalar = new Set();
+
+    if (Array.isArray(t.targetClasses)) {
+      t.targetClasses.forEach(c => { if (c) classes.add(c.trim().toUpperCase()); });
+    }
+    if (Array.isArray(t.etutHocalari)) {
+      t.etutHocalari.forEach(h => { if (h) hocalar.add(h.trim().toUpperCase()); });
+    }
+
+    const scoresObj = t.scores || {};
+    const scoreKeys = Object.keys(scoresObj);
+    let totalEvaluated = 0;
+    let sumScore = 0;
+    let sumNet = 0;
+
+    const evaluatedStudentIds = [];
+    scoreKeys.forEach(stId => {
+      const s = scoresObj[stId];
+      const hasAttempt = s && (s.correct > 0 || s.wrong > 0 || (s.score !== undefined && s.score > 0));
+      if (hasAttempt) {
+        totalEvaluated++;
+        sumScore += (s.score || 0);
+        sumNet += (s.net || 0);
+        evaluatedStudentIds.push(stId);
+      }
+    });
+
+    if (evaluatedStudentIds.length > 0) {
+      evaluatedStudentIds.forEach(stId => {
+        const st = window.Store.getStudentById(stId);
+        if (st) {
+          if (st.className) classes.add(st.className.trim().toUpperCase());
+          if (st.etutHocasi) hocalar.add(st.etutHocasi.trim().toUpperCase());
+        }
+      });
+    } else {
+      scoreKeys.forEach(stId => {
+        const st = window.Store.getStudentById(stId);
+        if (st) {
+          if (st.className) classes.add(st.className.trim().toUpperCase());
+          if (st.etutHocasi) hocalar.add(st.etutHocasi.trim().toUpperCase());
+        }
+      });
+    }
+
+    if (t.author) {
+      const authNorm = t.author.trim().toUpperCase();
+      this.TEACHER_DEFINITIONS.forEach(td => {
+        if (authNorm.includes(td.name) || td.name.includes(authNorm)) {
+          hocalar.add(td.name);
+          td.classes.forEach(c => classes.add(c));
+        }
+      });
+    }
+
+    // Sınıf -> Hoca eşlemesi
+    classes.forEach(cls => {
+      const matchedHoca = this.CLASS_TEACHER_MAP[cls];
+      if (matchedHoca) hocalar.add(matchedHoca);
+    });
+
+    // Hoca -> Sınıf eşlemesi
+    hocalar.forEach(h => {
+      const td = this.TEACHER_DEFINITIONS.find(tDef => tDef.name === h);
+      if (td && td.classes) {
+        td.classes.forEach(c => classes.add(c));
+      }
+    });
+
+    const avgScore = totalEvaluated > 0 ? Math.round(sumScore / totalEvaluated) : 0;
+    const avgNet = totalEvaluated > 0 ? (sumNet / totalEvaluated).toFixed(1) : '0.0';
+
+    return {
+      classes: Array.from(classes).sort(),
+      hocalar: Array.from(hocalar).sort(),
+      evaluatedCount: totalEvaluated,
+      totalStudents: scoreKeys.length,
+      avgScore,
+      avgNet
+    };
+  },
+
+  getSubjectBadgeClass(subject) {
+    const s = (subject || '').toLowerCase();
+    if (s.includes('matematik')) return 'bg-blue-50 text-blue-700 border-blue-200';
+    if (s.includes('türkçe') || s.includes('turkce')) return 'bg-rose-50 text-rose-700 border-rose-200';
+    if (s.includes('fen')) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (s.includes('sosyal') || s.includes('inkılap') || s.includes('tarih')) return 'bg-amber-50 text-amber-700 border-amber-200';
+    if (s.includes('ingilizce')) return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+    if (s.includes('din')) return 'bg-teal-50 text-teal-700 border-teal-200';
+    if (s.includes('arapça') || s.includes('arapca')) return 'bg-lime-50 text-lime-700 border-lime-200';
+    return 'bg-purple-50 text-purple-700 border-purple-200';
+  },
+
+  getSubjectIcon(subject) {
+    const s = (subject || '').toLowerCase();
+    if (s.includes('matematik')) return '📐';
+    if (s.includes('türkçe') || s.includes('turkce')) return '📖';
+    if (s.includes('fen')) return '🔬';
+    if (s.includes('sosyal') || s.includes('tarih') || s.includes('inkılap')) return '🌍';
+    if (s.includes('ingilizce')) return '🇬🇧';
+    if (s.includes('din')) return '🕌';
+    if (s.includes('arapça') || s.includes('arapca')) return '📜';
+    return '📝';
+  },
+
+  setHistoryGroupBy(mode) {
+    this.historyGroupBy = mode;
+    this.render();
+  },
+
+  setHistoryFilterHoca(h) {
+    this.historyFilterHoca = h;
+    this.render();
+  },
+
+  setHistoryFilterClass(c) {
+    this.historyFilterClass = c;
+    this.render();
+  },
+
+  setHistoryFilterSubject(s) {
+    this.historyFilterSubject = s;
+    this.render();
+  },
+
+  setHistorySearchQuery(q) {
+    this.historySearchQuery = q;
+    this.render();
+    const searchInput = document.getElementById('history-search-input');
+    if (searchInput) {
+      searchInput.focus();
+      const val = searchInput.value;
+      searchInput.setSelectionRange(val.length, val.length);
+    }
+  },
+
+  toggleHistoryCollapse(key) {
+    if (!this.historyCollapsed) this.historyCollapsed = {};
+    this.historyCollapsed[key] = !this.historyCollapsed[key];
+    this.render();
+  },
+
+  resetHistoryFilters() {
+    this.historyFilterHoca = 'ALL';
+    this.historyFilterClass = 'ALL';
+    this.historyFilterSubject = 'ALL';
+    this.historySearchQuery = '';
+    this.render();
+  },
+
+  renderHistoryTestCardHtml(t, info, canDelete) {
+    const badgeClass = this.getSubjectBadgeClass(t.subject);
+    const subIcon = this.getSubjectIcon(t.subject);
+    const classesBadge = info.classes.length > 0 ? info.classes.join(', ') : 'Genel';
+    const hocalarBadge = info.hocalar.length > 0 ? info.hocalar.map(h => {
+      const parts = h.split(' ');
+      return parts[0] + (parts[1] ? ' ' + parts[1][0] + '.' : '');
+    }).join(', ') : '';
+
+    return `
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200/90 hover:border-emerald-400 hover:shadow-md transition-all p-4 flex flex-col justify-between space-y-3 group">
+        <div>
+          <!-- Üst Rozetler: Ders ve Tarih -->
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase border flex items-center gap-1 ${badgeClass}">
+              <span>${subIcon}</span>
+              <span>${this.escapeHtml(t.subject || 'Genel')}</span>
+            </span>
+            <span class="text-[11px] font-bold text-slate-400 font-mono flex items-center gap-1">
+              <span>📅</span>
+              <span>${t.date || '-'}</span>
+            </span>
+          </div>
+
+          <!-- Başlık & Ünite/Konu -->
+          <h4 class="text-sm font-black text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-1" title="${this.escapeHtml(t.title || 'Etüt Testi')}">
+            ${this.escapeHtml(t.title || 'Etüt Testi')}
+          </h4>
+          ${(t.unit || t.topic) ? `
+            <div class="text-[11px] text-slate-500 mt-0.5 line-clamp-1" title="${this.escapeHtml((t.unit || '') + (t.topic ? ' • ' + t.topic : ''))}">
+              ${this.escapeHtml(t.unit || '')} ${t.topic ? '• ' + this.escapeHtml(t.topic) : ''}
+            </div>
+          ` : ''}
+
+          <!-- Şube & Hoca Etiketi -->
+          <div class="flex flex-wrap items-center gap-1 mt-2.5">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200">
+              <span>🏫</span> ${classesBadge}
+            </span>
+            ${hocalarBadge ? `
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span>👔</span> ${hocalarBadge}
+              </span>
+            ` : ''}
+          </div>
+
+          <!-- Metrik Kutusu: Soru, Katılım, Ort. Net, Ort. Not -->
+          <div class="grid grid-cols-4 gap-1 bg-slate-50 p-2 rounded-xl border border-slate-100 text-center mt-3">
+            <div>
+              <div class="text-[9px] text-slate-400 font-bold uppercase">Soru</div>
+              <div class="text-xs font-black text-slate-800">${t.totalQuestions || 20}</div>
+            </div>
+            <div>
+              <div class="text-[9px] text-slate-400 font-bold uppercase">Katılım</div>
+              <div class="text-xs font-black text-blue-700">${info.evaluatedCount} <span class="text-[9px] font-normal text-slate-400">Talebe</span></div>
+            </div>
+            <div>
+              <div class="text-[9px] text-slate-400 font-bold uppercase">Ort. Net</div>
+              <div class="text-xs font-black text-emerald-700">${info.avgNet}</div>
+            </div>
+            <div>
+              <div class="text-[9px] text-slate-400 font-bold uppercase">Ort. Not</div>
+              <div class="text-xs font-black text-purple-700">${info.avgScore}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alt Aksiyon Butonları -->
+        <div class="flex items-center gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="window.TestResultsModule.loadTestForEdit('${t.id}')"
+            class="flex-1 py-1.5 px-3 bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white rounded-xl font-black text-xs transition text-center shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer">
+            <span>✏️</span> Düzenle / Gör
+          </button>
+          ${canDelete ? `
+            <button type="button" onclick="window.TestResultsModule.deleteTest('${t.id}')"
+              class="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded-xl font-black text-xs transition shadow-2xs cursor-pointer"
+              title="Testi Sil">
+              🗑️
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  },
+
+  // 2. GEÇMİŞ TEST ARŞİVİ (YÖNETİCİ & EĞİTMEN İÇİN HOCA VE SINIFLARA GÖRE KATEGORİZE)
   renderHistoryView(container) {
-    let list = window.Store.getTestResults();
+    let allTests = window.Store.getTestResults();
     const isAdmin = !(window.Store && typeof window.Store.isCurrentUserAdmin === 'function') || window.Store.isCurrentUserAdmin();
     let myStudentIdSet = null;
 
     if (!isAdmin) {
       const myStudents = window.Store.getStudentsForActiveUser();
       myStudentIdSet = new Set(myStudents.map(s => s.id));
-      list = list.filter(t => {
+      allTests = allTests.filter(t => {
         if (window.App && window.App.currentSession && t.author === window.App.currentSession.name) return true;
         if (!t.scores) return false;
         return Object.keys(t.scores).some(id => myStudentIdSet.has(id));
       });
     }
 
+    const allItems = allTests.map(t => ({
+      test: t,
+      info: this.getTestCategorizationInfo(t)
+    }));
+
+    // Genel Kurs İstatistikleri (KPI)
+    const totalTestsCount = allItems.length;
+    let totalEvaluatedExams = 0;
+    let totalNetSum = 0;
+    let totalScoreSum = 0;
+    let evalExamCount = 0;
+
+    allItems.forEach(item => {
+      totalEvaluatedExams += item.info.evaluatedCount;
+      if (item.info.evaluatedCount > 0) {
+        totalNetSum += parseFloat(item.info.avgNet) * item.info.evaluatedCount;
+        totalScoreSum += item.info.avgScore * item.info.evaluatedCount;
+        evalExamCount += item.info.evaluatedCount;
+      }
+    });
+
+    const overallAvgNet = evalExamCount > 0 ? (totalNetSum / evalExamCount).toFixed(1) : '0.0';
+    const overallAvgScore = evalExamCount > 0 ? Math.round(totalScoreSum / evalExamCount) : 0;
+
+    // Filtreleme Mantığı
+    const q = (this.historySearchQuery || '').trim().toLowerCase();
+    let filtered = allItems;
+
+    if (q) {
+      filtered = filtered.filter(({ test: t, info }) => {
+        const matchTitle = (t.title || '').toLowerCase().includes(q);
+        const matchTopic = (t.topic || '').toLowerCase().includes(q);
+        const matchUnit = (t.unit || '').toLowerCase().includes(q);
+        const matchSubject = (t.subject || '').toLowerCase().includes(q);
+        const matchClass = info.classes.some(c => c.toLowerCase().includes(q));
+        const matchHoca = info.hocalar.some(h => h.toLowerCase().includes(q));
+        return matchTitle || matchTopic || matchUnit || matchSubject || matchClass || matchHoca;
+      });
+    }
+
+    if (this.historyFilterSubject && this.historyFilterSubject !== 'ALL') {
+      filtered = filtered.filter(({ test: t }) => (t.subject || '').toLowerCase() === this.historyFilterSubject.toLowerCase());
+    }
+
+    if (this.historyFilterHoca && this.historyFilterHoca !== 'ALL') {
+      filtered = filtered.filter(({ info }) => info.hocalar.includes(this.historyFilterHoca.toUpperCase()));
+    }
+
+    if (this.historyFilterClass && this.historyFilterClass !== 'ALL') {
+      filtered = filtered.filter(({ info }) => info.classes.includes(this.historyFilterClass.toUpperCase()));
+    }
+
+    const hasActiveFilters = !!(q || (this.historyFilterSubject && this.historyFilterSubject !== 'ALL') || (this.historyFilterHoca && this.historyFilterHoca !== 'ALL') || (this.historyFilterClass && this.historyFilterClass !== 'ALL'));
+
+    // Gruplama İçeriği Oluşturma
+    let groupsContentHtml = '';
+
+    if (filtered.length === 0) {
+      groupsContentHtml = `
+        <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-3">
+          <div class="text-4xl">📭</div>
+          <h3 class="text-sm font-black text-slate-800">
+            ${hasActiveFilters ? 'Arama Kriterlerine Uygun Test Bulunamadı' : 'Henüz Kaydedilmiş Test Bulunmuyor'}
+          </h3>
+          <p class="text-xs text-slate-500 max-w-md mx-auto">
+            ${hasActiveFilters 
+              ? 'Seçtiğiniz filtreleri veya arama kelimesini değiştirerek tekrar deneyebilirsiniz.' 
+              : 'Yeni bir test girişi yaparak öğrencilerinize ait sonuçları ve netleri buradan inceleyebilirsiniz.'}
+          </p>
+          ${hasActiveFilters ? `
+            <button type="button" onclick="window.TestResultsModule.resetHistoryFilters()"
+              class="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black shadow-xs hover:bg-slate-800 transition cursor-pointer">
+              🔄 Filtreleri Sıfırla
+            </button>
+          ` : ''}
+        </div>
+      `;
+    } else if (this.historyGroupBy === 'hoca') {
+      // 👔 ETÜT HOCALARINA GÖRE GRUPLA
+      const assignedTestIds = new Set();
+      let renderedTeacherCards = '';
+
+      this.TEACHER_DEFINITIONS.forEach(teacher => {
+        if (this.historyFilterHoca && this.historyFilterHoca !== 'ALL' && this.historyFilterHoca !== teacher.name) {
+          return;
+        }
+
+        const teacherItems = filtered.filter(({ info }) => {
+          return info.hocalar.includes(teacher.name) ||
+            (teacher.classes && teacher.classes.some(c => info.classes.includes(c)));
+        });
+
+        teacherItems.forEach(it => assignedTestIds.add(it.test.id));
+
+        const tCount = teacherItems.length;
+        let tNetSum = 0;
+        let tScoreSum = 0;
+        let tEvalCount = 0;
+        teacherItems.forEach(it => {
+          if (it.info.evaluatedCount > 0) {
+            tNetSum += parseFloat(it.info.avgNet) * it.info.evaluatedCount;
+            tScoreSum += it.info.avgScore * it.info.evaluatedCount;
+            tEvalCount += it.info.evaluatedCount;
+          }
+        });
+
+        const tAvgNet = tEvalCount > 0 ? (tNetSum / tEvalCount).toFixed(1) : '0.0';
+        const tAvgScore = tEvalCount > 0 ? Math.round(tScoreSum / tEvalCount) : 0;
+        const isCollapsed = !!this.historyCollapsed['hoca_' + teacher.name];
+
+        renderedTeacherCards += `
+          <div class="bg-white rounded-2xl shadow-xs border border-slate-200/90 overflow-hidden">
+            <!-- Hoca Başlık Çubuğu (Accordion) -->
+            <div class="p-4 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none hover:bg-slate-100/70 transition"
+              onclick="window.TestResultsModule.toggleHistoryCollapse('hoca_${teacher.name}')">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center justify-center text-lg font-black shadow-2xs">
+                  ${teacher.icon || '👔'}
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-black text-slate-900">${teacher.title}</h3>
+                    <span class="px-2 py-0.5 rounded-lg text-[10px] font-black bg-emerald-600 text-white shadow-2xs">
+                      ${teacher.classes.join(', ')} Şubesi
+                    </span>
+                  </div>
+                  <div class="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                    <span>${teacher.grade}. Sınıf Etüt Grubu</span>
+                    <span>•</span>
+                    <span class="font-bold text-slate-700">${tCount} Test</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3">
+                ${tCount > 0 ? `
+                  <div class="flex items-center gap-2 text-xs">
+                    <span class="px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                      Ort. Net: <strong>${tAvgNet}</strong>
+                    </span>
+                    <span class="px-2.5 py-1 rounded-xl bg-purple-50 text-purple-800 border border-purple-200 font-bold">
+                      Ort. Not: <strong>${tAvgScore}</strong>
+                    </span>
+                  </div>
+                ` : `
+                  <span class="text-[11px] text-slate-400 italic">Henüz test girilmedi</span>
+                `}
+                <span class="p-1 text-slate-400 hover:text-slate-700 transition text-xs font-black">
+                  ${isCollapsed ? '▼' : '▲'}
+                </span>
+              </div>
+            </div>
+
+            <!-- Hoca Test Kartları -->
+            ${!isCollapsed ? `
+              <div class="p-4 bg-white">
+                ${tCount === 0 ? `
+                  <div class="p-6 text-center text-slate-400 text-xs italic bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                    Bu etüt hocasının sorumlu olduğu sınıfa ait henüz test kaydı bulunmuyor.
+                  </div>
+                ` : `
+                  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    ${teacherItems.map(({ test: t, info }) => {
+                      const canDelete = isAdmin || (window.App && window.App.currentSession && t.author === window.App.currentSession.name);
+                      return this.renderHistoryTestCardHtml(t, info, canDelete);
+                    }).join('')}
+                  </div>
+                `}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+
+      // Kurum Geneli & Diğer Testler
+      const otherItems = filtered.filter(it => !assignedTestIds.has(it.test.id));
+      if (otherItems.length > 0 && (!this.historyFilterHoca || this.historyFilterHoca === 'ALL')) {
+        const isOtherCollapsed = !!this.historyCollapsed['hoca_other'];
+        renderedTeacherCards += `
+          <div class="bg-white rounded-2xl shadow-xs border border-slate-200/90 overflow-hidden">
+            <div class="p-4 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none hover:bg-slate-100/70 transition"
+              onclick="window.TestResultsModule.toggleHistoryCollapse('hoca_other')">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center text-lg font-black shadow-2xs">
+                  🏢
+                </div>
+                <div>
+                  <h3 class="text-sm font-black text-slate-900">Kurum Geneli & Diğer Testler</h3>
+                  <div class="text-[11px] text-slate-500 mt-0.5">
+                    Belirli bir etüt hocasına atanmamış veya ortak testler (<strong>${otherItems.length}</strong> Test)
+                  </div>
+                </div>
+              </div>
+              <span class="p-1 text-slate-400 hover:text-slate-700 transition text-xs font-black">
+                ${isOtherCollapsed ? '▼' : '▲'}
+              </span>
+            </div>
+            ${!isOtherCollapsed ? `
+              <div class="p-4 bg-white">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  ${otherItems.map(({ test: t, info }) => {
+                    const canDelete = isAdmin || (window.App && window.App.currentSession && t.author === window.App.currentSession.name);
+                    return this.renderHistoryTestCardHtml(t, info, canDelete);
+                  }).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      groupsContentHtml = `<div class="space-y-4">${renderedTeacherCards}</div>`;
+
+    } else if (this.historyGroupBy === 'class') {
+      // 🏫 SINIF VE ŞUBELERE GÖRE GRUPLA
+      const classList = ['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'];
+      const assignedClassTestIds = new Set();
+      let renderedClassCards = '';
+
+      classList.forEach(cls => {
+        if (this.historyFilterClass && this.historyFilterClass !== 'ALL' && this.historyFilterClass !== cls) {
+          return;
+        }
+
+        const classItems = filtered.filter(({ info }) => info.classes.includes(cls));
+        classItems.forEach(it => assignedClassTestIds.add(it.test.id));
+
+        const cCount = classItems.length;
+        let cNetSum = 0;
+        let cScoreSum = 0;
+        let cEvalCount = 0;
+        classItems.forEach(it => {
+          if (it.info.evaluatedCount > 0) {
+            cNetSum += parseFloat(it.info.avgNet) * it.info.evaluatedCount;
+            cScoreSum += it.info.avgScore * it.info.evaluatedCount;
+            cEvalCount += it.info.evaluatedCount;
+          }
+        });
+
+        const cAvgNet = cEvalCount > 0 ? (cNetSum / cEvalCount).toFixed(1) : '0.0';
+        const cAvgScore = cEvalCount > 0 ? Math.round(cScoreSum / cEvalCount) : 0;
+        const isCollapsed = !!this.historyCollapsed['class_' + cls];
+        const hocaName = this.CLASS_TEACHER_MAP[cls] || 'Atanmadı';
+
+        renderedClassCards += `
+          <div class="bg-white rounded-2xl shadow-xs border border-slate-200/90 overflow-hidden">
+            <div class="p-4 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none hover:bg-slate-100/70 transition"
+              onclick="window.TestResultsModule.toggleHistoryCollapse('class_${cls}')">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-900 border border-blue-200 flex items-center justify-center text-sm font-black shadow-2xs">
+                  ${cls}
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-black text-slate-900">${cls} Şubesi</h3>
+                    <span class="px-2 py-0.5 rounded-lg text-[10px] font-black bg-blue-50 text-blue-800 border border-blue-200">
+                      👔 Etüt Hocası: ${hocaName}
+                    </span>
+                  </div>
+                  <div class="text-[11px] text-slate-500 mt-0.5">
+                    <strong>${cCount}</strong> Kayıtlı Test
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-3">
+                ${cCount > 0 ? `
+                  <div class="flex items-center gap-2 text-xs">
+                    <span class="px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                      Ort. Net: <strong>${cAvgNet}</strong>
+                    </span>
+                    <span class="px-2.5 py-1 rounded-xl bg-purple-50 text-purple-800 border border-purple-200 font-bold">
+                      Ort. Not: <strong>${cAvgScore}</strong>
+                    </span>
+                  </div>
+                ` : `
+                  <span class="text-[11px] text-slate-400 italic">Henüz test girilmedi</span>
+                `}
+                <span class="p-1 text-slate-400 hover:text-slate-700 transition text-xs font-black">
+                  ${isCollapsed ? '▼' : '▲'}
+                </span>
+              </div>
+            </div>
+
+            ${!isCollapsed ? `
+              <div class="p-4 bg-white">
+                ${cCount === 0 ? `
+                  <div class="p-6 text-center text-slate-400 text-xs italic bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                    Bu şubeye ait henüz test kaydı bulunmuyor.
+                  </div>
+                ` : `
+                  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    ${classItems.map(({ test: t, info }) => {
+                      const canDelete = isAdmin || (window.App && window.App.currentSession && t.author === window.App.currentSession.name);
+                      return this.renderHistoryTestCardHtml(t, info, canDelete);
+                    }).join('')}
+                  </div>
+                `}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+
+      // Çoklu Şube & Genel Testler
+      const generalClassItems = filtered.filter(it => !assignedClassTestIds.has(it.test.id));
+      if (generalClassItems.length > 0 && (!this.historyFilterClass || this.historyFilterClass === 'ALL')) {
+        const isGenCollapsed = !!this.historyCollapsed['class_general'];
+        renderedClassCards += `
+          <div class="bg-white rounded-2xl shadow-xs border border-slate-200/90 overflow-hidden">
+            <div class="p-4 bg-slate-50/80 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none hover:bg-slate-100/70 transition"
+              onclick="window.TestResultsModule.toggleHistoryCollapse('class_general')">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center text-lg font-black shadow-2xs">
+                  🏫
+                </div>
+                <div>
+                  <h3 class="text-sm font-black text-slate-900">Çoklu Şube & Genel Testler</h3>
+                  <div class="text-[11px] text-slate-500 mt-0.5">
+                    Tüm seviye veya çoklu şube içeren testler (<strong>${generalClassItems.length}</strong> Test)
+                  </div>
+                </div>
+              </div>
+              <span class="p-1 text-slate-400 hover:text-slate-700 transition text-xs font-black">
+                ${isGenCollapsed ? '▼' : '▲'}
+              </span>
+            </div>
+            ${!isGenCollapsed ? `
+              <div class="p-4 bg-white">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  ${generalClassItems.map(({ test: t, info }) => {
+                    const canDelete = isAdmin || (window.App && window.App.currentSession && t.author === window.App.currentSession.name);
+                    return this.renderHistoryTestCardHtml(t, info, canDelete);
+                  }).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      groupsContentHtml = `<div class="space-y-4">${renderedClassCards}</div>`;
+
+    } else {
+      // 📋 TÜM TESTLER (LİSTE GÖRÜNÜMÜ)
+      groupsContentHtml = `
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${filtered.map(({ test: t, info }) => {
+            const canDelete = isAdmin || (window.App && window.App.currentSession && t.author === window.App.currentSession.name);
+            return this.renderHistoryTestCardHtml(t, info, canDelete);
+          }).join('')}
+        </div>
+      `;
+    }
+
     container.innerHTML = `
       <div class="space-y-4 max-w-7xl mx-auto animate-fade-in pb-8 px-1 sm:px-2">
+        
+        <!-- 1. Üst Başlık & Yeni Test Butonu -->
         <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl shadow-xs border border-slate-200">
           <div>
             <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
               <span>📚</span> Geçmiş Test ve Etüt Arşivi
             </h2>
-            <p class="text-[11px] text-slate-500 mt-0.5">Daha önce kaydedilmiş tüm etüt testleri ve sınıf ortalamaları.</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">
+              Etüt hocalarına ve şubelere göre kategorize edilmiş sınav ve test kayıtları.
+            </p>
           </div>
 
           <button type="button" onclick="window.TestResultsModule.activeView='editor'; window.TestResultsModule.render();"
-            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1.5">
+            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
             <span>➕</span> Yeni Test Girişi
           </button>
         </div>
 
-        ${list.length === 0 ? `
-          <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-2">
-            <div class="text-3xl">📭</div>
-            <h3 class="text-sm font-black text-slate-700">Henüz Kaydedilmiş Test Bulunmuyor</h3>
+        <!-- 2. KPI / Özet İstatistik Kartları -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Toplam Test</div>
+            <div class="text-xl font-black text-slate-900 mt-0.5">${totalTestsCount} <span class="text-xs font-normal text-slate-400">Kayıt</span></div>
           </div>
-        ` : `
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            ${list.map(t => {
-              const scoreKeys = Object.keys(t.scores || {});
-              let sumScore = 0;
-              let sumNet = 0;
-              let evalCount = 0;
-
-              scoreKeys.forEach(k => {
-                if (myStudentIdSet && !myStudentIdSet.has(k)) return;
-                const s = t.scores[k];
-                if (s && (s.correct > 0 || s.wrong > 0)) {
-                  sumScore += (s.score || 0);
-                  sumNet += (s.net || 0);
-                  evalCount++;
-                }
-              });
-
-              const avgScore = evalCount > 0 ? Math.round(sumScore / evalCount) : 0;
-              const avgNet = evalCount > 0 ? (sumNet / evalCount).toFixed(1) : '0.0';
-              const canDelete = isAdmin || (window.App && window.App.currentSession && t.author === window.App.currentSession.name);
-
-              return `
-                <div class="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col justify-between space-y-3">
-                  <div>
-                    <div class="flex items-center justify-between gap-2 mb-1.5">
-                      <span class="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-blue-50 text-blue-800 border border-blue-200">
-                        ${t.subject || 'Genel'}
-                      </span>
-                      <span class="text-[11px] font-bold text-slate-400 font-mono">📅 ${t.date || '-'}</span>
-                    </div>
-
-                    <h4 class="text-sm font-black text-slate-900 line-clamp-1">${t.title || 'Etüt Testi'}</h4>
-                    ${t.unit || t.topic ? `<div class="text-[11px] text-slate-500 mt-0.5">${t.unit || ''} ${t.topic ? '• ' + t.topic : ''}</div>` : ''}
-
-                    <div class="grid grid-cols-3 gap-1.5 bg-slate-50 p-2 rounded-xl border border-slate-100 text-center mt-2.5">
-                      <div>
-                        <div class="text-[9px] text-slate-400 font-bold uppercase">Soru</div>
-                        <div class="text-xs font-black text-slate-800">${t.totalQuestions || 20}</div>
-                      </div>
-                      <div>
-                        <div class="text-[9px] text-slate-400 font-bold uppercase">Ort. Net</div>
-                        <div class="text-xs font-black text-emerald-700">${avgNet}</div>
-                      </div>
-                      <div>
-                        <div class="text-[9px] text-slate-400 font-bold uppercase">Ort. Not</div>
-                        <div class="text-xs font-black text-purple-700">${avgScore}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="flex items-center gap-2 pt-2 border-t border-slate-100">
-                    <button type="button" onclick="window.TestResultsModule.loadTestForEdit('${t.id}')"
-                      class="flex-1 py-1.5 px-3 bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white rounded-xl font-bold text-xs transition text-center shadow-2xs">
-                      ✏️ Düzenle / Gör
-                    </button>
-                    ${canDelete ? `
-                      <button type="button" onclick="window.TestResultsModule.deleteTest('${t.id}')"
-                        class="py-1.5 px-2.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded-xl font-bold text-xs transition shadow-2xs"
-                        title="Testi Sil">
-                        🗑️
-                      </button>
-                    ` : ''}
-                  </div>
-                </div>
-              `;
-            }).join('')}
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Talebe Sınavı</div>
+            <div class="text-xl font-black text-blue-700 mt-0.5">${totalEvaluatedExams} <span class="text-xs font-normal text-slate-400">Katılım</span></div>
           </div>
-        `}
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kurum Ort. Net</div>
+            <div class="text-xl font-black text-emerald-700 mt-0.5">${overallAvgNet} <span class="text-xs font-normal text-slate-400">Net</span></div>
+          </div>
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kurum Başarısı</div>
+            <div class="text-xl font-black text-purple-700 mt-0.5">%${overallAvgScore} <span class="text-xs font-normal text-slate-400">/ 100</span></div>
+          </div>
+        </div>
+
+        <!-- 3. Kontrol Paneli: Gruplama Modu ve Arama / Filtreler -->
+        <div class="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+          
+          <!-- Üst Satır: Gruplama Butonları -->
+          <div class="flex flex-wrap items-center justify-between gap-2.5 pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+              <span>🎯</span>
+              <span>Görünüm Düzeni:</span>
+            </div>
+
+            <div class="inline-flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200 shadow-2xs">
+              <button type="button" onclick="window.TestResultsModule.setHistoryGroupBy('hoca')"
+                class="px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                  this.historyGroupBy === 'hoca' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white'
+                }">
+                <span>👔</span>
+                <span>Etüt Hocalarına Göre</span>
+              </button>
+              <button type="button" onclick="window.TestResultsModule.setHistoryGroupBy('class')"
+                class="px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                  this.historyGroupBy === 'class' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white'
+                }">
+                <span>🏫</span>
+                <span>Sınıflara Göre</span>
+              </button>
+              <button type="button" onclick="window.TestResultsModule.setHistoryGroupBy('list')"
+                class="px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
+                  this.historyGroupBy === 'list' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white'
+                }">
+                <span>📋</span>
+                <span>Tüm Liste</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Alt Satır: Arama & Filtre Seçimleri -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            
+            <!-- Arama Kutusu -->
+            <div class="relative">
+              <input type="text" id="history-search-input" value="${this.escapeHtml(this.historySearchQuery)}"
+                oninput="window.TestResultsModule.setHistorySearchQuery(this.value)"
+                placeholder="🔍 Test, konu, hoca veya sınıf ara..."
+                class="w-full px-3 py-2 pl-8 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              <span class="absolute left-2.5 top-2.5 text-xs text-slate-400 pointer-events-none">🔍</span>
+            </div>
+
+            <!-- Ders Filtresi -->
+            <div>
+              <select onchange="window.TestResultsModule.setHistoryFilterSubject(this.value)"
+                class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="ALL">📚 Tüm Dersler</option>
+                ${this.SUBJECT_OPTIONS.map(s => `
+                  <option value="${s}" ${this.historyFilterSubject === s ? 'selected' : ''}>${s}</option>
+                `).join('')}
+              </select>
+            </div>
+
+            <!-- Hoca Filtresi (Yönetici) -->
+            ${isAdmin ? `
+              <div>
+                <select onchange="window.TestResultsModule.setHistoryFilterHoca(this.value)"
+                  class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option value="ALL">👔 Tüm Etüt Hocaları</option>
+                  ${this.TEACHER_DEFINITIONS.map(td => `
+                    <option value="${td.name}" ${this.historyFilterHoca === td.name ? 'selected' : ''}>${td.title} (${td.classes.join(', ')})</option>
+                  `).join('')}
+                </select>
+              </div>
+            ` : '<div></div>'}
+
+            <!-- Şube Filtresi -->
+            <div class="flex items-center gap-1.5">
+              <select onchange="window.TestResultsModule.setHistoryFilterClass(this.value)"
+                class="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="ALL">🏫 Tüm Şubeler</option>
+                ${['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'].map(c => `
+                  <option value="${c}" ${this.historyFilterClass === c ? 'selected' : ''}>${c} Şubesi</option>
+                `).join('')}
+              </select>
+
+              ${hasActiveFilters ? `
+                <button type="button" onclick="window.TestResultsModule.resetHistoryFilters()"
+                  class="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-black transition cursor-pointer"
+                  title="Filtreleri Temizle">
+                  ✕
+                </button>
+              ` : ''}
+            </div>
+
+          </div>
+
+          ${hasActiveFilters ? `
+            <div class="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center justify-between">
+              <span>🔍 Filtrelenen Sonuç: <strong>${filtered.length}</strong> test listeleniyor.</span>
+              <button type="button" onclick="window.TestResultsModule.resetHistoryFilters()" class="underline hover:text-emerald-950 font-black cursor-pointer">
+                Tüm Filtreleri Temizle
+              </button>
+            </div>
+          ` : ''}
+
+        </div>
+
+        <!-- 4. Kategorize Edilmiş Test Kartları Bölümü -->
+        ${groupsContentHtml}
+
       </div>
     `;
   },
@@ -1130,7 +1840,9 @@ window.TestResultsModule = {
       topic: test.topic || '',
       date: test.date || new Date().toISOString().split('T')[0],
       totalQuestions: test.totalQuestions || 20,
-      wrongPenalty: test.wrongPenalty !== undefined ? test.wrongPenalty : 3
+      wrongPenalty: test.wrongPenalty !== undefined ? test.wrongPenalty : 3,
+      answerKeyA: test.answerKeyA || {},
+      answerKeyB: test.answerKeyB || {}
     };
 
     this.scores = {};
@@ -1156,19 +1868,43 @@ window.TestResultsModule = {
     this.render();
   },
 
-  saveCurrentTest() {
+  saveCurrentTest(silent = false) {
     const session = window.App.currentSession;
     const author = session ? (session.name || 'Öğretmen') : 'Eğitmen';
 
     if (!this.testMeta.title || !this.testMeta.title.trim()) {
-      alert('⚠️ Lütfen bir test başlığı giriniz.');
-      return;
+      if (!silent) alert('⚠️ Lütfen bir test başlığı giriniz.');
+      return null;
     }
 
     const mergedScores = {
       ...(this.existingAllScores || {}),
       ...this.scores
     };
+
+    // İlgili şubeleri ve etüt hocalarını otomatik tespit et
+    const detectedClasses = new Set();
+    const detectedHocalar = new Set();
+
+    if (this.selectedClasses && this.selectedClasses.length > 0) {
+      this.selectedClasses.forEach(c => detectedClasses.add(c.trim().toUpperCase()));
+    }
+
+    Object.keys(mergedScores).forEach(stId => {
+      const sc = mergedScores[stId];
+      if (sc && (sc.correct > 0 || sc.wrong > 0)) {
+        const st = window.Store.getStudentById(stId);
+        if (st) {
+          if (st.className) detectedClasses.add(st.className.trim().toUpperCase());
+          if (st.etutHocasi) detectedHocalar.add(st.etutHocasi.trim().toUpperCase());
+        }
+      }
+    });
+
+    detectedClasses.forEach(cls => {
+      const h = this.CLASS_TEACHER_MAP[cls];
+      if (h) detectedHocalar.add(h);
+    });
 
     const testRecord = {
       id: this.currentTestId,
@@ -1179,15 +1915,22 @@ window.TestResultsModule = {
       date: this.testMeta.date,
       totalQuestions: parseInt(this.testMeta.totalQuestions, 10) || 20,
       wrongPenalty: parseFloat(this.testMeta.wrongPenalty) || 0,
+      answerKeyA: this.testMeta.answerKeyA || {},
+      answerKeyB: this.testMeta.answerKeyB || {},
       scores: mergedScores,
-      author: author
+      author: author,
+      targetClasses: Array.from(detectedClasses),
+      etutHocalari: Array.from(detectedHocalar)
     };
 
     const saved = window.Store.saveTestResult(testRecord);
     this.currentTestId = saved.id;
     this.existingAllScores = mergedScores;
 
-    alert(`✅ "${saved.title}" başlıklı test sonuçları başarıyla kaydedildi!`);
+    if (!silent) {
+      alert(`✅ "${saved.title}" başlıklı test sonuçları başarıyla kaydedildi!`);
+    }
+    return saved;
   },
 
   deleteTest(testId) {
