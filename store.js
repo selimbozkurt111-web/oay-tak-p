@@ -176,7 +176,9 @@ class DataStore {
     }
     // Mevcut öğrencilerin şubelerini (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) otomatik güncelle
     this.autoMigrateStudentClasses();
-    // 8-A ve 8-B hoca atamalarını (8-A Yavuz Selim Seven, 8-B Tunahan Taşkın) ve personel rollerini eşitle
+    // 8. Sınıf kütüğünü (8-A Yavuz Selim Seven [9 Talebe], 8-B Tunahan Taşkın [9 Talebe]) zorla onar ve buluta mühürle
+    this.forceRepair8thGradeClasses(true);
+    // 8-A ve 8-B hoca atamalarını ve personel rollerini eşitle
     this.autoSyncStaffAndClassTeachers();
     // Dini ders grupları ve Dahili Hoca senkronizasyonunu otomatik sağla
     this.autoSyncDahiliHocalarAndQuran();
@@ -274,6 +276,171 @@ class DataStore {
     }
   }
 
+  // --- 8. Sınıf Kesin Kütük Onarıcısı (8-A: Yavuz Selim Seven [9], 8-B: Tunahan Taşkın [9] - Tam 18 Talebe) ---
+  forceRepair8thGradeClasses(forceCloudPush = true) {
+    try {
+      // 8-A Sınıfı (Yavuz Selim Seven): 9 Talebe
+      const class8ANumbers = new Set([814, 815, 822, 806, 819, 820, 802, 808, 811]);
+      const class8AIds = new Set(['std_814', 'std_815', 'std_822', 'std_806', 'std_819', 'std_820', 'std_802', 'std_808', 'std_811']);
+
+      // 8-B Sınıfı (Tunahan Taşkın): 9 Talebe
+      const class8BNumbers = new Set([801, 805, 816, 810, 809, 821, 807, 813, 818]);
+      const class8BIds = new Set(['std_801', 'std_805', 'std_816', 'std_810', 'std_809', 'std_821', 'std_807', 'std_813', 'std_818']);
+
+      // Listeden çıkarılan 4 yabancı/fazlalık öğrenci
+      const removed8thGradeIds = new Set(['std_803', 'std_804', 'std_812', 'std_817']);
+      const removed8thGradeNos = new Set([803, 804, 812, 817]);
+
+      // 1. Silinenler Sicili'ne (Tombstone) kaydet
+      const deletedMap = this.getDeletedStudentIds();
+      let deletedMapChanged = false;
+      removed8thGradeIds.forEach(id => {
+        if (!deletedMap[id] || !deletedMap[id].isDeleted) {
+          deletedMap[id] = { isDeleted: true, deletedAt: new Date().toISOString() };
+          deletedMapChanged = true;
+        }
+      });
+      if (deletedMapChanged) {
+        this.saveDeletedStudentIds(deletedMap);
+      }
+
+      // 2. Pasif Sicili'nden bu 18 öğrenciyi KESİNLİKLE çıkar (Hiçbiri pasif olamaz, hepsi aktif!)
+      const passiveMap = this.getPassiveStudentIds();
+      let passiveChanged = false;
+      const all18Ids = [...class8AIds, ...class8BIds];
+      all18Ids.forEach(id => {
+        if (passiveMap[id]) {
+          delete passiveMap[id];
+          passiveChanged = true;
+        }
+      });
+      removed8thGradeIds.forEach(id => {
+        if (passiveMap[id]) {
+          delete passiveMap[id];
+          passiveChanged = true;
+        }
+      });
+      if (passiveChanged) {
+        this.savePassiveStudentIds(passiveMap);
+      }
+
+      // 3. Öğrenci Listesini Yükle ve Onar
+      let studentsRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      let students = studentsRaw ? JSON.parse(studentsRaw) : [];
+      if (!Array.isArray(students) || students.length === 0) {
+        students = [...SEED_STUDENTS];
+      }
+
+      const initialCount = students.length;
+      let hasChanges = false;
+      const nowIso = new Date().toISOString();
+
+      // Silinecek 4 kişiyi ve ada göre eşleşen fazlalıkları çıkar
+      students = students.filter(s => {
+        if (!s) return false;
+        const no = parseInt(s.studentNo, 10);
+        const sid = (s.id || '').trim();
+        const fullName = `${s.firstName || ''} ${s.lastName || ''}`.toUpperCase();
+
+        if (removed8thGradeIds.has(sid) || removed8thGradeNos.has(no)) {
+          hasChanges = true;
+          return false;
+        }
+        if (fullName.includes('CHOLAK') || fullName.includes('UZTURK') || fullName.includes('ŞENGÜL') || fullName.includes('HASTÜRK')) {
+          hasChanges = true;
+          return false;
+        }
+        return true;
+      });
+
+      // Kalan 18 talebeyi harfiyen doğru sınıfa, hocaya ata ve aktif yap
+      students = students.map(s => {
+        if (!s) return s;
+        const no = parseInt(s.studentNo, 10);
+        const sid = (s.id || '').trim();
+        const fullName = `${s.firstName || ''} ${s.lastName || ''}`.toUpperCase();
+
+        let targetClass = null;
+        let targetTeacher = null;
+
+        if (class8ANumbers.has(no) || class8AIds.has(sid)) {
+          targetClass = '8-A';
+          targetTeacher = 'YAVUZ SELİM SEVEN';
+        } else if (class8BNumbers.has(no) || class8BIds.has(sid)) {
+          targetClass = '8-B';
+          targetTeacher = 'TUNAHAN TAŞKIN';
+        } else if (no >= 800 && no < 900) {
+          if (fullName.includes('RUÇHAN') || fullName.includes('SEMİH') || fullName.includes('POLAT') || fullName.includes('ŞABAN') || fullName.includes('YİĞİT EMİR') || fullName.includes('CİHAN') || fullName.includes('BAYBURT') || (fullName.includes('EMİR SALİH') && fullName.includes('DOĞAN'))) {
+            targetClass = '8-A';
+            targetTeacher = 'YAVUZ SELİM SEVEN';
+          } else if (fullName.includes('ÇEDİKÇİ') || fullName.includes('AKYOL') || fullName.includes('ULUSOY') || fullName.includes('HUSSAIN') || fullName.includes('HUSAİN') || fullName.includes('YAZICI') || fullName.includes('KARABULUT') || fullName.includes('ACAR') || fullName.includes('UYGUN') || fullName.includes('ERCİVAN')) {
+            targetClass = '8-B';
+            targetTeacher = 'TUNAHAN TAŞKIN';
+          }
+        }
+
+        if (targetClass && targetTeacher) {
+          this.markStudentLocallyEdited(s.id, ['className', 'etutHocasi', 'isPassive', 'status']);
+          const needsFix = s.className !== targetClass || s.etutHocasi !== targetTeacher || s.isPassive === true || s.status === 'passive';
+          if (needsFix) {
+            hasChanges = true;
+            return {
+              ...s,
+              className: targetClass,
+              etutHocasi: targetTeacher,
+              isPassive: false,
+              status: 'active',
+              updatedAt: nowIso
+            };
+          }
+        }
+        return s;
+      });
+
+      // Eksik 8. sınıf öğrencisi kalmışsa SEED_STUDENTS'ten ekle
+      const existingIds = new Set(students.map(s => s.id));
+      SEED_STUDENTS.forEach(seed => {
+        const sNo = parseInt(seed.studentNo, 10);
+        if ((class8ANumbers.has(sNo) || class8BNumbers.has(sNo)) && !existingIds.has(seed.id)) {
+          students.push({
+            ...seed,
+            isPassive: false,
+            status: 'active',
+            updatedAt: nowIso
+          });
+          this.markStudentLocallyEdited(seed.id, ['className', 'etutHocasi', 'isPassive', 'status']);
+          hasChanges = true;
+        }
+      });
+
+      if (hasChanges || students.length !== initialCount || forceCloudPush) {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+        this._lastStudentEditTime = Date.now();
+        this._lastStudentPushTime = Date.now();
+
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/students', students);
+          this.syncToCloud('kurs_data/deleted_student_ids', deletedMap);
+          this.syncToCloud('kurs_data/passive_student_ids', passiveMap);
+
+          const baseUrl = this.getFirebaseUrl();
+          if (baseUrl) {
+            removed8thGradeIds.forEach(delId => {
+              try {
+                fetch(`${baseUrl}/kurs_data/students/${delId}.json`, { method: 'DELETE' }).catch(() => {});
+              } catch (e) {}
+            });
+          }
+        }
+        window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
+      }
+      return { success: true, count: students.length };
+    } catch (err) {
+      console.warn('[forceRepair8thGradeClasses] Hata:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
   // 8-A ve 8-B Etüt Hocası ve Personel Rol Güncellemesi (8-A: Yavuz Selim Seven, 8-B: Tunahan Taşkın)
   autoSyncStaffAndClassTeachers() {
     try {
@@ -307,101 +474,8 @@ class DataStore {
         }
       }
 
-      // 2. Talebe Kütüğünü Eşitle (8-A -> YAVUZ SELİM SEVEN, 8-B -> TUNAHAN TAŞKIN)
-      // Kullanıcının listesindeki KESİN 18 Talebe:
-      // 8-A Sınıfı (Yavuz Selim Seven): 814, 815, 822, 806, 819, 820, 802, 808, 811 (9 Talebe)
-      // 8-B Sınıfı (Tunahan Taşkın): 801, 805, 816, 810, 809, 821, 807, 813, 818 (9 Talebe)
-      const class8ANumbers = new Set([814, 815, 822, 806, 819, 820, 802, 808, 811]);
-      const class8AIds = new Set(['std_814', 'std_815', 'std_822', 'std_806', 'std_819', 'std_820', 'std_802', 'std_808', 'std_811']);
-
-      const class8BNumbers = new Set([801, 805, 816, 810, 809, 821, 807, 813, 818]);
-      const class8BIds = new Set(['std_801', 'std_805', 'std_816', 'std_810', 'std_809', 'std_821', 'std_807', 'std_813', 'std_818']);
-
-      const removed8thGradeIds = new Set(['std_803', 'std_804', 'std_812', 'std_817']);
-      const removed8thGradeNos = new Set([803, 804, 812, 817]);
-
-      // Silinenler siciline ekle ki bulut senkronizasyonunda tekrar hortlamasınlar
-      const deletedMap = this.getDeletedStudentIds();
-      let deletedMapChanged = false;
-      removed8thGradeIds.forEach(id => {
-        if (!deletedMap[id] || !deletedMap[id].isDeleted) {
-          deletedMap[id] = { isDeleted: true, deletedAt: new Date().toISOString() };
-          deletedMapChanged = true;
-        }
-      });
-      if (deletedMapChanged) {
-        this.saveDeletedStudentIds(deletedMap);
-      }
-
-      const studentsRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      if (studentsRaw) {
-        let students = JSON.parse(studentsRaw);
-        if (Array.isArray(students) && students.length > 0) {
-          let studentsChanged = false;
-          const initialLength = students.length;
-
-          // Listenin dışındaki 8. sınıf öğrencilerini tamamen temizle
-          students = students.filter(s => {
-            if (!s) return false;
-            const no = parseInt(s.studentNo, 10);
-            const sid = (s.id || '').trim();
-            const fullName = `${s.firstName || ''} ${s.lastName || ''}`.toUpperCase();
-
-            if (removed8thGradeIds.has(sid) || removed8thGradeNos.has(no)) {
-              studentsChanged = true;
-              return false;
-            }
-            if (fullName.includes('CHOLAK') || fullName.includes('UZTURK') || fullName.includes('ŞENGÜL') || fullName.includes('HASTÜRK')) {
-              studentsChanged = true;
-              return false;
-            }
-            return true;
-          });
-
-          students = students.map(s => {
-            if (!s) return s;
-            const no = parseInt(s.studentNo, 10);
-            const sid = (s.id || '').trim();
-            const fullName = `${s.firstName || ''} ${s.lastName || ''}`.toUpperCase();
-
-            let targetClass = null;
-            let targetTeacher = null;
-
-            // 8-A Kontrolü (9 Talebe)
-            if (class8ANumbers.has(no) || class8AIds.has(sid)) {
-              targetClass = '8-A';
-              targetTeacher = 'YAVUZ SELİM SEVEN';
-            } else if (class8BNumbers.has(no) || class8BIds.has(sid)) {
-              targetClass = '8-B';
-              targetTeacher = 'TUNAHAN TAŞKIN';
-            } else if (no >= 800 && no < 900) {
-              if (fullName.includes('RUÇHAN') || fullName.includes('SEMİH') || fullName.includes('POLAT') || fullName.includes('ŞABAN') || fullName.includes('YİĞİT EMİR') || fullName.includes('CİHAN') || fullName.includes('BAYBURT') || (fullName.includes('EMİR SALİH') && fullName.includes('DOĞAN'))) {
-                targetClass = '8-A';
-                targetTeacher = 'YAVUZ SELİM SEVEN';
-              } else if (fullName.includes('ÇEDİKÇİ') || fullName.includes('AKYOL') || fullName.includes('ULUSOY') || fullName.includes('HUSSAIN') || fullName.includes('HUSAİN') || fullName.includes('YAZICI') || fullName.includes('KARABULUT') || fullName.includes('ACAR') || fullName.includes('UYGUN') || fullName.includes('ERCİVAN')) {
-                targetClass = '8-B';
-                targetTeacher = 'TUNAHAN TAŞKIN';
-              }
-            }
-
-            if (targetClass && targetTeacher) {
-              if (s.className !== targetClass || s.etutHocasi !== targetTeacher) {
-                studentsChanged = true;
-                return { ...s, className: targetClass, etutHocasi: targetTeacher };
-              }
-            }
-            return s;
-          });
-
-          if (studentsChanged || students.length !== initialLength) {
-            localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-            if (this.isCloudEnabled()) {
-              this.syncToCloud('kurs_data/students', students);
-            }
-            window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
-          }
-        }
-      }
+      // 2. 8. Sınıf Kütüğünü Onar (8-A [9], 8-B [9])
+      this.forceRepair8thGradeClasses(false);
     } catch (e) {
       console.warn('[autoSyncStaffAndClassTeachers] Hata:', e);
     }
@@ -872,6 +946,23 @@ class DataStore {
               if (seed && seed.dahiliHoca) mergedSt.dahiliHoca = seed.dahiliHoca;
             }
           }
+
+          // 8. Sınıf Kesin Dağılım Koruması (Buluttan eski 8-A / 8-B şubeleri gelse bile asla ezilemez!)
+          const no8 = parseInt(mergedSt.studentNo, 10);
+          const c8ANos = [814, 815, 822, 806, 819, 820, 802, 808, 811];
+          const c8BNos = [801, 805, 816, 810, 809, 821, 807, 813, 818];
+          if (c8ANos.includes(no8)) {
+            mergedSt.className = '8-A';
+            mergedSt.etutHocasi = 'YAVUZ SELİM SEVEN';
+            mergedSt.isPassive = false;
+            mergedSt.status = 'active';
+          } else if (c8BNos.includes(no8)) {
+            mergedSt.className = '8-B';
+            mergedSt.etutHocasi = 'TUNAHAN TAŞKIN';
+            mergedSt.isPassive = false;
+            mergedSt.status = 'active';
+          }
+
           return mergedSt;
         }
 
@@ -886,6 +977,23 @@ class DataStore {
           const seed = SEED_STUDENTS.find(s => s.id === singleSt.id || s.studentNo === singleSt.studentNo);
           if (seed && seed.dahiliHoca) singleSt.dahiliHoca = seed.dahiliHoca;
         }
+
+        // 8. Sınıf Kesin Dağılım Koruması (Tekil bulut öğrencisi için)
+        const no8s = parseInt(singleSt.studentNo, 10);
+        const c8ANos = [814, 815, 822, 806, 819, 820, 802, 808, 811];
+        const c8BNos = [801, 805, 816, 810, 809, 821, 807, 813, 818];
+        if (c8ANos.includes(no8s)) {
+          singleSt.className = '8-A';
+          singleSt.etutHocasi = 'YAVUZ SELİM SEVEN';
+          singleSt.isPassive = false;
+          singleSt.status = 'active';
+        } else if (c8BNos.includes(no8s)) {
+          singleSt.className = '8-B';
+          singleSt.etutHocasi = 'TUNAHAN TAŞKIN';
+          singleSt.isPassive = false;
+          singleSt.status = 'active';
+        }
+
         return singleSt;
       });
 
@@ -896,8 +1004,16 @@ class DataStore {
         }
       });
 
-      // Silinenler siciline göre son kez arındır
-      const finalCleanList = mergedStudents.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+      // Silinenler siciline ve 8. sınıf fazlalıklarına (803, 804, 812, 817) göre son kez arındır
+      const removed8Nos = new Set([803, 804, 812, 817]);
+      const removed8Ids = new Set(['std_803', 'std_804', 'std_812', 'std_817']);
+      const finalCleanList = mergedStudents.filter(s => {
+        if (!s || !s.id) return false;
+        if (deletedMap[s.id] && deletedMap[s.id].isDeleted) return false;
+        const no = parseInt(s.studentNo, 10);
+        if (removed8Nos.has(no) || removed8Ids.has(s.id)) return false;
+        return true;
+      });
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(finalCleanList));
     }
 
