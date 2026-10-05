@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi</title>
   <meta name="description" content="Öğrenci Bilgi ve Takip Portalı">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v7.1 - KISMİ TELAFİ AFFI GÜNCELLEMESİ) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v7.4 - 8-A & 8-B FAZLALIK TALEBELERİN TEMİZLENMESİ) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20261003_v7.1_PARTIAL_PENALTY_WAIVER_UPDATE';
+      var CURRENT_BUILD = '20261005_v7.4_CLASS_8A_8B_PURGE_EXTRA_STUDENTS';
       var savedBuild = localStorage.getItem('oay_app_build_version');
 
       // Kullanıcının dilediğinde manuel de tetikleyebileceği evrensel sıfırlama fonksiyonu
@@ -401,28 +401,28 @@
       class="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-slate-900/95 hover:bg-slate-900 text-amber-300 hover:text-amber-200 border-2 border-amber-400 shadow-2xl text-xs font-black backdrop-blur transition-all active:scale-95 cursor-pointer"
       title="Eski önbelleği temizleyip en yeni sistemi zorla yükler">
       <span class="text-sm">🔄</span>
-      <span>Önbelleği Temizle (v7.1)</span>
+      <span>Önbelleği Temizle (v7.4)</span>
     </button>
   </div>
 
-  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v7.1 Sürüm İmzası) -->
-  <script src="js/hadisler.js?v=7.1"></script>
-  <script src="js/store.js?v=7.1"></script>
-  <script src="js/attendance.js?v=7.1"></script>
-  <script src="js/leave-tracker.js?v=7.1"></script>
-  <script src="js/leave-return.js?v=7.1"></script>
-  <script src="js/quran-tracker.js?v=7.1"></script>
-  <script src="js/performance.js?v=7.1"></script>
-  <script src="js/test-results.js?v=7.1"></script>
-  <script src="js/leaderboard.js?v=7.1"></script>
-  <script src="js/parent-portal.js?v=7.1"></script>
-  <script src="js/app.js?v=7.1"></script>
+  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v7.4 Sürüm İmzası) -->
+  <script src="js/hadisler.js?v=7.4"></script>
+  <script src="js/store.js?v=7.4"></script>
+  <script src="js/attendance.js?v=7.4"></script>
+  <script src="js/leave-tracker.js?v=7.4"></script>
+  <script src="js/leave-return.js?v=7.4"></script>
+  <script src="js/quran-tracker.js?v=7.4"></script>
+  <script src="js/performance.js?v=7.4"></script>
+  <script src="js/test-results.js?v=7.4"></script>
+  <script src="js/leaderboard.js?v=7.4"></script>
+  <script src="js/parent-portal.js?v=7.4"></script>
+  <script src="js/app.js?v=7.4"></script>
 
   <!-- Service Worker Kaydı (Kısayol ve PWA Hızlı Başlatma) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./sw.js?v=7.1').then(function(reg) {
+        navigator.serviceWorker.register('./sw.js?v=7.4').then(function(reg) {
           if (reg) {
             reg.update();
           }
