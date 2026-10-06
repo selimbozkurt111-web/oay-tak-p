@@ -1484,7 +1484,14 @@ window.OMRScanner = {
 
   // QR Kod Tespit Edildiğinde Çalışan Akıllı Ayrıştırıcı
   handleQrDetected: function(payload, ctx, width, height) {
-    if (!payload || !payload.startsWith('OAY:')) return;
+    if (!payload) return;
+    if (payload.startsWith('OAY_MOCK:')) {
+      if (window.MockExamModule && typeof window.MockExamModule.handleQrDetected === 'function') {
+        window.MockExamModule.handleQrDetected(payload, ctx, width, height);
+      }
+      return;
+    }
+    if (!payload.startsWith('OAY:')) return;
 
     // Aynı kağıdı art arda okuyup durmayı engelle (1.5 saniye mola)
     if (this.lastScannedPayload === payload && Date.now() - (this._lastScannedTime || 0) < 1500) {

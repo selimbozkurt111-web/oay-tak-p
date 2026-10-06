@@ -13,6 +13,12 @@ window.MockExamModule = {
   selectedExamId: null,
   selectedClassFilter: 'ALL',
   searchQuery: '',
+  sortBy: 'score_desc', // 'score_desc' | 'name'
+
+  toggleSort() {
+    this.sortBy = this.sortBy === 'score_desc' ? 'name' : 'score_desc';
+    this.render();
+  },
 
   // Hoca ve Şube Tanımları (Hedef Kitle Eşleştirmesi)
   CLASS_TEACHER_LIST: [
@@ -246,20 +252,53 @@ window.MockExamModule = {
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
+            <!-- 📷 CANLI OPTİK OKU -->
+            <button type="button" onclick="window.MockExamModule.openCameraScanner()"
+              title="Telefon veya bilgisayar kamerasıyla QR kodlu optik formları canlı tara"
+              class="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer">
+              <span>📷</span>
+              <span>Optik Oku</span>
+            </button>
+
+            <!-- 🔑 CEVAP ANAHTARI -->
+            <button type="button" onclick="window.MockExamModule.openAnswerKeyModal()"
+              title="A ve B kitapçığı cevap anahtarlarını tanımla"
+              class="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer">
+              <span>🔑</span>
+              <span class="hidden sm:inline">Cevap Anahtarı</span>
+            </button>
+
+            <!-- 🖨️ OPTİK FORM YAZDIR (A4 YATAY) -->
+            <button type="button" onclick="window.MockExamModule.openPrintModal()"
+              title="Talebelerin QR kodlu 6 dersli optik cevap formlarını A4 yatay olarak yazdır"
+              class="px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer">
+              <span>🖨️</span>
+              <span>Optik Yazdır</span>
+            </button>
+
+            <!-- 📝 TEST & ETÜT GEÇİŞİ -->
+            <button type="button" onclick="window.App.navigateFromDrawer('testler')"
+              title="Test & Etüt Modülüne Geç"
+              class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer">
+              <span>📝</span>
+              <span class="hidden sm:inline">Test & Etüt</span>
+            </button>
+
+            <!-- + 8. Sınıf LGS Denemesi (90 Soru) -->
             <button type="button" onclick="window.MockExamModule.openNewExamModal('LGS_STANDARD')"
-              class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-2xl shadow transition flex items-center gap-2 cursor-pointer active:scale-95">
+              class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer active:scale-95">
               <span>+</span>
-              <span>8. Sınıf LGS Denemesi (90 Soru)</span>
+              <span>LGS Denemesi (90 Soru)</span>
             </button>
             <button type="button" onclick="window.MockExamModule.openNewExamModal('ARA_SINIF_75')"
-              class="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-2xl shadow transition flex items-center gap-1.5 cursor-pointer active:scale-95">
+              class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1 cursor-pointer active:scale-95">
               <span>⚡</span>
-              <span>Ara Sınıf Denemesi (75 Soru)</span>
+              <span>Ara Sınıf (75S)</span>
             </button>
             <button type="button" onclick="window.MockExamModule.openNewExamModal('CUSTOM')"
-              class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-2xl shadow transition flex items-center gap-1.5 cursor-pointer">
+              class="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1 cursor-pointer">
               <span>⚙️</span>
-              <span>Özel Sınav</span>
+              <span>Özel</span>
             </button>
           </div>
         </div>
@@ -1016,8 +1055,19 @@ window.MockExamModule = {
   // 3. 🖨️ ÇOK DERSLİ LGS OPTİK FORM YAZDIRMA (A4 + QR KODLU)
   // ========================================================
   openPrintModal(examId) {
-    const exam = window.Store.getMockExamById(examId || this.selectedExamId);
-    if (!exam) return;
+    let exam = window.Store.getMockExamById(examId || this.selectedExamId);
+    if (!exam) {
+      const exams = window.Store.getMockExams();
+      exam = exams.length > 0 ? exams[0] : null;
+    }
+    if (!exam) {
+      const defaultLgs = JSON.parse(JSON.stringify(this.PRESET_TEMPLATES.LGS_STANDARD));
+      defaultLgs.id = 'exam_lgs_auto_' + Date.now();
+      defaultLgs.title = 'İsabet Ortaokul 8. Sınıf Deneme 3 (23-28 Ara)';
+      defaultLgs.date = new Date().toISOString().split('T')[0];
+      exam = window.Store.saveMockExam(defaultLgs);
+      this.selectedExamId = exam.id;
+    }
 
     const participatingStudents = this.getParticipatingStudents(exam);
     const targetClasses = exam.targetClasses || [];
@@ -1038,8 +1088,8 @@ window.MockExamModule = {
               🖨️
             </div>
             <div>
-              <h3 class="font-black text-slate-900 text-base leading-tight">Çok Dersli Optik Form Yazdır (A4)</h3>
-              <p class="text-xs text-slate-500 font-medium">${exam.title} • Her talebeye özel QR kodlu</p>
+              <h3 class="font-black text-slate-900 text-base leading-tight">QR Kodlu Optik Form Yazdır (A4)</h3>
+              <p class="text-xs text-slate-500 font-medium">${exam.title} • Her talebeye özel QR kod basılır, kamera anında tanır</p>
             </div>
           </div>
           <button type="button" onclick="document.getElementById('mock-print-modal').remove()"
@@ -1047,37 +1097,75 @@ window.MockExamModule = {
         </div>
 
         <div class="space-y-3 text-xs">
+          <!-- FORM ŞABLONU SEÇİMİ -->
           <div>
-            <label class="block font-bold text-slate-700 mb-1">YAZDIRILACAK ŞUBE</label>
-            <select id="mock-print-class-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
-              <option value="ALL">Tüm Sınav Katılımcıları (${participatingStudents.length} Talebe)</option>
-              ${targetClasses.map(c => `
-                <option value="${c}">${c} Şubesi</option>
-              `).join('')}
-            </select>
+            <label class="block font-black text-slate-800 mb-1.5 uppercase tracking-wide">YAZDIRILACAK OPTİK FORM ŞABLONU *</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <label class="flex items-start gap-2.5 p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/70 cursor-pointer shadow-xs transition">
+                <input type="radio" name="mock-print-mode" value="LGS_LANDSCAPE" checked class="mt-0.5 text-emerald-600 focus:ring-emerald-500">
+                <div>
+                  <div class="font-black text-slate-900 text-xs flex items-center gap-1">
+                    <span>🎯</span> <span>6 Dersli Kurumsal LGS</span>
+                  </div>
+                  <div class="text-[10px] text-emerald-800 font-bold mt-0.5">A4 Yatay • Yeni Şablon (Örnek Görseliniz)</div>
+                  <div class="text-[9px] text-slate-500 mt-0.5">Türkçe (20), İnkılap (10), Din (10), İngilizce (10), Matematik (20), Fen (20)</div>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-2.5 p-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer transition">
+                <input type="radio" name="mock-print-mode" value="SINGLE_TEST" class="mt-0.5 text-emerald-600 focus:ring-emerald-500">
+                <div>
+                  <div class="font-bold text-slate-800 text-xs flex items-center gap-1">
+                    <span>📝</span> <span>Tek Derslik Etüt Testi</span>
+                  </div>
+                  <div class="text-[10px] text-slate-600 font-medium mt-0.5">A4 Dikey • 1 Sayfada 2 Adet Form</div>
+                  <div class="text-[9px] text-slate-500 mt-0.5">Tek Ders / Etüt Tarama</div>
+                </div>
+              </label>
+            </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">YAZDIRILACAK ŞUBE</label>
+              <select id="mock-print-class-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
+                <option value="ALL">Tüm Sınav Katılımcıları (${participatingStudents.length} Talebe)</option>
+                <option value="8-A">8-A Sınıfı (Yavuz Selim Seven - 9 Talebe)</option>
+                <option value="8-B">8-B Sınıfı (Tunahan Taşkın - 9 Talebe)</option>
+                <option value="7-A">7-A Sınıfı (Emir Talha Tarım)</option>
+                <option value="7-B">7-B Sınıfı (Burak Bodur)</option>
+                <option value="6-A">6-A Sınıfı (Abdussamed Tav)</option>
+                <option value="6-B">6-B Sınıfı (Abdussamed Tav)</option>
+                <option value="5-A">5-A Sınıfı (Yasin Ekinci)</option>
+                <option value="5-B">5-B Sınıfı (Ahmed Mubariz)</option>
+                <option value="BLANK">İsimsiz Boş Form (Yedek - 4 Adet)</option>
+              </select>
+            </div>
+
             <div>
               <label class="block font-bold text-slate-700 mb-1">KİTAPÇIK TÜRÜ</label>
               <select id="mock-print-booklet-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
+                <option value="MIXED" selected>A ve B Dönüşümlü (Sırayla)</option>
                 <option value="A">Yalnızca A Kitapçığı</option>
                 <option value="B">Yalnızca B Kitapçığı</option>
-                <option value="MIXED" selected>A ve B Dönüşümlü (Sırayla)</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">FORM DÜZENİ</label>
-              <select id="mock-print-type-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
-                <option value="STUDENTS" selected>Talebelere Özel (İsimli & QR Kodlu)</option>
-                <option value="BLANK">Yedek / İsimsiz Boş Form</option>
               </select>
             </div>
           </div>
 
-          <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 leading-relaxed text-[11px]">
-            💡 <strong>Tasarruf & Kolaylık:</strong> Her talebenin ad, soyad ve okul numarası otomatik olarak forma işlenir ve sağ üst köşesine yüksek çözünürlüklü <strong>QR Kod (Karekod)</strong> basılır. Sınav bittiğinde telefon kamerası bu karekodu ve baloncukları anında tanır.
+          <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-slate-700 space-y-1 text-[11px] leading-relaxed">
+            <div class="font-bold text-amber-900 flex items-center gap-1.5">
+              <span>💡</span>
+              <span>A4 Yatay Optik Form Özellikleri:</span>
+            </div>
+            <p>
+              • <strong>4 Köşe L-Köşebentleri:</strong> Tarayıcı ve kamera açısını sabitleyen 7px kalınlığında hassas köşe işaretleri.
+            </p>
+            <p>
+              • <strong>Öğrenci & Kurum Bilgisi:</strong> Adı Soyadı, Seviyesi, Kurum Adı (TABAKÇILAR B BLOK) ve Takip Kodu.
+            </p>
+            <p>
+              • <strong>Hızlı Kamera Taraması:</strong> Sol karekod ve 6 MEB ders sütunu (1, 10, 19 siyah referans kareleri) ile tek tıkla canlı kamera okuma.
+            </p>
           </div>
         </div>
 
@@ -1087,9 +1175,9 @@ window.MockExamModule = {
             İptal
           </button>
           <button type="button" onclick="window.MockExamModule.executePrintForms('${exam.id}')"
-            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer active:scale-95">
             <span>🖨️</span>
-            <span>Yazdırmayı Başlat (A4)</span>
+            <span>Önizle ve Yazdır (A4)</span>
           </button>
         </div>
       </div>
@@ -1097,6 +1185,16 @@ window.MockExamModule = {
   },
 
   executePrintForms(examId, customOptions = null) {
+    const modeRadio = document.querySelector('input[name="mock-print-mode"]:checked') || document.querySelector('input[name="omr-print-mode"]:checked');
+    if (modeRadio && modeRadio.value === 'SINGLE_TEST') {
+      const modalMock = document.getElementById('mock-print-modal');
+      if (modalMock) modalMock.remove();
+      if (window.OMRScanner && typeof window.OMRScanner.generateAndPrintForms === 'function') {
+        window.OMRScanner.generateAndPrintForms();
+        return;
+      }
+    }
+
     let exam = window.Store.getMockExamById(examId);
     if (!exam) {
       const exams = window.Store.getMockExams();
@@ -1672,7 +1770,18 @@ window.MockExamModule = {
   // 4. 🔑 ÇOK DERSLİ CEVAP ANAHTARI (A VE B KİTAPÇIĞI) MODALI
   // ========================================================
   openAnswerKeyModal(examId) {
-    const exam = window.Store.getMockExamById(examId || this.selectedExamId);
+    let exam = window.Store.getMockExamById(examId || this.selectedExamId);
+    if (!exam) {
+      const exams = window.Store.getMockExams();
+      exam = exams.length > 0 ? exams[0] : null;
+    }
+    if (!exam) {
+      const defaultLgs = JSON.parse(JSON.stringify(this.PRESET_TEMPLATES.LGS_STANDARD));
+      defaultLgs.id = 'exam_lgs_auto_' + Date.now();
+      defaultLgs.title = 'İsabet Ortaokul 8. Sınıf Deneme 3 (23-28 Ara)';
+      defaultLgs.date = new Date().toISOString().split('T')[0];
+      exam = window.Store.saveMockExam(defaultLgs);
+    }
     if (!exam) return;
 
     this.selectedExamId = exam.id;
@@ -1878,7 +1987,18 @@ window.MockExamModule = {
   // 5. 📷 CANLI KAMERA ÇOK DERSLİ LGS OPTİK OKUYUCU
   // ========================================================
   openCameraScanner(examId) {
-    const exam = window.Store.getMockExamById(examId || this.selectedExamId);
+    let exam = window.Store.getMockExamById(examId || this.selectedExamId);
+    if (!exam) {
+      const exams = window.Store.getMockExams();
+      exam = exams.length > 0 ? exams[0] : null;
+    }
+    if (!exam) {
+      const defaultLgs = JSON.parse(JSON.stringify(this.PRESET_TEMPLATES.LGS_STANDARD));
+      defaultLgs.id = 'exam_lgs_auto_' + Date.now();
+      defaultLgs.title = 'İsabet Ortaokul 8. Sınıf Deneme 3 (23-28 Ara)';
+      defaultLgs.date = new Date().toISOString().split('T')[0];
+      exam = window.Store.saveMockExam(defaultLgs);
+    }
     if (!exam) return;
 
     this.selectedExamId = exam.id;
@@ -2148,7 +2268,14 @@ window.MockExamModule = {
   },
 
   handleQrDetected(payload, ctx, width, height) {
-    if (!payload || !payload.startsWith('OAY_MOCK:')) return;
+    if (!payload) return;
+    if (payload.startsWith('OAY:')) {
+      if (window.OMRScanner && typeof window.OMRScanner.handleQrDetected === 'function') {
+        window.OMRScanner.handleQrDetected(payload, ctx, width, height);
+      }
+      return;
+    }
+    if (!payload.startsWith('OAY_MOCK:')) return;
 
     // 1.5 saniye mola (aynı kağıdı defalarca okumayı önler)
     if (this.lastScannedPayload === payload && Date.now() - (this.lastScannedTime || 0) < 1500) {
@@ -2344,20 +2471,45 @@ window.MockExamModule = {
       };
     });
 
-    // Puanına Göre Büyükten Küçüğe Sırala (Derece)
-    studentResults.sort((a, b) => {
-      if (a.hasScore && !b.hasScore) return -1;
-      if (!a.hasScore && b.hasScore) return 1;
-      if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
-      if (b.totalNet !== a.totalNet) return b.totalNet - a.totalNet;
-      return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
-    });
+    // Puanına Göre Büyükten Küçüğe Sırala (Derece) veya İsim Sırası
+    if (this.sortBy === 'name') {
+      studentResults.sort((a, b) => {
+        return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
+      });
+    } else {
+      studentResults.sort((a, b) => {
+        if (a.hasScore && !b.hasScore) return -1;
+        if (!a.hasScore && b.hasScore) return 1;
+        if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+        if (b.totalNet !== a.totalNet) return b.totalNet - a.totalNet;
+        return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
+      });
+    }
+
+    const evaluatedList = studentResults.filter(r => r.hasScore);
+    const evaluatedCount = evaluatedList.length;
+    let avgScore = '0.00';
+    let avgNet = '0.00';
+    let topScore = '0.00';
+    let topStudentName = '-';
+
+    if (evaluatedCount > 0) {
+      const sumScore = evaluatedList.reduce((acc, r) => acc + (r.totalScore || 0), 0);
+      const sumNet = evaluatedList.reduce((acc, r) => acc + (r.totalNet || 0), 0);
+      avgScore = (sumScore / evaluatedCount).toFixed(2);
+      avgNet = (sumNet / evaluatedCount).toFixed(2);
+      const topOne = evaluatedList[0];
+      topScore = (topOne.totalScore || 0).toFixed(2);
+      topStudentName = `${topOne.student.firstName} ${topOne.student.lastName}`;
+    }
+
+    const instName = window.Store.getSettings().institutionName || 'TABAKÇILAR B BLOK';
 
     container.innerHTML = `
       <div class="space-y-4 max-w-7xl mx-auto animate-fade-in pb-12">
         
         <!-- Üst Başlık & Kontroller -->
-        <div class="bg-white p-4 sm:p-5 rounded-3xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div class="bg-white p-4 sm:p-5 rounded-3xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3 no-print">
           <div class="flex items-center gap-3">
             <button type="button" onclick="window.MockExamModule.activeView='list'; window.MockExamModule.render();"
               class="w-10 h-10 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-black transition cursor-pointer">
@@ -2398,6 +2550,12 @@ window.MockExamModule = {
               <span>📷</span>
               <span>Optik Oku</span>
             </button>
+            <button type="button" onclick="window.MockExamModule.downloadResultsImage('${exam.id}')"
+              title="Velilere göndermek için tek tıkla liste resmi indir"
+              class="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+              <span>📸</span>
+              <span>Resim İndir</span>
+            </button>
             <button type="button" onclick="window.MockExamModule.openKazanimAnalyticsView('${exam.id}')"
               class="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-bold text-xs rounded-xl transition flex items-center gap-1 cursor-pointer">
               <span>🎯</span>
@@ -2411,8 +2569,43 @@ window.MockExamModule = {
           </div>
         </div>
 
-        <!-- ŞUBE FİLTRELERİ VE ARAMA KUTUSU -->
-        <div class="bg-white p-3 rounded-2xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <!-- CANLI KPI İSTATİSTİK KARTLARI -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 no-print">
+          <div class="p-3 bg-white rounded-2xl border border-slate-200 shadow-2xs">
+            <span class="text-[10px] font-bold text-slate-400 uppercase block">Değerlendirilen</span>
+            <div class="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+              ${evaluatedCount} <span class="text-xs font-normal text-slate-400">/ ${totalParticipantCount}</span>
+            </div>
+            <span class="text-[10px] text-emerald-600 font-bold">%${totalParticipantCount > 0 ? Math.round((evaluatedCount / totalParticipantCount) * 100) : 0} Katılım</span>
+          </div>
+
+          <div class="p-3 bg-purple-50/70 rounded-2xl border border-purple-200 shadow-2xs">
+            <span class="text-[10px] font-bold text-purple-700 uppercase block">Ortalama Puan</span>
+            <div class="text-base sm:text-lg font-black text-purple-900 mt-0.5">
+              ${avgScore} <span class="text-xs font-normal text-purple-700">/ 500 P</span>
+            </div>
+            <span class="text-[10px] text-purple-600 font-bold">LGS Standart</span>
+          </div>
+
+          <div class="p-3 bg-blue-50/70 rounded-2xl border border-blue-200 shadow-2xs">
+            <span class="text-[10px] font-bold text-blue-700 uppercase block">Genel Net Ort.</span>
+            <div class="text-base sm:text-lg font-black text-blue-900 mt-0.5">
+              ${avgNet} <span class="text-xs font-normal text-blue-700">Net</span>
+            </div>
+            <span class="text-[10px] text-blue-600 font-bold">Tüm Dersler Toplamı</span>
+          </div>
+
+          <div class="p-3 bg-amber-50/70 rounded-2xl border border-amber-200 shadow-2xs">
+            <span class="text-[10px] font-bold text-amber-800 uppercase block">🥇 1. Sıra (Zirve)</span>
+            <div class="text-base sm:text-lg font-black text-amber-950 mt-0.5">
+              ${topScore} <span class="text-xs font-normal text-amber-800">Puan</span>
+            </div>
+            <span class="text-[10px] text-amber-700 font-bold truncate block">${topStudentName}</span>
+          </div>
+        </div>
+
+        <!-- ŞUBE FİLTRELERİ, SIRALAMA BUTONU VE ARAMA KUTUSU -->
+        <div class="bg-white p-3 rounded-2xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs no-print">
           <div class="flex flex-wrap items-center gap-1.5">
             <span class="text-[10px] font-black text-slate-400 uppercase">Şube Filtresi:</span>
             <button type="button" onclick="window.MockExamModule.selectedClassFilter='ALL'; window.MockExamModule.render();"
@@ -2437,6 +2630,17 @@ window.MockExamModule = {
                 </button>
               `;
             }).join('')}
+
+            <!-- ALDIĞI PUANA GÖRE SIRALA BUTONU -->
+            <button type="button" onclick="window.MockExamModule.toggleSort()"
+              title="Öğrencileri aldıkları 500 puana göre sıralar (1. en üstte)"
+              class="px-2.5 py-1 rounded-xl text-[11px] font-black transition flex items-center gap-1 border shadow-2xs ml-1 cursor-pointer ${
+                this.sortBy === 'score_desc' 
+                  ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
+                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+              }">
+              <span>${this.sortBy === 'score_desc' ? '🏆 500 Puan Sıralı (1. ➔ Son)' : '📋 İsim Sıralı'}</span>
+            </button>
           </div>
 
           <div class="flex items-center gap-2">
@@ -2446,13 +2650,29 @@ window.MockExamModule = {
           </div>
         </div>
 
-        <!-- SONUÇ & SIRALAMA TABLOSU -->
-        <div class="bg-white rounded-3xl shadow-xs border border-slate-200 overflow-hidden">
-          <div class="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
-            <div class="font-black text-slate-800 text-xs sm:text-sm">
-              🏆 LGS Puan Sıralaması ve Ders Netleri (${studentResults.length} Talebe)
+        <!-- SONUÇ & SIRALAMA TABLOSU (RESİM ÇEKİM VE VELİ PAYLAŞIM ALANI) -->
+        <div id="mock-exam-capture-card" class="bg-white rounded-3xl shadow-xs border border-slate-200 overflow-hidden">
+          <!-- Görsel Üst Başlığı -->
+          <div class="p-3.5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between border-b border-slate-700">
+            <div class="truncate">
+              <div class="text-xs sm:text-sm font-black text-amber-300 truncate">
+                ${instName}
+              </div>
+              <div class="text-[11px] text-slate-300 font-bold truncate">
+                🎯 ${exam.title} (${subjects.length} Ders • Toplam ${subjects.reduce((sum, s) => sum + s.questionCount, 0)} Soru)
+              </div>
             </div>
-            <div class="text-[11px] text-slate-500">
+            <div class="text-right flex-shrink-0 pl-2">
+              <div class="text-[10px] text-emerald-300 font-bold font-mono">${exam.date}</div>
+              <div class="text-[9px] text-slate-400 font-medium">Katılım: ${evaluatedCount}/${totalParticipantCount} • Ort: ${avgScore} P</div>
+            </div>
+          </div>
+
+          <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div class="font-black text-slate-800 text-xs sm:text-sm">
+              🏆 LGS 500 Puan Sıralaması ve Ders Netleri (${studentResults.length} Talebe)
+            </div>
+            <div class="text-[11px] text-slate-500 no-print">
               Not girmek için <strong>"✏️ Not Gir"</strong> veya kamerayla <strong>"📷 Optik Oku"</strong> butonunu kullanabilirsiniz.
             </div>
           </div>
@@ -2470,7 +2690,7 @@ window.MockExamModule = {
                       ${s.name.substring(0, 5)}<br><span class="text-[9px] text-slate-400 font-normal font-mono">(x${s.coefficient})</span>
                     </th>
                   `).join('')}
-                  <th class="py-2 pr-3 text-right">İşlem</th>
+                  <th class="py-2 pr-3 text-right no-print">İşlem</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
@@ -2510,7 +2730,7 @@ window.MockExamModule = {
                           </td>
                         `;
                       }).join('')}
-                      <td class="py-2 pr-3 text-right">
+                      <td class="py-2 pr-3 text-right no-print">
                         <button type="button" onclick="window.MockExamModule.openStudentScoreInputModal('${exam.id}', '${st.id}')"
                           class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] rounded-lg border border-indigo-200 transition cursor-pointer">
                           ✏️ Not Gir
@@ -2525,12 +2745,78 @@ window.MockExamModule = {
                   `;
                 }).join('')}
               </tbody>
+              <tfoot>
+                <tr class="bg-slate-100/90 text-slate-800 font-black border-t-2 border-slate-300 h-10 text-[11px]">
+                  <td colspan="2" class="py-2 px-3 text-slate-700">
+                    Sınav Ortalamaları (${evaluatedCount} Talebe Değerlendirildi)
+                  </td>
+                  <td class="text-center font-mono font-black text-purple-900 bg-purple-100/60">
+                    ${evaluatedCount > 0 ? avgScore : '-'} P
+                  </td>
+                  <td class="text-center font-mono font-black text-blue-900 bg-blue-100/60">
+                    ${evaluatedCount > 0 ? avgNet : '-'}
+                  </td>
+                  ${subjects.map(s => {
+                    let subSum = 0;
+                    let subCnt = 0;
+                    evaluatedList.forEach(item => {
+                      if (item.subScores && item.subScores[s.id]) {
+                        subSum += (item.subScores[s.id].net || 0);
+                        subCnt++;
+                      }
+                    });
+                    const subAvg = subCnt > 0 ? (subSum / subCnt).toFixed(1) : '-';
+                    return `
+                      <td class="text-center font-mono font-bold text-slate-800 px-1">
+                        ${subAvg}
+                      </td>
+                    `;
+                  }).join('')}
+                  <td class="py-2 pr-3 text-right text-[10px] text-slate-400 no-print">
+                    Genel Ort.
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
 
       </div>
     `;
+  },
+
+  downloadResultsImage(examId) {
+    const el = document.getElementById('mock-exam-capture-card');
+    if (!el) return;
+
+    if (typeof html2canvas === 'undefined') {
+      alert('Görüntü oluşturma aracı yükleniyor, lütfen birkaç saniye sonra tekrar deneyiniz.');
+      return;
+    }
+
+    const exam = window.Store.getMockExamById(examId || this.selectedExamId);
+    const examTitle = exam ? exam.title : 'Deneme_Sinavi';
+
+    const toast = document.createElement('div');
+    toast.className = 'fixed top-4 right-4 z-50 px-4 py-2.5 bg-slate-900 text-white font-bold rounded-xl text-xs shadow-xl animate-fade-in flex items-center gap-2';
+    toast.innerHTML = '<span>📸</span> <span>LGS sıralama listesi görseli hazırlanıyor...</span>';
+    document.body.appendChild(toast);
+
+    html2canvas(el, {
+      scale: 2.5,
+      useCORS: true,
+      backgroundColor: '#ffffff'
+    }).then(canvas => {
+      toast.remove();
+      const link = document.createElement('a');
+      const cleanTitle = examTitle.replace(/\s+/g, '_');
+      link.download = `${cleanTitle}_LGS_500_Siralama_Listesi.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }).catch(err => {
+      toast.remove();
+      alert('Görsel oluşturulamadı: ' + err.message);
+    });
   },
 
   openStudentScoreInputModal(examId, studentId) {
