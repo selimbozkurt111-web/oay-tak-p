@@ -1,5 +1,5 @@
 /**
- * mock-exam.js - Ömer Avniyel Akademi Kurumsal Deneme Sınavları, Hedef Kitle (Şube/Talebe) Seçimi & QR Kodlu Çok Dersli LGS Optik Okuma Sistemi (v9.0)
+ * mock-exam.js - Ömer Avniyel Akademi Kurumsal Deneme Sınavları, Hedef Kitle (Şube/Talebe) Seçimi & QR Kodlu Çok Dersli LGS Optik Okuma Sistemi (v9.1)
  * - 1. Hedef Kitle Belirleme: Hangi sınıflara/talebeler yapılacağı (8-A, 8-B, Seviye 8 LGS, 7-A, 7-B vb.) net ve esnek seçim
  * - 2. Soru Sayısı, Dersler, Ders Katsayıları (Puan Ağırlıkları) ve Soru Başına MEB Kazanım Girişi
  * - 3. 🖨️ Çok Dersli LGS Optik Form Yazdırma: Her talebeye özel QR Kodlu A4 optik cevap formu (Tüm dersler tek formda)
@@ -57,11 +57,11 @@ window.MockExamModule = {
       targetClasses: ['7-A', '7-B'],
       subjects: [
         { id: 'sub_turkce', name: 'Türkçe', questionCount: 15, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
-        { id: 'sub_matematik', name: 'Matematik', questionCount: 15, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
-        { id: 'sub_fen', name: 'Fen Bilimleri', questionCount: 15, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
         { id: 'sub_sosyal', name: 'Sosyal Bilgiler', questionCount: 10, coefficient: 2.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
         { id: 'sub_din', name: 'Din Kültürü', questionCount: 10, coefficient: 2.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
-        { id: 'sub_ingilizce', name: 'İngilizce', questionCount: 10, coefficient: 2.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} }
+        { id: 'sub_ingilizce', name: 'İngilizce', questionCount: 10, coefficient: 2.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
+        { id: 'sub_matematik', name: 'Matematik', questionCount: 15, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
+        { id: 'sub_fen', name: 'Fen Bilimleri', questionCount: 15, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} }
       ]
     }
   },
@@ -1068,6 +1068,9 @@ window.MockExamModule = {
       return;
     }
 
+    // Ders sıralamasını daima LGS standardına sabitle: Türkçe, İnkılap Tarihi, Din Kültürü, İngilizce, Matematik, Fen Bilimleri
+    d.subjects = this.getOrderedLgsSubjects(d.subjects);
+
     const saved = window.Store.saveMockExam(d);
     this.selectedExamId = saved.id;
 
@@ -1238,12 +1241,12 @@ window.MockExamModule = {
     if (!name) return '';
     const n = name.trim();
     const lower = n.toLowerCase();
-    if (lower.includes('türkçe') || lower.includes('turkce')) return 'Türkçe';
-    if (lower.includes('inkılap') || lower.includes('inkilap') || lower.includes('tarih')) return 'İnkılap Tarihi';
-    if (lower.includes('din')) return 'Din Kültürü';
-    if (lower.includes('ingilizce') || lower.includes('yabancı') || lower.includes('dil')) return 'İngilizce';
+    if (lower.includes('türkçe') || lower.includes('turkce') || lower === 'tr') return 'Türkçe';
+    if (lower.includes('inkılap') || lower.includes('inkilap') || lower.includes('tarih') || lower.includes('sosyal')) return 'İnkılap Tarihi';
+    if (lower.includes('din') || lower.includes('dkab')) return 'Din Kültürü';
+    if (lower.includes('ingilizce') || lower.includes('yabancı') || lower.includes('dil') || lower === 'ing') return 'İngilizce';
     if (lower.includes('matematik') || lower.includes('mat')) return 'Matematik';
-    if (lower.includes('fen')) return 'Fen Bilimleri';
+    if (lower.includes('fen') || lower.includes('fzk')) return 'Fen Bilimleri';
     return n.length > 15 ? n.substring(0, 15) : n;
   },
 
@@ -1259,13 +1262,13 @@ window.MockExamModule = {
       ];
     }
     const getRank = (name) => {
-      const lower = (name || '').toLowerCase();
-      if (lower.includes('türkçe') || lower.includes('turkce')) return 1;
-      if (lower.includes('inkılap') || lower.includes('inkilap') || lower.includes('tarih')) return 2;
-      if (lower.includes('din')) return 3;
-      if (lower.includes('ingilizce') || lower.includes('yabancı') || lower.includes('dil')) return 4;
+      const lower = (name || '').toLowerCase().trim();
+      if (lower.includes('türkçe') || lower.includes('turkce') || lower === 'tr') return 1;
+      if (lower.includes('inkılap') || lower.includes('inkilap') || lower.includes('tarih') || lower.includes('sosyal')) return 2;
+      if (lower.includes('din') || lower.includes('dkab')) return 3;
+      if (lower.includes('ingilizce') || lower.includes('yabancı') || lower.includes('dil') || lower === 'ing') return 4;
       if (lower.includes('matematik') || lower.includes('mat')) return 5;
-      if (lower.includes('fen')) return 6;
+      if (lower.includes('fen') || lower.includes('fzk')) return 6;
       return 100;
     };
     return [...subjects].sort((a, b) => getRank(a.name) - getRank(b.name));
@@ -1645,37 +1648,37 @@ window.MockExamModule = {
             display: flex;
             flex-direction: column;
             align-items: flex-end;
-            width: 22px;
+            width: 24px;
             flex-shrink: 0;
             margin-right: 3px;
           }
           .gutter-spacer {
-            height: 38px; /* 21px col-pill + 17px col-options-header */
+            height: 40px; /* 22px col-pill + 18px col-options-header */
           }
           .gutter-row {
-            height: 6.75mm;
+            height: 7.0mm;
             display: flex;
             align-items: center;
             justify-content: flex-end;
-            gap: 2.5px;
+            gap: 3px;
           }
           .timing-box {
-            width: 7.5px;
-            height: 7.5px;
+            width: 8px;
+            height: 8px;
             background: #000000;
             border-radius: 1px;
             display: inline-block;
           }
           .timing-empty {
-            width: 7.5px;
-            height: 7.5px;
+            width: 8px;
+            height: 8px;
             display: inline-block;
           }
           .q-num {
-            width: 12px;
+            width: 13px;
             text-align: right;
             font-weight: 700;
-            font-size: 9.5px;
+            font-size: 10px;
             font-family: Arial, sans-serif;
             color: #334155;
           }
@@ -1688,59 +1691,60 @@ window.MockExamModule = {
             flex-direction: column;
           }
           .col-pill {
-            height: 21px;
-            line-height: 21px;
+            height: 22px;
+            line-height: 22px;
             background: #4c4c4c;
             color: #ffffff;
             font-weight: 700;
-            font-size: 10px;
+            font-size: 10.5px;
             text-align: center;
             border-radius: 4px 4px 0 0;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            padding: 0 2px;
+            padding: 0 4px;
           }
           .col-box {
-            border: 1px solid #718096;
+            border: 1.2px solid #718096;
             border-top: none;
-            border-radius: 0 0 4px 4px;
+            border-radius: 0 0 5px 5px;
             background: #ffffff;
             overflow: hidden;
           }
           .col-options-header {
-            height: 17px;
-            border-bottom: 1px solid #cbd5e1;
+            height: 18px;
+            border-bottom: 1.2px solid #cbd5e1;
             display: flex;
             align-items: center;
             justify-content: space-around;
-            padding: 0 2px;
-            font-weight: 700;
-            font-size: 10px;
+            padding: 0 4px;
+            font-weight: 800;
+            font-size: 11px;
             color: #475569;
           }
           .col-row {
-            height: 6.75mm;
+            height: 7.0mm;
             display: flex;
             align-items: center;
             justify-content: space-around;
-            padding: 0 2px;
+            padding: 0 4px;
           }
           .bubble {
-            width: 13.5px;
-            height: 13.5px;
+            width: 17px;
+            height: 17px;
             border-radius: 50%;
-            border: 1.2px solid #94a3b8;
+            border: 1.4px solid #64748b;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 8px;
-            font-weight: 700;
-            color: #94a3b8;
+            font-size: 10px;
+            font-weight: 800;
+            color: #64748b;
             font-family: Arial, Helvetica, sans-serif;
             box-sizing: border-box;
             background: #ffffff;
             user-select: none;
+            transition: all 0.1s;
           }
           .bubble.filled {
             background: #000000 !important;

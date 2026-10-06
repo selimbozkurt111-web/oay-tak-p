@@ -1027,7 +1027,7 @@ window.OMRScanner = {
             <span style="font-size: 10px; font-weight: 900; width: 18px; text-align: right; color: #111;">${q}.</span>
             <div style="display: flex; align-items: center; gap: 6px;">
               ${options.map(opt => `
-                <span style="display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border: 1.5px solid #000; border-radius: 50%; font-size: 8.5px; font-weight: 900; color: #000;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border: 1.5px solid #000; border-radius: 50%; font-size: 10px; font-weight: 900; color: #000;">
                   ${opt}
                 </span>
               `).join('')}
