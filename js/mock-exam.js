@@ -1328,12 +1328,12 @@ window.MockExamModule = {
     const instName = settings.institutionName || 'TABAKÇILAR B BLOK';
     const orderedSubjects = this.getOrderedLgsSubjects(subjects);
 
-    // Sözel ve Sayısal küme ayrımı (Standart 5+ dersli sınavlarda ilk 4 ders Sözel, kalanlar Sayısal)
-    let sozelSubjects = orderedSubjects;
-    let sayisalSubjects = [];
+    // Sözel ve Sayısal soru sayıları hesabı (Tüm dersler kesintisiz yan yana)
+    let sozelQCount = 50;
+    let sayisalQCount = 40;
     if (orderedSubjects.length >= 5) {
-      sozelSubjects = orderedSubjects.slice(0, 4);
-      sayisalSubjects = orderedSubjects.slice(4);
+      sozelQCount = orderedSubjects.slice(0, 4).reduce((sum, s) => sum + (parseInt(s.questionCount, 10) || 0), 0);
+      sayisalQCount = orderedSubjects.slice(4).reduce((sum, s) => sum + (parseInt(s.questionCount, 10) || 0), 0);
     }
 
     let printHtml = `
@@ -1362,14 +1362,23 @@ window.MockExamModule = {
             -webkit-font-smoothing: antialiased;
           }
           @media print {
+            @page {
+              size: A4 landscape;
+              margin: 0;
+            }
             .no-print-top-bar {
               display: none !important;
+            }
+            .sheet {
+              box-shadow: none !important;
+              margin: 0 !important;
             }
           }
           @media screen {
             body {
               background: #475569;
               padding-top: 52px;
+              overflow-x: auto;
             }
             .sheet {
               box-shadow: 0 4px 25px rgba(0, 0, 0, 0.4);
@@ -1424,6 +1433,7 @@ window.MockExamModule = {
           }
           .sheet {
             width: 297mm;
+            min-width: 297mm;
             height: 210mm;
             max-height: 210mm;
             page-break-after: always;
@@ -1535,22 +1545,25 @@ window.MockExamModule = {
             padding-right: 2px;
           }
 
-          /* ANA FORM IZGARA ALANI */
+          /* ANA FORM IZGARA ALANI: KAREKOD + TÜM DERSLER KESİNTİSİZ YAN YANA */
           .exam-grid-layout {
-            display: flex;
-            align-items: flex-start;
-            gap: 14px;
-            flex: 1;
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: flex-start !important;
+            gap: 12px !important;
+            flex: 1 !important;
+            width: 100% !important;
           }
 
           /* SOL SÜTUN (KAREKOD + KİTAPÇIK TÜRÜ) */
           .left-side-panel {
-            width: 120px;
-            flex-shrink: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            gap: 9px;
+            width: 110px !important;
+            flex-shrink: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: flex-start !important;
+            gap: 8px !important;
           }
           .side-card-pill {
             background: #4c4c4c;
@@ -1595,33 +1608,68 @@ window.MockExamModule = {
             padding: 3px 0;
           }
 
-          /* DERSLER BÖLÜMÜ (SÖZEL VE SAYISAL KÜMELER) */
-          .subjects-wrapper {
-            display: flex;
-            align-items: flex-start;
+          /* DERSLER BÖLÜMÜ: SÖZEL VE SAYISAL DERSLER KESİNTİSİZ YAN YANA */
+          .subjects-outer-container {
             flex: 1;
-            justify-content: space-between;
+            min-width: 0;
+            display: flex !important;
+            flex-direction: column !important;
           }
-          .sozel-cluster {
-            display: flex;
-            align-items: flex-start;
-            gap: 7px;
-            flex: 4;
+          .sozel-sayisal-nav-bar {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            gap: 6px !important;
+            margin-bottom: 4px !important;
+            font-size: 9.5px !important;
+            font-weight: 800 !important;
+            width: 100% !important;
           }
-          .sayisal-cluster {
-            display: flex;
-            align-items: flex-start;
-            gap: 7px;
-            flex: 2;
-            margin-left: 20px;
+          .sozel-nav-pill {
+            flex: 4 !important;
+            text-align: center !important;
+            background: #334155 !important;
+            color: #ffffff !important;
+            border-radius: 4px !important;
+            padding: 2.5px 0 !important;
+            letter-spacing: 0.5px !important;
+            text-transform: uppercase !important;
+          }
+          .sayisal-nav-pill {
+            flex: 2 !important;
+            text-align: center !important;
+            background: #0f172a !important;
+            color: #38bdf8 !important;
+            border: 1px solid #38bdf8 !important;
+            border-radius: 4px !important;
+            padding: 2px 0 !important;
+            letter-spacing: 0.5px !important;
+            margin-left: 8px !important;
+            text-transform: uppercase !important;
+          }
+          .subjects-wrapper {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: flex-start !important;
+            justify-content: space-between !important;
+            gap: 6px !important;
+            width: 100% !important;
+            min-width: 0 !important;
           }
 
           /* TEKİL DERS SÜTUNU: SOL ZAMANLAMA ŞERİDİ + SAĞ DERS KUTUSU */
           .subject-col-wrapper {
-            display: flex;
-            gap: 2px;
-            flex: 1;
-            min-width: 0;
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 2px !important;
+            flex: 1 1 0% !important;
+            min-width: 0 !important;
+          }
+          .subject-col-wrapper.sayisal-start {
+            margin-left: 8px !important;
           }
           .timing-strip {
             width: 10px;
@@ -1754,7 +1802,7 @@ window.MockExamModule = {
 
     const formList = isBlank ? [{ isBlank: true, booklet: 'A' }, { isBlank: true, booklet: 'B' }] : students;
 
-    const renderSubjectColumn = (sub) => {
+    const renderSubjectColumn = (sub, isSayisalStart = false) => {
       const qCount = parseInt(sub.questionCount, 10) || 10;
       const displayName = this.getShortSubjectName(sub.name);
 
@@ -1781,7 +1829,7 @@ window.MockExamModule = {
       }
 
       return `
-        <div class="subject-col-wrapper">
+        <div class="subject-col-wrapper ${isSayisalStart ? 'sayisal-start' : ''}">
           <div class="timing-strip">
             <div class="timing-top-spacer"></div>
             ${timingHtml}
@@ -1914,19 +1962,25 @@ window.MockExamModule = {
                 </div>
               </div>
 
-              <!-- DERSLER GRUPLARI -->
-              <div class="subjects-wrapper">
-                <!-- SÖZEL DERSLER -->
-                <div class="sozel-cluster">
-                  ${sozelSubjects.map(sub => renderSubjectColumn(sub)).join('')}
-                </div>
-
-                <!-- SAYISAL DERSLER -->
-                ${sayisalSubjects.length > 0 ? `
-                  <div class="sayisal-cluster">
-                    ${sayisalSubjects.map(sub => renderSubjectColumn(sub)).join('')}
+              <!-- DERSLER ALANI: SÖZEL VE SAYISAL KESİNTİSİZ YAN YANA -->
+              <div class="subjects-outer-container">
+                ${orderedSubjects.length >= 5 ? `
+                  <div class="sozel-sayisal-nav-bar">
+                    <div class="sozel-nav-pill">
+                      📘 SÖZEL BÖLÜM (${sozelQCount} SORU)
+                    </div>
+                    <div class="sayisal-nav-pill">
+                      🔢 SAYISAL BÖLÜM (${sayisalQCount} SORU)
+                    </div>
                   </div>
                 ` : ''}
+
+                <div class="subjects-wrapper">
+                  ${orderedSubjects.map((sub, sIdx) => {
+                    const isSayisalStart = (sIdx === 4 || (sIdx > 0 && (sub.name || '').toLowerCase().includes('matematik') && !(orderedSubjects[sIdx - 1].name || '').toLowerCase().includes('matematik')));
+                    return renderSubjectColumn(sub, isSayisalStart);
+                  }).join('')}
+                </div>
               </div>
             </div>
           </div>
