@@ -591,7 +591,10 @@ window.OMRScanner = {
       ? window.TestResultsModule.testMeta
       : { title: 'Etüt Tarama Testi', subject: 'Matematik', totalQuestions: 20, date: new Date().toISOString().split('T')[0] };
 
-    const classes = ['ALL', '8-A', '8-B', '7-A', '7-B', '6-A', '6-B', '5-A', '5-B'];
+    const existingClasses = (window.Store && typeof window.Store.getClasses === 'function') ? window.Store.getClasses() : [];
+    const availableBranches = existingClasses.length > 0 
+      ? existingClasses.map(c => c.name || c.id) 
+      : [...new Set(students.map(s => s.className).filter(Boolean))].sort();
 
     let modal = document.getElementById('omr-print-modal');
     if (!modal) {
@@ -651,14 +654,10 @@ window.OMRScanner = {
               <label class="block font-bold text-slate-700 mb-1">Yazdırılacak Şube:</label>
               <select id="omr-print-class-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
                 <option value="ALL">Tüm Aktif Talebeler (${students.length})</option>
-                <option value="8-A" selected>8-A Sınıfı (Yavuz Selim Seven - 9 Talebe)</option>
-                <option value="8-B">8-B Sınıfı (Tunahan Taşkın - 9 Talebe)</option>
-                <option value="7-A">7-A Sınıfı (Emir Talha Tarım)</option>
-                <option value="7-B">7-B Sınıfı (Burak Bodur)</option>
-                <option value="6-A">6-A Sınıfı (Abdussamed Tav)</option>
-                <option value="6-B">6-B Sınıfı (Abdussamed Tav)</option>
-                <option value="5-A">5-A Sınıfı (Yasin Ekinci)</option>
-                <option value="5-B">5-B Sınıfı (Ahmed Mubariz)</option>
+                ${availableBranches.map(br => {
+                  const cnt = students.filter(s => (s.className || '').trim().toUpperCase() === br.trim().toUpperCase()).length;
+                  return `<option value="${br}">${br} Sınıfı (${cnt} Talebe)</option>`;
+                }).join('')}
                 <option value="BLANK">İsimsiz Boş Form (Genel Kullanım İçin 5 Adet)</option>
               </select>
             </div>
@@ -672,7 +671,8 @@ window.OMRScanner = {
                   <option value="30" ${activeTestMeta.totalQuestions == 30 ? 'selected' : ''}>30 Soru</option>
                 </select>
                 <select id="omr-print-booklet" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
-                  <option value="A" selected>A Kitapçığı</option>
+                  <option value="EMPTY" selected>Boş (Talebe Kodlasın)</option>
+                  <option value="A">A Kitapçığı</option>
                   <option value="B">B Kitapçığı</option>
                 </select>
               </div>

@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v8.2 - Tam Entegre Deneme & Optik Sistemi)
-const CACHE_NAME = 'oay-takip-cache-v8.2';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v8.3 - Birebir LGS Optik Form Şablonu)
+const CACHE_NAME = 'oay-takip-cache-v8.3';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [

@@ -1069,8 +1069,14 @@ window.MockExamModule = {
       this.selectedExamId = exam.id;
     }
 
+    const allStudents = (window.Store && typeof window.Store.getStudents === 'function')
+      ? window.Store.getStudents(false)
+      : [];
     const participatingStudents = this.getParticipatingStudents(exam);
-    const targetClasses = exam.targetClasses || [];
+    const existingClasses = (window.Store && typeof window.Store.getClasses === 'function') ? window.Store.getClasses() : [];
+    const availableBranches = existingClasses.length > 0 
+      ? existingClasses.map(c => c.name || c.id) 
+      : [...new Set(allStudents.map(s => s.className).filter(Boolean))].sort();
 
     let modal = document.getElementById('mock-print-modal');
     if (!modal) {
@@ -1130,14 +1136,10 @@ window.MockExamModule = {
               <label class="block font-bold text-slate-700 mb-1">YAZDIRILACAK ŞUBE</label>
               <select id="mock-print-class-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
                 <option value="ALL">Tüm Sınav Katılımcıları (${participatingStudents.length} Talebe)</option>
-                <option value="8-A">8-A Sınıfı (Yavuz Selim Seven - 9 Talebe)</option>
-                <option value="8-B">8-B Sınıfı (Tunahan Taşkın - 9 Talebe)</option>
-                <option value="7-A">7-A Sınıfı (Emir Talha Tarım)</option>
-                <option value="7-B">7-B Sınıfı (Burak Bodur)</option>
-                <option value="6-A">6-A Sınıfı (Abdussamed Tav)</option>
-                <option value="6-B">6-B Sınıfı (Abdussamed Tav)</option>
-                <option value="5-A">5-A Sınıfı (Yasin Ekinci)</option>
-                <option value="5-B">5-B Sınıfı (Ahmed Mubariz)</option>
+                ${availableBranches.map(br => {
+                  const cnt = participatingStudents.filter(s => (s.className || '').trim().toUpperCase() === br.trim().toUpperCase()).length;
+                  return `<option value="${br}">${br} Sınıfı (${cnt} Talebe)</option>`;
+                }).join('')}
                 <option value="BLANK">İsimsiz Boş Form (Yedek - 4 Adet)</option>
               </select>
             </div>
@@ -1145,9 +1147,10 @@ window.MockExamModule = {
             <div>
               <label class="block font-bold text-slate-700 mb-1">KİTAPÇIK TÜRÜ</label>
               <select id="mock-print-booklet-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
-                <option value="MIXED" selected>A ve B Dönüşümlü (Sırayla)</option>
-                <option value="A">Yalnızca A Kitapçığı</option>
-                <option value="B">Yalnızca B Kitapçığı</option>
+                <option value="EMPTY" selected>Boş Bırak (Talebe Sınavda Kodlasın - Görseldeki Gibi)</option>
+                <option value="A">Yalnızca A Kitapçığı (Dolu Kodlanmış)</option>
+                <option value="B">Yalnızca B Kitapçığı (Dolu Kodlanmış)</option>
+                <option value="MIXED">A ve B Dönüşümlü Dolu (Sırayla)</option>
               </select>
             </div>
           </div>
@@ -1158,10 +1161,10 @@ window.MockExamModule = {
               <span>A4 Yatay Optik Form Özellikleri:</span>
             </div>
             <p>
-              • <strong>4 Köşe L-Köşebentleri:</strong> Tarayıcı ve kamera açısını sabitleyen 7px kalınlığında hassas köşe işaretleri.
+              • <strong>4 Köşe L-Köşebentleri:</strong> Tarayıcı ve kamera açısını sabitleyen 10px kalınlığında tam hizalama işaretleri.
             </p>
             <p>
-              • <strong>Öğrenci & Kurum Bilgisi:</strong> Adı Soyadı, Seviyesi, Kurum Adı (TABAKÇILAR B BLOK) ve Takip Kodu.
+              • <strong>Öğrenci & Kurum Bilgisi:</strong> Adı Soyadı, Seviyeleri, Kurum Adı ve Takip Kodu.
             </p>
             <p>
               • <strong>Hızlı Kamera Taraması:</strong> Sol karekod ve 6 MEB ders sütunu (1, 10, 19 siyah referans kareleri) ile tek tıkla canlı kamera okuma.
@@ -1214,7 +1217,7 @@ window.MockExamModule = {
     const typeSelect = document.getElementById('mock-print-type-select');
 
     const selClass = (customOptions && customOptions.selClass) || (classSelect ? classSelect.value : 'ALL');
-    const selBooklet = (customOptions && customOptions.selBooklet) || (bookletSelect ? bookletSelect.value : 'MIXED');
+    const selBooklet = (customOptions && customOptions.selBooklet) || (bookletSelect ? bookletSelect.value : 'EMPTY');
     const isBlank = (customOptions && customOptions.isBlank !== undefined) ? customOptions.isBlank : (typeSelect ? typeSelect.value === 'BLANK' : selClass === 'BLANK');
 
     let students = this.getParticipatingStudents(exam);
@@ -1272,6 +1275,7 @@ window.MockExamModule = {
             background: #fff;
             color: #000;
             font-size: 11px;
+            -webkit-font-smoothing: antialiased;
           }
           .sheet {
             width: 297mm;
@@ -1279,48 +1283,49 @@ window.MockExamModule = {
             max-height: 210mm;
             page-break-after: always;
             position: relative;
-            padding: 8mm 12mm 7mm 12mm;
+            padding: 7mm 11mm 6mm 11mm;
             background: #fff;
             overflow: hidden;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            box-sizing: border-box;
           }
 
-          /* 4 KÖŞE KALIN L HİZALAMA ÇERÇEVELERİ (KÖŞEBENTLER) */
+          /* 4 KÖŞE KALIN L HİZALAMA ÇERÇEVELERİ (GÖRSELE BİREBİR KÖŞEBENTLER) */
           .corner-bracket {
             position: absolute;
-            width: 48px;
-            height: 48px;
+            width: 56px;
+            height: 56px;
           }
           .corner-bracket.tl {
-            top: 6mm;
-            left: 8mm;
-            border-top: 7px solid #000;
-            border-left: 7px solid #000;
+            top: 5mm;
+            left: 7mm;
+            border-top: 10px solid #000;
+            border-left: 10px solid #000;
           }
           .corner-bracket.tr {
-            top: 6mm;
-            right: 8mm;
-            border-top: 7px solid #000;
-            border-right: 7px solid #000;
+            top: 5mm;
+            right: 7mm;
+            border-top: 10px solid #000;
+            border-right: 10px solid #000;
           }
           .corner-bracket.bl {
-            bottom: 6mm;
-            left: 8mm;
-            border-bottom: 7px solid #000;
-            border-left: 7px solid #000;
+            bottom: 5mm;
+            left: 7mm;
+            border-bottom: 10px solid #000;
+            border-left: 10px solid #000;
           }
           .corner-bracket.br {
-            bottom: 6mm;
-            right: 8mm;
-            border-bottom: 7px solid #000;
-            border-right: 7px solid #000;
+            bottom: 5mm;
+            right: 7mm;
+            border-bottom: 10px solid #000;
+            border-right: 10px solid #000;
           }
 
           /* İÇ FORM ALANI (KÖŞEBENTLERİN İÇİNDE) */
           .form-inner {
-            margin: 0 4mm;
+            margin: 0 3mm;
             display: flex;
             flex-direction: column;
             height: 100%;
@@ -1329,57 +1334,60 @@ window.MockExamModule = {
 
           /* ÜST BAŞLIK VE ÖĞRENCİ BİLGİ KARTI */
           .exam-header-card {
-            background: #f8fafc;
-            border: 1.5px solid #cbd5e1;
+            background: #ffffff;
+            border: 1.2px solid #cbd5e1;
             border-radius: 6px;
-            padding: 4px;
-            margin-bottom: 6px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            flex-shrink: 0;
           }
           .exam-title-bar {
-            background: #475569;
+            background: #4c4c4c;
             color: #ffffff;
-            font-weight: 800;
-            font-size: 13px;
+            font-weight: 700;
+            font-size: 13.5px;
             text-align: center;
             padding: 4.5px 12px;
-            border-radius: 4px;
-            letter-spacing: 0.4px;
+            letter-spacing: 0.3px;
+            line-height: 1.25;
           }
           .exam-info-body {
-            padding: 5px 10px 3px 10px;
+            padding: 6px 14px 4px 14px;
+            background: #ffffff;
           }
-          .info-row {
+          .info-line {
             display: flex;
-            align-items: baseline;
-            border-bottom: 1px dotted #94a3b8;
-            padding-bottom: 2.5px;
-            margin-bottom: 2.5px;
-            font-size: 11.5px;
-          }
-          .info-row.last-row {
-            border-bottom: 1px dotted #94a3b8;
-            margin-bottom: 0;
+            align-items: flex-end;
+            margin-bottom: 3.5px;
+            height: 18px;
           }
           .info-lbl {
-            font-weight: 800;
+            font-weight: 600;
             color: #1e293b;
-            width: 88px;
-            flex-shrink: 0;
+            font-size: 11.5px;
+            white-space: nowrap;
+            margin-right: 6px;
           }
           .info-val {
             font-weight: 800;
-            color: #0f172a;
+            color: #000000;
             text-transform: uppercase;
-            flex: 1;
             font-size: 11.5px;
+            white-space: nowrap;
+            margin-right: 6px;
           }
-          .tracking-code {
-            font-size: 10px;
-            font-family: monospace;
+          .info-dots {
+            flex: 1;
+            border-bottom: 1px dotted #94a3b8;
+            margin-bottom: 3.5px;
+          }
+          .tracking-code-line {
+            text-align: right;
+            font-size: 9.5px;
             font-weight: 700;
-            color: #475569;
-            margin-left: 14px;
-            flex-shrink: 0;
+            color: #334155;
+            margin-top: 1px;
+            padding-right: 2px;
           }
 
           /* ANA FORM IZGARA ALANI */
@@ -1392,7 +1400,7 @@ window.MockExamModule = {
 
           /* SOL SÜTUN (KAREKOD + KİTAPÇIK TÜRÜ) */
           .left-side-panel {
-            width: 120px;
+            width: 124px;
             flex-shrink: 0;
             display: flex;
             flex-direction: column;
@@ -1400,18 +1408,19 @@ window.MockExamModule = {
             gap: 10px;
           }
           .side-card {
-            border: 1.5px solid #64748b;
+            border: 1px solid #718096;
             border-radius: 5px;
             overflow: hidden;
-            background: #fff;
+            background: #ffffff;
           }
           .side-card-title {
-            background: #475569;
-            color: #fff;
-            font-weight: 800;
-            font-size: 10px;
+            background: #4c4c4c;
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 11px;
             text-align: center;
-            padding: 3px 0;
+            padding: 3.5px 0;
+            letter-spacing: 0.2px;
           }
           .side-card-body {
             padding: 4px;
@@ -1419,29 +1428,34 @@ window.MockExamModule = {
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: #fff;
+            background: #ffffff;
+          }
+          .booklet-box {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 1px 0;
           }
           .booklet-labels-row {
             display: flex;
             justify-content: space-around;
-            width: 100%;
-            font-weight: 800;
-            font-size: 12px;
+            padding: 2.5px 0;
+            font-size: 11.5px;
+            font-weight: 700;
             color: #334155;
-            padding: 2px 10px 2px 10px;
+            border-bottom: 1px solid #cbd5e1;
           }
           .booklet-bubbles-row {
             display: flex;
             justify-content: space-around;
-            width: 100%;
-            padding: 0 10px 4px 10px;
+            padding: 3.5px 0;
           }
 
           /* DERSLER BÖLÜMÜ (SÖZEL VE SAYISAL KÜMELER) */
           .subjects-wrapper {
             display: flex;
             align-items: stretch;
-            gap: 10px;
             flex: 1;
             justify-content: space-between;
           }
@@ -1456,7 +1470,7 @@ window.MockExamModule = {
             align-items: stretch;
             gap: 8px;
             flex: 2;
-            margin-left: 10px;
+            margin-left: 20px;
           }
 
           .subject-column {
@@ -1466,10 +1480,10 @@ window.MockExamModule = {
             flex-direction: column;
           }
           .sub-title-pill {
-            background: #475569;
-            color: #fff;
-            font-weight: 800;
-            font-size: 10.5px;
+            background: #4c4c4c;
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 11px;
             text-align: center;
             padding: 3.5px 2px;
             border-radius: 4px;
@@ -1481,9 +1495,9 @@ window.MockExamModule = {
             display: flex;
             align-items: center;
             justify-content: flex-end;
-            gap: 4px;
-            padding: 3px 2px 2px 0;
-            font-weight: 800;
+            gap: 3.5px;
+            padding: 3px 0;
+            font-weight: 700;
             font-size: 10.5px;
             color: #334155;
           }
@@ -1499,9 +1513,6 @@ window.MockExamModule = {
             height: 6.8mm;
             margin-bottom: 0.5px;
           }
-          .question-row.empty-row {
-            visibility: hidden;
-          }
           .timing-anchor {
             width: 7.5px;
             height: 7.5px;
@@ -1509,7 +1520,7 @@ window.MockExamModule = {
             flex-shrink: 0;
           }
           .timing-anchor.black-box {
-            background: #000;
+            background: #000000;
             border-radius: 1px;
           }
           .q-index {
@@ -1519,32 +1530,33 @@ window.MockExamModule = {
             font-size: 10.5px;
             font-family: Arial, sans-serif;
             color: #334155;
-            margin-right: 3px;
+            margin-right: 3.5px;
             flex-shrink: 0;
           }
           .bubbles-cell {
             display: flex;
-            gap: 4px;
+            gap: 3.5px;
           }
           .bubble {
             width: 15.5px;
             height: 15.5px;
             border-radius: 50%;
-            border: 1.2px solid #94a3b8;
+            border: 1.2px solid #b0b0b0;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             font-size: 8.5px;
             font-weight: 700;
-            color: #94a3b8;
+            color: #888888;
             font-family: Arial, Helvetica, sans-serif;
             box-sizing: border-box;
             user-select: none;
+            background: #ffffff;
           }
           .bubble.filled {
-            background: #000 !important;
-            color: #fff !important;
-            border-color: #000 !important;
+            background: #000000 !important;
+            color: #ffffff !important;
+            border-color: #000000 !important;
           }
         </style>
       </head>
@@ -1572,15 +1584,6 @@ window.MockExamModule = {
           </div>
         `;
       }
-      for (let q = qCount + 1; q <= 20; q++) {
-        rowsHtml += `
-          <div class="question-row empty-row">
-            <span class="timing-anchor"></span>
-            <span class="q-index">&nbsp;</span>
-            <div class="bubbles-cell"></div>
-          </div>
-        `;
-      }
       return `
         <div class="subject-column">
           <div class="sub-title-pill" title="${sub.name}">${displayName}</div>
@@ -1603,28 +1606,30 @@ window.MockExamModule = {
         bLet = (idx % 2 === 0) ? 'A' : 'B';
       }
 
-      const stId = st.isBlank ? 'BLANK' : st.id;
-      const stNo = st.isBlank ? '---' : st.studentNo;
-      const stName = st.isBlank ? '...................................................' : `${st.firstName} ${st.lastName}`;
-      const stClass = st.isBlank ? '.......' : st.className;
+      const isBlankForm = st.isBlank || false;
+      const stId = isBlankForm ? 'BLANK' : st.id;
+      const stNo = isBlankForm ? '---' : st.studentNo;
+      const stName = isBlankForm ? '...................................................' : `${st.firstName} ${st.lastName}`;
+      const stClass = isBlankForm ? '.......' : st.className;
 
       const gradeNum = st.className ? st.className.replace(/\D/g, '') : '8';
       const seviyeStr = (st.seviye && st.seviye.trim()) ? st.seviye.toUpperCase() : 'ORTAOKUL SEVİYE 1';
-      const stLevel = st.isBlank 
+      const stLevel = isBlankForm 
         ? '...................................................' 
         : `ORTAOKUL ${gradeNum || '8'} - ${seviyeStr}`;
 
-      const trackingCode = st.isBlank 
+      const trackingCode = isBlankForm 
         ? '29828977800' 
         : `298${(st.studentNo || '101').toString().padStart(5, '0')}7800`.slice(0, 11);
 
       // QR Kod Payload: OAY_MOCK:{examId}:{studentId}:{studentNo}:{className}:{booklet}
-      const qrPayload = `OAY_MOCK:${exam.id}:${stId}:${stNo}:${stClass}:${bLet}`;
+      const qrBooklet = (bLet === 'EMPTY') ? 'A' : bLet;
+      const qrPayload = `OAY_MOCK:${exam.id}:${stId}:${stNo}:${stClass}:${qrBooklet}`;
       let qrSvg = '';
       if (window.MiniQRCode && typeof window.MiniQRCode.generateSvg === 'function') {
         qrSvg = window.MiniQRCode.generateSvg(qrPayload, 104);
       } else {
-        qrSvg = `<div style="width:104px;height:104px;border:2px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:monospace;text-align:center;">QR<br>${stNo}-${bLet}</div>`;
+        qrSvg = `<div style="width:104px;height:104px;border:2px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:monospace;text-align:center;">QR<br>${stNo}-${qrBooklet}</div>`;
       }
 
       printHtml += `
@@ -1642,19 +1647,22 @@ window.MockExamModule = {
                 ${exam.title}
               </div>
               <div class="exam-info-body">
-                <div class="info-row">
+                <div class="info-line">
                   <span class="info-lbl">Adı Soyadı :</span>
                   <span class="info-val">${stName}</span>
+                  <span class="info-dots"></span>
                 </div>
-                <div class="info-row">
+                <div class="info-line">
                   <span class="info-lbl">Seviyeleri :</span>
                   <span class="info-val">${stLevel}</span>
+                  <span class="info-dots"></span>
                 </div>
-                <div class="info-row last-row">
+                <div class="info-line">
                   <span class="info-lbl">Kurum Adı :</span>
                   <span class="info-val">${instName}</span>
-                  <span class="tracking-code">T.Kodu: ${trackingCode}</span>
+                  <span class="info-dots"></span>
                 </div>
+                <div class="tracking-code-line">T.Kodu: ${trackingCode}</div>
               </div>
             </div>
 
@@ -1669,16 +1677,18 @@ window.MockExamModule = {
                   </div>
                 </div>
 
-                <div class="side-card" style="margin-top: 10px;">
+                <div class="side-card">
                   <div class="side-card-title">Kitapçık Türü</div>
                   <div class="side-card-body">
-                    <div class="booklet-labels-row">
-                      <span>A</span>
-                      <span>B</span>
-                    </div>
-                    <div class="booklet-bubbles-row">
-                      <span class="bubble ${bLet === 'A' ? 'filled' : ''}">A</span>
-                      <span class="bubble ${bLet === 'B' ? 'filled' : ''}">B</span>
+                    <div class="booklet-box">
+                      <div class="booklet-labels-row">
+                        <span>A</span>
+                        <span>B</span>
+                      </div>
+                      <div class="booklet-bubbles-row">
+                        <span class="bubble ${bLet === 'A' ? 'filled' : ''}">A</span>
+                        <span class="bubble ${bLet === 'B' ? 'filled' : ''}">B</span>
+                      </div>
                     </div>
                   </div>
                 </div>
