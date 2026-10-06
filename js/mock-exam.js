@@ -1,5 +1,5 @@
 /**
- * mock-exam.js - Ömer Avniyel Akademi Kurumsal Deneme Sınavları, Hedef Kitle (Şube/Talebe) Seçimi & QR Kodlu Çok Dersli LGS Optik Okuma Sistemi (v9.1)
+ * mock-exam.js - Ömer Avniyel Akademi Kurumsal Deneme Sınavları, Hedef Kitle (Şube/Talebe) Seçimi & QR Kodlu Çok Dersli LGS Optik Okuma Sistemi (v9.2)
  * - 1. Hedef Kitle Belirleme: Hangi sınıflara/talebeler yapılacağı (8-A, 8-B, Seviye 8 LGS, 7-A, 7-B vb.) net ve esnek seçim
  * - 2. Soru Sayısı, Dersler, Ders Katsayıları (Puan Ağırlıkları) ve Soru Başına MEB Kazanım Girişi
  * - 3. 🖨️ Çok Dersli LGS Optik Form Yazdırma: Her talebeye özel QR Kodlu A4 optik cevap formu (Tüm dersler tek formda)
@@ -415,7 +415,7 @@ window.MockExamModule = {
 
         <!-- Dersler ve Katsayılar Özeti -->
         <div class="grid grid-cols-2 gap-1.5 text-[11px]">
-          ${subjects.slice(0, 6).map(s => `
+          ${this.getOrderedLgsSubjects(subjects).slice(0, 6).map(s => `
             <div class="p-1.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
               <span class="font-bold text-slate-700 truncate">${s.name}:</span>
               <span class="text-[10px] text-slate-500 font-mono">${s.questionCount}S (x${s.coefficient})</span>
@@ -1237,17 +1237,41 @@ window.MockExamModule = {
     `;
   },
 
+  normalizeText(str) {
+    if (!str) return '';
+    return str
+      .toString()
+      .replace(/İ/g, 'i')
+      .replace(/I/g, 'i')
+      .replace(/ı/g, 'i')
+      .replace(/i̇/g, 'i')
+      .replace(/ç/g, 'c')
+      .replace(/Ç/g, 'c')
+      .replace(/ğ/g, 'g')
+      .replace(/Ğ/g, 'g')
+      .replace(/ö/g, 'o')
+      .replace(/Ö/g, 'o')
+      .replace(/ş/g, 's')
+      .replace(/Ş/g, 's')
+      .replace(/ü/g, 'u')
+      .replace(/Ü/g, 'u')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  },
+
   getShortSubjectName(name) {
     if (!name) return '';
-    const n = name.trim();
-    const lower = n.toLowerCase();
-    if (lower.includes('türkçe') || lower.includes('turkce') || lower === 'tr') return 'Türkçe';
-    if (lower.includes('inkılap') || lower.includes('inkilap') || lower.includes('tarih') || lower.includes('sosyal')) return 'İnkılap Tarihi';
-    if (lower.includes('din') || lower.includes('dkab')) return 'Din Kültürü';
-    if (lower.includes('ingilizce') || lower.includes('yabancı') || lower.includes('dil') || lower === 'ing') return 'İngilizce';
-    if (lower.includes('matematik') || lower.includes('mat')) return 'Matematik';
-    if (lower.includes('fen') || lower.includes('fzk')) return 'Fen Bilimleri';
-    return n.length > 15 ? n.substring(0, 15) : n;
+    const n = this.normalizeText(name);
+    if (n.includes('turkce') || n === 'tr') return 'Türkçe';
+    if (n.includes('inkilap') || n.includes('tarih') || n.includes('sosyal')) return 'İnkılap Tarihi';
+    if (n.includes('din') || n.includes('dkab')) return 'Din Kültürü';
+    if (n.includes('ing') || n.includes('yabanci') || n.includes('dil') || n.includes('eng')) return 'İngilizce';
+    if (n.includes('mat')) return 'Matematik';
+    if (n.includes('fen') || n.includes('fzk')) return 'Fen Bilimleri';
+    const raw = name.trim();
+    return raw.length > 15 ? raw.substring(0, 15) : raw;
   },
 
   getOrderedLgsSubjects(subjects) {
@@ -1262,13 +1286,13 @@ window.MockExamModule = {
       ];
     }
     const getRank = (name) => {
-      const lower = (name || '').toLowerCase().trim();
-      if (lower.includes('türkçe') || lower.includes('turkce') || lower === 'tr') return 1;
-      if (lower.includes('inkılap') || lower.includes('inkilap') || lower.includes('tarih') || lower.includes('sosyal')) return 2;
-      if (lower.includes('din') || lower.includes('dkab')) return 3;
-      if (lower.includes('ingilizce') || lower.includes('yabancı') || lower.includes('dil') || lower === 'ing') return 4;
-      if (lower.includes('matematik') || lower.includes('mat')) return 5;
-      if (lower.includes('fen') || lower.includes('fzk')) return 6;
+      const n = this.normalizeText(name);
+      if (n.includes('turkce') || n === 'tr') return 1;
+      if (n.includes('inkilap') || n.includes('tarih') || n.includes('sosyal')) return 2;
+      if (n.includes('din') || n.includes('dkab')) return 3;
+      if (n.includes('ing') || n.includes('yabanci') || n.includes('dil') || n.includes('eng')) return 4;
+      if (n.includes('mat')) return 5;
+      if (n.includes('fen') || n.includes('fzk')) return 6;
       return 100;
     };
     return [...subjects].sort((a, b) => getRank(a.name) - getRank(b.name));
@@ -1914,7 +1938,7 @@ window.MockExamModule = {
               <!-- DERSLER ALANI: 6 DERS KESİNTİSİZ YAN YANA -->
               <div class="subjects-wrapper">
                 ${orderedSubjects.map((sub, sIdx) => {
-                  const isSayisalStart = (sIdx === 4 || (sIdx > 0 && (sub.name || '').toLowerCase().includes('matematik') && !(orderedSubjects[sIdx - 1].name || '').toLowerCase().includes('matematik')));
+                  const isSayisalStart = (sIdx === 4 || (sIdx > 0 && this.normalizeText(sub.name).includes('mat') && !this.normalizeText(orderedSubjects[sIdx - 1].name).includes('mat')));
                   return renderSubjectColumn(sub, isSayisalStart);
                 }).join('')}
               </div>
@@ -2046,7 +2070,7 @@ window.MockExamModule = {
     const modal = document.getElementById('mock-key-modal');
     if (!modal) return;
 
-    const subjects = exam.subjects || [];
+    const subjects = this.getOrderedLgsSubjects(exam.subjects || []);
     const curSub = subjects[this._activeKeySubjectIdx] || subjects[0];
     const booklet = this._activeKeyBooklet || 'A';
     const keyMap = booklet === 'A' ? (curSub.answerKeyA || {}) : (curSub.answerKeyB || {});
