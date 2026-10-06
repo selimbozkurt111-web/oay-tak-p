@@ -225,6 +225,36 @@ window.MockExamModule = {
   },
 
   // ========================================================
+  // 0. AKADEMİ & DERSLER ÜST NAVİGASYON ÇUBUĞU
+  // ========================================================
+  renderTopTabsHtml(active = 'denemeler') {
+    return `
+      <!-- AKADEMİ & DERSLER HIZLI GEÇİŞ SEKMELERİ -->
+      <div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-2 overflow-x-auto no-scrollbar no-print mb-1">
+        <div class="flex items-center gap-1.5 flex-1 min-w-max">
+          <button type="button" onclick="window.App.navigateFromDrawer('akademi', 'takviye')"
+            class="px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'takviye' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>📚</span>
+            <span>Takviye Ders Notları</span>
+          </button>
+
+          <button type="button" onclick="window.App.navigateFromDrawer('testler')"
+            class="px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'testler' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>📝</span>
+            <span>Test Neticeleri & Etüt</span>
+          </button>
+
+          <button type="button" onclick="window.MockExamModule.activeView='list'; window.MockExamModule.render();"
+            class="px-3 py-1.5 rounded-xl font-black text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'denemeler' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>🎯</span>
+            <span>Deneme Sınavları (LGS 500P)</span>
+          </button>
+        </div>
+      </div>
+    `;
+  },
+
+  // ========================================================
   // 1. SINAVLAR LİSTESİ GÖRÜNÜMÜ
   // ========================================================
   renderListView(container) {
@@ -235,6 +265,9 @@ window.MockExamModule = {
     container.innerHTML = `
       <div class="space-y-4 max-w-7xl mx-auto animate-fade-in pb-8">
         
+        <!-- Akademi Üst Sekmeleri -->
+        ${this.renderTopTabsHtml('denemeler')}
+
         <!-- Üst Başlık & Eylem Butonu -->
         <div class="bg-white p-4 sm:p-5 rounded-3xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-3">
@@ -489,6 +522,9 @@ window.MockExamModule = {
     container.innerHTML = `
       <div class="space-y-4 max-w-5xl mx-auto animate-fade-in pb-12">
         
+        <!-- Akademi Üst Sekmeleri -->
+        ${this.renderTopTabsHtml('denemeler')}
+
         <!-- Üst Bar: Geri Dön & Başlık -->
         <div class="bg-white p-4 sm:p-5 rounded-3xl shadow-xs border border-slate-200 flex items-center justify-between gap-3">
           <div class="flex items-center gap-3">
@@ -1277,6 +1313,67 @@ window.MockExamModule = {
             font-size: 11px;
             -webkit-font-smoothing: antialiased;
           }
+          @media print {
+            .no-print-top-bar {
+              display: none !important;
+            }
+          }
+          @media screen {
+            body {
+              background: #475569;
+              padding-top: 52px;
+            }
+            .sheet {
+              box-shadow: 0 4px 25px rgba(0, 0, 0, 0.4);
+              margin: 20px auto;
+            }
+          }
+          .no-print-top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 48px;
+            background: #0f172a;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 999999;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          }
+          .no-print-btn {
+            background: #2563eb;
+            color: #ffffff;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+          }
+          .no-print-btn:hover {
+            background: #1d4ed8;
+          }
+          .no-print-close {
+            background: #334155;
+            color: #ffffff;
+            border: none;
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+          }
+          .no-print-close:hover {
+            background: #475569;
+          }
           .sheet {
             width: 297mm;
             height: 210mm;
@@ -1600,6 +1697,19 @@ window.MockExamModule = {
       `;
     };
 
+    printHtml += `
+      <div class="no-print-top-bar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-weight: 800; font-size: 13px;">🎯 ${exam.title} - Optik Cevap Formları</span>
+          <span style="font-size: 11px; color: #94a3b8;">(${formList.length} Sayfa)</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="no-print-btn" onclick="window.print()">🖨️ Sayfayı Yazdır (Ctrl + P)</button>
+          <button class="no-print-close" onclick="window.close()">✕ Kapat</button>
+        </div>
+      </div>
+    `;
+
     formList.forEach((st, idx) => {
       let bLet = selBooklet;
       if (selBooklet === 'MIXED') {
@@ -1730,50 +1840,67 @@ window.MockExamModule = {
       window.App.showToast('🖨️ Optik formlar hazırlanıyor, yazdırma ekranı açılıyor...', 'info');
     }
 
-    // Modern Pop-up Engeli Olmayan Güvenli Iframe Yazdırma Hattı
-    let printFrame = document.getElementById('mock-print-iframe');
-    if (!printFrame) {
-      printFrame = document.createElement('iframe');
-      printFrame.id = 'mock-print-iframe';
-      printFrame.style.position = 'fixed';
-      printFrame.style.right = '0';
-      printFrame.style.bottom = '0';
-      printFrame.style.width = '0';
-      printFrame.style.height = '0';
-      printFrame.style.border = '0';
-      printFrame.style.visibility = 'hidden';
-      document.body.appendChild(printFrame);
+    // Güvenilir Yazdırma Hattı: Önce doğrudan sekme/pencere açılışı denenir
+    let openedInNewTab = false;
+    try {
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.open();
+        win.document.write(printHtml);
+        win.document.close();
+        win.focus();
+        setTimeout(() => {
+          try { win.print(); } catch (e) {}
+        }, 500);
+        openedInNewTab = true;
+      }
+    } catch (err) {
+      console.warn('window.open çağrısı engellendi veya hata verdi:', err);
     }
 
-    const frameDoc = printFrame.contentWindow.document || printFrame.contentDocument;
-    frameDoc.open();
-    frameDoc.write(printHtml);
-    frameDoc.close();
+    // Eğer tarayıcı yeni pencereyi pop-up kısıtlamasıyla engellediyse, sayfa içi garanti modal açılır
+    if (!openedInNewTab) {
+      this.showPrintFallbackModal(printHtml, exam.title);
+    }
+  },
 
-    const doPrint = () => {
-      try {
-        printFrame.contentWindow.focus();
-        printFrame.contentWindow.print();
-      } catch (err) {
-        console.warn('Iframe print tetiklenemedi, fallback pencere deneniyor:', err);
-        try {
-          const win = window.open('', '_blank');
-          if (win) {
-            win.document.open();
-            win.document.write(printHtml);
-            win.document.close();
-            win.focus();
-            setTimeout(() => { win.print(); }, 400);
-          } else {
-            alert('Lütfen tarayıcınızın yazdırma / pop-up iznini açınız.');
-          }
-        } catch (e2) {
-          alert('Yazdırma ekranı açılamadı.');
-        }
-      }
-    };
-
-    setTimeout(doPrint, 400);
+  showPrintFallbackModal(printHtml, title) {
+    let modal = document.getElementById('mock-print-preview-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'mock-print-preview-modal';
+      modal.className = 'fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 overflow-hidden';
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = `
+      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full h-[90vh] flex flex-col p-4 sm:p-5 space-y-3 animate-fade-in">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-100 flex-shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">🖨️</span>
+            <div>
+              <h3 class="font-black text-slate-900 text-sm leading-tight">${title || 'Optik Formlar'} - Önizleme</h3>
+              <p class="text-[11px] text-slate-500 font-medium">Tarayıcınız yeni sekme açılmasını kısıtladıysa buradan doğrudan yazdırabilirsiniz.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="const f = document.getElementById('mock-preview-iframe'); f.contentWindow.focus(); f.contentWindow.print();"
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+              <span>🖨️</span>
+              <span>Şimdi Yazdır</span>
+            </button>
+            <button type="button" onclick="document.getElementById('mock-print-preview-modal').remove()"
+              class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center">✕</button>
+          </div>
+        </div>
+        <div class="flex-1 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
+          <iframe id="mock-preview-iframe" class="w-full h-full border-0"></iframe>
+        </div>
+      </div>
+    `;
+    const frame = document.getElementById('mock-preview-iframe');
+    if (frame) {
+      frame.srcdoc = printHtml;
+    }
   },
 
   // ========================================================
@@ -2023,6 +2150,8 @@ window.MockExamModule = {
       }
     }
 
+    const participatingStudents = this.getParticipatingStudents(exam);
+
     let modal = document.getElementById('mock-scanner-modal');
     if (!modal) {
       modal = document.createElement('div');
@@ -2112,6 +2241,29 @@ window.MockExamModule = {
           </div>
           <div id="mock-det-sub-summary" class="text-[10px] text-slate-300 font-mono grid grid-cols-3 gap-1 pt-1 border-t border-emerald-800/80">
             <!-- Ders bazlı netler -->
+          </div>
+        </div>
+
+        <!-- HIZLI TALEBE SEÇ & OKU (KAMERASIZ / GARANTİ HIZLI MOD) -->
+        <div class="p-2 bg-slate-800/90 rounded-xl border border-slate-700 space-y-1.5">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="text-amber-400 font-bold">⚡ Hızlı Talebe Seç (Kamerasız):</span>
+            <select id="mock-manual-booklet" class="bg-slate-900 border border-slate-600 rounded px-1.5 py-0.5 text-[10px] text-white font-bold">
+              <option value="A">Kitapçık: A</option>
+              <option value="B">Kitapçık: B</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <select id="mock-manual-student-select" class="flex-1 bg-slate-900 border border-slate-600 rounded-lg p-1 text-[11px] text-white">
+              <option value="">Talebe Seçiniz (${participatingStudents.length} Talebe)...</option>
+              ${participatingStudents.map(st => `
+                <option value="${st.id}">${st.className} • ${st.studentNo} - ${st.firstName} ${st.lastName}</option>
+              `).join('')}
+            </select>
+            <button type="button" onclick="window.MockExamModule.evaluateQuickSelectedStudent('${exam.id}')"
+              class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] whitespace-nowrap cursor-pointer">
+              Doğrula & Oku
+            </button>
           </div>
         </div>
 
@@ -2207,6 +2359,34 @@ window.MockExamModule = {
     this.render();
   },
 
+  evaluateQuickSelectedStudent(examId) {
+    const sel = document.getElementById('mock-manual-student-select');
+    const bkSel = document.getElementById('mock-manual-booklet');
+    if (!sel || !sel.value) {
+      alert('Lütfen bir talebe seçiniz.');
+      return;
+    }
+    const studentId = sel.value;
+    const booklet = (bkSel && bkSel.value) ? bkSel.value : 'A';
+    const student = window.Store.getStudentById(studentId);
+    if (!student) {
+      alert('Talebe bilgisi bulunamadı.');
+      return;
+    }
+
+    const canvas = document.getElementById('mock-canvas-feed');
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    const width = canvas ? canvas.width : 640;
+    const height = canvas ? canvas.height : 480;
+
+    const payload = `OAY_MOCK:${examId}:${student.id}:${student.studentNo}:${student.className || ''}:${booklet}`;
+    this.handleQrDetected(payload, ctx, width, height);
+
+    if (window.App && window.App.showToast) {
+      window.App.showToast(`✅ ${student.firstName} ${student.lastName} için optik değerlendirme tamamlandı!`, 'success');
+    }
+  },
+
   startScanLoop() {
     if (this.scanIntervalId) clearInterval(this.scanIntervalId);
     this.scanIntervalId = setInterval(() => {
@@ -2225,6 +2405,7 @@ window.MockExamModule = {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+    // 1. Modern BarcodeDetector API (Destekleyen Tarayıcılar)
     if ('BarcodeDetector' in window) {
       try {
         const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
@@ -2235,6 +2416,20 @@ window.MockExamModule = {
           return;
         }
       } catch (e) {}
+    }
+
+    // 2. jsQR Kütüphanesi Fallback (Windows Masaüstü Chrome/Edge, Mac, iOS ve Android Tüm Cihazlar)
+    if (typeof window.jsQR === 'function') {
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'dontInvert'
+        });
+        if (code && code.data) {
+          this.handleQrDetected(code.data, ctx, canvas.width, canvas.height);
+          return;
+        }
+      } catch (err) {}
     }
 
     const stText = document.getElementById('mock-status-text');
@@ -2262,6 +2457,7 @@ window.MockExamModule = {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
 
+      // 1. BarcodeDetector API
       if ('BarcodeDetector' in window) {
         try {
           const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
@@ -2272,6 +2468,21 @@ window.MockExamModule = {
           }
         } catch (err) {}
       }
+
+      // 2. jsQR Fallback
+      if (typeof window.jsQR === 'function') {
+        try {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'attemptBoth'
+          });
+          if (code && code.data) {
+            this.handleQrDetected(code.data, ctx, canvas.width, canvas.height);
+            return;
+          }
+        } catch (err) {}
+      }
+
       alert('Fotoğrafta deneme sınavı QR kodu tespit edilemedi. Lütfen net ve aydınlık bir fotoğraf seçiniz.');
     };
     img.src = URL.createObjectURL(file);
@@ -2518,6 +2729,9 @@ window.MockExamModule = {
     container.innerHTML = `
       <div class="space-y-4 max-w-7xl mx-auto animate-fade-in pb-12">
         
+        <!-- Akademi Üst Sekmeleri -->
+        ${this.renderTopTabsHtml('denemeler')}
+
         <!-- Üst Başlık & Kontroller -->
         <div class="bg-white p-4 sm:p-5 rounded-3xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3 no-print">
           <div class="flex items-center gap-3">

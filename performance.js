@@ -43,7 +43,20 @@ window.AkademiModule = {
     { name: 'Tekrar Yapmalı', icon: '🔄', color: 'bg-orange-100 text-orange-800 border-orange-300' }
   ],
 
+  getSaturdayOfDate(dateStr) {
+    if (window.Store && typeof window.Store.getWeekRange === 'function') {
+      return window.Store.getWeekRange(dateStr).endDate;
+    }
+    const d = dateStr ? new Date(dateStr) : new Date();
+    const day = d.getDay();
+    const diff = 6 - day;
+    d.setDate(d.getDate() + diff);
+    return d.toISOString().split('T')[0];
+  },
+
   init() {
+    // Takviye dersleri sadece Cumartesi günleri yapılır:
+    this.currentDate = this.getSaturdayOfDate(this.currentDate);
     this.renderView();
   },
 
@@ -53,8 +66,29 @@ window.AkademiModule = {
   },
 
   setDate(date) {
-    this.currentDate = date;
+    if (!date) return;
+    const sat = this.getSaturdayOfDate(date);
+    this.currentDate = sat;
     this.renderView();
+    if (date !== sat && window.App && window.App.showToast) {
+      window.App.showToast(`Takviye dersleri sadece Cumartesi günleri yapıldığından ${sat} (Cumartesi) seçildi.`, 'info');
+    }
+  },
+
+  prevWeekSaturday() {
+    const d = new Date(this.currentDate);
+    d.setDate(d.getDate() - 7);
+    this.setDate(d.toISOString().split('T')[0]);
+  },
+
+  nextWeekSaturday() {
+    const d = new Date(this.currentDate);
+    d.setDate(d.getDate() + 7);
+    this.setDate(d.toISOString().split('T')[0]);
+  },
+
+  setThisWeekSaturday() {
+    this.setDate(new Date().toISOString().split('T')[0]);
   },
 
   getDayName(dateStr) {
@@ -67,45 +101,75 @@ window.AkademiModule = {
   },
 
   getEtutSubeleri() {
-    return [
+    const list = [
       { id: '5-A|YASİN EKİNCİ', label: '5-A • Yasin Ekinci', grade: '5', branch: '5-A', hoca: 'YASİN EKİNCİ' },
       { id: '5-B|AHMED MUBARİZ', label: '5-B • Ahmed Mubariz', grade: '5', branch: '5-B', hoca: 'AHMED MUBARİZ' },
       { id: '6-A|ABDUSSAMED TAV', label: '6-A • Abdussamed Tav (Oda 201)', grade: '6', branch: '6-A', hoca: 'ABDUSSAMED TAV' },
       { id: '6-B|ABDUSSAMED TAV', label: '6-B • Abdussamed Tav (Oda 202)', grade: '6', branch: '6-B', hoca: 'ABDUSSAMED TAV' },
       { id: '7-A|EMİR TALHA TARIM', label: '7-A • Emir Talha Tarım', grade: '7', branch: '7-A', hoca: 'EMİR TALHA TARIM' },
       { id: '7-B|BURAK BODUR', label: '7-B • Burak Bodur', grade: '7', branch: '7-B', hoca: 'BURAK BODUR' },
-      { id: '8-A|TUNAHAN TAŞKIN', label: '8-A • Tunahan Taşkın', grade: '8', branch: '8-A', hoca: 'TUNAHAN TAŞKIN' },
-      { id: '8-B|YAVUZ SELİM SEVEN', label: '8-B • Yavuz Selim Seven', grade: '8', branch: '8-B', hoca: 'YAVUZ SELİM SEVEN' }
+      { id: '8-A|YAVUZ SELİM SEVEN', label: '8-A • Yavuz Selim Seven', grade: '8', branch: '8-A', hoca: 'YAVUZ SELİM SEVEN' },
+      { id: '8-B|TUNAHAN TAŞKIN', label: '8-B • Tunahan Taşkın', grade: '8', branch: '8-B', hoca: 'TUNAHAN TAŞKIN' }
     ];
+
+    if (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && !window.Store.isCurrentUserAdmin()) {
+      const myStudents = window.Store.getStudentsForActiveUser();
+      const myClasses = new Set(myStudents.map(s => (s.className || '').trim().toUpperCase()));
+      return list.filter(e => myClasses.has(e.branch.toUpperCase()));
+    }
+    return list;
+  },
+
+  toggleClass(className) {
+    if (!this.selectedClasses) this.selectedClasses = [];
+    const upper = (className || '').trim().toUpperCase();
+    const idx = this.selectedClasses.findIndex(c => c.toUpperCase() === upper);
+    if (idx !== -1) {
+      this.selectedClasses.splice(idx, 1);
+    } else {
+      this.selectedClasses.push(className.trim());
+    }
+    this.selectedGrade = 'ALL';
+    this.selectedEtut = 'ALL';
+    this.updateClassFilterButtons();
+    this.renderMatrixTableBody();
+  },
+
+  toggleGrade(gradeNum) {
+    if (!this.selectedClasses) this.selectedClasses = [];
+    const etutList = this.getEtutSubeleri();
+    const gradeBranches = etutList.filter(e => e.grade === gradeNum).map(e => e.branch.toUpperCase());
+    const selUpper = this.selectedClasses.map(c => c.toUpperCase());
+    const allSelected = gradeBranches.length > 0 && gradeBranches.every(b => selUpper.includes(b));
+
+    if (allSelected) {
+      this.selectedClasses = this.selectedClasses.filter(c => !gradeBranches.includes(c.toUpperCase()));
+    } else {
+      gradeBranches.forEach(b => {
+        if (!selUpper.includes(b)) {
+          this.selectedClasses.push(b);
+        }
+      });
+    }
+    this.selectedGrade = 'ALL';
+    this.selectedEtut = 'ALL';
+    this.updateClassFilterButtons();
+    this.renderMatrixTableBody();
   },
 
   selectGrade(gradeNum) {
-    if (this.selectedGrade === gradeNum) {
-      this.selectedGrade = 'ALL';
-    } else {
-      this.selectedGrade = gradeNum;
-    }
-    // Sınıf değiştiğinde seçili etüt şubesi bu sınıfa ait değilse sıfırla
-    if (this.selectedEtut !== 'ALL') {
-      const etut = this.getEtutSubeleri().find(e => e.id === this.selectedEtut);
-      if (etut && this.selectedGrade !== 'ALL' && etut.grade !== this.selectedGrade) {
-        this.selectedEtut = 'ALL';
-      }
-    }
-    this.updateClassFilterButtons();
-    this.renderMatrixTableBody();
+    this.toggleGrade(gradeNum);
   },
 
   setEtutFilter(etutId) {
-    this.selectedEtut = etutId;
-    if (etutId !== 'ALL') {
-      const etut = this.getEtutSubeleri().find(e => e.id === etutId);
-      if (etut) {
-        this.selectedGrade = etut.grade;
-      }
+    if (etutId === 'ALL') {
+      this.toggleAll();
+      return;
     }
-    this.updateClassFilterButtons();
-    this.renderMatrixTableBody();
+    const etut = this.getEtutSubeleri().find(e => e.id === etutId);
+    if (etut) {
+      this.toggleClass(etut.branch);
+    }
   },
 
   toggleAll() {
@@ -121,6 +185,9 @@ window.AkademiModule = {
   },
 
   getFilterHeaderLabel() {
+    if (this.selectedClasses && this.selectedClasses.length > 0) {
+      return `Şube: ${this.selectedClasses.join(', ')}`;
+    }
     if (this.selectedEtut && this.selectedEtut !== 'ALL') {
       const etut = this.getEtutSubeleri().find(e => e.id === this.selectedEtut);
       return etut ? `Etüt Şubesi: ${etut.label}` : 'Etüt Şubesi';
@@ -133,81 +200,114 @@ window.AkademiModule = {
 
   renderClassFilterButtonsHtml() {
     const etutList = this.getEtutSubeleri();
-    const isAll = (!this.selectedGrade || this.selectedGrade === 'ALL') && 
+
+    // ETÜT HOCALARI İÇİN: Sadece kendi şubelerini ve talebelerini gösteren sade ve net görünüm
+    if (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && !window.Store.isCurrentUserAdmin()) {
+      const myCount = this.getFilteredStudents().length;
+      return `
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 font-bold text-xs shadow-2xs">
+            <span>📚</span>
+            <span><strong>Şubeniz:</strong> ${etutList.map(e => e.label).join(' & ')}</span>
+            <span class="bg-blue-200 text-blue-900 text-[10px] px-2 py-0.5 rounded-full font-black">Sadece Kendi Talebeleriniz (${myCount} Talebe)</span>
+          </div>
+          ${etutList.length > 1 ? `
+            <div class="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200 shadow-2xs">
+              <button type="button" onclick="window.AkademiModule.toggleAll()"
+                class="px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                  (!this.selectedClasses || this.selectedClasses.length === 0) ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white'
+                }">
+                Tümü
+              </button>
+              ${etutList.map(e => {
+                const isSel = (this.selectedClasses || []).some(c => c.toUpperCase() === e.branch.toUpperCase());
+                return `
+                  <button type="button" onclick="window.AkademiModule.toggleClass('${e.branch}')"
+                    class="px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                      isSel ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-700 hover:bg-white'
+                    }">
+                    ${e.branch}
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    // KURUM YÖNETİCİSİ İÇİN: Çoklu seçim yapabilen tam kontrol
+    const isAll = (!this.selectedClasses || this.selectedClasses.length === 0) &&
+                  (!this.selectedGrade || this.selectedGrade === 'ALL') && 
                   (!this.selectedEtut || this.selectedEtut === 'ALL');
 
     let html = `
-      <div class="flex flex-wrap items-center gap-2">
-        <!-- 1. Sınıf Seviyesi Seçimi -->
-        <div class="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200 shadow-2xs">
-          <button type="button" onclick="window.AkademiModule.toggleAll()"
-            class="px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
-              isAll 
-                ? 'bg-slate-900 text-white shadow-xs' 
-                : 'text-slate-700 hover:bg-white hover:text-slate-900'
-            }">
-            Tümü
-          </button>
-          ${['5', '6', '7', '8'].map(g => {
-            const isGActive = this.selectedGrade === g && (this.selectedEtut === 'ALL' || !this.selectedEtut);
-            return `
-              <button type="button" onclick="window.AkademiModule.selectGrade('${g}')"
-                class="px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
-                  isGActive 
-                    ? 'bg-blue-600 text-white shadow-xs ring-1 ring-blue-400' 
-                    : 'text-slate-700 hover:bg-white hover:text-blue-900'
-                }">
-                ${g}. Sınıf
-              </button>
-            `;
-          }).join('')}
-        </div>
-
-        <!-- 2. Etüt Şubesi Açılır Seçimi -->
-        <div class="flex items-center gap-1.5">
+      <div class="space-y-2">
+        <!-- 1. Üst Kontrol Satırı: Tümü, Hızlı Sınıf Seviyeleri (5, 6, 7, 8) & Temizle -->
+        <div class="flex flex-wrap items-center gap-1.5">
           <span class="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase flex items-center gap-1">
-            <span>📖</span>
-            <span>Etüt Şubesi:</span>
+            <span>🏫</span>
+            <span>Şube Seçimi (Çoklu):</span>
           </span>
-          <select onchange="window.AkademiModule.setEtutFilter(this.value)"
-            class="px-2.5 py-1 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer">
-            <option value="ALL" ${(!this.selectedEtut || this.selectedEtut === 'ALL') ? 'selected' : ''}>
-              Tüm Etüt Şubeleri
-            </option>
-            ${['5', '6', '7', '8'].map(g => {
-              const subeler = etutList.filter(e => e.grade === g);
-              return `
-                <optgroup label="${g}. Sınıf Etüt Şubeleri">
-                  ${subeler.map(e => `
-                    <option value="${e.id}" ${this.selectedEtut === e.id ? 'selected' : ''}>
-                      ${e.label}
-                    </option>
-                  `).join('')}
-                </optgroup>
-              `;
-            }).join('')}
-          </select>
-        </div>
 
-        <!-- 3. Seçili Sınıfın Hızlı Etüt Butonları -->
-        ${this.selectedGrade && this.selectedGrade !== 'ALL' ? `
-          <div class="inline-flex items-center gap-1.5 bg-blue-50/70 p-0.5 px-1.5 rounded-xl border border-blue-200">
-            <span class="text-[10px] font-black text-blue-900">${this.selectedGrade}. Sınıf Etütleri:</span>
-            ${etutList.filter(e => e.grade === this.selectedGrade).map(e => {
-              const isActive = this.selectedEtut === e.id;
+          <button type="button" onclick="window.AkademiModule.toggleAll()"
+            class="px-2.5 py-1 rounded-xl text-xs font-black transition cursor-pointer ${
+              isAll 
+                ? 'bg-slate-900 text-white shadow-xs ring-1 ring-slate-700' 
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }">
+            Tüm Sınıflar
+          </button>
+
+          <!-- Seviye Bazlı Toplu Seçim Butonları -->
+          <div class="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200 shadow-2xs">
+            ${['5', '6', '7', '8'].map(g => {
+              const gradeBranches = etutList.filter(e => e.grade === g).map(e => e.branch.toUpperCase());
+              const selUpper = (this.selectedClasses || []).map(c => c.toUpperCase());
+              const isGradeAll = gradeBranches.length > 0 && gradeBranches.every(b => selUpper.includes(b));
+              const isGradePartial = !isGradeAll && gradeBranches.some(b => selUpper.includes(b));
               return `
-                <button type="button" onclick="window.AkademiModule.setEtutFilter('${e.id}')"
-                  class="px-2 py-0.5 rounded-lg text-[11px] font-bold transition border cursor-pointer ${
-                    isActive 
-                      ? 'bg-blue-600 text-white border-blue-700 shadow-xs ring-1 ring-blue-400' 
-                      : 'bg-white text-blue-900 border-blue-200 hover:bg-blue-600 hover:text-white'
-                  }">
-                  ${e.label}
+                <button type="button" onclick="window.AkademiModule.toggleGrade('${g}')"
+                  class="px-2 py-0.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                    isGradeAll 
+                      ? 'bg-blue-600 text-white shadow-xs ring-1 ring-blue-400' 
+                      : (isGradePartial ? 'bg-blue-100 text-blue-900 font-black' : 'text-slate-700 hover:bg-white')
+                  }"
+                  title="${g}. Sınıfın tüm şubelerini aç/kapat">
+                  ${g}. Sınıf
                 </button>
               `;
             }).join('')}
           </div>
-        ` : ''}
+
+          ${this.selectedClasses && this.selectedClasses.length > 0 ? `
+            <button type="button" onclick="window.AkademiModule.toggleAll()"
+              class="text-[11px] font-bold text-blue-600 hover:text-blue-800 underline cursor-pointer ml-1">
+              Temizle (${this.selectedClasses.length} Şube Seçili)
+            </button>
+          ` : ''}
+        </div>
+
+        <!-- 2. Şube Butonları (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) - ÇOKLU SEÇİLEBİLİR -->
+        <div class="flex flex-wrap items-center gap-1.5">
+          ${etutList.map(e => {
+            const isChecked = (this.selectedClasses || []).some(c => c.toUpperCase() === e.branch.toUpperCase());
+            const shortHoca = e.hoca ? e.hoca.split(' ')[0] : '';
+            return `
+              <button type="button" onclick="window.AkademiModule.toggleClass('${e.branch}')"
+                class="px-2.5 py-1 rounded-xl text-xs font-black transition border flex items-center gap-1.5 cursor-pointer ${
+                  isChecked 
+                    ? 'bg-blue-600 text-white border-blue-700 shadow-xs ring-2 ring-blue-300/60' 
+                    : 'bg-white text-slate-800 border-slate-200 hover:bg-blue-50/50 hover:border-slate-300'
+                }"
+                title="${e.label} (Dokunarak çoklu seçebilirsiniz)">
+                <span class="text-[11px]">${isChecked ? '✓' : '+'}</span>
+                <span>${e.branch}</span>
+                <span class="text-[10px] ${isChecked ? 'text-blue-100' : 'text-slate-400'} font-normal">(${shortHoca})</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
       </div>
     `;
 
@@ -233,7 +333,7 @@ window.AkademiModule = {
     this.sortBy = this.sortBy === 'score_desc' ? 'name' : 'score_desc';
     const btn = document.getElementById('btn-matrix-sort');
     if (btn) {
-      btn.innerHTML = `<span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '🔤 İsim Sıralı'}</span>`;
+      btn.innerHTML = `<span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '📋 Sabit Liste Sırası'}</span>`;
       btn.className = `px-2.5 py-1 rounded-xl text-[11px] font-black transition flex items-center gap-1 border shadow-2xs ${
         this.sortBy === 'score_desc' 
           ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
@@ -316,10 +416,21 @@ window.AkademiModule = {
   },
 
   getFilteredStudents() {
-    let students = window.Store.getStudents();
+    let students = (window.Store && typeof window.Store.getStudentsForActiveUser === 'function')
+      ? window.Store.getStudentsForActiveUser()
+      : window.Store.getStudents();
+
+    // 1. Çoklu Şube / Sınıf Filtresi (5-A, 5-B vb.)
+    if (this.selectedClasses && this.selectedClasses.length > 0) {
+      const selUpper = this.selectedClasses.map(c => c.trim().toUpperCase());
+      students = students.filter(s => {
+        const cls = (s.className || '').trim().toUpperCase();
+        return selUpper.includes(cls);
+      });
+    }
 
     // 1. Sınıf Filtresi (5, 6, 7, 8)
-    if (this.selectedGrade && this.selectedGrade !== 'ALL') {
+    else if (this.selectedGrade && this.selectedGrade !== 'ALL') {
       students = students.filter(s => {
         const cls = (s.className || '').trim();
         return cls === `${this.selectedGrade}. Sınıf` ||
@@ -330,7 +441,7 @@ window.AkademiModule = {
     }
 
     // 2. Etüt Şubesi Filtresi
-    if (this.selectedEtut && this.selectedEtut !== 'ALL') {
+    if ((!this.selectedClasses || this.selectedClasses.length === 0) && this.selectedEtut && this.selectedEtut !== 'ALL') {
       const parts = this.selectedEtut.split('|');
       const branchCode = parts[0]; // Örn: "5-A"
       const hocaName = parts[1] ? parts[1].trim().toUpperCase() : ''; // Örn: "YASİN EKİNCİ"
@@ -398,8 +509,15 @@ window.AkademiModule = {
         return (a.firstName || '').localeCompare(b.firstName || '', 'tr');
       });
     } else {
-      // İsim Alfabetik Sıra
-      students.sort((a, b) => (a.firstName || '').localeCompare(b.firstName || '', 'tr'));
+      // SABİT LİSTE SIRASI: Sınıf -> Okul No -> İsim (Hoca sırala demediği sürece asla yer değiştirmez)
+      students.sort((a, b) => {
+        const clsComp = (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true });
+        if (clsComp !== 0) return clsComp;
+        const noA = parseInt(a.studentNo, 10) || 0;
+        const noB = parseInt(b.studentNo, 10) || 0;
+        if (noA !== 0 && noB !== 0 && noA !== noB) return noA - noB;
+        return (a.firstName || '').localeCompare(b.firstName || '', 'tr');
+      });
     }
 
     return students;
@@ -426,6 +544,36 @@ window.AkademiModule = {
       .replace(/'/g, '&#039;');
   },
 
+  // ========================================================
+  // 0. AKADEMİ & DERSLER ÜST NAVİGASYON ÇUBUĞU
+  // ========================================================
+  renderTopTabsHtml(active = 'takviye') {
+    return `
+      <!-- AKADEMİ & DERSLER HIZLI GEÇİŞ SEKMELERİ -->
+      <div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-2 overflow-x-auto no-scrollbar no-print mb-1">
+        <div class="flex items-center gap-1.5 flex-1 min-w-max">
+          <button type="button" onclick="window.AkademiModule.currentSubCategory='takviye'; window.AkademiModule.renderView();"
+            class="px-3 py-1.5 rounded-xl font-black text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'takviye' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>📚</span>
+            <span>Takviye Ders Notları</span>
+          </button>
+
+          <button type="button" onclick="window.App.navigateFromDrawer('testler')"
+            class="px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'testler' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>📝</span>
+            <span>Test Neticeleri & Etüt</span>
+          </button>
+
+          <button type="button" onclick="window.App.navigateFromDrawer('denemeler')"
+            class="px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'denemeler' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>🎯</span>
+            <span>Deneme Sınavları (LGS 500P)</span>
+          </button>
+        </div>
+      </div>
+    `;
+  },
+
   // --- TAKVİYE DERS PERFORMANSI (ÇİZELGE / MATRİS TABLO GÖRÜNÜMÜ) ---
   renderTakviyeMatrixView(container) {
     const classes = window.Store.getClasses();
@@ -433,10 +581,13 @@ window.AkademiModule = {
 
     container.innerHTML = `
       <div class="space-y-3 sm:space-y-4 animate-fade-in max-w-7xl mx-auto pb-8 px-1 sm:px-2">
+        <!-- Akademi Üst Sekmeleri -->
+        ${this.renderTopTabsHtml('takviye')}
+
         <!-- Kontrol Kartı: Tarih, Gün Adı, Çoklu Sınıf Filtresi, Sıralama & Renk Kılavuzu -->
         <div class="bg-white rounded-2xl sm:rounded-3xl shadow-xs border border-slate-200 p-3 sm:p-5 space-y-3 sm:space-y-4 no-print">
           <div class="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
-            <!-- Tarih ve Gün Adı -->
+            <!-- Tarih ve Gün Adı & Cumartesi Hızlı Geçiş Butonları -->
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-[11px] sm:text-xs font-black text-slate-800 uppercase tracking-wide">
                 TARİH:
@@ -449,6 +600,27 @@ window.AkademiModule = {
                 <span>📅</span>
                 <span>${dayName}</span>
               </div>
+
+              <!-- Cumartesi Hızlı Hafta Atlama Butonları -->
+              <div class="inline-flex items-center rounded-xl bg-slate-100 p-0.5 border border-slate-200 shadow-2xs gap-0.5">
+                <button type="button" onclick="window.AkademiModule.prevWeekSaturday()" title="Bir Önceki Cumartesi"
+                  class="px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold text-slate-700 hover:bg-white transition cursor-pointer">
+                  ◀ Önceki
+                </button>
+                <button type="button" onclick="window.AkademiModule.setThisWeekSaturday()" title="Bu Haftanın Cumartesisi"
+                  class="px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-black bg-blue-600 text-white shadow-xs transition cursor-pointer">
+                  Bu Cumartesi
+                </button>
+                <button type="button" onclick="window.AkademiModule.nextWeekSaturday()" title="Bir Sonraki Cumartesi"
+                  class="px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold text-slate-700 hover:bg-white transition cursor-pointer">
+                  Sonraki ▶
+                </button>
+              </div>
+
+              <span class="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-[10px] font-black">
+                <span>📌</span>
+                <span>Takviye Dersleri Sadece Cumartesi Yapılır</span>
+              </span>
             </div>
 
             <!-- Çıktı Alma, Resim İndirme & Canlı Kayıt Göstergesi -->
@@ -475,14 +647,14 @@ window.AkademiModule = {
             </div>
           </div>
 
-          <!-- Renk Skalası Kılavuzu (Legend) -->
+          <!-- Renk Kuralı Kılavuzu -->
           <div class="flex flex-wrap items-center justify-between gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 text-xs">
             <span class="font-black text-slate-700 text-[10px] sm:text-[11px] uppercase tracking-wide flex items-center gap-1">
-              <span>🎨</span> Kural:
+              <span>🎨</span> Renk Skalası:
             </span>
             <div class="flex flex-wrap items-center gap-1 sm:gap-1.5 text-[10px] sm:text-[11px]">
-              <span class="px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 font-black">
-                &lt; 85: Kırmızı
+              <span class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 font-black flex items-center gap-1 shadow-2xs">
+                <span>⚠️ &lt; 85: Kırmızı (+1 Saat İzin Cezası)</span>
               </span>
               <span class="text-slate-300 font-bold">→</span>
               <span class="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 font-bold">
@@ -517,7 +689,7 @@ window.AkademiModule = {
                   ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
                   : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
               }">
-              <span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '🔤 İsim Sıralı'}</span>
+              <span>${this.sortBy === 'score_desc' ? '🏆 Not Sıralı (1. ➔ Son)' : '📋 Sabit Liste Sırası'}</span>
             </button>
           </div>
 
@@ -773,8 +945,12 @@ window.AkademiModule = {
 
   // --- HÜCREYE NOT YAZILDIĞINDA ANINDA CANLI HESAPLAMA & KAYIT ---
   handleMatrixInput(studentId, subjectKey, value) {
-    const cleanVal = (value || '').toString().trim();
-    const num = (cleanVal === '' || isNaN(cleanVal)) ? null : Math.min(100, Math.max(0, parseInt(cleanVal, 10)));
+    let cleanVal = (value || '').toString().trim();
+    let num = (cleanVal === '' || isNaN(cleanVal)) ? null : parseInt(cleanVal, 10);
+
+    if (num !== null) {
+      num = Math.min(100, Math.max(0, num));
+    }
 
     // 1. Hücrenin renk ve stilini anında güncelle (85 altı kırmızı, 85-100 yeşile geçiş, 100 tam yeşil)
     const cell = document.getElementById(`cell-${studentId}-${subjectKey}`);
@@ -820,18 +996,19 @@ window.AkademiModule = {
   },
 
   handleMatrixBlur(studentId, subjectKey, value) {
-    const cleanVal = (value || '').toString().trim();
-    const num = (cleanVal === '' || isNaN(cleanVal)) ? null : Math.min(100, Math.max(0, parseInt(cleanVal, 10)));
+    let cleanVal = (value || '').toString().trim();
+    let num = (cleanVal === '' || isNaN(cleanVal)) ? null : parseInt(cleanVal, 10);
+
+    if (num !== null) {
+      num = Math.min(100, Math.max(0, num));
+    }
+
     window.Store.saveSingleAcademicScore(
       studentId,
       this.currentDate,
       subjectKey,
       num
     );
-    const cell = document.getElementById(`cell-${studentId}-${subjectKey}`);
-    if (cell && num !== null) {
-      cell.value = num;
-    }
     // NOT: Kullanıcı kutudan çıktığında tabloyu ASLA otomatik yeniden çizme!
     // Bu sayede imleç yerinde kalır, sayfa başa/sona zıplamaz ve mobil klavye kapanmaz.
   },
@@ -1422,11 +1599,16 @@ Talebemizin azim ve gayretinin daim olmasını temenni eder, başarılar dileriz
 
   // --- 2. GENEL GELİŞİM & KARNE GÖRÜNÜMÜ ---
   renderGenelKarneView(container) {
-    const students = window.Store.getStudents();
+    const students = (window.Store && typeof window.Store.getStudentsForActiveUser === 'function')
+      ? window.Store.getStudentsForActiveUser()
+      : window.Store.getStudents();
     const today = new Date().toISOString().split('T')[0];
 
     container.innerHTML = `
       <div class="space-y-4 animate-fade-in max-w-5xl mx-auto">
+        <!-- Akademi Üst Sekmeleri -->
+        ${this.renderTopTabsHtml('takviye')}
+
         <!-- 1. AKADEMİ ALT BAŞLIKLARI (Hap Butonlar) -->
         <div class="flex items-center gap-2 p-1.5 bg-slate-200/90 rounded-2xl max-w-md mx-auto shadow-inner">
           ${this.subCategories.map(sub => {
@@ -1674,6 +1856,13 @@ Talebemizin azim ve gayretinin daim olmasını temenni eder, başarılar dileriz
     if (!container) return;
 
     let perfs = window.Store.getPerformances();
+
+    // ETÜT HOCALARI İÇİN: Sadece kendi talebelerine ait değerlendirmeleri göster
+    if (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && !window.Store.isCurrentUserAdmin()) {
+      const myStudents = window.Store.getStudentsForActiveUser();
+      const myStudentIds = new Set(myStudents.map(s => s.id));
+      perfs = perfs.filter(p => myStudentIds.has(p.studentId));
+    }
 
     if (this.searchQuery) {
       perfs = perfs.filter(p => {

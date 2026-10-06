@@ -1628,11 +1628,6 @@ window.App = {
     `;
   },
 
-  // 8-A ve 8-B Sınıf Kütüğü Onarma Fonksiyonu (Kullanıcı Talebiyle Kaldırıldı)
-  repair8thGradeClasses() {
-    // Devre dışı bırakıldı
-  },
-
   // --- Excel (CSV) Formatında İndirme (Türkçe Karakter ve Excel Uyumlu) ---
   exportStudentsToCsv() {
     let students = window.Store.getAllStudents ? window.Store.getAllStudents() : window.Store.getStudents(true);
@@ -2003,13 +1998,6 @@ window.App = {
               class="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-2">
               <span>🔄</span>
               <span>Buluttan Şimdi Eşitle (Verileri Çek)</span>
-            </button>
-
-            <button type="button" onclick="window.App.repair8thGradeClasses()"
-              class="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs shadow transition flex items-center gap-2 cursor-pointer active:scale-95"
-              title="8-A (9 Talebe - Yavuz Selim Seven) ve 8-B (9 Talebe - Tunahan Taşkın) kütüğünü zorla eşitler ve buluta mühürler">
-              <span>⚡</span>
-              <span>8-A & 8-B Kütüğü Onar (9 + 9 Talebe)</span>
             </button>
           </div>
 

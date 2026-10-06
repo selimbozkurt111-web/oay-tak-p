@@ -859,12 +859,76 @@ window.OMRScanner = {
           @page { size: A4 portrait; margin: 8mm; }
           * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #fff; color: #000; font-size: 11px; }
+          @media print {
+            .no-print-top-bar { display: none !important; }
+          }
+          @media screen {
+            body { background: #475569; padding-top: 52px; }
+            .omr-card { box-shadow: 0 4px 15px rgba(0,0,0,0.25); margin: 15px auto; max-width: 210mm; }
+          }
+          .no-print-top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 48px;
+            background: #0f172a;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 999999;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          }
+          .no-print-btn {
+            background: #059669;
+            color: #ffffff;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+          }
+          .no-print-btn:hover { background: #047857; }
+          .no-print-close {
+            background: #334155;
+            color: #ffffff;
+            border: none;
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+          }
+          .no-print-close:hover { background: #475569; }
           .omr-card { page-break-inside: avoid; border: 2px solid #000; padding: 12px; margin-bottom: 12px; border-radius: 8px; background: #fff; position: relative; }
           .omr-cut-line { text-align: center; font-size: 9px; color: #888; border-top: 1px dashed #000; margin: 10px 0; padding-top: 2px; page-break-after: always; }
         </style>
       </head>
       <body>
+        <div class="no-print-top-bar">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-weight: 800; font-size: 13px;">📝 Optik Cevap Formları - ${testMeta.subject || 'Test'}</span>
+            <span style="font-size: 11px; color: #94a3b8;">(${students.length} Talebe)</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="no-print-btn" onclick="window.print()">🖨️ Sayfayı Yazdır (Ctrl + P)</button>
+            <button class="no-print-close" onclick="window.close()">✕ Kapat</button>
+          </div>
+        </div>
         ${cardsHtml}
+        <script>
+          window.onload = function() {
+            setTimeout(function() { window.print(); }, 400);
+          };
+        </script>
       </body>
       </html>
     `;
@@ -877,50 +941,67 @@ window.OMRScanner = {
       window.App.showToast('🖨️ Optik formlar hazırlanıyor, yazdırma ekranı açılıyor...', 'info');
     }
 
-    // Modern Pop-up Engeli Olmayan Güvenli Iframe Yazdırma Hattı
-    let printFrame = document.getElementById('omr-print-iframe');
-    if (!printFrame) {
-      printFrame = document.createElement('iframe');
-      printFrame.id = 'omr-print-iframe';
-      printFrame.style.position = 'fixed';
-      printFrame.style.right = '0';
-      printFrame.style.bottom = '0';
-      printFrame.style.width = '0';
-      printFrame.style.height = '0';
-      printFrame.style.border = '0';
-      printFrame.style.visibility = 'hidden';
-      document.body.appendChild(printFrame);
+    // Güvenilir Yazdırma Hattı: Önce doğrudan yeni sekme denenir
+    let openedInNewTab = false;
+    try {
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.open();
+        win.document.write(printHtml);
+        win.document.close();
+        win.focus();
+        setTimeout(() => {
+          try { win.print(); } catch (e) {}
+        }, 500);
+        openedInNewTab = true;
+      }
+    } catch (err) {
+      console.warn('OMR window.open engellendi:', err);
     }
 
-    const frameDoc = printFrame.contentWindow.document || printFrame.contentDocument;
-    frameDoc.open();
-    frameDoc.write(printHtml);
-    frameDoc.close();
+    // Eğer yeni pencere engellendiyse sayfa içi garanti modal aç
+    if (!openedInNewTab) {
+      this.showPrintFallbackModal(printHtml, testMeta.subject);
+    }
+  },
 
-    const doPrint = () => {
-      try {
-        printFrame.contentWindow.focus();
-        printFrame.contentWindow.print();
-      } catch (err) {
-        console.warn('OMR iframe print tetiklenemedi, fallback pencere deneniyor:', err);
-        try {
-          const win = window.open('', '_blank');
-          if (win) {
-            win.document.open();
-            win.document.write(printHtml);
-            win.document.close();
-            win.focus();
-            setTimeout(() => { win.print(); }, 400);
-          } else {
-            alert('Lütfen tarayıcınızın yazdırma ve pop-up izinlerini açınız.');
-          }
-        } catch (e2) {
-          alert('Yazdırma ekranı açılamadı.');
-        }
-      }
-    };
-
-    setTimeout(doPrint, 400);
+  showPrintFallbackModal: function(printHtml, title) {
+    let modal = document.getElementById('omr-print-preview-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'omr-print-preview-modal';
+      modal.className = 'fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 overflow-hidden';
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = `
+      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full h-[90vh] flex flex-col p-4 sm:p-5 space-y-3 animate-fade-in">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-100 flex-shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">🖨️</span>
+            <div>
+              <h3 class="font-black text-slate-900 text-sm leading-tight">${title || 'Optik Formlar'} - Önizleme</h3>
+              <p class="text-[11px] text-slate-500 font-medium">Tarayıcınız yeni sekme açılmasını kısıtladıysa buradan doğrudan yazdırabilirsiniz.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="const f = document.getElementById('omr-preview-iframe'); f.contentWindow.focus(); f.contentWindow.print();"
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+              <span>🖨️</span>
+              <span>Şimdi Yazdır</span>
+            </button>
+            <button type="button" onclick="document.getElementById('omr-print-preview-modal').remove()"
+              class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center">✕</button>
+          </div>
+        </div>
+        <div class="flex-1 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
+          <iframe id="omr-preview-iframe" class="w-full h-full border-0"></iframe>
+        </div>
+      </div>
+    `;
+    const frame = document.getElementById('omr-preview-iframe');
+    if (frame) {
+      frame.srcdoc = printHtml;
+    }
   },
 
   renderBubbleColumnsHtml: function(totalQ) {
@@ -1205,6 +1286,8 @@ window.OMRScanner = {
       }
     }
 
+    const students = (window.Store && typeof window.Store.getStudents === 'function') ? window.Store.getStudents(false) : [];
+
     let modal = document.getElementById('omr-scanner-modal');
     if (!modal) {
       modal = document.createElement('div');
@@ -1293,6 +1376,29 @@ window.OMRScanner = {
             <span class="text-emerald-400 font-bold" id="omr-det-c">✅ 0 Doğru</span>
             <span class="text-rose-400 font-bold" id="omr-det-w">❌ 0 Yanlış</span>
             <span class="text-slate-400" id="omr-det-e">⚪ 0 Boş</span>
+          </div>
+        </div>
+
+        <!-- HIZLI TALEBE SEÇ & DOĞRULA (KAMERASIZ / GARANTİ HIZLI MOD) -->
+        <div class="p-2 bg-slate-800/90 rounded-xl border border-slate-700 space-y-1.5">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="text-amber-400 font-bold">⚡ Hızlı Talebe Seç (Kamerasız):</span>
+            <select id="omr-manual-booklet" class="bg-slate-900 border border-slate-600 rounded px-1.5 py-0.5 text-[10px] text-white font-bold">
+              <option value="A">Kitapçık: A</option>
+              <option value="B">Kitapçık: B</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <select id="omr-manual-student-select" class="flex-1 bg-slate-900 border border-slate-600 rounded-lg p-1 text-[11px] text-white">
+              <option value="">Talebe Seçiniz (${students.length} Talebe)...</option>
+              ${students.map(st => `
+                <option value="${st.id}">${st.className} • ${st.studentNo} - ${st.firstName} ${st.lastName}</option>
+              `).join('')}
+            </select>
+            <button type="button" onclick="window.OMRScanner.evaluateQuickSelectedStudent()"
+              class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] whitespace-nowrap cursor-pointer">
+              Doğrula & Oku
+            </button>
           </div>
         </div>
 
@@ -1405,6 +1511,36 @@ window.OMRScanner = {
     }
   },
 
+  evaluateQuickSelectedStudent: function() {
+    const sel = document.getElementById('omr-manual-student-select');
+    const bkSel = document.getElementById('omr-manual-booklet');
+    if (!sel || !sel.value) {
+      alert('Lütfen bir talebe seçiniz.');
+      return;
+    }
+    const studentId = sel.value;
+    const booklet = (bkSel && bkSel.value) ? bkSel.value : 'A';
+    const student = window.Store.getStudentById(studentId);
+    if (!student) {
+      alert('Talebe bilgisi bulunamadı.');
+      return;
+    }
+
+    const canvas = this.activeCanvasEl;
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    const width = canvas ? canvas.width : 640;
+    const height = canvas ? canvas.height : 480;
+
+    const testId = (window.TestResultsModule && window.TestResultsModule.currentTestId) ? window.TestResultsModule.currentTestId : 'TEST_ACTIVE';
+
+    const payload = `OAY:${testId}:${student.id}:${student.studentNo}:${student.className || ''}:${booklet}`;
+    this.handleQrDetected(payload, ctx, width, height);
+
+    if (window.App && window.App.showToast) {
+      window.App.showToast(`✅ ${student.firstName} ${student.lastName} için cevaplar işlendi!`, 'success');
+    }
+  },
+
   startScanLoop: function() {
     if (this.scanIntervalId) clearInterval(this.scanIntervalId);
 
@@ -1435,12 +1571,24 @@ window.OMRScanner = {
           this.handleQrDetected(rawPayload, ctx, canvas.width, canvas.height);
           return;
         }
-      } catch (err) {
-        // Fallback aşağıda devam eder
-      }
+      } catch (err) {}
     }
 
-    // 2. Fallback: Ekran kılavuz durumu
+    // 2. jsQR Kütüphanesi Fallback (Windows Masaüstü Chrome/Edge, Mac, iOS ve Android Tüm Cihazlar)
+    if (typeof window.jsQR === 'function') {
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'dontInvert'
+        });
+        if (code && code.data) {
+          this.handleQrDetected(code.data, ctx, canvas.width, canvas.height);
+          return;
+        }
+      } catch (err) {}
+    }
+
+    // 3. Fallback: Ekran kılavuz durumu
     const statusText = document.getElementById('omr-status-text');
     if (statusText && statusText.textContent !== 'Okundu ✅') {
       statusText.textContent = 'Vizör Hizalanıyor...';
@@ -1466,6 +1614,7 @@ window.OMRScanner = {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
 
+      // 1. BarcodeDetector API
       if ('BarcodeDetector' in window) {
         try {
           const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
@@ -1475,6 +1624,20 @@ window.OMRScanner = {
             return;
           }
         } catch (e) {}
+      }
+
+      // 2. jsQR Fallback
+      if (typeof window.jsQR === 'function') {
+        try {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'attemptBoth'
+          });
+          if (code && code.data) {
+            this.handleQrDetected(code.data, ctx, canvas.width, canvas.height);
+            return;
+          }
+        } catch (err) {}
       }
 
       alert('Fotoğrafta geçerli bir öğrenci QR kodu tespit edilemedi. Lütfen net ve dik bir fotoğraf çekiniz.');
