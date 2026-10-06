@@ -544,6 +544,36 @@ window.AkademiModule = {
       .replace(/'/g, '&#039;');
   },
 
+  // ========================================================
+  // 0. AKADEMİ & DERSLER ÜST NAVİGASYON ÇUBUĞU
+  // ========================================================
+  renderTopTabsHtml(active = 'takviye') {
+    return `
+      <!-- AKADEMİ & DERSLER HIZLI GEÇİŞ SEKMELERİ -->
+      <div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-2 overflow-x-auto no-scrollbar no-print mb-1">
+        <div class="flex items-center gap-1.5 flex-1 min-w-max">
+          <button type="button" onclick="window.AkademiModule.currentSubCategory='takviye'; window.AkademiModule.renderView();"
+            class="px-3 py-1.5 rounded-xl font-black text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'takviye' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>📚</span>
+            <span>Takviye Ders Notları</span>
+          </button>
+
+          <button type="button" onclick="window.App.navigateFromDrawer('testler')"
+            class="px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'testler' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>📝</span>
+            <span>Test Neticeleri & Etüt</span>
+          </button>
+
+          <button type="button" onclick="window.App.navigateFromDrawer('denemeler')"
+            class="px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'denemeler' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>🎯</span>
+            <span>Deneme Sınavları (LGS 500P)</span>
+          </button>
+        </div>
+      </div>
+    `;
+  },
+
   // --- TAKVİYE DERS PERFORMANSI (ÇİZELGE / MATRİS TABLO GÖRÜNÜMÜ) ---
   renderTakviyeMatrixView(container) {
     const classes = window.Store.getClasses();
@@ -551,6 +581,9 @@ window.AkademiModule = {
 
     container.innerHTML = `
       <div class="space-y-3 sm:space-y-4 animate-fade-in max-w-7xl mx-auto pb-8 px-1 sm:px-2">
+        <!-- Akademi Üst Sekmeleri -->
+        ${this.renderTopTabsHtml('takviye')}
+
         <!-- Kontrol Kartı: Tarih, Gün Adı, Çoklu Sınıf Filtresi, Sıralama & Renk Kılavuzu -->
         <div class="bg-white rounded-2xl sm:rounded-3xl shadow-xs border border-slate-200 p-3 sm:p-5 space-y-3 sm:space-y-4 no-print">
           <div class="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
@@ -1573,6 +1606,9 @@ Talebemizin azim ve gayretinin daim olmasını temenni eder, başarılar dileriz
 
     container.innerHTML = `
       <div class="space-y-4 animate-fade-in max-w-5xl mx-auto">
+        <!-- Akademi Üst Sekmeleri -->
+        ${this.renderTopTabsHtml('takviye')}
+
         <!-- 1. AKADEMİ ALT BAŞLIKLARI (Hap Butonlar) -->
         <div class="flex items-center gap-2 p-1.5 bg-slate-200/90 rounded-2xl max-w-md mx-auto shadow-inner">
           ${this.subCategories.map(sub => {

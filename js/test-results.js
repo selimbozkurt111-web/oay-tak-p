@@ -442,6 +442,36 @@ window.TestResultsModule = {
     }
   },
 
+  // ========================================================
+  // 0. AKADEMİ & DERSLER ÜST NAVİGASYON ÇUBUĞU
+  // ========================================================
+  renderTopTabsHtml(active = 'testler') {
+    return `
+      <!-- AKADEMİ & DERSLER HIZLI GEÇİŞ SEKMELERİ -->
+      <div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-2 overflow-x-auto no-scrollbar no-print mb-1">
+        <div class="flex items-center gap-1.5 flex-1 min-w-max">
+          <button type="button" onclick="window.App.navigateFromDrawer('akademi', 'takviye')"
+            class="px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'takviye' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>📚</span>
+            <span>Takviye Ders Notları</span>
+          </button>
+
+          <button type="button" onclick="window.TestResultsModule.activeView='editor'; window.TestResultsModule.render();"
+            class="px-3 py-1.5 rounded-xl font-black text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'testler' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>📝</span>
+            <span>Test Neticeleri & Etüt</span>
+          </button>
+
+          <button type="button" onclick="window.App.navigateFromDrawer('denemeler')"
+            class="px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'denemeler' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>🎯</span>
+            <span>Deneme Sınavları (LGS 500P)</span>
+          </button>
+        </div>
+      </div>
+    `;
+  },
+
   // 1. TEST GİRİŞ & DÜZENLEME EKRANI (MOBİL & NOT SIRALAMALI)
   renderEditorView(container) {
     const classes = window.Store.getClasses();
@@ -450,6 +480,9 @@ window.TestResultsModule = {
     container.innerHTML = `
       <div class="space-y-3 sm:space-y-4 max-w-7xl mx-auto animate-fade-in pb-8 px-1 sm:px-2">
         
+        <!-- Akademi Üst Sekmeleri -->
+        ${this.renderTopTabsHtml('testler')}
+
         <!-- 1. Üst Hızlı Kontrol Barı -->
         <div class="bg-white p-3 sm:p-4 rounded-2xl shadow-xs border border-slate-200 flex items-center justify-between gap-2 no-print">
           <div class="flex items-center gap-2 truncate">
@@ -1438,6 +1471,9 @@ window.TestResultsModule = {
     container.innerHTML = `
       <div class="space-y-4 max-w-7xl mx-auto animate-fade-in pb-8 px-1 sm:px-2">
         
+        <!-- Akademi Üst Sekmeleri -->
+        ${this.renderTopTabsHtml('testler')}
+
         <!-- 1. Üst Başlık & Yeni Test Butonu -->
         <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl shadow-xs border border-slate-200">
           <div>

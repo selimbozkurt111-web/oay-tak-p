@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi</title>
   <meta name="description" content="Öğrenci Bilgi ve Takip Portalı">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v8.4 - BİREBİR LGS OPTİK FORM ŞABLONU & DERSLER GEÇİŞİ) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v8.5 - BİREBİR LGS OPTİK FORM ŞABLONU & DERSLER GEÇİŞİ) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20261006_v8.4_SYSTEM_WIDE_OMR_AND_EXAM_FIX';
+      var CURRENT_BUILD = '20261006_v8.5_LGS_OPTICAL_FORM_AND_ACTIVE_STUDENTS';
       var savedBuild = localStorage.getItem('oay_app_build_version');
 
       // Kullanıcının dilediğinde manuel de tetikleyebileceği evrensel sıfırlama fonksiyonu
@@ -36,32 +36,27 @@
           console.warn('Cache purge error:', e);
         }
         setTimeout(function() {
-          window.location.href = window.location.pathname + '?reload=' + Date.now();
+          try { window.location.reload(); } catch(e) { window.location.href = window.location.href; }
         }, 250);
       };
 
-      // Cihaz eski sürümde kalmışsa KULLANICIYA HİÇBİR ŞEY SORMADAN VE BUTON BEKLEMEDEN OTOMATİK SIFIRLA!
+      // Eski önbellek varsa arka planda sessizce temizle, ASLA sayfayı döngüye sokup tarayıcıyı kitleme!
       if (savedBuild !== CURRENT_BUILD) {
-        console.log('[Auto-Purge] Eski önbellek tespit edildi, otomatik temizleniyor:', savedBuild, '->', CURRENT_BUILD);
-        localStorage.setItem('oay_app_build_version', CURRENT_BUILD);
-        if ('caches' in window) {
-          caches.keys().then(function(names) {
-            return Promise.all(names.map(function(n) { return caches.delete(n); }));
-          }).then(function() {
+        console.log('[Auto-Purge] Sürüm güncellendi:', savedBuild, '->', CURRENT_BUILD);
+        try { localStorage.setItem('oay_app_build_version', CURRENT_BUILD); } catch(e){}
+        if (window.location.protocol !== 'file:') {
+          try {
+            if ('caches' in window) {
+              caches.keys().then(function(names) {
+                return Promise.all(names.map(function(n) { return caches.delete(n); }));
+              }).catch(function() {});
+            }
             if ('serviceWorker' in navigator) {
               navigator.serviceWorker.getRegistrations().then(function(regs) {
                 return Promise.all(regs.map(function(r) { return r.unregister(); }));
-              }).then(function() {
-                if (savedBuild) {
-                  window.location.href = window.location.pathname + '?v=' + Date.now();
-                }
-              });
-            } else if (savedBuild) {
-              window.location.href = window.location.pathname + '?v=' + Date.now();
+              }).catch(function() {});
             }
-          });
-        } else if (savedBuild) {
-          window.location.href = window.location.pathname + '?v=' + Date.now();
+          } catch(e) {}
         }
       }
     })();
@@ -403,30 +398,30 @@
       class="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-slate-900/95 hover:bg-slate-900 text-amber-300 hover:text-amber-200 border-2 border-amber-400 shadow-2xl text-xs font-black backdrop-blur transition-all active:scale-95 cursor-pointer"
       title="Eski önbelleği temizleyip en yeni sistemi zorla yükler">
       <span class="text-sm">🔄</span>
-      <span>Önbelleği Temizle (v8.4)</span>
+      <span>Önbelleği Temizle (v8.6)</span>
     </button>
   </div>
 
-  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v8.4 Sürüm İmzası) -->
-  <script src="js/hadisler.js?v=8.4"></script>
-  <script src="js/store.js?v=8.4"></script>
-  <script src="js/attendance.js?v=8.4"></script>
-  <script src="js/leave-tracker.js?v=8.4"></script>
-  <script src="js/leave-return.js?v=8.4"></script>
-  <script src="js/quran-tracker.js?v=8.4"></script>
-  <script src="js/performance.js?v=8.4"></script>
-  <script src="js/omr-scanner.js?v=8.4"></script>
-  <script src="js/test-results.js?v=8.4"></script>
-  <script src="js/mock-exam.js?v=8.4"></script>
-  <script src="js/leaderboard.js?v=8.4"></script>
-  <script src="js/parent-portal.js?v=8.4"></script>
-  <script src="js/app.js?v=8.4"></script>
+  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v8.6 Sürüm İmzası) -->
+  <script src="js/hadisler.js?v=8.6"></script>
+  <script src="js/store.js?v=8.6"></script>
+  <script src="js/attendance.js?v=8.6"></script>
+  <script src="js/leave-tracker.js?v=8.6"></script>
+  <script src="js/leave-return.js?v=8.6"></script>
+  <script src="js/quran-tracker.js?v=8.6"></script>
+  <script src="js/performance.js?v=8.6"></script>
+  <script src="js/omr-scanner.js?v=8.6"></script>
+  <script src="js/test-results.js?v=8.6"></script>
+  <script src="js/mock-exam.js?v=8.6"></script>
+  <script src="js/leaderboard.js?v=8.6"></script>
+  <script src="js/parent-portal.js?v=8.6"></script>
+  <script src="js/app.js?v=8.6"></script>
 
   <!-- Service Worker Kaydı (Kısayol ve PWA Hızlı Başlatma) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./sw.js?v=8.4').then(function(reg) {
+        navigator.serviceWorker.register('./sw.js?v=8.6').then(function(reg) {
           if (reg) {
             reg.update();
           }

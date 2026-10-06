@@ -591,7 +591,10 @@ window.OMRScanner = {
       ? window.TestResultsModule.testMeta
       : { title: 'Etüt Tarama Testi', subject: 'Matematik', totalQuestions: 20, date: new Date().toISOString().split('T')[0] };
 
-    const classes = ['ALL', '8-A', '8-B', '7-A', '7-B', '6-A', '6-B', '5-A', '5-B'];
+    const existingClasses = (window.Store && typeof window.Store.getClasses === 'function') ? window.Store.getClasses() : [];
+    const availableBranches = existingClasses.length > 0 
+      ? existingClasses.map(c => c.name || c.id) 
+      : [...new Set(students.map(s => s.className).filter(Boolean))].sort();
 
     let modal = document.getElementById('omr-print-modal');
     if (!modal) {
@@ -618,19 +621,43 @@ window.OMRScanner = {
         </div>
 
         <div class="space-y-3 text-xs">
+          <!-- FORM ŞABLONU SEÇİMİ -->
+          <div>
+            <label class="block font-black text-slate-800 mb-1.5 uppercase tracking-wide">YAZDIRILACAK OPTİK FORM ŞABLONU *</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <label class="flex items-start gap-2.5 p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/70 cursor-pointer shadow-xs transition">
+                <input type="radio" name="omr-print-mode" value="LGS_LANDSCAPE" checked class="mt-0.5 text-emerald-600 focus:ring-emerald-500">
+                <div>
+                  <div class="font-black text-slate-900 text-xs flex items-center gap-1">
+                    <span>🎯</span> <span>6 Dersli Kurumsal LGS</span>
+                  </div>
+                  <div class="text-[10px] text-emerald-800 font-bold mt-0.5">A4 Yatay • Yeni Şablon (Örnek Görseliniz)</div>
+                  <div class="text-[9px] text-slate-500 mt-0.5">Türkçe, İnkılap, Din, İngilizce, Matematik, Fen</div>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-2.5 p-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer transition">
+                <input type="radio" name="omr-print-mode" value="SINGLE_TEST" class="mt-0.5 text-emerald-600 focus:ring-emerald-500">
+                <div>
+                  <div class="font-bold text-slate-800 text-xs flex items-center gap-1">
+                    <span>📝</span> <span>Tek Derslik Etüt Testi</span>
+                  </div>
+                  <div class="text-[10px] text-slate-600 font-medium mt-0.5">A4 Dikey • 1 Sayfada 2 Adet Form</div>
+                  <div class="text-[9px] text-slate-500 mt-0.5">Sadece ${activeTestMeta.subject || 'Tek Ders'}</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block font-bold text-slate-700 mb-1">Yazdırılacak Şube:</label>
               <select id="omr-print-class-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
                 <option value="ALL">Tüm Aktif Talebeler (${students.length})</option>
-                <option value="8-A" selected>8-A Sınıfı (Yavuz Selim Seven - 9 Talebe)</option>
-                <option value="8-B">8-B Sınıfı (Tunahan Taşkın - 9 Talebe)</option>
-                <option value="7-A">7-A Sınıfı (Emir Talha Tarım)</option>
-                <option value="7-B">7-B Sınıfı (Burak Bodur)</option>
-                <option value="6-A">6-A Sınıfı (Abdussamed Tav)</option>
-                <option value="6-B">6-B Sınıfı (Abdussamed Tav)</option>
-                <option value="5-A">5-A Sınıfı (Yasin Ekinci)</option>
-                <option value="5-B">5-B Sınıfı (Ahmed Mubariz)</option>
+                ${availableBranches.map(br => {
+                  const cnt = students.filter(s => (s.className || '').trim().toUpperCase() === br.trim().toUpperCase()).length;
+                  return `<option value="${br}">${br} Sınıfı (${cnt} Talebe)</option>`;
+                }).join('')}
                 <option value="BLANK">İsimsiz Boş Form (Genel Kullanım İçin 5 Adet)</option>
               </select>
             </div>
@@ -644,7 +671,8 @@ window.OMRScanner = {
                   <option value="30" ${activeTestMeta.totalQuestions == 30 ? 'selected' : ''}>30 Soru</option>
                 </select>
                 <select id="omr-print-booklet" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
-                  <option value="A" selected>A Kitapçığı</option>
+                  <option value="EMPTY" selected>Boş (Talebe Kodlasın)</option>
+                  <option value="A">A Kitapçığı</option>
                   <option value="B">B Kitapçığı</option>
                 </select>
               </div>
@@ -654,16 +682,13 @@ window.OMRScanner = {
           <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-slate-700 space-y-1 text-[11px] leading-relaxed">
             <div class="font-bold text-amber-900 flex items-center gap-1.5">
               <span>💡</span>
-              <span>Sayfa & Tasarruf Düzeni:</span>
+              <span>Sayfa & Optik Düzeni:</span>
             </div>
             <p>
-              • <strong>1 Sayfa A4 = 2 Adet Optik Form</strong> basılır (ortasından kesip iki talebeye dağıtabilirsiniz).
+              • <strong>6 Dersli LGS Şablonu:</strong> Tek A4 kağıdına <strong>Yatay (Landscape)</strong> olarak tam sayfa basılır. 4 köşe L-köşebenti, üst gri bilgi kartı, sol karekod ve 6 ders sütunu (1, 10, 19 siyah referans kareleri) içerir.
             </p>
             <p>
-              • Her formun sağ üst köşesinde talebenin adı, okul no ve sınıf bilgisi gömülü <strong>özel QR kod</strong> yer alır.
-            </p>
-            <p>
-              • Talebe numara kodlamakla vakit kaybetmez; kamera kağıdı gördüğü an kim olduğunu <strong>%100 hatasız</strong> anlar.
+              • <strong>Tek Derslik Form:</strong> 1 Sayfa A4'e 2 adet dikey form basılır (ortadan kesmeli).
             </p>
           </div>
         </div>
@@ -684,6 +709,9 @@ window.OMRScanner = {
   },
 
   generateAndPrintForms: function() {
+    const modeRadio = document.querySelector('input[name="omr-print-mode"]:checked');
+    const printMode = modeRadio ? modeRadio.value : 'LGS_LANDSCAPE';
+
     const classSelect = document.getElementById('omr-print-class-select');
     const qCountSelect = document.getElementById('omr-print-q-count');
     const bookletSelect = document.getElementById('omr-print-booklet');
@@ -691,6 +719,18 @@ window.OMRScanner = {
     const selectedClass = classSelect ? classSelect.value : 'ALL';
     const totalQ = parseInt(qCountSelect ? qCountSelect.value : '20', 10) || 20;
     const defaultBooklet = bookletSelect ? bookletSelect.value : 'A';
+
+    // Eğer 6 Dersli LGS Optik Formu seçildiyse doğrudan MockExamModule A4 Yatay motorunu çalıştır!
+    if (printMode === 'LGS_LANDSCAPE') {
+      if (window.MockExamModule && typeof window.MockExamModule.executePrintForms === 'function') {
+        window.MockExamModule.executePrintForms(null, {
+          selClass: selectedClass,
+          selBooklet: defaultBooklet,
+          isBlank: selectedClass === 'BLANK'
+        });
+        return;
+      }
+    }
 
     let allStudents = (window.Store && typeof window.Store.getStudents === 'function')
       ? window.Store.getStudents(false)
@@ -740,55 +780,51 @@ window.OMRScanner = {
       const qrSvg = window.MiniQRCode.generateSvg(qrPayload, 110);
 
       cardsHtml += `
-        <div class="omr-card" style="page-break-inside: avoid; border: 2px solid #000; padding: 12px; margin-bottom: 12px; border-radius: 8px; font-family: Arial, sans-serif; background: #fff; position: relative;">
+        <div class="omr-card" style="page-break-inside: avoid; border: 1.5px solid #cbd5e1; padding: 14px; margin-bottom: 14px; border-radius: 8px; font-family: Arial, sans-serif; background: #fff; position: relative;">
           
-          <!-- 4 KÖŞE REFERANS HİZALAMA KARELERİ -->
-          <div style="position: absolute; top: 6px; left: 6px; width: 14px; height: 14px; background: #000;"></div>
-          <div style="position: absolute; top: 6px; right: 6px; width: 14px; height: 14px; background: #000;"></div>
-          <div style="position: absolute; bottom: 6px; left: 6px; width: 14px; height: 14px; background: #000;"></div>
-          <div style="position: absolute; bottom: 6px; right: 6px; width: 14px; height: 14px; background: #000;"></div>
+          <!-- 4 KÖŞE L REFERANS ÇERÇEVELERİ -->
+          <div style="position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; border-top: 4px solid #000; border-left: 4px solid #000;"></div>
+          <div style="position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-top: 4px solid #000; border-right: 4px solid #000;"></div>
+          <div style="position: absolute; bottom: 6px; left: 6px; width: 22px; height: 22px; border-bottom: 4px solid #000; border-left: 4px solid #000;"></div>
+          <div style="position: absolute; bottom: 6px; right: 6px; width: 22px; height: 22px; border-bottom: 4px solid #000; border-right: 4px solid #000;"></div>
 
-          <!-- ÜST BİLGİ & QR KOD ALANI -->
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 10px; margin-left: 14px; margin-right: 14px;">
-            <div style="flex: 1;">
-              <div style="font-size: 14px; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase;">
-                ${institutionName}
+          <!-- ÜST BAŞLIK VE BİLGİ KUTUSU -->
+          <div style="background: #475569; color: #fff; text-align: center; font-weight: 800; font-size: 11.5px; padding: 4.5px 8px; border-radius: 4px; margin-bottom: 8px;">
+            ${testMeta.subject} • ${testMeta.title} (${totalQ} Soru)
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 6px; margin-bottom: 8px; border-bottom: 1.5px solid #cbd5e1;">
+            <div style="flex: 1; font-size: 10px; padding-right: 8px;">
+              <div style="border-bottom: 1px dotted #94a3b8; padding-bottom: 2px; margin-bottom: 3px;">
+                <strong style="color: #1e293b;">Adı Soyadı :</strong> <span style="font-weight: 800; text-transform: uppercase;">${st.firstName} ${st.lastName}</span>
               </div>
-              <div style="font-size: 11px; font-weight: bold; color: #333; margin-top: 2px;">
-                ${testMeta.subject} • ${testMeta.title} (${totalQ} Soru)
+              <div style="border-bottom: 1px dotted #94a3b8; padding-bottom: 2px; margin-bottom: 3px;">
+                <strong style="color: #1e293b;">Seviyeleri :</strong> ORTAOKUL ${st.className ? st.className.replace(/\D/g, '') : '8'} (${st.className || ''}) • No: ${st.studentNo || '—'}
               </div>
-              
-              <!-- TALEBE BİLGİ KUTUSU -->
-              <div style="margin-top: 6px; padding: 4px 8px; background: #f0f0f0; border: 1px solid #999; border-radius: 4px; display: inline-block;">
-                <div style="font-size: 12px; font-weight: 900;">
-                  ${st.firstName} ${st.lastName}
-                </div>
-                <div style="font-size: 10px; font-weight: bold; color: #444; margin-top: 2px;">
-                  Sınıfı: <strong>${st.className || '—'}</strong> | No: <strong>${st.studentNo || '—'}</strong> | Tarih: ${testMeta.date}
-                </div>
+              <div style="border-bottom: 1px dotted #94a3b8; padding-bottom: 2px; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                <span><strong style="color: #1e293b;">Kurum Adı :</strong> ${institutionName}</span>
+                <span style="font-family: monospace; font-size: 8.5px; color: #475569;">T.Kodu: 298${(st.studentNo || '101').toString().padStart(5, '0')}780</span>
               </div>
 
-              <!-- KİTAPÇIK TÜRÜ SEÇİMİ -->
-              <div style="margin-top: 6px; display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: bold;">
-                <span>KİTAPÇIK:</span>
-                <span style="display: inline-flex; align-items: center; gap: 3px;">
-                  <span style="display: inline-block; width: 16px; height: 16px; border: 1.5px solid #000; border-radius: 50%; text-align: center; line-height: 14px; font-size: 10px; font-weight: 900; ${defaultBooklet === 'A' ? 'background: #000; color: #fff;' : ''}">A</span>
+              <!-- KİTAPÇIK TÜRÜ KUTUSU -->
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 9.5px; font-weight: bold;">
+                <span style="background: #475569; color: #fff; padding: 1.5px 5px; border-radius: 3px; font-size: 8.5px;">Kitapçık Türü</span>
+                <span style="display: inline-flex; align-items: center; gap: 4px;">
+                  <span style="display: inline-block; width: 14px; height: 14px; border: 1.2px solid #000; border-radius: 50%; text-align: center; line-height: 12px; font-size: 8.5px; font-weight: 900; ${defaultBooklet === 'A' ? 'background: #000; color: #fff;' : 'color: #333;'}">A</span>
                   <span>A</span>
                 </span>
-                <span style="display: inline-flex; align-items: center; gap: 3px;">
-                  <span style="display: inline-block; width: 16px; height: 16px; border: 1.5px solid #000; border-radius: 50%; text-align: center; line-height: 14px; font-size: 10px; font-weight: 900; ${defaultBooklet === 'B' ? 'background: #000; color: #fff;' : ''}">B</span>
+                <span style="display: inline-flex; align-items: center; gap: 4px;">
+                  <span style="display: inline-block; width: 14px; height: 14px; border: 1.2px solid #000; border-radius: 50%; text-align: center; line-height: 12px; font-size: 8.5px; font-weight: 900; ${defaultBooklet === 'B' ? 'background: #000; color: #fff;' : 'color: #333;'}">B</span>
                   <span>B</span>
                 </span>
               </div>
             </div>
 
-            <!-- TALEBEYE VE SINAVA ÖZEL QR KOD -->
-            <div style="text-align: center; padding-left: 8px;">
-              <div style="border: 2px solid #000; padding: 2px; background: #fff; display: inline-block;">
+            <!-- KAREKODU OKUTUN KUTUSU -->
+            <div style="border: 1.2px solid #64748b; border-radius: 5px; overflow: hidden; text-align: center; background: #fff; flex-shrink: 0;">
+              <div style="background: #475569; color: #fff; font-size: 8px; font-weight: 800; padding: 2px 4px;">Karekodu Okutun</div>
+              <div style="padding: 3px; background: #fff;">
                 ${qrSvg}
-              </div>
-              <div style="font-size: 8px; font-weight: bold; color: #555; margin-top: 2px; font-family: monospace;">
-                ${st.studentNo || 'OAY'}-${defaultBooklet}
               </div>
             </div>
           </div>
@@ -823,12 +859,76 @@ window.OMRScanner = {
           @page { size: A4 portrait; margin: 8mm; }
           * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #fff; color: #000; font-size: 11px; }
+          @media print {
+            .no-print-top-bar { display: none !important; }
+          }
+          @media screen {
+            body { background: #475569; padding-top: 52px; }
+            .omr-card { box-shadow: 0 4px 15px rgba(0,0,0,0.25); margin: 15px auto; max-width: 210mm; }
+          }
+          .no-print-top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 48px;
+            background: #0f172a;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 999999;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          }
+          .no-print-btn {
+            background: #059669;
+            color: #ffffff;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+          }
+          .no-print-btn:hover { background: #047857; }
+          .no-print-close {
+            background: #334155;
+            color: #ffffff;
+            border: none;
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+          }
+          .no-print-close:hover { background: #475569; }
           .omr-card { page-break-inside: avoid; border: 2px solid #000; padding: 12px; margin-bottom: 12px; border-radius: 8px; background: #fff; position: relative; }
           .omr-cut-line { text-align: center; font-size: 9px; color: #888; border-top: 1px dashed #000; margin: 10px 0; padding-top: 2px; page-break-after: always; }
         </style>
       </head>
       <body>
+        <div class="no-print-top-bar">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-weight: 800; font-size: 13px;">📝 Optik Cevap Formları - ${testMeta.subject || 'Test'}</span>
+            <span style="font-size: 11px; color: #94a3b8;">(${students.length} Talebe)</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="no-print-btn" onclick="window.print()">🖨️ Sayfayı Yazdır (Ctrl + P)</button>
+            <button class="no-print-close" onclick="window.close()">✕ Kapat</button>
+          </div>
+        </div>
         ${cardsHtml}
+        <script>
+          window.onload = function() {
+            setTimeout(function() { window.print(); }, 400);
+          };
+        </script>
       </body>
       </html>
     `;
@@ -841,50 +941,67 @@ window.OMRScanner = {
       window.App.showToast('🖨️ Optik formlar hazırlanıyor, yazdırma ekranı açılıyor...', 'info');
     }
 
-    // Modern Pop-up Engeli Olmayan Güvenli Iframe Yazdırma Hattı
-    let printFrame = document.getElementById('omr-print-iframe');
-    if (!printFrame) {
-      printFrame = document.createElement('iframe');
-      printFrame.id = 'omr-print-iframe';
-      printFrame.style.position = 'fixed';
-      printFrame.style.right = '0';
-      printFrame.style.bottom = '0';
-      printFrame.style.width = '0';
-      printFrame.style.height = '0';
-      printFrame.style.border = '0';
-      printFrame.style.visibility = 'hidden';
-      document.body.appendChild(printFrame);
+    // Güvenilir Yazdırma Hattı: Önce doğrudan yeni sekme denenir
+    let openedInNewTab = false;
+    try {
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.open();
+        win.document.write(printHtml);
+        win.document.close();
+        win.focus();
+        setTimeout(() => {
+          try { win.print(); } catch (e) {}
+        }, 500);
+        openedInNewTab = true;
+      }
+    } catch (err) {
+      console.warn('OMR window.open engellendi:', err);
     }
 
-    const frameDoc = printFrame.contentWindow.document || printFrame.contentDocument;
-    frameDoc.open();
-    frameDoc.write(printHtml);
-    frameDoc.close();
+    // Eğer yeni pencere engellendiyse sayfa içi garanti modal aç
+    if (!openedInNewTab) {
+      this.showPrintFallbackModal(printHtml, testMeta.subject);
+    }
+  },
 
-    const doPrint = () => {
-      try {
-        printFrame.contentWindow.focus();
-        printFrame.contentWindow.print();
-      } catch (err) {
-        console.warn('OMR iframe print tetiklenemedi, fallback pencere deneniyor:', err);
-        try {
-          const win = window.open('', '_blank');
-          if (win) {
-            win.document.open();
-            win.document.write(printHtml);
-            win.document.close();
-            win.focus();
-            setTimeout(() => { win.print(); }, 400);
-          } else {
-            alert('Lütfen tarayıcınızın yazdırma ve pop-up izinlerini açınız.');
-          }
-        } catch (e2) {
-          alert('Yazdırma ekranı açılamadı.');
-        }
-      }
-    };
-
-    setTimeout(doPrint, 400);
+  showPrintFallbackModal: function(printHtml, title) {
+    let modal = document.getElementById('omr-print-preview-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'omr-print-preview-modal';
+      modal.className = 'fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 overflow-hidden';
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = `
+      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full h-[90vh] flex flex-col p-4 sm:p-5 space-y-3 animate-fade-in">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-100 flex-shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">🖨️</span>
+            <div>
+              <h3 class="font-black text-slate-900 text-sm leading-tight">${title || 'Optik Formlar'} - Önizleme</h3>
+              <p class="text-[11px] text-slate-500 font-medium">Tarayıcınız yeni sekme açılmasını kısıtladıysa buradan doğrudan yazdırabilirsiniz.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="const f = document.getElementById('omr-preview-iframe'); f.contentWindow.focus(); f.contentWindow.print();"
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+              <span>🖨️</span>
+              <span>Şimdi Yazdır</span>
+            </button>
+            <button type="button" onclick="document.getElementById('omr-print-preview-modal').remove()"
+              class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center">✕</button>
+          </div>
+        </div>
+        <div class="flex-1 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
+          <iframe id="omr-preview-iframe" class="w-full h-full border-0"></iframe>
+        </div>
+      </div>
+    `;
+    const frame = document.getElementById('omr-preview-iframe');
+    if (frame) {
+      frame.srcdoc = printHtml;
+    }
   },
 
   renderBubbleColumnsHtml: function(totalQ) {
@@ -1169,6 +1286,8 @@ window.OMRScanner = {
       }
     }
 
+    const students = (window.Store && typeof window.Store.getStudents === 'function') ? window.Store.getStudents(false) : [];
+
     let modal = document.getElementById('omr-scanner-modal');
     if (!modal) {
       modal = document.createElement('div');
@@ -1257,6 +1376,29 @@ window.OMRScanner = {
             <span class="text-emerald-400 font-bold" id="omr-det-c">✅ 0 Doğru</span>
             <span class="text-rose-400 font-bold" id="omr-det-w">❌ 0 Yanlış</span>
             <span class="text-slate-400" id="omr-det-e">⚪ 0 Boş</span>
+          </div>
+        </div>
+
+        <!-- HIZLI TALEBE SEÇ & DOĞRULA (KAMERASIZ / GARANTİ HIZLI MOD) -->
+        <div class="p-2 bg-slate-800/90 rounded-xl border border-slate-700 space-y-1.5">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="text-amber-400 font-bold">⚡ Hızlı Talebe Seç (Kamerasız):</span>
+            <select id="omr-manual-booklet" class="bg-slate-900 border border-slate-600 rounded px-1.5 py-0.5 text-[10px] text-white font-bold">
+              <option value="A">Kitapçık: A</option>
+              <option value="B">Kitapçık: B</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <select id="omr-manual-student-select" class="flex-1 bg-slate-900 border border-slate-600 rounded-lg p-1 text-[11px] text-white">
+              <option value="">Talebe Seçiniz (${students.length} Talebe)...</option>
+              ${students.map(st => `
+                <option value="${st.id}">${st.className} • ${st.studentNo} - ${st.firstName} ${st.lastName}</option>
+              `).join('')}
+            </select>
+            <button type="button" onclick="window.OMRScanner.evaluateQuickSelectedStudent()"
+              class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] whitespace-nowrap cursor-pointer">
+              Doğrula & Oku
+            </button>
           </div>
         </div>
 
@@ -1369,6 +1511,36 @@ window.OMRScanner = {
     }
   },
 
+  evaluateQuickSelectedStudent: function() {
+    const sel = document.getElementById('omr-manual-student-select');
+    const bkSel = document.getElementById('omr-manual-booklet');
+    if (!sel || !sel.value) {
+      alert('Lütfen bir talebe seçiniz.');
+      return;
+    }
+    const studentId = sel.value;
+    const booklet = (bkSel && bkSel.value) ? bkSel.value : 'A';
+    const student = window.Store.getStudentById(studentId);
+    if (!student) {
+      alert('Talebe bilgisi bulunamadı.');
+      return;
+    }
+
+    const canvas = this.activeCanvasEl;
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    const width = canvas ? canvas.width : 640;
+    const height = canvas ? canvas.height : 480;
+
+    const testId = (window.TestResultsModule && window.TestResultsModule.currentTestId) ? window.TestResultsModule.currentTestId : 'TEST_ACTIVE';
+
+    const payload = `OAY:${testId}:${student.id}:${student.studentNo}:${student.className || ''}:${booklet}`;
+    this.handleQrDetected(payload, ctx, width, height);
+
+    if (window.App && window.App.showToast) {
+      window.App.showToast(`✅ ${student.firstName} ${student.lastName} için cevaplar işlendi!`, 'success');
+    }
+  },
+
   startScanLoop: function() {
     if (this.scanIntervalId) clearInterval(this.scanIntervalId);
 
@@ -1399,12 +1571,24 @@ window.OMRScanner = {
           this.handleQrDetected(rawPayload, ctx, canvas.width, canvas.height);
           return;
         }
-      } catch (err) {
-        // Fallback aşağıda devam eder
-      }
+      } catch (err) {}
     }
 
-    // 2. Fallback: Ekran kılavuz durumu
+    // 2. jsQR Kütüphanesi Fallback (Windows Masaüstü Chrome/Edge, Mac, iOS ve Android Tüm Cihazlar)
+    if (typeof window.jsQR === 'function') {
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'dontInvert'
+        });
+        if (code && code.data) {
+          this.handleQrDetected(code.data, ctx, canvas.width, canvas.height);
+          return;
+        }
+      } catch (err) {}
+    }
+
+    // 3. Fallback: Ekran kılavuz durumu
     const statusText = document.getElementById('omr-status-text');
     if (statusText && statusText.textContent !== 'Okundu ✅') {
       statusText.textContent = 'Vizör Hizalanıyor...';
@@ -1430,6 +1614,7 @@ window.OMRScanner = {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
 
+      // 1. BarcodeDetector API
       if ('BarcodeDetector' in window) {
         try {
           const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
@@ -1441,6 +1626,20 @@ window.OMRScanner = {
         } catch (e) {}
       }
 
+      // 2. jsQR Fallback
+      if (typeof window.jsQR === 'function') {
+        try {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'attemptBoth'
+          });
+          if (code && code.data) {
+            this.handleQrDetected(code.data, ctx, canvas.width, canvas.height);
+            return;
+          }
+        } catch (err) {}
+      }
+
       alert('Fotoğrafta geçerli bir öğrenci QR kodu tespit edilemedi. Lütfen net ve dik bir fotoğraf çekiniz.');
     };
     img.src = URL.createObjectURL(file);
@@ -1448,7 +1647,14 @@ window.OMRScanner = {
 
   // QR Kod Tespit Edildiğinde Çalışan Akıllı Ayrıştırıcı
   handleQrDetected: function(payload, ctx, width, height) {
-    if (!payload || !payload.startsWith('OAY:')) return;
+    if (!payload) return;
+    if (payload.startsWith('OAY_MOCK:')) {
+      if (window.MockExamModule && typeof window.MockExamModule.handleQrDetected === 'function') {
+        window.MockExamModule.handleQrDetected(payload, ctx, width, height);
+      }
+      return;
+    }
+    if (!payload.startsWith('OAY:')) return;
 
     // Aynı kağıdı art arda okuyup durmayı engelle (1.5 saniye mola)
     if (this.lastScannedPayload === payload && Date.now() - (this._lastScannedTime || 0) < 1500) {

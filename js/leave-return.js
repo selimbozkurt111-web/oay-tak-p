@@ -1,11 +1,11 @@
 /**
  * leave-return.js - Haftalık İzin Dönüşü Takip Modülü
- * - 5 ve 6. Sınıflar: Resmi dönüş Pazartesi sabahı (08:00). Pazar günü saat kaçta gelirlerse gelsinler ERKEN sayılır (0 dk ceza).
+ * - 5 ve 6. Sınıflar: Resmi dönüş Pazartesi sabahı (08:00). Pazar günü saat kaçta gelirlerse gelsinler ERKEN sayılır (0 dk telafi).
  * - 7 ve 8. Sınıflar: Resmi dönüş Pazar akşamı (varsayılan 18:00).
  * - Standart Pazar ve Pazartesi saatleri arayüzden kolayca değiştirilebilir.
  * - "⚡ Şimdi Geldi" ve "🏷️ İzinli" mazeret butonları (Yarın Sabah, 30 dk, 1 saat, 1.5 saat, 2 saat).
- * - İzinli olanlar: 0 Puan alır, 0 Ceza alır.
- * - Geç kalanlara dakika başına 3 katı (3x) izne geç çıkış cezası.
+ * - İzinli olanlar: 0 Puan alır, 0 Telafi süresi alır.
+ * - Geç kalanlara dakika başına 3 katı (3x) izne ek telafi süresi.
  */
 
 window.LeaveReturnModule = {
@@ -263,7 +263,7 @@ window.LeaveReturnModule = {
         earlyMinutes: 0,
         penaltyMinutes: 0,
         statusLabel: `İzinli (${excuse.type})`,
-        penaltyLabel: 'Ceza Yok (İzinli)'
+        penaltyLabel: 'Telafi Yok (İzinli)'
       };
     }
 
@@ -275,7 +275,7 @@ window.LeaveReturnModule = {
         earlyMinutes: 0,
         penaltyMinutes: 0,
         statusLabel: `Pazar Geldi (Erken • ${arrivalTime})`,
-        penaltyLabel: 'Ceza Yok (Erken)'
+        penaltyLabel: 'Telafi Yok (Erken)'
       };
     }
 
@@ -304,7 +304,7 @@ window.LeaveReturnModule = {
     const diff = arrTotal - expTotal;
 
     if (diff > 0) {
-      // Geç kaldı: 1 dk gecikme = 3 katı (3x) ceza
+      // Geç kaldı: 1 dk gecikme = 3 katı (3x) ek telafi süresi
       const penaltyMinutes = diff * 3;
       const note = excuse && excuse.minutes > 0 ? ` (${excuse.type} Aşımı)` : '';
       return {
@@ -313,17 +313,17 @@ window.LeaveReturnModule = {
         earlyMinutes: 0,
         penaltyMinutes: penaltyMinutes,
         statusLabel: `${diff} dk Geç Kaldı${note}`,
-        penaltyLabel: `+${penaltyMinutes} dk Ceza (3x)`
+        penaltyLabel: `+${penaltyMinutes} dk Telafi (3x)`
       };
     } else if (excuse && excuse.type) {
-      // İzinliydi ve izin süresi dolmadan geldi -> İzinli (0 Ceza, 0 Puan)
+      // İzinliydi ve izin süresi dolmadan geldi -> İzinli (0 Telafi, 0 Puan)
       return {
         status: 'IZINLI',
         lateMinutes: 0,
         earlyMinutes: Math.abs(diff),
         penaltyMinutes: 0,
         statusLabel: `İzinli Geldi (${arrivalTime})`,
-        penaltyLabel: 'Ceza Yok (İzinli)'
+        penaltyLabel: 'Telafi Yok (İzinli)'
       };
     } else if (diff < 0) {
       // Erken geldi
@@ -334,7 +334,7 @@ window.LeaveReturnModule = {
         earlyMinutes: early,
         penaltyMinutes: 0,
         statusLabel: `${early} dk Erken`,
-        penaltyLabel: 'Ceza Yok'
+        penaltyLabel: 'Telafi Yok'
       };
     } else {
       // Tam vaktinde
@@ -344,7 +344,7 @@ window.LeaveReturnModule = {
         earlyMinutes: 0,
         penaltyMinutes: 0,
         statusLabel: 'Tam Vaktinde',
-        penaltyLabel: 'Ceza Yok'
+        penaltyLabel: 'Telafi Yok'
       };
     }
   },
@@ -383,7 +383,7 @@ window.LeaveReturnModule = {
     if (window.App && window.App.showToast) {
       const name = student ? `${student.firstName} ${student.lastName}` : 'Öğrenci';
       if (calc.status === 'GEC') {
-        window.App.showToast(`⚠️ ${name}: ${calc.statusLabel} (+${calc.penaltyMinutes} dk geç çıkış cezası işlendi)`, 'warning');
+        window.App.showToast(`⚠️ ${name}: ${calc.statusLabel} (+${calc.penaltyMinutes} dk ek telafi süresi işlendi)`, 'warning');
       } else if (calc.status === 'IZINLI') {
         window.App.showToast(`✅ ${name} izin dahilinde geldi: ${arrivalTime}`, 'success');
       } else {
@@ -429,7 +429,7 @@ window.LeaveReturnModule = {
       earlyMinutes: calc.earlyMinutes || 0,
       penaltyMinutes: 0,
       statusLabel: `İzinli (${excuseType})`,
-      penaltyLabel: 'Ceza Yok (İzinli)'
+      penaltyLabel: 'Telafi Yok (İzinli)'
     });
 
     this.closeExcuseModal();
@@ -437,7 +437,7 @@ window.LeaveReturnModule = {
 
     if (window.App && window.App.showToast) {
       const name = student ? `${student.firstName} ${student.lastName}` : 'Öğrenci';
-      window.App.showToast(`🏷️ ${name}: İzin kaydedildi [${excuseType}] (0 Ceza, 0 Puan)`, 'info');
+      window.App.showToast(`🏷️ ${name}: İzin kaydedildi [${excuseType}] (0 Telafi, 0 Puan)`, 'info');
     }
   },
 
@@ -447,6 +447,64 @@ window.LeaveReturnModule = {
     if (window.App && window.App.showToast) {
       window.App.showToast('Giriş/İzin kaydı silindi (Henüz Gelmedi durumuna alındı).', 'info');
     }
+  },
+
+  sendWhatsAppForStudent(studentId) {
+    const student = window.Store.getStudentById(studentId);
+    if (!student) return;
+
+    let phone = student.parentPhone || student.phone || student.fatherPhone || '';
+    if (!phone) {
+      const input = prompt(`"${student.firstName} ${student.lastName}" adlı talebenin veli telefonu kayıtlı değil.\nMesaj göndermek için veli telefon numarasını giriniz (Örn: 05xx...):`);
+      if (!input || !input.trim()) return;
+      phone = input.trim();
+      window.Store.updateStudent(studentId, { parentPhone: phone });
+    }
+
+    const dayReturns = window.Store.getLeaveReturnsByDate(this.currentDate);
+    const rec = dayReturns[studentId];
+    const expectedTime = this.getExpectedTimeForStudent(student, this.currentDate);
+    const dayName = this.getDayName(this.currentDate);
+
+    let msg = '';
+    if (rec && rec.status === 'GEC') {
+      msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) tarihli hafta sonu izin dönüşüne ${rec.lateMinutes} dakika geç kalmıştır (Giriş Saati: ${rec.arrivalTime}, Beklenen: ${expectedTime}). Kurallar gereği dakika başına 3 katı (+${rec.penaltyMinutes} dk) hafta sonu iznine ek telafi süresi uygulanmıştır. Bilgilerinize sunarız.`;
+    } else if (rec && rec.status === 'IZINLI') {
+      msg = `Sayın Velimiz, Talebeniz ${student.firstName} ${student.lastName} için ${this.currentDate} (${dayName}) tarihinde '${rec.excuseType || 'Mazeretli'}' izin kaydı oluşturulmuştur. Bilgilerinize sunarız. — Ömer Avniyel Akademi`;
+    } else if (rec && (rec.status === 'VAKTINDE' || rec.status === 'ERKEN')) {
+      msg = `Sayın Velimiz, Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) tarihli izin dönüşünde saat ${rec.arrivalTime}'de vaktinde yurda giriş yapmıştır. Gösterdiğiniz hassasiyet için teşekkür eder, hayırlı günler dileriz. — Ömer Avniyel Akademi`;
+    } else {
+      // Henüz gelmedi
+      msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz: Talebeniz ${student.firstName} ${student.lastName}, ${this.currentDate} (${dayName}) tarihli hafta sonu izin dönüş saatine (${expectedTime}) henüz yurda giriş yapmamıştır. Talebenizin durumu ve varış vakti hakkında bilgi vermenizi rica ederiz.`;
+    }
+
+    window.Store.sendWhatsAppMessage(phone, msg);
+  },
+
+  sendWhatsAppMonthlyReport(studentId) {
+    const student = window.Store.getStudentById(studentId);
+    if (!student) return;
+
+    let phone = student.parentPhone || student.phone || student.fatherPhone || '';
+    if (!phone) {
+      const input = prompt(`"${student.firstName} ${student.lastName}" adlı talebenin veli telefonu kayıtlı değil.\nMesaj göndermek için veli telefon numarasını giriniz (Örn: 05xx...):`);
+      if (!input || !input.trim()) return;
+      phone = input.trim();
+      window.Store.updateStudent(studentId, { parentPhone: phone });
+    }
+
+    const rep = window.Store.getMonthlyLeaveReturnReportForStudent(studentId, this.currentMonth);
+    const monthLabel = this.getMonthLabel(this.currentMonth);
+
+    let msg = `Sayın Velimiz, Ömer Avniyel Akademi'den bildiriyoruz:\n\nTalebeniz ${student.firstName} ${student.lastName}'nin ${monthLabel} Ayı İzin Dönüş İntizam Karnesi:\n` +
+      `• Kayıtlı İzin Dönüşü: ${rep.totalReturns} Hafta\n` +
+      `• Vaktinde Geliş: ${rep.onTimeCount} Kez\n` +
+      `• İzinli / Mazeretli: ${rep.excusedCount || 0} Kez\n` +
+      `• Geç Kalma: ${rep.lateCount} Kez (${rep.totalLateMinutes} Dakika)\n` +
+      `• Uygulanan İzne Ek Telafi Süresi: ${rep.totalPenaltyMinutes > 0 ? `+${rep.totalPenaltyMinutes} Dakika (3x)` : 'Telafi Yok (0 dk)'}\n\n` +
+      `Bilgilerinize sunar, hayırlı günler dileriz. — Ömer Avniyel Akademi`;
+
+    window.Store.sendWhatsAppMessage(phone, msg);
   },
 
   getFilteredStudents() {
@@ -576,7 +634,7 @@ window.LeaveReturnModule = {
                 </div>
               </div>
               <p class="text-xs text-slate-500 mt-0.5">
-                5 ve 6. Sınıflar <strong class="text-indigo-600">Pazartesi sabah 08:00</strong>, 7 ve 8. Sınıflar <strong class="text-indigo-600">Pazar akşamı</strong> döner. İzinli olanlara ceza ve puan verilmez. Geç kalanlara <strong class="text-rose-700">dakika başına 3 katı (3x)</strong> geç çıkış cezası uygulanır.
+                5 ve 6. Sınıflar <strong class="text-indigo-600">Pazartesi sabah 08:00</strong>, 7 ve 8. Sınıflar <strong class="text-indigo-600">Pazar akşamı</strong> döner. İzinli olanlara telafi süresi ve puan verilmez. Geç kalanlara <strong class="text-rose-700">dakika başına 3 katı (3x)</strong> izne ek telafi süresi uygulanır.
               </p>
             </div>
 
@@ -722,10 +780,10 @@ window.LeaveReturnModule = {
               <span>🏷️ İZİNLİLER</span>
             </div>
             <div class="text-2xl font-black text-amber-700 mt-1">${excusedCount}</div>
-            <div class="text-[10px] text-amber-700 font-bold">0 Ceza • 0 Puan</div>
+            <div class="text-[10px] text-amber-700 font-bold">0 Telafi • 0 Puan</div>
           </div>
 
-          <!-- Geç Kalanlar (3x Ceza Uygulananlar) -->
+          <!-- Geç Kalanlar (3x Telafi Uygulananlar) -->
           <div onclick="window.LeaveReturnModule.setStatusFilter('GEC')"
             class="cursor-pointer bg-rose-50/70 p-3 rounded-2xl border transition-all ${
               this.statusFilter === 'GEC' ? 'ring-2 ring-rose-600 shadow-md border-rose-600' : 'border-rose-200 hover:border-rose-300'
@@ -734,7 +792,7 @@ window.LeaveReturnModule = {
               <span>🔴 GEÇ KALANLAR</span>
             </div>
             <div class="text-2xl font-black text-rose-700 mt-1">${lateCount}</div>
-            <div class="text-[10px] text-rose-600 font-black">+${totalPenaltyMins} dk 3x Ceza</div>
+            <div class="text-[10px] text-rose-600 font-black">+${totalPenaltyMins} dk 3x Telafi</div>
           </div>
 
           <!-- Erken Gelenler -->
@@ -829,7 +887,7 @@ window.LeaveReturnModule = {
             <th class="py-3 px-4">Sınıf / Oda</th>
             <th class="py-3 px-4 min-w-[220px]">Varış Saati & İzin</th>
             <th class="py-3 px-4">Durum</th>
-            <th class="py-3 px-4">İzne Geç Çıkış Cezası</th>
+            <th class="py-3 px-4">İzne Ek Telafi Süresi</th>
             <th class="py-3 px-4 text-center w-24 no-print">İşlem</th>
           </tr>
         </thead>
@@ -853,7 +911,7 @@ window.LeaveReturnModule = {
               `;
               penaltyBadge = `
                 <span class="text-amber-700 font-bold text-[11px] flex items-center gap-1">
-                  <span>✓</span> <span>Ceza Yok (İzinli)</span>
+                  <span>✓</span> <span>Telafi Yok (İzinli)</span>
                 </span>
               `;
             } else if (hasRecord && rec.arrivalTime) {
@@ -865,7 +923,7 @@ window.LeaveReturnModule = {
                 `;
                 penaltyBadge = `
                   <span class="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-black text-xs flex items-center gap-1 w-max shadow-xs animate-pulse">
-                    <span>⚡</span> <span>+${rec.penaltyMinutes} dk Geç Çıkış (3x)</span>
+                    <span>⚡</span> <span>+${rec.penaltyMinutes} dk Telafi (3x)</span>
                   </span>
                 `;
               } else if (rec.status === 'ERKEN') {
@@ -874,14 +932,14 @@ window.LeaveReturnModule = {
                     <span>🟢</span> <span>${rec.statusLabel || `${rec.earlyMinutes} dk Erken`}</span>
                   </span>
                 `;
-                penaltyBadge = `<span class="text-emerald-700 font-bold text-[11px]">✓ Ceza Yok</span>`;
+                penaltyBadge = `<span class="text-emerald-700 font-bold text-[11px]">✓ Telafi Yok</span>`;
               } else {
                 statusBadge = `
                   <span class="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 font-black border border-blue-300 flex items-center gap-1 w-max">
                     <span>🔵</span> <span>Tam Vaktinde</span>
                   </span>
                 `;
-                penaltyBadge = `<span class="text-emerald-700 font-bold text-[11px]">✓ Ceza Yok</span>`;
+                penaltyBadge = `<span class="text-emerald-700 font-bold text-[11px]">✓ Telafi Yok</span>`;
               }
             } else if (arrivedOnSunday) {
               // Pazartesi günü bakılıyor ama 5 veya 6. sınıf Pazar akşamı zaten gelmiş
@@ -890,7 +948,7 @@ window.LeaveReturnModule = {
                   <span>✓</span> <span>Pazar Geldi (${sundayRec.arrivalTime})</span>
                 </span>
               `;
-              penaltyBadge = `<span class="text-emerald-700 font-bold text-[11px]">✓ Dün Geldi (Ceza Yok)</span>`;
+              penaltyBadge = `<span class="text-emerald-700 font-bold text-[11px]">✓ Dün Geldi (Telafi Yok)</span>`;
             } else if (dayOfWeek === 0 && isJunior) {
               // Pazar günü ve 5-6. sınıf henüz gelmemiş (resmi dönüş Pazartesi sabahı)
               statusBadge = `
@@ -981,17 +1039,23 @@ window.LeaveReturnModule = {
                   ${penaltyBadge}
                 </td>
 
-                <!-- İşlemler (Sıfırla / Sil) -->
+                <!-- İşlemler (WhatsApp & Sıfırla / Sil) -->
                 <td class="py-3 px-4 text-center no-print">
-                  ${hasRecord ? `
-                    <button type="button" onclick="window.LeaveReturnModule.clearRecord('${s.id}')"
-                      title="Giriş / İzin kaydını sil"
-                      class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition text-sm">
-                      🗑️
+                  <div class="flex items-center justify-center gap-1">
+                    <button type="button" onclick="window.LeaveReturnModule.sendWhatsAppForStudent('${s.id}')"
+                      title="Veliye WhatsApp'tan izin dönüşü bildirimi gönder"
+                      class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 transition text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer">
+                      <span>📲</span>
+                      <span class="text-[10px] hidden sm:inline">WhatsApp</span>
                     </button>
-                  ` : `
-                    <span class="text-slate-300 text-xs">-</span>
-                  `}
+                    ${hasRecord ? `
+                      <button type="button" onclick="window.LeaveReturnModule.clearRecord('${s.id}')"
+                        title="Giriş / İzin kaydını sil"
+                        class="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition text-xs cursor-pointer">
+                        🗑️
+                      </button>
+                    ` : ''}
+                  </div>
                 </td>
               </tr>
             `;
@@ -1039,7 +1103,7 @@ window.LeaveReturnModule = {
               <span>ℹ️</span> <span>İzinli Talebe Kuralı:</span>
             </div>
             <p class="text-[11px] text-amber-800 leading-relaxed">
-              İzinli olarak işaretlenen talebeler <strong>puan alamaz (0 Puan)</strong>, ancak kendilerine <strong>ceza da uygulanmaz (0 Ceza)</strong>.
+              İzinli olarak işaretlenen talebeler <strong>puan alamaz (0 Puan)</strong>, ancak kendilerine <strong>ek telafi süresi de uygulanmaz (0 Telafi)</strong>.
             </p>
           </div>
 
@@ -1231,7 +1295,7 @@ window.LeaveReturnModule = {
                 </div>
               </div>
               <p class="text-xs text-slate-500 mt-0.5">
-                Aylık toplu dönüş raporu: Ay içerisindeki tüm hafta sonu dönüşleri, geç kalma süreleri ve <strong class="text-rose-700">3x geç çıkış cezaları</strong> burada listelenir.
+                Aylık toplu dönüş raporu: Ay içerisindeki tüm hafta sonu dönüşleri, geç kalma süreleri ve <strong class="text-rose-700">3x izne ek telafi süreleri</strong> burada listelenir.
               </p>
             </div>
 
@@ -1302,20 +1366,20 @@ window.LeaveReturnModule = {
               <div class="text-[10px] ${lateStudentsCount > 0 ? 'text-amber-700' : 'text-slate-400'} font-semibold mt-0.5">En Az 1 Kez Geç</div>
             </div>
 
-            <!-- 5. Toplam 3x Ceza Süresi -->
+            <!-- 5. Toplam 3x Telafi Süresi -->
             <div class="p-3 ${penaltyMinutesInView > 0 ? 'bg-rose-50 border-rose-300 ring-1 ring-rose-200' : 'bg-slate-50 border-slate-200'} rounded-2xl border text-center">
-              <div class="text-[10px] font-black ${penaltyMinutesInView > 0 ? 'text-rose-800' : 'text-slate-500'} uppercase tracking-wider">Toplam Ceza (3x)</div>
+              <div class="text-[10px] font-black ${penaltyMinutesInView > 0 ? 'text-rose-800' : 'text-slate-500'} uppercase tracking-wider">Toplam Telafi (3x)</div>
               <div class="text-base sm:text-lg font-black ${penaltyMinutesInView > 0 ? 'text-rose-700' : 'text-slate-900'} mt-1 truncate" title="${totalPenaltyFormatted}">
                 ${penaltyMinutesInView > 0 ? totalPenaltyFormatted : '0 dk'}
               </div>
-              <div class="text-[10px] ${penaltyMinutesInView > 0 ? 'text-rose-600' : 'text-slate-400'} font-semibold mt-0.5">İzne Geç Çıkış</div>
+              <div class="text-[10px] ${penaltyMinutesInView > 0 ? 'text-rose-600' : 'text-slate-400'} font-semibold mt-0.5">İzne Ek Süre</div>
             </div>
 
             <!-- 6. İzinli / Mazeretli -->
             <div class="p-3 bg-teal-50/80 rounded-2xl border border-teal-200 text-center">
               <div class="text-[10px] font-black text-teal-800 uppercase tracking-wider">İzinli / Mazeret</div>
               <div class="text-xl sm:text-2xl font-black text-teal-900 mt-0.5">${excusedInView}</div>
-              <div class="text-[10px] text-teal-700 font-semibold mt-0.5">0 Ceza • 0 Puan</div>
+              <div class="text-[10px] text-teal-700 font-semibold mt-0.5">0 Telafi • 0 Puan</div>
             </div>
           </div>
 
@@ -1374,7 +1438,7 @@ window.LeaveReturnModule = {
                       ? 'bg-rose-600 text-white shadow-xs'
                       : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
                   }">
-                  <span>🚨 Sadece Geç Kalanlar (Cezalılar)</span>
+                  <span>🚨 Sadece Geç Kalanlar (Telafililer)</span>
                   ${lateStudentsCount > 0 ? `<span class="bg-rose-700 text-white px-1.5 py-0.2 rounded-full text-[10px] font-black">${lateStudentsCount}</span>` : ''}
                 </button>
                 <button type="button" onclick="window.LeaveReturnModule.setMonthlyStatusFilter('IZINLI')"
@@ -1420,7 +1484,7 @@ window.LeaveReturnModule = {
                   <th class="py-3 px-3 text-center">Vaktinde</th>
                   <th class="py-3 px-3 text-center">Geç Kalma</th>
                   <th class="py-3 px-3 text-center">Toplam Gecikme</th>
-                  <th class="py-3 px-3 text-center">İzne Geç Çıkış Cezası (3x)</th>
+                  <th class="py-3 px-3 text-center">İzne Ek Telafi Süresi (3x)</th>
                   <th class="py-3 px-3 text-center">İzinli</th>
                   <th class="py-3 px-3 text-center">Haftalık Döküm</th>
                 </tr>
@@ -1444,7 +1508,7 @@ window.LeaveReturnModule = {
                       <td class="py-3 px-3 font-black text-slate-900 text-sm">
                         <div class="flex items-center gap-1.5">
                           <span>${s.firstName} ${s.lastName}</span>
-                          ${hasPenalty ? `<span class="px-1.5 py-0.2 rounded bg-rose-600 text-white font-black text-[9px] uppercase">CEZALI</span>` : ''}
+                          ${hasPenalty ? `<span class="px-1.5 py-0.2 rounded bg-rose-600 text-white font-black text-[9px] uppercase">TELAFİLİ</span>` : ''}
                         </div>
                         <div class="text-[10px] text-slate-400 font-mono">No: ${s.studentNo || s.id}</div>
                       </td>
@@ -1473,7 +1537,7 @@ window.LeaveReturnModule = {
                           </span>
                         ` : `
                           <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[11px]">
-                            <span>✓</span> <span>0 dk (Ceza Yok)</span>
+                            <span>✓</span> <span>0 dk (Telafi Yok)</span>
                           </span>
                         `}
                       </td>
@@ -1556,7 +1620,7 @@ window.LeaveReturnModule = {
               </div>
             </div>
             <div class="p-2.5 ${report.totalPenaltyMinutes > 0 ? 'bg-rose-50 border-rose-300' : 'bg-slate-50 border-slate-200'} rounded-xl border">
-              <span class="text-[10px] ${report.totalPenaltyMinutes > 0 ? 'text-rose-800' : 'text-slate-500'} font-black uppercase">Toplam Ceza (3x)</span>
+              <span class="text-[10px] ${report.totalPenaltyMinutes > 0 ? 'text-rose-800' : 'text-slate-500'} font-black uppercase">Toplam Telafi (3x)</span>
               <div class="font-black ${report.totalPenaltyMinutes > 0 ? 'text-rose-700' : 'text-slate-700'} text-sm mt-0.5">
                 ${report.totalPenaltyMinutes > 0 ? `+${report.totalPenaltyMinutes} dk` : '0 dk'}
               </div>
@@ -1572,7 +1636,7 @@ window.LeaveReturnModule = {
                   <th class="py-2.5 px-3 text-center">Beklenen Saat</th>
                   <th class="py-2.5 px-3 text-center">Varış Saati</th>
                   <th class="py-2.5 px-3 text-center">Durum / Fark</th>
-                  <th class="py-2.5 px-3 text-center">Geç Çıkış Cezası</th>
+                  <th class="py-2.5 px-3 text-center">Ek Telafi Süresi</th>
                   <th class="py-2.5 px-3">Mazeret / Not</th>
                 </tr>
               </thead>
@@ -1621,12 +1685,18 @@ window.LeaveReturnModule = {
           </div>
 
           <!-- Alt Butonlar -->
-          <div class="flex items-center justify-between pt-2 border-t border-slate-100">
-            ${student.parentPhone || student.fatherPhone ? `
-              <a href="tel:${student.parentPhone || student.fatherPhone}" class="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-bold hover:underline">
-                <span>📞</span> <span>Veli Ara: ${student.parentPhone || student.fatherPhone}</span>
-              </a>
-            ` : `<div></div>`}
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="window.LeaveReturnModule.sendWhatsAppMonthlyReport('${student.id}')"
+                class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer">
+                <span>📲</span> <span>Veliye WhatsApp Raporu Gönder</span>
+              </button>
+              ${student.parentPhone || student.fatherPhone ? `
+                <a href="tel:${student.parentPhone || student.fatherPhone}" class="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-bold hover:underline">
+                  <span>📞</span> <span>Veli Ara</span>
+                </a>
+              ` : ''}
+            </div>
 
             <button type="button" onclick="window.LeaveReturnModule.closeStudentMonthlyModal()"
               class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl transition cursor-pointer">

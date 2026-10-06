@@ -1479,18 +1479,17 @@ window.App = {
               <span>Excel (CSV) İndir</span>
             </button>
             ${canEdit ? `
-              <button onclick="window.App.repair8thGradeClasses()" 
-                class="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
-                title="8-A (9 Talebe - Yavuz Selim Seven) ve 8-B (9 Talebe - Tunahan Taşkın) kütüğünü zorla eşitler ve buluta mühürler">
-                <span>⚡</span>
-                <span>8-A & 8-B Kütüğü Onar (9 + 9)</span>
+              <button onclick="window.App.activateAllStudents()" 
+                class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer"
+                title="Tüm pasifleri kaldırıp 66 öğrencinin tamamını aktife alır ve bulutu eşitler">
+                <span>⚡ Tümünü Aktif Yap</span>
               </button>
               <button onclick="window.App.openBulkImportModal()" 
                 class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
                 <span>📋 Excel'den Toplu Ekle</span>
               </button>
               <button onclick="window.App.openStudentModal()" 
-                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5 cursor-pointer">
+                class="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5 cursor-pointer">
                 <span>+ Yeni Öğrenci Ekle</span>
               </button>
             ` : ''}
@@ -1632,25 +1631,6 @@ window.App = {
         </div>
       </div>
     `;
-  },
-
-  // 8-A ve 8-B Sınıf Kütüğünü Zorla Onar ve Bulutla Eşitle
-  repair8thGradeClasses() {
-    this.showToast('8. Sınıf kütüğü onarılıyor ve buluta aktarılıyor...', 'info');
-    if (window.Store && typeof window.Store.forceRepair8thGradeClasses === 'function') {
-      const res = window.Store.forceRepair8thGradeClasses(true);
-      if (res && res.success) {
-        this.showToast('✅ 8-A (9 Talebe - Yavuz Selim Seven) ve 8-B (9 Talebe - Tunahan Taşkın) kütüğü onarıldı ve buluta mühürlendi!', 'success');
-      } else {
-        this.showToast('8. Sınıf kütüğü onarıldı.', 'info');
-      }
-    }
-    this.renderHeader();
-    if (this.activeTab === 'ogrenciler_excel') {
-      this.renderStudentsView();
-    } else {
-      this.renderMainContent();
-    }
   },
 
   // --- Excel (CSV) Formatında İndirme (Türkçe Karakter ve Excel Uyumlu) ---
@@ -2023,13 +2003,6 @@ window.App = {
               class="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs shadow transition flex items-center gap-2">
               <span>🔄</span>
               <span>Buluttan Şimdi Eşitle (Verileri Çek)</span>
-            </button>
-
-            <button type="button" onclick="window.App.repair8thGradeClasses()"
-              class="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs shadow transition flex items-center gap-2 cursor-pointer active:scale-95"
-              title="8-A (9 Talebe - Yavuz Selim Seven) ve 8-B (9 Talebe - Tunahan Taşkın) kütüğünü zorla eşitler ve buluta mühürler">
-              <span>⚡</span>
-              <span>8-A & 8-B Kütüğü Onar (9 + 9 Talebe)</span>
             </button>
           </div>
 
@@ -3474,16 +3447,16 @@ window.App = {
       this.showToast('Talebeleri pasife veya aktife alma yetkisi yalnızca Ana Yöneticidedir.', 'warning');
       return;
     }
-    const s = window.Store.getStudentById(id);
+    const s = window.Store.getStudentById(id) || (window.Store.getAllStudents().find(st => st.id === id || st.studentNo === id));
     if (!s) return;
-    const isCurrentlyPassive = s.isPassive === true || s.status === 'passive';
+    const isCurrentlyPassive = s.isPassive === true || s.status === 'passive' || (window.Store.isStudentPassive && window.Store.isStudentPassive(s.id));
     const fullName = `${s.firstName} ${s.lastName}`.trim();
     const msg = isCurrentlyPassive
       ? `"${fullName}" adlı talebeyi tekrar AKTİFE almak istiyor musunuz?\n\n(Talebe günlük yoklama ve izin listelerine tekrar dahil edilecektir.)`
       : `"${fullName}" adlı talebeyi PASİFE almak istiyor musunuz?\n\n(Talebenin hiçbir geçmiş verisi silinmez; sadece günlük yoklama, izin ve puan listelerinden gizlenir.)`;
 
     if (confirm(msg)) {
-      const res = window.Store.toggleStudentPassive(id);
+      const res = window.Store.toggleStudentPassive(s.id);
       if (res && res.success) {
         if (res.isPassive) {
           this.showToast(`⏸️ "${fullName}" pasife alındı. Günlük yoklamalardan gizlendi.`, 'warning');
@@ -3491,6 +3464,29 @@ window.App = {
           this.showToast(`▶️ "${fullName}" tekrar aktife alındı. Yoklamalara dahil edildi.`, 'success');
         }
         this.renderStudentsView();
+        if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
+          window.StudentExcelModule.render();
+        }
+      }
+    }
+  },
+
+  // Tüm Talebeleri Tek Tıkla Aktife Alma (66 Öğrenciyi Kesin Aktif Yapar)
+  activateAllStudents() {
+    if (!this.canManageStudents()) {
+      this.showToast('Bu yetki yalnızca Ana Yöneticidedir.', 'warning');
+      return;
+    }
+    if (confirm('Tüm öğrencileri (66 talebeyi) KESİN OLARAK AKTİFE almak istediğinizden emin misiniz?\n\n• Pasif sicili tamamen sıfırlanacaktır.\n• Buluttaki eski pasif kayıtlar temizlenecektir.\n• Bütün talebeler günlük yoklama ve listelere dahil edilecektir.')) {
+      const res = window.Store.activateAllStudents();
+      if (res && res.success) {
+        this.showToast(`⚡ Tüm öğrenciler (${res.count} talebe) başarıyla aktife alındı!`, 'success');
+        this.renderStudentsView();
+        if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
+          window.StudentExcelModule.render();
+        }
+      } else {
+        this.showToast('İşlem sırasında bir hata oluştu.', 'error');
       }
     }
   },
@@ -4025,6 +4021,9 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
             window.App.showToast(`▶️ "${fullName}" tekrar aktife alındı. Yoklamalara dahil edildi.`, 'success');
           }
           this.render();
+          if (window.App && typeof window.App.renderStudentsView === 'function') {
+            window.App.renderStudentsView();
+          }
         }
       }
     },
@@ -4165,9 +4164,17 @@ if (!window.StudentExcelModule || typeof window.StudentExcelModule.addNewColumn 
               <div class="flex flex-wrap items-center gap-2">
                 <div id="excel-save-indicator" class="h-6 flex items-center mr-1"></div>
 
+                <!-- ⚡ Tümünü Aktif Yap -->
+                <button type="button" onclick="window.App.activateAllStudents()"
+                  class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="Tüm pasifleri kaldırıp 66 öğrencinin tamamını aktife alır ve bulutu eşitler">
+                  <span>⚡</span>
+                  <span>Tümünü Aktif Yap</span>
+                </button>
+
                 <!-- + Yeni Satır Ekle -->
                 <button type="button" onclick="window.StudentExcelModule.addNewRow()"
-                  class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                  class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
                   title="Tablonun altına hemen yeni bir boş öğrenci satırı ekler">
                   <span>➕</span>
                   <span>Yeni Satır Ekle</span>

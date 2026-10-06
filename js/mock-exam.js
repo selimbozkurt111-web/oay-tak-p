@@ -13,6 +13,12 @@ window.MockExamModule = {
   selectedExamId: null,
   selectedClassFilter: 'ALL',
   searchQuery: '',
+  sortBy: 'score_desc', // 'score_desc' | 'name'
+
+  toggleSort() {
+    this.sortBy = this.sortBy === 'score_desc' ? 'name' : 'score_desc';
+    this.render();
+  },
 
   // Hoca ve Şube Tanımları (Hedef Kitle Eşleştirmesi)
   CLASS_TEACHER_LIST: [
@@ -36,11 +42,11 @@ window.MockExamModule = {
       targetClasses: ['8-A', '8-B'],
       subjects: [
         { id: 'sub_turkce', name: 'Türkçe', questionCount: 20, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
-        { id: 'sub_matematik', name: 'Matematik', questionCount: 20, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
-        { id: 'sub_fen', name: 'Fen Bilimleri', questionCount: 20, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
-        { id: 'sub_inkilap', name: 'T.C. İnkılap Tarihi', questionCount: 10, coefficient: 1.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
+        { id: 'sub_inkilap', name: 'İnkılap Tarihi', questionCount: 10, coefficient: 1.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
         { id: 'sub_din', name: 'Din Kültürü', questionCount: 10, coefficient: 1.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
-        { id: 'sub_ingilizce', name: 'İngilizce', questionCount: 10, coefficient: 1.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} }
+        { id: 'sub_ingilizce', name: 'İngilizce', questionCount: 10, coefficient: 1.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
+        { id: 'sub_matematik', name: 'Matematik', questionCount: 20, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
+        { id: 'sub_fen', name: 'Fen Bilimleri', questionCount: 20, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} }
       ]
     },
     ARA_SINIF_75: {
@@ -169,6 +175,85 @@ window.MockExamModule = {
     });
   },
 
+  getOrderedLgsSubjects(subjects) {
+    if (!Array.isArray(subjects) || subjects.length === 0) return [];
+    // Standart LGS sıra önceliği: Türkçe, İnkılap, Din, İngilizce, Matematik, Fen
+    const orderMap = {
+      'TÜRKÇE': 1,
+      'TURKCE': 1,
+      'İNKILAP': 2,
+      'INKILAP': 2,
+      'T.C. İNKILAP': 2,
+      'T.C. İNKILAP TARİHİ': 2,
+      'SOSYAL': 2,
+      'DİN': 3,
+      'DIN': 3,
+      'DİN KÜLTÜRÜ': 3,
+      'İNGİLİZCE': 4,
+      'INGILIZCE': 4,
+      'YABANCI DİL': 4,
+      'MATEMATİK': 5,
+      'MATEMATIK': 5,
+      'FEN': 6,
+      'FEN BİLİMLERİ': 6
+    };
+
+    const getRank = (sub) => {
+      const n = (sub.name || '').toUpperCase().trim();
+      for (const [key, rank] of Object.entries(orderMap)) {
+        if (n.includes(key)) return rank;
+      }
+      return 99;
+    };
+
+    const hasLgs = subjects.some(s => getRank(s) < 99);
+    if (!hasLgs) return subjects;
+
+    return [...subjects].sort((a, b) => getRank(a) - getRank(b));
+  },
+
+  getShortSubjectName(name) {
+    if (!name) return '';
+    const n = name.trim();
+    if (n.includes('İnkılap') || n.includes('Inkilap')) return 'İnkılap Tarihi';
+    if (n.includes('Din')) return 'Din Kültürü';
+    if (n.includes('Fen')) return 'Fen Bilimleri';
+    if (n.includes('İngilizce') || n.includes('Ingilizce')) return 'İngilizce';
+    if (n.includes('Matematik')) return 'Matematik';
+    if (n.includes('Türkçe') || n.includes('Turkce')) return 'Türkçe';
+    return n;
+  },
+
+  // ========================================================
+  // 0. AKADEMİ & DERSLER ÜST NAVİGASYON ÇUBUĞU
+  // ========================================================
+  renderTopTabsHtml(active = 'denemeler') {
+    return `
+      <!-- AKADEMİ & DERSLER HIZLI GEÇİŞ SEKMELERİ -->
+      <div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-2 overflow-x-auto no-scrollbar no-print mb-1">
+        <div class="flex items-center gap-1.5 flex-1 min-w-max">
+          <button type="button" onclick="window.App.navigateFromDrawer('akademi', 'takviye')"
+            class="px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'takviye' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>📚</span>
+            <span>Takviye Ders Notları</span>
+          </button>
+
+          <button type="button" onclick="window.App.navigateFromDrawer('testler')"
+            class="px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'testler' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>📝</span>
+            <span>Test Neticeleri & Etüt</span>
+          </button>
+
+          <button type="button" onclick="window.MockExamModule.activeView='list'; window.MockExamModule.render();"
+            class="px-3 py-1.5 rounded-xl font-black text-xs transition flex items-center gap-1.5 cursor-pointer ${active === 'denemeler' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <span>🎯</span>
+            <span>Deneme Sınavları (LGS 500P)</span>
+          </button>
+        </div>
+      </div>
+    `;
+  },
+
   // ========================================================
   // 1. SINAVLAR LİSTESİ GÖRÜNÜMÜ
   // ========================================================
@@ -180,6 +265,9 @@ window.MockExamModule = {
     container.innerHTML = `
       <div class="space-y-4 max-w-7xl mx-auto animate-fade-in pb-8">
         
+        <!-- Akademi Üst Sekmeleri -->
+        ${this.renderTopTabsHtml('denemeler')}
+
         <!-- Üst Başlık & Eylem Butonu -->
         <div class="bg-white p-4 sm:p-5 rounded-3xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-3">
@@ -197,20 +285,53 @@ window.MockExamModule = {
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
+            <!-- 📷 CANLI OPTİK OKU -->
+            <button type="button" onclick="window.MockExamModule.openCameraScanner()"
+              title="Telefon veya bilgisayar kamerasıyla QR kodlu optik formları canlı tara"
+              class="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer">
+              <span>📷</span>
+              <span>Optik Oku</span>
+            </button>
+
+            <!-- 🔑 CEVAP ANAHTARI -->
+            <button type="button" onclick="window.MockExamModule.openAnswerKeyModal()"
+              title="A ve B kitapçığı cevap anahtarlarını tanımla"
+              class="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer">
+              <span>🔑</span>
+              <span class="hidden sm:inline">Cevap Anahtarı</span>
+            </button>
+
+            <!-- 🖨️ OPTİK FORM YAZDIR (A4 YATAY) -->
+            <button type="button" onclick="window.MockExamModule.openPrintModal()"
+              title="Talebelerin QR kodlu 6 dersli optik cevap formlarını A4 yatay olarak yazdır"
+              class="px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer">
+              <span>🖨️</span>
+              <span>Optik Yazdır</span>
+            </button>
+
+            <!-- 📝 TEST & ETÜT GEÇİŞİ -->
+            <button type="button" onclick="window.App.navigateFromDrawer('testler')"
+              title="Test & Etüt Modülüne Geç"
+              class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer">
+              <span>📝</span>
+              <span class="hidden sm:inline">Test & Etüt</span>
+            </button>
+
+            <!-- + 8. Sınıf LGS Denemesi (90 Soru) -->
             <button type="button" onclick="window.MockExamModule.openNewExamModal('LGS_STANDARD')"
-              class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-2xl shadow transition flex items-center gap-2 cursor-pointer active:scale-95">
+              class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer active:scale-95">
               <span>+</span>
-              <span>8. Sınıf LGS Denemesi (90 Soru)</span>
+              <span>LGS Denemesi (90 Soru)</span>
             </button>
             <button type="button" onclick="window.MockExamModule.openNewExamModal('ARA_SINIF_75')"
-              class="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-2xl shadow transition flex items-center gap-1.5 cursor-pointer active:scale-95">
+              class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1 cursor-pointer active:scale-95">
               <span>⚡</span>
-              <span>Ara Sınıf Denemesi (75 Soru)</span>
+              <span>Ara Sınıf (75S)</span>
             </button>
             <button type="button" onclick="window.MockExamModule.openNewExamModal('CUSTOM')"
-              class="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-2xl shadow transition flex items-center gap-1.5 cursor-pointer">
+              class="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1 cursor-pointer">
               <span>⚙️</span>
-              <span>Özel Sınav</span>
+              <span>Özel</span>
             </button>
           </div>
         </div>
@@ -401,6 +522,9 @@ window.MockExamModule = {
     container.innerHTML = `
       <div class="space-y-4 max-w-5xl mx-auto animate-fade-in pb-12">
         
+        <!-- Akademi Üst Sekmeleri -->
+        ${this.renderTopTabsHtml('denemeler')}
+
         <!-- Üst Bar: Geri Dön & Başlık -->
         <div class="bg-white p-4 sm:p-5 rounded-3xl shadow-xs border border-slate-200 flex items-center justify-between gap-3">
           <div class="flex items-center gap-3">
@@ -967,11 +1091,28 @@ window.MockExamModule = {
   // 3. 🖨️ ÇOK DERSLİ LGS OPTİK FORM YAZDIRMA (A4 + QR KODLU)
   // ========================================================
   openPrintModal(examId) {
-    const exam = window.Store.getMockExamById(examId || this.selectedExamId);
-    if (!exam) return;
+    let exam = window.Store.getMockExamById(examId || this.selectedExamId);
+    if (!exam) {
+      const exams = window.Store.getMockExams();
+      exam = exams.length > 0 ? exams[0] : null;
+    }
+    if (!exam) {
+      const defaultLgs = JSON.parse(JSON.stringify(this.PRESET_TEMPLATES.LGS_STANDARD));
+      defaultLgs.id = 'exam_lgs_auto_' + Date.now();
+      defaultLgs.title = 'İsabet Ortaokul 8. Sınıf Deneme 3 (23-28 Ara)';
+      defaultLgs.date = new Date().toISOString().split('T')[0];
+      exam = window.Store.saveMockExam(defaultLgs);
+      this.selectedExamId = exam.id;
+    }
 
+    const allStudents = (window.Store && typeof window.Store.getStudents === 'function')
+      ? window.Store.getStudents(false)
+      : [];
     const participatingStudents = this.getParticipatingStudents(exam);
-    const targetClasses = exam.targetClasses || [];
+    const existingClasses = (window.Store && typeof window.Store.getClasses === 'function') ? window.Store.getClasses() : [];
+    const availableBranches = existingClasses.length > 0 
+      ? existingClasses.map(c => c.name || c.id) 
+      : [...new Set(allStudents.map(s => s.className).filter(Boolean))].sort();
 
     let modal = document.getElementById('mock-print-modal');
     if (!modal) {
@@ -989,8 +1130,8 @@ window.MockExamModule = {
               🖨️
             </div>
             <div>
-              <h3 class="font-black text-slate-900 text-base leading-tight">Çok Dersli Optik Form Yazdır (A4)</h3>
-              <p class="text-xs text-slate-500 font-medium">${exam.title} • Her talebeye özel QR kodlu</p>
+              <h3 class="font-black text-slate-900 text-base leading-tight">QR Kodlu Optik Form Yazdır (A4)</h3>
+              <p class="text-xs text-slate-500 font-medium">${exam.title} • Her talebeye özel QR kod basılır, kamera anında tanır</p>
             </div>
           </div>
           <button type="button" onclick="document.getElementById('mock-print-modal').remove()"
@@ -998,37 +1139,72 @@ window.MockExamModule = {
         </div>
 
         <div class="space-y-3 text-xs">
+          <!-- FORM ŞABLONU SEÇİMİ -->
           <div>
-            <label class="block font-bold text-slate-700 mb-1">YAZDIRILACAK ŞUBE</label>
-            <select id="mock-print-class-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
-              <option value="ALL">Tüm Sınav Katılımcıları (${participatingStudents.length} Talebe)</option>
-              ${targetClasses.map(c => `
-                <option value="${c}">${c} Şubesi</option>
-              `).join('')}
-            </select>
+            <label class="block font-black text-slate-800 mb-1.5 uppercase tracking-wide">YAZDIRILACAK OPTİK FORM ŞABLONU *</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <label class="flex items-start gap-2.5 p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/70 cursor-pointer shadow-xs transition">
+                <input type="radio" name="mock-print-mode" value="LGS_LANDSCAPE" checked class="mt-0.5 text-emerald-600 focus:ring-emerald-500">
+                <div>
+                  <div class="font-black text-slate-900 text-xs flex items-center gap-1">
+                    <span>🎯</span> <span>6 Dersli Kurumsal LGS</span>
+                  </div>
+                  <div class="text-[10px] text-emerald-800 font-bold mt-0.5">A4 Yatay • Yeni Şablon (Örnek Görseliniz)</div>
+                  <div class="text-[9px] text-slate-500 mt-0.5">Türkçe (20), İnkılap (10), Din (10), İngilizce (10), Matematik (20), Fen (20)</div>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-2.5 p-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer transition">
+                <input type="radio" name="mock-print-mode" value="SINGLE_TEST" class="mt-0.5 text-emerald-600 focus:ring-emerald-500">
+                <div>
+                  <div class="font-bold text-slate-800 text-xs flex items-center gap-1">
+                    <span>📝</span> <span>Tek Derslik Etüt Testi</span>
+                  </div>
+                  <div class="text-[10px] text-slate-600 font-medium mt-0.5">A4 Dikey • 1 Sayfada 2 Adet Form</div>
+                  <div class="text-[9px] text-slate-500 mt-0.5">Tek Ders / Etüt Tarama</div>
+                </div>
+              </label>
+            </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">YAZDIRILACAK ŞUBE</label>
+              <select id="mock-print-class-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
+                <option value="ALL">Tüm Sınav Katılımcıları (${participatingStudents.length} Talebe)</option>
+                ${availableBranches.map(br => {
+                  const cnt = participatingStudents.filter(s => (s.className || '').trim().toUpperCase() === br.trim().toUpperCase()).length;
+                  return `<option value="${br}">${br} Sınıfı (${cnt} Talebe)</option>`;
+                }).join('')}
+                <option value="BLANK">İsimsiz Boş Form (Yedek - 4 Adet)</option>
+              </select>
+            </div>
+
             <div>
               <label class="block font-bold text-slate-700 mb-1">KİTAPÇIK TÜRÜ</label>
               <select id="mock-print-booklet-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
-                <option value="A">Yalnızca A Kitapçığı</option>
-                <option value="B">Yalnızca B Kitapçığı</option>
-                <option value="MIXED" selected>A ve B Dönüşümlü (Sırayla)</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">FORM DÜZENİ</label>
-              <select id="mock-print-type-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
-                <option value="STUDENTS" selected>Talebelere Özel (İsimli & QR Kodlu)</option>
-                <option value="BLANK">Yedek / İsimsiz Boş Form</option>
+                <option value="EMPTY" selected>Boş Bırak (Talebe Sınavda Kodlasın - Görseldeki Gibi)</option>
+                <option value="A">Yalnızca A Kitapçığı (Dolu Kodlanmış)</option>
+                <option value="B">Yalnızca B Kitapçığı (Dolu Kodlanmış)</option>
+                <option value="MIXED">A ve B Dönüşümlü Dolu (Sırayla)</option>
               </select>
             </div>
           </div>
 
-          <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-900 leading-relaxed text-[11px]">
-            💡 <strong>Tasarruf & Kolaylık:</strong> Her talebenin ad, soyad ve okul numarası otomatik olarak forma işlenir ve sağ üst köşesine yüksek çözünürlüklü <strong>QR Kod (Karekod)</strong> basılır. Sınav bittiğinde telefon kamerası bu karekodu ve baloncukları anında tanır.
+          <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-slate-700 space-y-1 text-[11px] leading-relaxed">
+            <div class="font-bold text-amber-900 flex items-center gap-1.5">
+              <span>💡</span>
+              <span>A4 Yatay Optik Form Özellikleri:</span>
+            </div>
+            <p>
+              • <strong>4 Köşe L-Köşebentleri:</strong> Tarayıcı ve kamera açısını sabitleyen 10px kalınlığında tam hizalama işaretleri.
+            </p>
+            <p>
+              • <strong>Öğrenci & Kurum Bilgisi:</strong> Adı Soyadı, Seviyeleri, Kurum Adı ve Takip Kodu.
+            </p>
+            <p>
+              • <strong>Hızlı Kamera Taraması:</strong> Sol karekod ve 6 MEB ders sütunu (1, 10, 19 siyah referans kareleri) ile tek tıkla canlı kamera okuma.
+            </p>
           </div>
         </div>
 
@@ -1038,44 +1214,116 @@ window.MockExamModule = {
             İptal
           </button>
           <button type="button" onclick="window.MockExamModule.executePrintForms('${exam.id}')"
-            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer active:scale-95">
             <span>🖨️</span>
-            <span>Yazdırmayı Başlat (A4)</span>
+            <span>Önizle ve Yazdır (A4)</span>
           </button>
         </div>
       </div>
     `;
   },
 
-  executePrintForms(examId) {
-    const exam = window.Store.getMockExamById(examId);
-    if (!exam) return;
+  getShortSubjectName(name) {
+    if (!name) return '';
+    const n = name.trim();
+    const lower = n.toLowerCase();
+    if (lower.includes('türkçe') || lower.includes('turkce')) return 'Türkçe';
+    if (lower.includes('inkılap') || lower.includes('inkilap') || lower.includes('tarih')) return 'İnkılap Tarihi';
+    if (lower.includes('din')) return 'Din Kültürü';
+    if (lower.includes('ingilizce') || lower.includes('yabancı') || lower.includes('dil')) return 'İngilizce';
+    if (lower.includes('matematik') || lower.includes('mat')) return 'Matematik';
+    if (lower.includes('fen')) return 'Fen Bilimleri';
+    return n.length > 15 ? n.substring(0, 15) : n;
+  },
 
-    const classSelect = document.getElementById('mock-print-class-select');
-    const bookletSelect = document.getElementById('mock-print-booklet-select');
+  getOrderedLgsSubjects(subjects) {
+    if (!Array.isArray(subjects) || subjects.length === 0) {
+      return [
+        { name: 'Türkçe', questionCount: 20 },
+        { name: 'İnkılap Tarihi', questionCount: 10 },
+        { name: 'Din Kültürü', questionCount: 10 },
+        { name: 'İngilizce', questionCount: 10 },
+        { name: 'Matematik', questionCount: 20 },
+        { name: 'Fen Bilimleri', questionCount: 20 }
+      ];
+    }
+    const getRank = (name) => {
+      const lower = (name || '').toLowerCase();
+      if (lower.includes('türkçe') || lower.includes('turkce')) return 1;
+      if (lower.includes('inkılap') || lower.includes('inkilap') || lower.includes('tarih')) return 2;
+      if (lower.includes('din')) return 3;
+      if (lower.includes('ingilizce') || lower.includes('yabancı') || lower.includes('dil')) return 4;
+      if (lower.includes('matematik') || lower.includes('mat')) return 5;
+      if (lower.includes('fen')) return 6;
+      return 100;
+    };
+    return [...subjects].sort((a, b) => getRank(a.name) - getRank(b.name));
+  },
+
+  executePrintForms(examId, customOptions = null) {
+    const modeRadio = document.querySelector('input[name="mock-print-mode"]:checked') || document.querySelector('input[name="omr-print-mode"]:checked');
+    if (modeRadio && modeRadio.value === 'SINGLE_TEST') {
+      const modalMock = document.getElementById('mock-print-modal');
+      if (modalMock) modalMock.remove();
+      if (window.OMRScanner && typeof window.OMRScanner.generateAndPrintForms === 'function') {
+        window.OMRScanner.generateAndPrintForms();
+        return;
+      }
+    }
+
+    let exam = window.Store.getMockExamById(examId);
+    if (!exam) {
+      const exams = window.Store.getMockExams();
+      exam = exams.length > 0 ? exams[0] : null;
+    }
+    if (!exam) {
+      // Varsayılan standart LGS denemesi oluştur
+      const defaultLgs = JSON.parse(JSON.stringify(this.PRESET_TEMPLATES.LGS_STANDARD));
+      defaultLgs.id = 'exam_lgs_auto_' + Date.now();
+      defaultLgs.title = 'İsabet Ortaokul 8. Sınıf Deneme 3 (23-28 Ara)';
+      defaultLgs.date = new Date().toISOString().split('T')[0];
+      exam = window.Store.saveMockExam(defaultLgs);
+    }
+
+    const classSelect = document.getElementById('mock-print-class-select') || document.getElementById('omr-print-class-select');
+    const bookletSelect = document.getElementById('mock-print-booklet-select') || document.getElementById('omr-print-booklet');
     const typeSelect = document.getElementById('mock-print-type-select');
 
-    const selClass = classSelect ? classSelect.value : 'ALL';
-    const selBooklet = bookletSelect ? bookletSelect.value : 'MIXED';
-    const isBlank = typeSelect && typeSelect.value === 'BLANK';
+    const selClass = (customOptions && customOptions.selClass) || (classSelect ? classSelect.value : 'ALL');
+    const selBooklet = (customOptions && customOptions.selBooklet) || (bookletSelect ? bookletSelect.value : 'EMPTY');
+    const isBlank = (customOptions && customOptions.isBlank !== undefined) ? customOptions.isBlank : (typeSelect ? typeSelect.value === 'BLANK' : selClass === 'BLANK');
 
     let students = this.getParticipatingStudents(exam);
-    if (selClass !== 'ALL') {
+    if (students.length === 0) {
+      students = window.Store.getStudents(false);
+    }
+    if (selClass !== 'ALL' && selClass !== 'BLANK') {
       students = students.filter(s => (s.className || '').trim().toUpperCase() === selClass.toUpperCase());
     }
 
     if (students.length === 0 && !isBlank) {
-      alert('Seçilen kriterde öğrenci bulunamadı.');
-      return;
+      // Eğer filtrede öğrenci yoksa tüm aktif öğrencileri al
+      students = window.Store.getStudents(false);
     }
 
-    const modal = document.getElementById('mock-print-modal');
-    if (modal) modal.remove();
+    const modalMock = document.getElementById('mock-print-modal');
+    if (modalMock) modalMock.remove();
+    const modalOmr = document.getElementById('omr-print-modal');
+    if (modalOmr) modalOmr.remove();
 
     // Yazdırılabilir A4 Optik Form Penceresi Oluştur
     const subjects = exam.subjects || [];
     const settings = window.Store.getSettings();
-    const instName = settings.institutionName || 'Ömer Avniyel Akademi';
+    const instName = settings.institutionName || 'TABAKÇILAR B BLOK';
+    const orderedSubjects = this.getOrderedLgsSubjects(subjects);
+
+    // Sözel ve Sayısal küme ayrımı (Standart 5+ dersli sınavlarda ilk 4 ders Sözel, kalanlar Sayısal)
+    let sozelSubjects = orderedSubjects;
+    let sayisalSubjects = [];
+    if (orderedSubjects.length >= 5) {
+      sozelSubjects = orderedSubjects.slice(0, 4);
+      sayisalSubjects = orderedSubjects.slice(4);
+    }
 
     let printHtml = `
       <!DOCTYPE html>
@@ -1084,30 +1332,410 @@ window.MockExamModule = {
         <meta charset="UTF-8">
         <title>${exam.title} - Optik Cevap Formları</title>
         <style>
-          @page { size: A4 portrait; margin: 8mm; }
-          * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0; background: #fff; color: #000; font-size: 11px; }
-          .sheet { width: 100%; height: 280mm; max-height: 280mm; page-break-after: always; display: flex; flex-direction: column; justify-content: space-between; border: 2px solid #000; padding: 6mm; position: relative; }
-          .corner-marker { width: 14px; height: 14px; background: #000; position: absolute; }
-          .tl { top: 2mm; left: 2mm; }
-          .tr { top: 2mm; right: 2mm; }
-          .bl { bottom: 2mm; left: 2mm; }
-          .br { bottom: 2mm; right: 2mm; }
-          .header-box { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 4mm; margin-bottom: 3mm; }
-          .title-area h1 { font-size: 15px; font-weight: 900; margin: 0; text-transform: uppercase; }
-          .title-area h2 { font-size: 12px; font-weight: 800; margin: 2px 0 0; color: #333; }
-          .title-area p { font-size: 10px; margin: 2px 0 0; color: #555; }
-          .student-box { border: 1.5px solid #000; padding: 3mm; border-radius: 4px; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 4px; font-size: 11px; background: #fbfbfb; }
-          .qr-box { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 24mm; }
-          .bubble-grid { display: grid; grid-template-columns: repeat(${Math.min(subjects.length, 6)}, 1fr); gap: 4mm; flex: 1; margin-top: 3mm; }
-          .subject-column { border: 1.5px solid #000; border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
-          .subject-header { background: #000; color: #fff; text-align: center; font-weight: 900; font-size: 10px; padding: 2.5px 0; text-transform: uppercase; letter-spacing: 0.5px; }
-          .subject-sub { background: #eee; text-align: center; font-size: 8.5px; font-weight: bold; border-bottom: 1px solid #000; padding: 1px 0; }
-          .q-row { display: flex; align-items: center; justify-content: space-between; padding: 1px 2px; border-bottom: 1px dotted #ccc; font-size: 9px; height: 11.5px; }
-          .q-num { font-weight: 900; width: 14px; text-align: right; margin-right: 2px; font-family: monospace; }
-          .bubbles { display: flex; gap: 2.5px; }
-          .bubble { width: 10.5px; height: 10.5px; border: 1.2px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 7.5px; font-weight: 900; font-family: monospace; }
-          .footer-note { font-size: 8.5px; text-align: center; border-top: 1px solid #000; padding-top: 2mm; color: #333; }
+          @page {
+            size: A4 landscape;
+            margin: 0;
+          }
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          body {
+            font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            color: #000;
+            font-size: 11px;
+            -webkit-font-smoothing: antialiased;
+          }
+          @media print {
+            .no-print-top-bar {
+              display: none !important;
+            }
+          }
+          @media screen {
+            body {
+              background: #475569;
+              padding-top: 52px;
+            }
+            .sheet {
+              box-shadow: 0 4px 25px rgba(0, 0, 0, 0.4);
+              margin: 20px auto;
+            }
+          }
+          .no-print-top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 48px;
+            background: #0f172a;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 999999;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          }
+          .no-print-btn {
+            background: #2563eb;
+            color: #ffffff;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+          }
+          .no-print-btn:hover {
+            background: #1d4ed8;
+          }
+          .no-print-close {
+            background: #334155;
+            color: #ffffff;
+            border: none;
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+          }
+          .no-print-close:hover {
+            background: #475569;
+          }
+          .sheet {
+            width: 297mm;
+            height: 210mm;
+            max-height: 210mm;
+            page-break-after: always;
+            position: relative;
+            padding: 7mm 11mm 6mm 11mm;
+            background: #fff;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-sizing: border-box;
+          }
+
+          /* 4 KÖŞE KALIN L HİZALAMA ÇERÇEVELERİ (GÖRSELE BİREBİR KÖŞEBENTLER) */
+          .corner-bracket {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+          }
+          .corner-bracket.tl {
+            top: 5mm;
+            left: 7mm;
+            border-top: 10px solid #000;
+            border-left: 10px solid #000;
+          }
+          .corner-bracket.tr {
+            top: 5mm;
+            right: 7mm;
+            border-top: 10px solid #000;
+            border-right: 10px solid #000;
+          }
+          .corner-bracket.bl {
+            bottom: 5mm;
+            left: 7mm;
+            border-bottom: 10px solid #000;
+            border-left: 10px solid #000;
+          }
+          .corner-bracket.br {
+            bottom: 5mm;
+            right: 7mm;
+            border-bottom: 10px solid #000;
+            border-right: 10px solid #000;
+          }
+
+          /* İÇ FORM ALANI (KÖŞEBENTLERİN İÇİNDE) */
+          .form-inner {
+            margin: 0 4mm;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            justify-content: space-between;
+          }
+
+          /* ÜST BAŞLIK VE ÖĞRENCİ BİLGİ KARTI */
+          .exam-header-card {
+            background: #ffffff;
+            border: 1.2px solid #718096;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 7px;
+            flex-shrink: 0;
+          }
+          .exam-title-bar {
+            background: #4c4c4c;
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 13.5px;
+            text-align: center;
+            padding: 4.5px 12px;
+            letter-spacing: 0.3px;
+            line-height: 1.25;
+          }
+          .exam-info-body {
+            padding: 6px 14px 4px 14px;
+            background: #ffffff;
+          }
+          .info-line {
+            display: flex;
+            align-items: flex-end;
+            margin-bottom: 3.5px;
+            height: 18px;
+          }
+          .info-lbl {
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 11.5px;
+            white-space: nowrap;
+            margin-right: 6px;
+          }
+          .info-val {
+            font-weight: 800;
+            color: #000000;
+            text-transform: uppercase;
+            font-size: 11.5px;
+            white-space: nowrap;
+            margin-right: 6px;
+          }
+          .info-dots {
+            flex: 1;
+            border-bottom: 1px dotted #94a3b8;
+            margin-bottom: 3.5px;
+          }
+          .tracking-code-line {
+            text-align: right;
+            font-size: 9.5px;
+            font-weight: 700;
+            color: #334155;
+            margin-top: 1px;
+            padding-right: 2px;
+          }
+
+          /* ANA FORM IZGARA ALANI */
+          .exam-grid-layout {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            flex: 1;
+          }
+
+          /* SOL SÜTUN (KAREKOD + KİTAPÇIK TÜRÜ) */
+          .left-side-panel {
+            width: 120px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            gap: 9px;
+          }
+          .side-card-pill {
+            background: #4c4c4c;
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 11px;
+            text-align: center;
+            padding: 3px 0;
+            border-radius: 4px;
+            letter-spacing: 0.2px;
+          }
+          .side-card-body {
+            border: 1px solid #718096;
+            border-radius: 4px;
+            padding: 4px;
+            margin-top: 2px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #ffffff;
+          }
+          .booklet-box {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 1px 0;
+          }
+          .booklet-labels-row {
+            display: flex;
+            justify-content: space-around;
+            padding: 2px 0;
+            font-size: 11.5px;
+            font-weight: 700;
+            color: #334155;
+            border-bottom: 1px solid #cbd5e1;
+          }
+          .booklet-bubbles-row {
+            display: flex;
+            justify-content: space-around;
+            padding: 3px 0;
+          }
+
+          /* DERSLER BÖLÜMÜ (SÖZEL VE SAYISAL KÜMELER) */
+          .subjects-wrapper {
+            display: flex;
+            align-items: flex-start;
+            flex: 1;
+            justify-content: space-between;
+          }
+          .sozel-cluster {
+            display: flex;
+            align-items: flex-start;
+            gap: 7px;
+            flex: 4;
+          }
+          .sayisal-cluster {
+            display: flex;
+            align-items: flex-start;
+            gap: 7px;
+            flex: 2;
+            margin-left: 20px;
+          }
+
+          /* TEKİL DERS SÜTUNU: SOL ZAMANLAMA ŞERİDİ + SAĞ DERS KUTUSU */
+          .subject-col-wrapper {
+            display: flex;
+            gap: 2px;
+            flex: 1;
+            min-width: 0;
+          }
+          .timing-strip {
+            width: 10px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+          }
+          .timing-top-spacer {
+            height: 42px; /* 20px pill + 3px margin + 18px options-header + 1px border */
+          }
+          .timing-cell {
+            height: 6.8mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .timing-box {
+            width: 7.5px;
+            height: 7.5px;
+            background: #000000;
+            border-radius: 1px;
+            display: inline-block;
+          }
+          .timing-empty {
+            width: 7.5px;
+            height: 7.5px;
+            display: inline-block;
+          }
+
+          .subject-box-column {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+          }
+          .sub-title-pill {
+            height: 20px;
+            line-height: 20px;
+            background: #4c4c4c;
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 11px;
+            text-align: center;
+            border-radius: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 3px;
+          }
+          .sub-bordered-card {
+            border: 1px solid #718096;
+            border-radius: 4px;
+            overflow: hidden;
+            background: #ffffff;
+          }
+          .sub-options-header {
+            height: 18px;
+            border-bottom: 1px solid #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 3px;
+            font-weight: 700;
+            font-size: 10px;
+            color: #475569;
+          }
+          .q-index-spacer {
+            width: 15px;
+            margin-right: 3.5px;
+          }
+          .bubbles-cell-header {
+            display: flex;
+            gap: 3.5px;
+          }
+          .opt-header-cell {
+            width: 14.5px;
+            text-align: center;
+          }
+
+          /* SORU SATIRLARI */
+          .sub-rows-wrapper {
+            display: flex;
+            flex-direction: column;
+          }
+          .question-row {
+            height: 6.8mm;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 3px;
+          }
+          .q-index {
+            width: 15px;
+            text-align: right;
+            font-weight: 700;
+            font-size: 10px;
+            font-family: Arial, sans-serif;
+            color: #334155;
+            margin-right: 3.5px;
+          }
+          .bubbles-cell {
+            display: flex;
+            gap: 3.5px;
+          }
+          .bubble {
+            width: 14.5px;
+            height: 14.5px;
+            border-radius: 50%;
+            border: 1.2px solid #94a3b8;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            font-weight: 700;
+            color: #64748b;
+            font-family: Arial, Helvetica, sans-serif;
+            box-sizing: border-box;
+            user-select: none;
+            background: #ffffff;
+          }
+          .bubble.filled {
+            background: #000000 !important;
+            color: #ffffff !important;
+            border-color: #000000 !important;
+          }
         </style>
       </head>
       <body>
@@ -1115,83 +1743,181 @@ window.MockExamModule = {
 
     const formList = isBlank ? [{ isBlank: true, booklet: 'A' }, { isBlank: true, booklet: 'B' }] : students;
 
+    const renderSubjectColumn = (sub) => {
+      const qCount = parseInt(sub.questionCount, 10) || 10;
+      const displayName = this.getShortSubjectName(sub.name);
+
+      let timingHtml = '';
+      let rowsHtml = '';
+      for (let q = 1; q <= qCount; q++) {
+        const isTiming = (q === 1 || q === 10 || q === 19);
+        timingHtml += `
+          <div class="timing-cell">
+            <span class="${isTiming ? 'timing-box' : 'timing-empty'}"></span>
+          </div>
+        `;
+        rowsHtml += `
+          <div class="question-row">
+            <span class="q-index">${q}</span>
+            <div class="bubbles-cell">
+              <span class="bubble">A</span>
+              <span class="bubble">B</span>
+              <span class="bubble">C</span>
+              <span class="bubble">D</span>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="subject-col-wrapper">
+          <div class="timing-strip">
+            <div class="timing-top-spacer"></div>
+            ${timingHtml}
+          </div>
+          <div class="subject-box-column">
+            <div class="sub-title-pill" title="${sub.name}">${displayName}</div>
+            <div class="sub-bordered-card">
+              <div class="sub-options-header">
+                <span class="q-index-spacer"></span>
+                <div class="bubbles-cell-header">
+                  <span class="opt-header-cell">A</span>
+                  <span class="opt-header-cell">B</span>
+                  <span class="opt-header-cell">C</span>
+                  <span class="opt-header-cell">D</span>
+                </div>
+              </div>
+              <div class="sub-rows-wrapper">
+                ${rowsHtml}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    };
+
+    printHtml += `
+      <div class="no-print-top-bar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-weight: 800; font-size: 13px;">🎯 ${exam.title} - Optik Cevap Formları</span>
+          <span style="font-size: 11px; color: #94a3b8;">(${formList.length} Sayfa)</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="no-print-btn" onclick="window.print()">🖨️ Sayfayı Yazdır (Ctrl + P)</button>
+          <button class="no-print-close" onclick="window.close()">✕ Kapat</button>
+        </div>
+      </div>
+    `;
+
     formList.forEach((st, idx) => {
       let bLet = selBooklet;
       if (selBooklet === 'MIXED') {
         bLet = (idx % 2 === 0) ? 'A' : 'B';
       }
 
-      const stId = st.isBlank ? 'BLANK' : st.id;
-      const stNo = st.isBlank ? '---' : st.studentNo;
-      const stName = st.isBlank ? '...................................................' : `${st.firstName} ${st.lastName}`;
-      const stClass = st.isBlank ? '.......' : st.className;
+      const isBlankForm = st.isBlank || false;
+      const stId = isBlankForm ? 'BLANK' : st.id;
+      const stNo = isBlankForm ? '---' : st.studentNo;
+      const stName = isBlankForm ? '...................................................' : `${st.firstName} ${st.lastName}`;
+      const stClass = isBlankForm ? '.......' : st.className;
+
+      const gradeNum = st.className ? st.className.replace(/\D/g, '') : '8';
+      const seviyeStr = (st.seviye && st.seviye.trim()) ? st.seviye.toUpperCase() : 'ORTAOKUL SEVİYE 1';
+      const stLevel = isBlankForm 
+        ? '...................................................' 
+        : `ORTAOKUL ${gradeNum || '8'} - ${seviyeStr}`;
+
+      const trackingCode = isBlankForm 
+        ? '29828977800' 
+        : `298${(st.studentNo || '101').toString().padStart(5, '0')}7800`.slice(0, 11);
 
       // QR Kod Payload: OAY_MOCK:{examId}:{studentId}:{studentNo}:{className}:{booklet}
-      const qrPayload = `OAY_MOCK:${exam.id}:${stId}:${stNo}:${stClass}:${bLet}`;
+      const qrBooklet = (bLet === 'EMPTY') ? 'A' : bLet;
+      const qrPayload = `OAY_MOCK:${exam.id}:${stId}:${stNo}:${stClass}:${qrBooklet}`;
       let qrSvg = '';
       if (window.MiniQRCode && typeof window.MiniQRCode.generateSvg === 'function') {
-        qrSvg = window.MiniQRCode.generateSvg(qrPayload, 84);
+        qrSvg = window.MiniQRCode.generateSvg(qrPayload, 100);
       } else {
-        qrSvg = `<div style="width:84px;height:84px;border:2px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:monospace;text-align:center;">QR<br>${stNo}-${bLet}</div>`;
+        qrSvg = `<div style="width:100px;height:100px;border:2px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:monospace;text-align:center;">QR<br>${stNo}-${qrBooklet}</div>`;
       }
 
       printHtml += `
         <div class="sheet">
-          <div class="corner-marker tl"></div>
-          <div class="corner-marker tr"></div>
-          <div class="corner-marker bl"></div>
-          <div class="corner-marker br"></div>
+          <!-- 4 KÖŞE L REFERANS ÇERÇEVELERİ -->
+          <div class="corner-bracket tl"></div>
+          <div class="corner-bracket tr"></div>
+          <div class="corner-bracket bl"></div>
+          <div class="corner-bracket br"></div>
 
-          <div>
-            <div class="header-box">
-              <div class="title-area">
-                <h1>${instName}</h1>
-                <h2>🎯 ${exam.title}</h2>
-                <p>Tarih: ${exam.date} • Çok Dersli LGS Optik Cevap Formu • <strong>KİTAPÇIK: ${bLet}</strong></p>
+          <div class="form-inner">
+            <!-- ÜST BAŞLIK VE ÖĞRENCİ BİLGİ KUTUSU -->
+            <div class="exam-header-card">
+              <div class="exam-title-bar">
+                ${exam.title}
               </div>
-              <div class="qr-box">
-                ${qrSvg}
-                <span style="font-size:7px;font-family:monospace;margin-top:2px;font-weight:bold;">${bLet} KİTAPÇIĞI</span>
+              <div class="exam-info-body">
+                <div class="info-line">
+                  <span class="info-lbl">Adı Soyadı :</span>
+                  <span class="info-val">${stName}</span>
+                  <span class="info-dots"></span>
+                </div>
+                <div class="info-line">
+                  <span class="info-lbl">Seviyeleri :</span>
+                  <span class="info-val">${stLevel}</span>
+                  <span class="info-dots"></span>
+                </div>
+                <div class="info-line">
+                  <span class="info-lbl">Kurum Adı :</span>
+                  <span class="info-val">${instName}</span>
+                  <span class="info-dots"></span>
+                </div>
+                <div class="tracking-code-line">T.Kodu: ${trackingCode}</div>
               </div>
             </div>
 
-            <div class="student-box">
-              <div><strong>Talebe:</strong> ${stName}</div>
-              <div><strong>Şube:</strong> ${stClass}</div>
-              <div><strong>Okul No:</strong> ${stNo}</div>
-            </div>
-          </div>
+            <!-- ALT BÖLÜM: SOL KAREKOD + DERS SÜTUNLARI -->
+            <div class="exam-grid-layout">
+              <!-- SOL SÜTUN -->
+              <div class="left-side-panel">
+                <div class="side-card">
+                  <div class="side-card-pill">Karekodu Okutun</div>
+                  <div class="side-card-body">
+                    ${qrSvg}
+                  </div>
+                </div>
 
-          <!-- DERSLER VE BALONCUKLAR -->
-          <div class="bubble-grid">
-            ${subjects.map(sub => {
-              const qCount = parseInt(sub.questionCount, 10) || 10;
-              let rows = '';
-              for (let q = 1; q <= qCount; q++) {
-                rows += `
-                  <div class="q-row">
-                    <span class="q-num">${q}</span>
-                    <div class="bubbles">
-                      <span class="bubble">A</span>
-                      <span class="bubble">B</span>
-                      <span class="bubble">C</span>
-                      <span class="bubble">D</span>
+                <div class="side-card">
+                  <div class="side-card-pill">Kitapçık Türü</div>
+                  <div class="side-card-body">
+                    <div class="booklet-box">
+                      <div class="booklet-labels-row">
+                        <span>A</span>
+                        <span>B</span>
+                      </div>
+                      <div class="booklet-bubbles-row">
+                        <span class="bubble ${bLet === 'A' ? 'filled' : ''}">A</span>
+                        <span class="bubble ${bLet === 'B' ? 'filled' : ''}">B</span>
+                      </div>
                     </div>
                   </div>
-                `;
-              }
-              return `
-                <div class="subject-column">
-                  <div class="subject-header">${sub.name}</div>
-                  <div class="subject-sub">${qCount} Soru (x${sub.coefficient})</div>
-                  <div>${rows}</div>
                 </div>
-              `;
-            }).join('')}
-          </div>
+              </div>
 
-          <div class="footer-note">
-            ⚠️ <strong>DİKKAT:</strong> Baloncukları yumuşak kurşun kalemle taşırmadan doldurunuz. Sağ üstteki karekodu (QR) karalamayınız ve katlamayınız. Form kamera ile otomatik okunacaktır.
+              <!-- DERSLER GRUPLARI -->
+              <div class="subjects-wrapper">
+                <!-- SÖZEL DERSLER -->
+                <div class="sozel-cluster">
+                  ${sozelSubjects.map(sub => renderSubjectColumn(sub)).join('')}
+                </div>
+
+                <!-- SAYISAL DERSLER -->
+                ${sayisalSubjects.length > 0 ? `
+                  <div class="sayisal-cluster">
+                    ${sayisalSubjects.map(sub => renderSubjectColumn(sub)).join('')}
+                  </div>
+                ` : ''}
+              </div>
+            </div>
           </div>
         </div>
       `;
@@ -1213,57 +1939,85 @@ window.MockExamModule = {
       window.App.showToast('🖨️ Optik formlar hazırlanıyor, yazdırma ekranı açılıyor...', 'info');
     }
 
-    // Modern Pop-up Engeli Olmayan Güvenli Iframe Yazdırma Hattı
-    let printFrame = document.getElementById('mock-print-iframe');
-    if (!printFrame) {
-      printFrame = document.createElement('iframe');
-      printFrame.id = 'mock-print-iframe';
-      printFrame.style.position = 'fixed';
-      printFrame.style.right = '0';
-      printFrame.style.bottom = '0';
-      printFrame.style.width = '0';
-      printFrame.style.height = '0';
-      printFrame.style.border = '0';
-      printFrame.style.visibility = 'hidden';
-      document.body.appendChild(printFrame);
+    // Güvenilir Yazdırma Hattı: Önce doğrudan sekme/pencere açılışı denenir
+    let openedInNewTab = false;
+    try {
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.open();
+        win.document.write(printHtml);
+        win.document.close();
+        win.focus();
+        setTimeout(() => {
+          try { win.print(); } catch (e) {}
+        }, 500);
+        openedInNewTab = true;
+      }
+    } catch (err) {
+      console.warn('window.open çağrısı engellendi veya hata verdi:', err);
     }
 
-    const frameDoc = printFrame.contentWindow.document || printFrame.contentDocument;
-    frameDoc.open();
-    frameDoc.write(printHtml);
-    frameDoc.close();
+    // Eğer tarayıcı yeni pencereyi pop-up kısıtlamasıyla engellediyse, sayfa içi garanti modal açılır
+    if (!openedInNewTab) {
+      this.showPrintFallbackModal(printHtml, exam.title);
+    }
+  },
 
-    const doPrint = () => {
-      try {
-        printFrame.contentWindow.focus();
-        printFrame.contentWindow.print();
-      } catch (err) {
-        console.warn('Iframe print tetiklenemedi, fallback pencere deneniyor:', err);
-        try {
-          const win = window.open('', '_blank');
-          if (win) {
-            win.document.open();
-            win.document.write(printHtml);
-            win.document.close();
-            win.focus();
-            setTimeout(() => { win.print(); }, 400);
-          } else {
-            alert('Lütfen tarayıcınızın yazdırma / pop-up iznini açınız.');
-          }
-        } catch (e2) {
-          alert('Yazdırma ekranı açılamadı.');
-        }
-      }
-    };
-
-    setTimeout(doPrint, 400);
+  showPrintFallbackModal(printHtml, title) {
+    let modal = document.getElementById('mock-print-preview-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'mock-print-preview-modal';
+      modal.className = 'fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 overflow-hidden';
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = `
+      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full h-[90vh] flex flex-col p-4 sm:p-5 space-y-3 animate-fade-in">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-100 flex-shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">🖨️</span>
+            <div>
+              <h3 class="font-black text-slate-900 text-sm leading-tight">${title || 'Optik Formlar'} - Önizleme</h3>
+              <p class="text-[11px] text-slate-500 font-medium">Tarayıcınız yeni sekme açılmasını kısıtladıysa buradan doğrudan yazdırabilirsiniz.</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="const f = document.getElementById('mock-preview-iframe'); f.contentWindow.focus(); f.contentWindow.print();"
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+              <span>🖨️</span>
+              <span>Şimdi Yazdır</span>
+            </button>
+            <button type="button" onclick="document.getElementById('mock-print-preview-modal').remove()"
+              class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center">✕</button>
+          </div>
+        </div>
+        <div class="flex-1 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
+          <iframe id="mock-preview-iframe" class="w-full h-full border-0"></iframe>
+        </div>
+      </div>
+    `;
+    const frame = document.getElementById('mock-preview-iframe');
+    if (frame) {
+      frame.srcdoc = printHtml;
+    }
   },
 
   // ========================================================
   // 4. 🔑 ÇOK DERSLİ CEVAP ANAHTARI (A VE B KİTAPÇIĞI) MODALI
   // ========================================================
   openAnswerKeyModal(examId) {
-    const exam = window.Store.getMockExamById(examId || this.selectedExamId);
+    let exam = window.Store.getMockExamById(examId || this.selectedExamId);
+    if (!exam) {
+      const exams = window.Store.getMockExams();
+      exam = exams.length > 0 ? exams[0] : null;
+    }
+    if (!exam) {
+      const defaultLgs = JSON.parse(JSON.stringify(this.PRESET_TEMPLATES.LGS_STANDARD));
+      defaultLgs.id = 'exam_lgs_auto_' + Date.now();
+      defaultLgs.title = 'İsabet Ortaokul 8. Sınıf Deneme 3 (23-28 Ara)';
+      defaultLgs.date = new Date().toISOString().split('T')[0];
+      exam = window.Store.saveMockExam(defaultLgs);
+    }
     if (!exam) return;
 
     this.selectedExamId = exam.id;
@@ -1469,7 +2223,18 @@ window.MockExamModule = {
   // 5. 📷 CANLI KAMERA ÇOK DERSLİ LGS OPTİK OKUYUCU
   // ========================================================
   openCameraScanner(examId) {
-    const exam = window.Store.getMockExamById(examId || this.selectedExamId);
+    let exam = window.Store.getMockExamById(examId || this.selectedExamId);
+    if (!exam) {
+      const exams = window.Store.getMockExams();
+      exam = exams.length > 0 ? exams[0] : null;
+    }
+    if (!exam) {
+      const defaultLgs = JSON.parse(JSON.stringify(this.PRESET_TEMPLATES.LGS_STANDARD));
+      defaultLgs.id = 'exam_lgs_auto_' + Date.now();
+      defaultLgs.title = 'İsabet Ortaokul 8. Sınıf Deneme 3 (23-28 Ara)';
+      defaultLgs.date = new Date().toISOString().split('T')[0];
+      exam = window.Store.saveMockExam(defaultLgs);
+    }
     if (!exam) return;
 
     this.selectedExamId = exam.id;
@@ -1483,6 +2248,8 @@ window.MockExamModule = {
         return;
       }
     }
+
+    const participatingStudents = this.getParticipatingStudents(exam);
 
     let modal = document.getElementById('mock-scanner-modal');
     if (!modal) {
@@ -1522,12 +2289,13 @@ window.MockExamModule = {
         <!-- KILAVUZ HEDEF ÇERÇEVESİ (QR VE ÇOK DERSLİ FORMLAR İÇİN) -->
         <div class="absolute inset-4 sm:inset-6 border-2 border-dashed border-emerald-400/80 rounded-2xl pointer-events-none flex flex-col justify-between p-3 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
           <div class="flex justify-between items-start">
-            <span class="text-[10px] font-mono font-bold bg-black/60 px-2 py-0.5 rounded text-emerald-300">
-              [ 1. QR KODU HİZALAYIN ]
-            </span>
-            <div class="w-12 h-12 border-2 border-emerald-400 rounded-lg flex items-center justify-center bg-emerald-500/10">
+            <div class="w-14 h-14 border-2 border-emerald-400 rounded-xl flex flex-col items-center justify-center bg-emerald-500/10 shadow-[0_0_12px_rgba(52,211,153,0.3)]">
+              <span class="text-[8px] font-black text-emerald-300">KAREKOD</span>
               <span class="text-xs">QR</span>
             </div>
+            <span class="text-[10px] font-mono font-bold bg-black/60 px-2 py-0.5 rounded text-emerald-300">
+              [ 1. KAREKODU HİZALAYIN ]
+            </span>
           </div>
 
           <div class="text-center font-mono text-[11px] font-black text-emerald-300 bg-black/75 py-1 px-3 rounded-xl mx-auto shadow">
@@ -1572,6 +2340,29 @@ window.MockExamModule = {
           </div>
           <div id="mock-det-sub-summary" class="text-[10px] text-slate-300 font-mono grid grid-cols-3 gap-1 pt-1 border-t border-emerald-800/80">
             <!-- Ders bazlı netler -->
+          </div>
+        </div>
+
+        <!-- HIZLI TALEBE SEÇ & OKU (KAMERASIZ / GARANTİ HIZLI MOD) -->
+        <div class="p-2 bg-slate-800/90 rounded-xl border border-slate-700 space-y-1.5">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="text-amber-400 font-bold">⚡ Hızlı Talebe Seç (Kamerasız):</span>
+            <select id="mock-manual-booklet" class="bg-slate-900 border border-slate-600 rounded px-1.5 py-0.5 text-[10px] text-white font-bold">
+              <option value="A">Kitapçık: A</option>
+              <option value="B">Kitapçık: B</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <select id="mock-manual-student-select" class="flex-1 bg-slate-900 border border-slate-600 rounded-lg p-1 text-[11px] text-white">
+              <option value="">Talebe Seçiniz (${participatingStudents.length} Talebe)...</option>
+              ${participatingStudents.map(st => `
+                <option value="${st.id}">${st.className} • ${st.studentNo} - ${st.firstName} ${st.lastName}</option>
+              `).join('')}
+            </select>
+            <button type="button" onclick="window.MockExamModule.evaluateQuickSelectedStudent('${exam.id}')"
+              class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] whitespace-nowrap cursor-pointer">
+              Doğrula & Oku
+            </button>
           </div>
         </div>
 
@@ -1667,6 +2458,34 @@ window.MockExamModule = {
     this.render();
   },
 
+  evaluateQuickSelectedStudent(examId) {
+    const sel = document.getElementById('mock-manual-student-select');
+    const bkSel = document.getElementById('mock-manual-booklet');
+    if (!sel || !sel.value) {
+      alert('Lütfen bir talebe seçiniz.');
+      return;
+    }
+    const studentId = sel.value;
+    const booklet = (bkSel && bkSel.value) ? bkSel.value : 'A';
+    const student = window.Store.getStudentById(studentId);
+    if (!student) {
+      alert('Talebe bilgisi bulunamadı.');
+      return;
+    }
+
+    const canvas = document.getElementById('mock-canvas-feed');
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    const width = canvas ? canvas.width : 640;
+    const height = canvas ? canvas.height : 480;
+
+    const payload = `OAY_MOCK:${examId}:${student.id}:${student.studentNo}:${student.className || ''}:${booklet}`;
+    this.handleQrDetected(payload, ctx, width, height);
+
+    if (window.App && window.App.showToast) {
+      window.App.showToast(`✅ ${student.firstName} ${student.lastName} için optik değerlendirme tamamlandı!`, 'success');
+    }
+  },
+
   startScanLoop() {
     if (this.scanIntervalId) clearInterval(this.scanIntervalId);
     this.scanIntervalId = setInterval(() => {
@@ -1685,6 +2504,7 @@ window.MockExamModule = {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+    // 1. Modern BarcodeDetector API (Destekleyen Tarayıcılar)
     if ('BarcodeDetector' in window) {
       try {
         const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
@@ -1695,6 +2515,20 @@ window.MockExamModule = {
           return;
         }
       } catch (e) {}
+    }
+
+    // 2. jsQR Kütüphanesi Fallback (Windows Masaüstü Chrome/Edge, Mac, iOS ve Android Tüm Cihazlar)
+    if (typeof window.jsQR === 'function') {
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'dontInvert'
+        });
+        if (code && code.data) {
+          this.handleQrDetected(code.data, ctx, canvas.width, canvas.height);
+          return;
+        }
+      } catch (err) {}
     }
 
     const stText = document.getElementById('mock-status-text');
@@ -1722,6 +2556,7 @@ window.MockExamModule = {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
 
+      // 1. BarcodeDetector API
       if ('BarcodeDetector' in window) {
         try {
           const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
@@ -1732,13 +2567,35 @@ window.MockExamModule = {
           }
         } catch (err) {}
       }
+
+      // 2. jsQR Fallback
+      if (typeof window.jsQR === 'function') {
+        try {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'attemptBoth'
+          });
+          if (code && code.data) {
+            this.handleQrDetected(code.data, ctx, canvas.width, canvas.height);
+            return;
+          }
+        } catch (err) {}
+      }
+
       alert('Fotoğrafta deneme sınavı QR kodu tespit edilemedi. Lütfen net ve aydınlık bir fotoğraf seçiniz.');
     };
     img.src = URL.createObjectURL(file);
   },
 
   handleQrDetected(payload, ctx, width, height) {
-    if (!payload || !payload.startsWith('OAY_MOCK:')) return;
+    if (!payload) return;
+    if (payload.startsWith('OAY:')) {
+      if (window.OMRScanner && typeof window.OMRScanner.handleQrDetected === 'function') {
+        window.OMRScanner.handleQrDetected(payload, ctx, width, height);
+      }
+      return;
+    }
+    if (!payload.startsWith('OAY_MOCK:')) return;
 
     // 1.5 saniye mola (aynı kağıdı defalarca okumayı önler)
     if (this.lastScannedPayload === payload && Date.now() - (this.lastScannedTime || 0) < 1500) {
@@ -1934,20 +2791,48 @@ window.MockExamModule = {
       };
     });
 
-    // Puanına Göre Büyükten Küçüğe Sırala (Derece)
-    studentResults.sort((a, b) => {
-      if (a.hasScore && !b.hasScore) return -1;
-      if (!a.hasScore && b.hasScore) return 1;
-      if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
-      if (b.totalNet !== a.totalNet) return b.totalNet - a.totalNet;
-      return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
-    });
+    // Puanına Göre Büyükten Küçüğe Sırala (Derece) veya İsim Sırası
+    if (this.sortBy === 'name') {
+      studentResults.sort((a, b) => {
+        return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
+      });
+    } else {
+      studentResults.sort((a, b) => {
+        if (a.hasScore && !b.hasScore) return -1;
+        if (!a.hasScore && b.hasScore) return 1;
+        if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+        if (b.totalNet !== a.totalNet) return b.totalNet - a.totalNet;
+        return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
+      });
+    }
+
+    const evaluatedList = studentResults.filter(r => r.hasScore);
+    const evaluatedCount = evaluatedList.length;
+    let avgScore = '0.00';
+    let avgNet = '0.00';
+    let topScore = '0.00';
+    let topStudentName = '-';
+
+    if (evaluatedCount > 0) {
+      const sumScore = evaluatedList.reduce((acc, r) => acc + (r.totalScore || 0), 0);
+      const sumNet = evaluatedList.reduce((acc, r) => acc + (r.totalNet || 0), 0);
+      avgScore = (sumScore / evaluatedCount).toFixed(2);
+      avgNet = (sumNet / evaluatedCount).toFixed(2);
+      const topOne = evaluatedList[0];
+      topScore = (topOne.totalScore || 0).toFixed(2);
+      topStudentName = `${topOne.student.firstName} ${topOne.student.lastName}`;
+    }
+
+    const instName = window.Store.getSettings().institutionName || 'TABAKÇILAR B BLOK';
 
     container.innerHTML = `
       <div class="space-y-4 max-w-7xl mx-auto animate-fade-in pb-12">
         
+        <!-- Akademi Üst Sekmeleri -->
+        ${this.renderTopTabsHtml('denemeler')}
+
         <!-- Üst Başlık & Kontroller -->
-        <div class="bg-white p-4 sm:p-5 rounded-3xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div class="bg-white p-4 sm:p-5 rounded-3xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3 no-print">
           <div class="flex items-center gap-3">
             <button type="button" onclick="window.MockExamModule.activeView='list'; window.MockExamModule.render();"
               class="w-10 h-10 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-black transition cursor-pointer">
@@ -1988,6 +2873,12 @@ window.MockExamModule = {
               <span>📷</span>
               <span>Optik Oku</span>
             </button>
+            <button type="button" onclick="window.MockExamModule.downloadResultsImage('${exam.id}')"
+              title="Velilere göndermek için tek tıkla liste resmi indir"
+              class="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+              <span>📸</span>
+              <span>Resim İndir</span>
+            </button>
             <button type="button" onclick="window.MockExamModule.openKazanimAnalyticsView('${exam.id}')"
               class="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-bold text-xs rounded-xl transition flex items-center gap-1 cursor-pointer">
               <span>🎯</span>
@@ -2001,8 +2892,43 @@ window.MockExamModule = {
           </div>
         </div>
 
-        <!-- ŞUBE FİLTRELERİ VE ARAMA KUTUSU -->
-        <div class="bg-white p-3 rounded-2xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <!-- CANLI KPI İSTATİSTİK KARTLARI -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 no-print">
+          <div class="p-3 bg-white rounded-2xl border border-slate-200 shadow-2xs">
+            <span class="text-[10px] font-bold text-slate-400 uppercase block">Değerlendirilen</span>
+            <div class="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+              ${evaluatedCount} <span class="text-xs font-normal text-slate-400">/ ${totalParticipantCount}</span>
+            </div>
+            <span class="text-[10px] text-emerald-600 font-bold">%${totalParticipantCount > 0 ? Math.round((evaluatedCount / totalParticipantCount) * 100) : 0} Katılım</span>
+          </div>
+
+          <div class="p-3 bg-purple-50/70 rounded-2xl border border-purple-200 shadow-2xs">
+            <span class="text-[10px] font-bold text-purple-700 uppercase block">Ortalama Puan</span>
+            <div class="text-base sm:text-lg font-black text-purple-900 mt-0.5">
+              ${avgScore} <span class="text-xs font-normal text-purple-700">/ 500 P</span>
+            </div>
+            <span class="text-[10px] text-purple-600 font-bold">LGS Standart</span>
+          </div>
+
+          <div class="p-3 bg-blue-50/70 rounded-2xl border border-blue-200 shadow-2xs">
+            <span class="text-[10px] font-bold text-blue-700 uppercase block">Genel Net Ort.</span>
+            <div class="text-base sm:text-lg font-black text-blue-900 mt-0.5">
+              ${avgNet} <span class="text-xs font-normal text-blue-700">Net</span>
+            </div>
+            <span class="text-[10px] text-blue-600 font-bold">Tüm Dersler Toplamı</span>
+          </div>
+
+          <div class="p-3 bg-amber-50/70 rounded-2xl border border-amber-200 shadow-2xs">
+            <span class="text-[10px] font-bold text-amber-800 uppercase block">🥇 1. Sıra (Zirve)</span>
+            <div class="text-base sm:text-lg font-black text-amber-950 mt-0.5">
+              ${topScore} <span class="text-xs font-normal text-amber-800">Puan</span>
+            </div>
+            <span class="text-[10px] text-amber-700 font-bold truncate block">${topStudentName}</span>
+          </div>
+        </div>
+
+        <!-- ŞUBE FİLTRELERİ, SIRALAMA BUTONU VE ARAMA KUTUSU -->
+        <div class="bg-white p-3 rounded-2xl shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs no-print">
           <div class="flex flex-wrap items-center gap-1.5">
             <span class="text-[10px] font-black text-slate-400 uppercase">Şube Filtresi:</span>
             <button type="button" onclick="window.MockExamModule.selectedClassFilter='ALL'; window.MockExamModule.render();"
@@ -2027,6 +2953,17 @@ window.MockExamModule = {
                 </button>
               `;
             }).join('')}
+
+            <!-- ALDIĞI PUANA GÖRE SIRALA BUTONU -->
+            <button type="button" onclick="window.MockExamModule.toggleSort()"
+              title="Öğrencileri aldıkları 500 puana göre sıralar (1. en üstte)"
+              class="px-2.5 py-1 rounded-xl text-[11px] font-black transition flex items-center gap-1 border shadow-2xs ml-1 cursor-pointer ${
+                this.sortBy === 'score_desc' 
+                  ? 'bg-amber-400 text-slate-950 border-amber-500 ring-2 ring-amber-300/40' 
+                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+              }">
+              <span>${this.sortBy === 'score_desc' ? '🏆 500 Puan Sıralı (1. ➔ Son)' : '📋 İsim Sıralı'}</span>
+            </button>
           </div>
 
           <div class="flex items-center gap-2">
@@ -2036,13 +2973,29 @@ window.MockExamModule = {
           </div>
         </div>
 
-        <!-- SONUÇ & SIRALAMA TABLOSU -->
-        <div class="bg-white rounded-3xl shadow-xs border border-slate-200 overflow-hidden">
-          <div class="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
-            <div class="font-black text-slate-800 text-xs sm:text-sm">
-              🏆 LGS Puan Sıralaması ve Ders Netleri (${studentResults.length} Talebe)
+        <!-- SONUÇ & SIRALAMA TABLOSU (RESİM ÇEKİM VE VELİ PAYLAŞIM ALANI) -->
+        <div id="mock-exam-capture-card" class="bg-white rounded-3xl shadow-xs border border-slate-200 overflow-hidden">
+          <!-- Görsel Üst Başlığı -->
+          <div class="p-3.5 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex items-center justify-between border-b border-slate-700">
+            <div class="truncate">
+              <div class="text-xs sm:text-sm font-black text-amber-300 truncate">
+                ${instName}
+              </div>
+              <div class="text-[11px] text-slate-300 font-bold truncate">
+                🎯 ${exam.title} (${subjects.length} Ders • Toplam ${subjects.reduce((sum, s) => sum + s.questionCount, 0)} Soru)
+              </div>
             </div>
-            <div class="text-[11px] text-slate-500">
+            <div class="text-right flex-shrink-0 pl-2">
+              <div class="text-[10px] text-emerald-300 font-bold font-mono">${exam.date}</div>
+              <div class="text-[9px] text-slate-400 font-medium">Katılım: ${evaluatedCount}/${totalParticipantCount} • Ort: ${avgScore} P</div>
+            </div>
+          </div>
+
+          <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div class="font-black text-slate-800 text-xs sm:text-sm">
+              🏆 LGS 500 Puan Sıralaması ve Ders Netleri (${studentResults.length} Talebe)
+            </div>
+            <div class="text-[11px] text-slate-500 no-print">
               Not girmek için <strong>"✏️ Not Gir"</strong> veya kamerayla <strong>"📷 Optik Oku"</strong> butonunu kullanabilirsiniz.
             </div>
           </div>
@@ -2060,7 +3013,7 @@ window.MockExamModule = {
                       ${s.name.substring(0, 5)}<br><span class="text-[9px] text-slate-400 font-normal font-mono">(x${s.coefficient})</span>
                     </th>
                   `).join('')}
-                  <th class="py-2 pr-3 text-right">İşlem</th>
+                  <th class="py-2 pr-3 text-right no-print">İşlem</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
@@ -2100,7 +3053,7 @@ window.MockExamModule = {
                           </td>
                         `;
                       }).join('')}
-                      <td class="py-2 pr-3 text-right">
+                      <td class="py-2 pr-3 text-right no-print">
                         <button type="button" onclick="window.MockExamModule.openStudentScoreInputModal('${exam.id}', '${st.id}')"
                           class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] rounded-lg border border-indigo-200 transition cursor-pointer">
                           ✏️ Not Gir
@@ -2115,12 +3068,78 @@ window.MockExamModule = {
                   `;
                 }).join('')}
               </tbody>
+              <tfoot>
+                <tr class="bg-slate-100/90 text-slate-800 font-black border-t-2 border-slate-300 h-10 text-[11px]">
+                  <td colspan="2" class="py-2 px-3 text-slate-700">
+                    Sınav Ortalamaları (${evaluatedCount} Talebe Değerlendirildi)
+                  </td>
+                  <td class="text-center font-mono font-black text-purple-900 bg-purple-100/60">
+                    ${evaluatedCount > 0 ? avgScore : '-'} P
+                  </td>
+                  <td class="text-center font-mono font-black text-blue-900 bg-blue-100/60">
+                    ${evaluatedCount > 0 ? avgNet : '-'}
+                  </td>
+                  ${subjects.map(s => {
+                    let subSum = 0;
+                    let subCnt = 0;
+                    evaluatedList.forEach(item => {
+                      if (item.subScores && item.subScores[s.id]) {
+                        subSum += (item.subScores[s.id].net || 0);
+                        subCnt++;
+                      }
+                    });
+                    const subAvg = subCnt > 0 ? (subSum / subCnt).toFixed(1) : '-';
+                    return `
+                      <td class="text-center font-mono font-bold text-slate-800 px-1">
+                        ${subAvg}
+                      </td>
+                    `;
+                  }).join('')}
+                  <td class="py-2 pr-3 text-right text-[10px] text-slate-400 no-print">
+                    Genel Ort.
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
 
       </div>
     `;
+  },
+
+  downloadResultsImage(examId) {
+    const el = document.getElementById('mock-exam-capture-card');
+    if (!el) return;
+
+    if (typeof html2canvas === 'undefined') {
+      alert('Görüntü oluşturma aracı yükleniyor, lütfen birkaç saniye sonra tekrar deneyiniz.');
+      return;
+    }
+
+    const exam = window.Store.getMockExamById(examId || this.selectedExamId);
+    const examTitle = exam ? exam.title : 'Deneme_Sinavi';
+
+    const toast = document.createElement('div');
+    toast.className = 'fixed top-4 right-4 z-50 px-4 py-2.5 bg-slate-900 text-white font-bold rounded-xl text-xs shadow-xl animate-fade-in flex items-center gap-2';
+    toast.innerHTML = '<span>📸</span> <span>LGS sıralama listesi görseli hazırlanıyor...</span>';
+    document.body.appendChild(toast);
+
+    html2canvas(el, {
+      scale: 2.5,
+      useCORS: true,
+      backgroundColor: '#ffffff'
+    }).then(canvas => {
+      toast.remove();
+      const link = document.createElement('a');
+      const cleanTitle = examTitle.replace(/\s+/g, '_');
+      link.download = `${cleanTitle}_LGS_500_Siralama_Listesi.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }).catch(err => {
+      toast.remove();
+      alert('Görsel oluşturulamadı: ' + err.message);
+    });
   },
 
   openStudentScoreInputModal(examId, studentId) {

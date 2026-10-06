@@ -525,6 +525,9 @@ window.StudentExcelModule = {
           window.App.showToast(`▶️ "${fullName}" tekrar aktife alındı. Yoklamalara dahil edildi.`, 'success');
         }
         this.render();
+        if (window.App && typeof window.App.renderStudentsView === 'function') {
+          window.App.renderStudentsView();
+        }
       }
     }
   },
@@ -667,9 +670,17 @@ window.StudentExcelModule = {
             <div class="flex flex-wrap items-center gap-2">
               <div id="excel-save-indicator" class="h-6 flex items-center mr-1"></div>
 
+              <!-- ⚡ Tümünü Aktif Yap -->
+              <button type="button" onclick="window.App.activateAllStudents()"
+                class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                title="Tüm pasifleri kaldırıp 66 öğrencinin tamamını aktife alır ve bulutu eşitler">
+                <span>⚡</span>
+                <span>Tümünü Aktif Yap</span>
+              </button>
+
               <!-- + Yeni Satır Ekle -->
               <button type="button" onclick="window.StudentExcelModule.addNewRow()"
-                class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition cursor-pointer"
                 title="Tablonun altına hemen yeni bir boş öğrenci satırı ekler">
                 <span>➕</span>
                 <span>Yeni Satır Ekle</span>
