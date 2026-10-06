@@ -1432,17 +1432,7 @@ window.App = {
     const canEdit = this.canManageStudents();
     const classes = window.Store.getClasses(true);
     let allStudentsList = window.Store.getAllStudents ? window.Store.getAllStudents() : window.Store.getStudents(true);
-    const allCount = allStudentsList.length;
-    const activeCount = allStudentsList.filter(s => !s.isPassive && s.status !== 'passive').length;
-    const passiveCount = allStudentsList.filter(s => s.isPassive === true || s.status === 'passive').length;
-
     let students = [...allStudentsList];
-
-    if (this.studentFilterStatus === 'ACTIVE') {
-      students = students.filter(s => !s.isPassive && s.status !== 'passive');
-    } else if (this.studentFilterStatus === 'PASSIVE') {
-      students = students.filter(s => s.isPassive === true || s.status === 'passive');
-    }
 
     if (this.studentFilterClass !== 'ALL') {
       students = students.filter(s => s.className === this.studentFilterClass);
@@ -1479,11 +1469,6 @@ window.App = {
               <span>Excel (CSV) İndir</span>
             </button>
             ${canEdit ? `
-              <button onclick="window.App.activateAllStudents()" 
-                class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer"
-                title="Tüm pasifleri kaldırıp 66 öğrencinin tamamını aktife alır ve bulutu eşitler">
-                <span>⚡ Tümünü Aktif Yap</span>
-              </button>
               <button onclick="window.App.openBulkImportModal()" 
                 class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
                 <span>📋 Excel'den Toplu Ekle</span>
@@ -1504,34 +1489,6 @@ window.App = {
                 <option value="ALL">Tüm Sınıflar</option>
                 ${classes.map(c => `<option value="${c}" ${this.studentFilterClass === c ? 'selected' : ''}>${c}</option>`).join('')}
               </select>
-            </div>
-
-            <!-- Durum Filtresi (Tümü / Aktif / Pasif) -->
-            <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-              <button type="button" onclick="window.App.studentFilterStatus = 'ALL'; window.App.renderStudentsView();"
-                class="px-2.5 py-1 rounded-lg text-xs font-black transition ${
-                  (this.studentFilterStatus || 'ALL') === 'ALL'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }">
-                Tümü (${allCount})
-              </button>
-              <button type="button" onclick="window.App.studentFilterStatus = 'ACTIVE'; window.App.renderStudentsView();"
-                class="px-2.5 py-1 rounded-lg text-xs font-black transition ${
-                  this.studentFilterStatus === 'ACTIVE'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-emerald-700 hover:bg-emerald-50'
-                }">
-                🟢 Aktif (${activeCount})
-              </button>
-              <button type="button" onclick="window.App.studentFilterStatus = 'PASSIVE'; window.App.renderStudentsView();"
-                class="px-2.5 py-1 rounded-lg text-xs font-black transition ${
-                  this.studentFilterStatus === 'PASSIVE'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-amber-800 hover:bg-amber-50'
-                }">
-                ⏸️ Pasif (${passiveCount})
-              </button>
             </div>
 
             <div>
@@ -1564,20 +1521,14 @@ window.App = {
               ${students.length === 0 ? `
                 <tr><td colspan="${canEdit ? 8 : 7}" class="py-12 text-center text-slate-400">Öğrenci bulunamadı.</td></tr>
               ` : students.map(s => {
-                const isPassive = s && (s.isPassive === true || s.status === 'passive');
                 return `
-                  <tr class="transition ${isPassive ? 'bg-amber-50/40 text-slate-500' : 'table-row-hover'}">
+                  <tr class="table-row-hover transition">
                     <td class="py-3 px-4 text-center font-bold text-slate-700">
                       ${s.studentNo}
                     </td>
                     <td class="py-3 px-4">
-                      <div class="font-bold text-slate-900 flex items-center gap-1.5">
-                        <span>${s.firstName} ${s.lastName}</span>
-                        ${isPassive ? `
-                          <span class="px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 font-black text-[9px] uppercase tracking-wider">
-                            PASİF
-                          </span>
-                        ` : ''}
+                      <div class="font-bold text-slate-900">
+                        ${s.firstName} ${s.lastName}
                       </div>
                     </td>
                     <td class="py-3 px-4 text-xs font-bold text-slate-800">${s.className}</td>
@@ -1609,15 +1560,6 @@ window.App = {
                             <span>✏️</span>
                             <span>Düzenle</span>
                           </button>
-                          ${isPassive ? `
-                            <button onclick="window.App.toggleStudentPassive('${s.id}')"
-                              class="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition text-xs font-bold cursor-pointer" 
-                              title="Talebeyi Tekrar Aktife Al (Yoklamalara dahil et)">▶️</button>
-                          ` : `
-                            <button onclick="window.App.toggleStudentPassive('${s.id}')"
-                              class="p-1.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition text-xs font-bold cursor-pointer" 
-                              title="Talebeyi Pasife Al (Yoklamalardan gizle, verileri silinmez)">⏸️</button>
-                          `}
                           <button onclick="window.App.deleteStudent('${s.id}')"
                             class="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition text-xs cursor-pointer" title="Kalıcı Olarak Sil">🗑️</button>
                         </div>
@@ -1656,7 +1598,6 @@ window.App = {
     csvContent += headers.map(escapeCsv).join(';') + '\r\n';
 
     students.forEach(st => {
-      const isPassive = st && (st.isPassive === true || st.status === 'passive');
       const row = [
         st.studentNo || '',
         st.firstName || '',
@@ -1671,7 +1612,7 @@ window.App = {
         st.parentPhone || st.fatherPhone || '',
         st.password || '123',
         st.familyCode || '',
-        isPassive ? 'Pasif' : 'Aktif'
+        'Aktif'
       ];
       csvContent += row.map(escapeCsv).join(';') + '\r\n';
     });
@@ -3364,11 +3305,6 @@ window.App = {
         document.getElementById('modal-student-yatakhane').value = student.yatakhane || '';
         document.getElementById('modal-student-father').value = student.fatherName || '';
         document.getElementById('modal-student-phone').value = student.parentPhone || '';
-        const statusEl = document.getElementById('modal-student-status');
-        if (statusEl) {
-          const isPassive = student.isPassive === true || student.status === 'passive';
-          statusEl.value = isPassive ? 'passive' : 'active';
-        }
       }
     } else {
       title.innerText = 'Yeni Öğrenci Ekle';
@@ -3376,8 +3312,6 @@ window.App = {
       const maxNo = students.reduce((max, s) => Math.max(max, parseInt(s.studentNo) || 0), 100);
       document.getElementById('modal-student-no').value = maxNo + 1;
       document.getElementById('modal-student-pass').value = '123';
-      const statusEl = document.getElementById('modal-student-status');
-      if (statusEl) statusEl.value = 'active';
     }
 
     modal.classList.remove('hidden');
@@ -3406,8 +3340,6 @@ window.App = {
     const yatakhane = document.getElementById('modal-student-yatakhane').value.trim();
     const fatherName = document.getElementById('modal-student-father').value.trim();
     const parentPhone = document.getElementById('modal-student-phone').value.trim();
-    const statusEl = document.getElementById('modal-student-status');
-    const isPassive = statusEl ? statusEl.value === 'passive' : false;
 
     if (!familyCode) {
       familyCode = (lastName + '2026').toUpperCase();
@@ -3425,8 +3357,8 @@ window.App = {
       yatakhane, 
       fatherName, 
       parentPhone,
-      isPassive,
-      status: isPassive ? 'passive' : 'active'
+      isPassive: false,
+      status: 'active'
     };
 
     if (id) {
@@ -3441,34 +3373,9 @@ window.App = {
     this.renderStudentsView();
   },
 
-  // Talebeyi Pasife veya Aktife Al
+  // Talebeyi Pasife veya Aktife Al (Kaldırıldı)
   toggleStudentPassive(id) {
-    if (!this.canManageStudents()) {
-      this.showToast('Talebeleri pasife veya aktife alma yetkisi yalnızca Ana Yöneticidedir.', 'warning');
-      return;
-    }
-    const s = window.Store.getStudentById(id) || (window.Store.getAllStudents().find(st => st.id === id || st.studentNo === id));
-    if (!s) return;
-    const isCurrentlyPassive = s.isPassive === true || s.status === 'passive' || (window.Store.isStudentPassive && window.Store.isStudentPassive(s.id));
-    const fullName = `${s.firstName} ${s.lastName}`.trim();
-    const msg = isCurrentlyPassive
-      ? `"${fullName}" adlı talebeyi tekrar AKTİFE almak istiyor musunuz?\n\n(Talebe günlük yoklama ve izin listelerine tekrar dahil edilecektir.)`
-      : `"${fullName}" adlı talebeyi PASİFE almak istiyor musunuz?\n\n(Talebenin hiçbir geçmiş verisi silinmez; sadece günlük yoklama, izin ve puan listelerinden gizlenir.)`;
-
-    if (confirm(msg)) {
-      const res = window.Store.toggleStudentPassive(s.id);
-      if (res && res.success) {
-        if (res.isPassive) {
-          this.showToast(`⏸️ "${fullName}" pasife alındı. Günlük yoklamalardan gizlendi.`, 'warning');
-        } else {
-          this.showToast(`▶️ "${fullName}" tekrar aktife alındı. Yoklamalara dahil edildi.`, 'success');
-        }
-        this.renderStudentsView();
-        if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
-          window.StudentExcelModule.render();
-        }
-      }
-    }
+    this.showToast('Talebeleri pasife alma özelliği kaldırılmıştır. Tüm öğrenciler daima aktiftir.', 'info');
   },
 
   // Tüm Talebeleri Tek Tıkla Aktife Alma (66 Öğrenciyi Kesin Aktif Yapar)
@@ -3477,17 +3384,15 @@ window.App = {
       this.showToast('Bu yetki yalnızca Ana Yöneticidedir.', 'warning');
       return;
     }
-    if (confirm('Tüm öğrencileri (66 talebeyi) KESİN OLARAK AKTİFE almak istediğinizden emin misiniz?\n\n• Pasif sicili tamamen sıfırlanacaktır.\n• Buluttaki eski pasif kayıtlar temizlenecektir.\n• Bütün talebeler günlük yoklama ve listelere dahil edilecektir.')) {
-      const res = window.Store.activateAllStudents();
-      if (res && res.success) {
-        this.showToast(`⚡ Tüm öğrenciler (${res.count} talebe) başarıyla aktife alındı!`, 'success');
-        this.renderStudentsView();
-        if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
-          window.StudentExcelModule.render();
-        }
-      } else {
-        this.showToast('İşlem sırasında bir hata oluştu.', 'error');
+    const res = window.Store.activateAllStudents();
+    if (res && res.success) {
+      this.showToast(`⚡ Tüm öğrenciler (${res.count} talebe) başarıyla aktife alındı!`, 'success');
+      this.renderStudentsView();
+      if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
+        window.StudentExcelModule.render();
       }
+    } else {
+      this.showToast('İşlem sırasında bir hata oluştu.', 'error');
     }
   },
 
@@ -3498,7 +3403,7 @@ window.App = {
     }
     const s = window.Store.getStudentById(id);
     if (!s) return;
-    if (confirm(`"${s.firstName} ${s.lastName}" adlı öğrenciyi sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!\n(Öğrencinin geçmişini kaybetmemek için bunun yerine ⏸️ Pasife Alabilirsiniz.)`)) {
+    if (confirm(`"${s.firstName} ${s.lastName}" adlı öğrenciyi sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!`)) {
       window.Store.deleteStudent(id);
       this.showToast('Öğrenci kaydı kalıcı olarak silindi ve bulutla eşitlendi.', 'info');
       this.renderStudentsView();

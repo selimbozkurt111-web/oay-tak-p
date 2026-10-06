@@ -723,7 +723,7 @@ class DataStore {
       leaveReturns: this.getAllLeaveReturns(),
       bonusPoints: this.getAllBonusPoints(),
       customColumns: this.getCustomColumns(),
-      passive_student_ids: this.getPassiveStudentIds(),
+      passive_student_ids: {},
       deleted_student_ids: this.getDeletedStudentIds(),
       dailyDuties: (()=>{
         try {
@@ -873,39 +873,9 @@ class DataStore {
       if (raw) currentLocalStudents = JSON.parse(raw);
     } catch (e) {}
 
-    if (cloudData.passive_student_ids && typeof cloudData.passive_student_ids === 'object') {
-      const localPassiveMap = this.getPassiveStudentIds();
-      const mergedPassiveMap = { ...localPassiveMap };
-      Object.keys(cloudData.passive_student_ids).forEach(stId => {
-        const cloudRec = cloudData.passive_student_ids[stId];
-        const isCloudPassive = cloudRec === true || cloudRec === 'passive' || cloudRec === 'pasif' || (cloudRec && typeof cloudRec === 'object' && (cloudRec.isPassive === true || cloudRec.status === 'passive' || cloudRec.status === 'pasif'));
-
-        // Yerelde bu öğrenci var mı ve aktif mi kontrol et
-        const numOnly = (stId || '').replace(/\D/g, '');
-        const localStudentObj = currentLocalStudents.find(s => s && (
-          s.id === stId || 
-          s.studentNo === stId || 
-          (s.studentNo && (s.studentNo.toString() === stId || s.studentNo.toString() === numOnly))
-        ));
-
-        // Eğer yerelde bu öğrenci açıkça aktif ise (isPassive: false veya status: 'active'), bulutun eski pasifliği yereli ASLA ezemez!
-        if (localStudentObj && (localStudentObj.isPassive === false || localStudentObj.status === 'active')) {
-          delete mergedPassiveMap[stId];
-          if (numOnly) delete mergedPassiveMap[numOnly];
-          delete mergedPassiveMap[`std_${numOnly}`];
-          return;
-        }
-
-        if (isCloudPassive) {
-          mergedPassiveMap[stId] = (typeof cloudRec === 'object' && cloudRec !== null) ? cloudRec : { isPassive: true, updatedAt: new Date().toISOString() };
-        } else if (cloudRec === false || (cloudRec && typeof cloudRec === 'object' && cloudRec.isPassive === false)) {
-          delete mergedPassiveMap[stId];
-          if (numOnly) delete mergedPassiveMap[numOnly];
-          delete mergedPassiveMap[`std_${numOnly}`];
-        }
-      });
-      localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify(mergedPassiveMap));
-    }
+    // 4. Pasiflik kavramı kaldırıldı: Her zaman boş tut ve yerelden sil
+    localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
+    localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
 
     // 4b. Silinenler Sicili (CloudSync Tombstone - Silinen talebelerin cihazlar arasında hortlamasını %100 engeller)
     let currentDeletedMap = this.getDeletedStudentIds();
@@ -983,31 +953,14 @@ class DataStore {
             preferLocal = localTs >= cloudTs;
           }
 
-          let finalPassive = false;
-          if (preferLocal) {
-            finalPassive = (localSt.isPassive === true || localSt.status === 'passive');
-          } else {
-            if (localSt.isPassive === false || localSt.status === 'active') {
-              finalPassive = false;
-            } else {
-              finalPassive = (cloudSt.isPassive === true || cloudSt.status === 'passive');
-            }
-          }
-
           let mergedSt = {
             ...(preferLocal ? cloudSt : localSt),
             ...(preferLocal ? localSt : cloudSt),
-            isPassive: finalPassive,
-            status: finalPassive ? 'passive' : 'active'
+            isPassive: false,
+            status: 'active'
           };
-
-          if (!finalPassive) {
-            delete passiveMap[mergedSt.id];
-            if (mergedSt.studentNo) {
-              delete passiveMap[mergedSt.studentNo.toString()];
-              delete passiveMap[`std_${mergedSt.studentNo}`];
-            }
-          }
+          delete mergedSt.aktif;
+          delete mergedSt.active;
 
           // dahiliHoca koruması: Asla boş veya jenerik bırakma
           const curDahili = (mergedSt.dahiliHoca || '').trim();
@@ -1035,21 +988,13 @@ class DataStore {
           return mergedSt;
         }
 
-        const cloudPassiveFlag = (cloudSt.isPassive === true || cloudSt.status === 'passive');
-        const mapPassiveFlag = !!(passiveMap[cloudSt.id] && (passiveMap[cloudSt.id] === true || (typeof passiveMap[cloudSt.id] === 'object' && passiveMap[cloudSt.id].isPassive === true)));
-        const finalPassive = cloudPassiveFlag && mapPassiveFlag;
         const singleSt = {
           ...cloudSt,
-          isPassive: finalPassive,
-          status: finalPassive ? 'passive' : 'active'
+          isPassive: false,
+          status: 'active'
         };
-        if (!finalPassive) {
-          delete passiveMap[singleSt.id];
-          if (singleSt.studentNo) {
-            delete passiveMap[singleSt.studentNo.toString()];
-            delete passiveMap[`std_${singleSt.studentNo}`];
-          }
-        }
+        delete singleSt.aktif;
+        delete singleSt.active;
         const curDahiliSingle = (singleSt.dahiliHoca || '').trim();
         if (!curDahiliSingle || curDahiliSingle === 'Genel' || curDahiliSingle.startsWith('Seviye')) {
           const seed = SEED_STUDENTS.find(s => s.id === singleSt.id || s.studentNo === singleSt.studentNo);
@@ -1089,7 +1034,8 @@ class DataStore {
         return true;
       });
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(finalCleanList));
-      localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify(passiveMap));
+      localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
+      localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
     }
 
     // 5. Hoca listesi
@@ -1899,66 +1845,18 @@ class DataStore {
     return { success: true };
   }
 
-  // --- Pasif Öğrenci Sicili Metodları (Silinmeye ve Ezilmeye Karşı %100 Koruma) ---
+  // --- Pasif Öğrenci Sicili Metodları (Pasife alma sistemi tamamen kaldırıldı, daima boş ve aktif kabul edilir) ---
   getPassiveStudentIds() {
-    try {
-      const data = localStorage.getItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
-      return data ? JSON.parse(data) : {};
-    } catch {
-      return {};
-    }
+    return {};
   }
 
   savePassiveStudentIds(map) {
     try {
-      localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify(map));
-      if (this.isCloudEnabled()) {
-        this.syncToCloud('kurs_data/passive_student_ids', map);
-      }
-    } catch (e) {
-      console.error('savePassiveStudentIds error:', e);
-    }
+      localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
+    } catch (e) {}
   }
 
   isStudentPassive(studentId) {
-    if (!studentId) return false;
-    const cleanId = studentId.toString().trim();
-    const numOnly = cleanId.replace(/\D/g, '');
-
-    // 1. Önce kayıtlı listedeki öğrenci nesnesini kontrol et (Öğrencinin kendi durumu en yetkili kaynaktır)
-    try {
-      const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      if (data) {
-        const parsed = JSON.parse(data);
-        if (Array.isArray(parsed)) {
-          const s = parsed.find(item => item && (item.id === cleanId || item.studentNo === cleanId || (numOnly && item.studentNo === numOnly)));
-          if (s) {
-            if (s.isPassive === false || s.status === 'active') return false;
-            if (s.isPassive === true || s.isPassive === 'true' || s.isPassive === 1) return true;
-            const st = (s.status || '').toString().toLowerCase().trim();
-            if (st === 'passive' || st === 'pasif') return true;
-          }
-        }
-      }
-    } catch (e) {}
-
-    // 2. Pasif Sicil Haritası Kontrolü
-    const map = this.getPassiveStudentIds();
-    const entry = map[cleanId];
-    if (entry === true || entry === 'passive' || entry === 'pasif') return true;
-    if (entry && typeof entry === 'object' && (entry.isPassive === true || entry.status === 'passive' || entry.status === 'pasif')) return true;
-
-    if (numOnly) {
-      const eNum = map[numOnly];
-      if (eNum === true || eNum === 'passive' || eNum === 'pasif') return true;
-      if (eNum && typeof eNum === 'object' && (eNum.isPassive === true || eNum.status === 'passive' || eNum.status === 'pasif')) return true;
-
-      const stdKey = `std_${numOnly}`;
-      const eStd = map[stdKey];
-      if (eStd === true || eStd === 'passive' || eStd === 'pasif') return true;
-      if (eStd && typeof eStd === 'object' && (eStd.isPassive === true || eStd.status === 'passive' || eStd.status === 'pasif')) return true;
-    }
-
     return false;
   }
 
@@ -2044,41 +1942,14 @@ class DataStore {
       }
 
       // Pasif öğrenci sicilini uygula: Yalnızca kullanıcının açıkça pasife aldığı öğrenciler pasif yapılır
-      const passiveMap = this.getPassiveStudentIds();
-      let listChanged = false;
-
+      // Tüm talebeler kesinlikle %100 aktiftir
       list.forEach(s => {
         if (!s || !s.id) return;
-        const sNo = s.studentNo ? s.studentNo.toString().trim() : '';
-        const numOnly = (s.id || '').replace(/\D/g, '');
-
-        if (s.isPassive === false || s.status === 'active') {
-          // Açıkça aktif: passiveMap'te eski artık varsa temizle
-          if (passiveMap[s.id] || (sNo && passiveMap[sNo]) || (sNo && passiveMap[`std_${sNo}`])) {
-            delete passiveMap[s.id];
-            if (sNo) { delete passiveMap[sNo]; delete passiveMap[`std_${sNo}`]; }
-            if (numOnly) { delete passiveMap[numOnly]; delete passiveMap[`std_${numOnly}`]; }
-            localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify(passiveMap));
-          }
-          s.isPassive = false;
-          s.status = 'active';
-        } else if (s.isPassive === true || s.status === 'passive') {
-          s.isPassive = true;
-          s.status = 'passive';
-        } else {
-          const inPassiveMap = !!(
-            (passiveMap[s.id] && (passiveMap[s.id] === true || (typeof passiveMap[s.id] === 'object' && passiveMap[s.id].isPassive === true))) ||
-            (sNo && passiveMap[sNo] && (passiveMap[sNo] === true || (typeof passiveMap[sNo] === 'object' && passiveMap[sNo].isPassive === true))) ||
-            (sNo && passiveMap[`std_${sNo}`] && (passiveMap[`std_${sNo}`] === true || (typeof passiveMap[`std_${sNo}`] === 'object' && passiveMap[`std_${sNo}`].isPassive === true)))
-          );
-          s.isPassive = inPassiveMap;
-          s.status = inPassiveMap ? 'passive' : 'active';
-        }
+        s.isPassive = false;
+        s.status = 'active';
+        delete s.aktif;
+        delete s.active;
       });
-
-      if (listChanged) {
-        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(list));
-      }
 
       return list;
     } catch {
@@ -2087,32 +1958,14 @@ class DataStore {
     }
   }
 
-  // Varsayılan olarak sadece AKTİF öğrencileri getirir. includePassive=true verilirse tümünü getirir.
+  // Tüm talebeler her zaman %100 aktiftir
   getStudents(includePassive = false) {
-    const list = this.getAllStudents();
-    if (includePassive) return list;
-    return list.filter(s => {
-      if (!s || !s.id) return false;
-      if (this.isStudentPassive(s.id) || (s.studentNo && this.isStudentPassive(s.studentNo))) return false;
-      if (s.isPassive === true || s.isPassive === 'true' || s.isPassive === 1) return false;
-      const st = (s.status || '').toString().toLowerCase().trim();
-      if (st === 'passive' || st === 'pasif') return false;
-      if (s.aktif === false || s.active === false) return false;
-      return true;
-    });
+    return this.getAllStudents();
   }
 
-  // Sadece pasife alınmış öğrencileri listeler
+  // Pasiflik kaldırıldığı için her zaman boş liste döner
   getPassiveStudents() {
-    return this.getAllStudents().filter(s => {
-      if (!s || !s.id) return false;
-      if (this.isStudentPassive(s.id)) return true;
-      if (s.isPassive === true || s.isPassive === 'true' || s.isPassive === 1) return true;
-      const st = (s.status || '').toString().toLowerCase().trim();
-      if (st === 'passive' || st === 'pasif') return true;
-      if (s.aktif === false || s.active === false) return true;
-      return false;
-    });
+    return [];
   }
 
   getStudentById(id) {
@@ -2135,58 +1988,19 @@ class DataStore {
 
     // Silinmiş sicilinde olan öğrencileri ASLA tekrar kaydetme!
     const sanitizedStudents = students.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
-
-    const passiveMap = this.getPassiveStudentIds();
-    let mapChanged = false;
     const nowIso = new Date().toISOString();
 
     sanitizedStudents.forEach(s => {
       if (!s || !s.id) return;
       if (!s.updatedAt) s.updatedAt = nowIso;
-      const sNo = s.studentNo ? s.studentNo.toString().trim() : '';
-      const numOnly = (s.id || '').replace(/\D/g, '');
-
-      const isExplicitlyActive = s.isPassive === false || s.status === 'active';
-      const isExplicitlyPassive = s.isPassive === true || s.status === 'passive';
-
-      let shouldBePassive = false;
-      if (isExplicitlyPassive) {
-        shouldBePassive = true;
-      } else if (isExplicitlyActive) {
-        shouldBePassive = false;
-      } else {
-        const inPassiveMap = !!(
-          (passiveMap[s.id] && (passiveMap[s.id] === true || (typeof passiveMap[s.id] === 'object' && passiveMap[s.id].isPassive === true))) ||
-          (sNo && passiveMap[sNo] && (passiveMap[sNo] === true || (typeof passiveMap[sNo] === 'object' && passiveMap[sNo].isPassive === true)))
-        );
-        shouldBePassive = inPassiveMap;
-      }
-
-      if (shouldBePassive) {
-        s.isPassive = true;
-        s.status = 'passive';
-        if (!passiveMap[s.id] || (typeof passiveMap[s.id] === 'object' && passiveMap[s.id].isPassive !== true)) {
-          passiveMap[s.id] = { isPassive: true, updatedAt: s.updatedAt || nowIso };
-          mapChanged = true;
-        }
-      } else {
-        s.isPassive = false;
-        s.status = 'active';
-        if (passiveMap[s.id]) { delete passiveMap[s.id]; mapChanged = true; }
-        if (sNo && passiveMap[sNo]) { delete passiveMap[sNo]; mapChanged = true; }
-        if (sNo && passiveMap[`std_${sNo}`]) { delete passiveMap[`std_${sNo}`]; mapChanged = true; }
-        if (numOnly && passiveMap[numOnly]) { delete passiveMap[numOnly]; mapChanged = true; }
-        if (numOnly && passiveMap[`std_${numOnly}`]) { delete passiveMap[`std_${numOnly}`]; mapChanged = true; }
-      }
+      s.isPassive = false;
+      s.status = 'active';
+      delete s.aktif;
+      delete s.active;
     });
 
-    if (mapChanged) {
-      localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify(passiveMap));
-      if (this.isCloudEnabled()) {
-        this.syncToCloud('kurs_data/passive_student_ids', passiveMap);
-      }
-    }
-
+    localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
+    localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(sanitizedStudents));
     this._lastStudentPushTime = Date.now();
     this._lastStudentEditTime = Date.now();
@@ -2238,22 +2052,18 @@ class DataStore {
       }
     }
     const students = this.getAllStudents();
-    const isPassive = student.isPassive === true || student.status === 'passive';
     const newStudent = {
       ...student,
       id: student.id || ('std_' + Date.now() + '_' + Math.floor(Math.random()*1000)),
       password: student.password || '123',
       familyCode: (student.familyCode || (student.lastName ? student.lastName + '2026' : 'AILE2026')).trim().toUpperCase(),
-      isPassive: isPassive,
-      status: isPassive ? 'passive' : 'active',
+      isPassive: false,
+      status: 'active',
       updatedAt: new Date().toISOString()
     };
+    delete newStudent.aktif;
+    delete newStudent.active;
     students.push(newStudent);
-    if (isPassive) {
-      const passiveMap = this.getPassiveStudentIds();
-      passiveMap[newStudent.id] = { isPassive: true, updatedAt: newStudent.updatedAt };
-      this.savePassiveStudentIds(passiveMap);
-    }
     this.markStudentLocallyEdited(newStudent.id, ['ALL']);
     this.saveStudents(students);
     return newStudent;
@@ -2263,79 +2073,19 @@ class DataStore {
     const students = this.getAllStudents();
     const index = students.findIndex(s => s.id === id);
     if (index !== -1) {
-      const passiveMap = this.getPassiveStudentIds();
-      let isPassiveVal = students[index].isPassive;
-
-      const stObj = students[index];
-      const sNo = stObj.studentNo ? stObj.studentNo.toString().trim() : '';
-      const numOnly = (id || '').replace(/\D/g, '');
-
-      const cleanAllPassiveKeys = () => {
-        delete passiveMap[id];
-        if (sNo) {
-          delete passiveMap[sNo];
-          delete passiveMap[`std_${sNo}`];
-        }
-        if (numOnly) {
-          delete passiveMap[numOnly];
-          delete passiveMap[`std_${numOnly}`];
-        }
-        if (this.isCloudEnabled()) {
-          const baseUrl = this.getFirebaseUrl();
-          if (baseUrl) {
-            try {
-              fetch(`${baseUrl}/kurs_data/passive_student_ids/${id}.json`, { method: 'DELETE' }).catch(() => {});
-              if (sNo) {
-                fetch(`${baseUrl}/kurs_data/passive_student_ids/${sNo}.json`, { method: 'DELETE' }).catch(() => {});
-                fetch(`${baseUrl}/kurs_data/passive_student_ids/std_${sNo}.json`, { method: 'DELETE' }).catch(() => {});
-              }
-            } catch (e) {}
-          }
-        }
-      };
-
-      const setAllPassiveKeys = () => {
-        const pRec = { isPassive: true, updatedAt: new Date().toISOString() };
-        passiveMap[id] = pRec;
-        if (sNo) {
-          passiveMap[sNo] = pRec;
-          passiveMap[`std_${sNo}`] = pRec;
-        }
-      };
-
-      // Yalnızca kullanıcı açıkça isPassive veya status gönderdiyse değiştir
-      if (updatedData.isPassive !== undefined) {
-        isPassiveVal = !!updatedData.isPassive;
-        if (isPassiveVal) {
-          setAllPassiveKeys();
-        } else {
-          cleanAllPassiveKeys();
-        }
-        this.savePassiveStudentIds(passiveMap);
-      } else if (updatedData.status !== undefined) {
-        isPassiveVal = updatedData.status === 'passive';
-        if (isPassiveVal) {
-          setAllPassiveKeys();
-        } else {
-          cleanAllPassiveKeys();
-        }
-        this.savePassiveStudentIds(passiveMap);
-      } else {
-        // Eğer güncellenen veride pasiflik bilgisi yoksa, öğrencinin mevcut durumunu koru
-        isPassiveVal = students[index].isPassive === true || students[index].status === 'passive';
-      }
-
       this.markStudentLocallyEdited(id, Object.keys(updatedData));
       this._lastStudentEditTime = Date.now();
 
       students[index] = {
         ...students[index],
         ...updatedData,
-        isPassive: isPassiveVal,
-        status: isPassiveVal ? 'passive' : 'active',
+        isPassive: false,
+        status: 'active',
         familyCode: ((updatedData.familyCode !== undefined ? updatedData.familyCode : students[index].familyCode) || '').trim().toUpperCase(),
         updatedAt: new Date().toISOString()
       };
+      delete students[index].aktif;
+      delete students[index].active;
       this.saveStudents(students);
 
       // Eğer dahiliHoca güncellendiyse Kur'an Takip kaydındaki diniGrup'u da ANINDA senkronize et!
@@ -2437,35 +2187,7 @@ class DataStore {
     deletedMap[id] = { isDeleted: true, deletedAt: nowIso };
     this.saveDeletedStudentIds(deletedMap);
 
-    // 2. Pasif Sicilinden çıkar
-    const passiveMap = this.getPassiveStudentIds();
-    const stObj = this.getStudentById(id);
-    const sNo = stObj && stObj.studentNo ? stObj.studentNo.toString().trim() : '';
-    const numOnly = (id || '').replace(/\D/g, '');
-    delete passiveMap[id];
-    if (sNo) {
-      delete passiveMap[sNo];
-      delete passiveMap[`std_${sNo}`];
-    }
-    if (numOnly) {
-      delete passiveMap[numOnly];
-      delete passiveMap[`std_${numOnly}`];
-    }
-    this.savePassiveStudentIds(passiveMap);
-    if (this.isCloudEnabled()) {
-      const baseUrl = this.getFirebaseUrl();
-      if (baseUrl) {
-        try {
-          fetch(`${baseUrl}/kurs_data/passive_student_ids/${id}.json`, { method: 'DELETE' }).catch(() => {});
-          if (sNo) {
-            fetch(`${baseUrl}/kurs_data/passive_student_ids/${sNo}.json`, { method: 'DELETE' }).catch(() => {});
-            fetch(`${baseUrl}/kurs_data/passive_student_ids/std_${sNo}.json`, { method: 'DELETE' }).catch(() => {});
-          }
-        } catch (e) {}
-      }
-    }
-
-    // 3. Öğrenciler listesinden tamamen çıkar
+    // 2. Öğrenciler listesinden tamamen çıkar
     let rawStudents = [];
     try {
       const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
@@ -2478,7 +2200,7 @@ class DataStore {
     const cleanStudents = rawStudents.filter(s => s && s.id !== id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(cleanStudents));
 
-    // 4. Bulut Veritabanı ile eşitle
+    // 3. Bulut Veritabanı ile eşitle
     if (this.isCloudEnabled()) {
       this.syncToCloud('kurs_data/students', cleanStudents);
       this.syncToCloud('kurs_data/deleted_student_ids', deletedMap);
@@ -2491,79 +2213,22 @@ class DataStore {
       }
     }
 
-    // 5. Öğrenciye ait artık kayıtları temizle
+    // 4. Öğrenciye ait artık kayıtları temizle
     this.cleanupStudentRecords(id);
 
-    // 6. Global event bildir (Açık ekranların anında haberdar olması için)
+    // 5. Global event bildir (Açık ekranların anında haberdar olması için)
     try {
       window.dispatchEvent(new CustomEvent('student-deleted', { detail: { studentId: id } }));
     } catch (e) {}
   }
 
-  // Talebeyi Pasife veya Aktife Geçirme (Tek tıkla değiştirme)
+  // Pasife alma özelliği tamamen kaldırıldı (Talebeler her zaman %100 aktiftir)
   toggleStudentPassive(id) {
-    const students = this.getAllStudents();
-    const s = students.find(st => st.id === id || st.studentNo === id || (st.studentNo && st.studentNo.toString() === id.toString()));
-    if (!s) return { success: false, message: 'Öğrenci bulunamadı.' };
-    const nowPassive = !(s.isPassive === true || s.status === 'passive');
-    return this.setStudentPassive(s.id, nowPassive);
+    return { success: true, isPassive: false };
   }
 
   setStudentPassive(id, isPassive) {
-    const students = this.getAllStudents();
-    const s = students.find(st => st.id === id || st.studentNo === id || (st.studentNo && st.studentNo.toString() === id.toString()));
-    if (!s) return { success: false, message: 'Öğrenci bulunamadı.' };
-
-    const passiveMap = this.getPassiveStudentIds();
-    const nowIso = new Date().toISOString();
-
-    s.isPassive = !!isPassive;
-    s.status = isPassive ? 'passive' : 'active';
-    s.updatedAt = nowIso;
-
-    const sNo = s.studentNo ? s.studentNo.toString().trim() : '';
-    const numOnly = (s.id || '').replace(/\D/g, '');
-
-    if (isPassive) {
-      const pRec = { isPassive: true, updatedAt: nowIso };
-      passiveMap[s.id] = pRec;
-      if (sNo) {
-        passiveMap[sNo] = pRec;
-        passiveMap[`std_${sNo}`] = pRec;
-      }
-    } else {
-      delete passiveMap[s.id];
-      if (sNo) {
-        delete passiveMap[sNo];
-        delete passiveMap[`std_${sNo}`];
-      }
-      if (numOnly) {
-        delete passiveMap[numOnly];
-        delete passiveMap[`std_${numOnly}`];
-      }
-      if (this.isCloudEnabled()) {
-        const baseUrl = this.getFirebaseUrl();
-        if (baseUrl) {
-          try {
-            fetch(`${baseUrl}/kurs_data/passive_student_ids/${s.id}.json`, { method: 'DELETE' }).catch(() => {});
-            if (sNo) {
-              fetch(`${baseUrl}/kurs_data/passive_student_ids/${sNo}.json`, { method: 'DELETE' }).catch(() => {});
-              fetch(`${baseUrl}/kurs_data/passive_student_ids/std_${sNo}.json`, { method: 'DELETE' }).catch(() => {});
-            }
-            if (numOnly) {
-              fetch(`${baseUrl}/kurs_data/passive_student_ids/${numOnly}.json`, { method: 'DELETE' }).catch(() => {});
-              fetch(`${baseUrl}/kurs_data/passive_student_ids/std_${numOnly}.json`, { method: 'DELETE' }).catch(() => {});
-            }
-          } catch (e) {}
-        }
-      }
-    }
-
-    this.markStudentLocallyEdited(s.id, ['isPassive', 'status']);
-    this._lastStudentEditTime = Date.now();
-    this.savePassiveStudentIds(passiveMap);
-    this.saveStudents(students);
-    return { success: true, isPassive: s.isPassive, student: s };
+    return { success: true, isPassive: false };
   }
 
   updateStudentPassword(id, newPassword) {
