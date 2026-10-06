@@ -1109,10 +1109,19 @@ window.MockExamModule = {
       ? window.Store.getStudents(false)
       : [];
     const participatingStudents = this.getParticipatingStudents(exam);
-    const existingClasses = (window.Store && typeof window.Store.getClasses === 'function') ? window.Store.getClasses() : [];
-    const availableBranches = existingClasses.length > 0 
-      ? existingClasses.map(c => c.name || c.id) 
-      : [...new Set(allStudents.map(s => s.className).filter(Boolean))].sort();
+    const rawClasses = (window.Store && typeof window.Store.getClasses === 'function') ? window.Store.getClasses() : [];
+    let availableBranches = [];
+    if (Array.isArray(rawClasses) && rawClasses.length > 0) {
+      availableBranches = rawClasses.map(c => {
+        if (!c) return '';
+        if (typeof c === 'object') return (c.name || c.id || '').toString();
+        return c.toString();
+      }).filter(Boolean);
+    }
+    if (availableBranches.length === 0) {
+      availableBranches = [...new Set(allStudents.map(s => s && s.className).filter(Boolean))];
+    }
+    availableBranches = [...new Set(availableBranches)].sort((a, b) => a.localeCompare(b, 'tr', { numeric: true }));
 
     let modal = document.getElementById('mock-print-modal');
     if (!modal) {
@@ -1173,8 +1182,10 @@ window.MockExamModule = {
               <select id="mock-print-class-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
                 <option value="ALL">Tüm Sınav Katılımcıları (${participatingStudents.length} Talebe)</option>
                 ${availableBranches.map(br => {
-                  const cnt = participatingStudents.filter(s => (s.className || '').trim().toUpperCase() === br.trim().toUpperCase()).length;
-                  return `<option value="${br}">${br} Sınıfı (${cnt} Talebe)</option>`;
+                  if (!br) return '';
+                  const cleanBr = br.toString().trim();
+                  const cnt = participatingStudents.filter(s => (s.className || '').trim().toUpperCase() === cleanBr.toUpperCase()).length;
+                  return `<option value="${cleanBr}">${cleanBr} Sınıfı (${cnt} Talebe)</option>`;
                 }).join('')}
                 <option value="BLANK">İsimsiz Boş Form (Yedek - 4 Adet)</option>
               </select>
