@@ -177,8 +177,8 @@ class DataStore {
     }
     // Mevcut öğrencilerin şubelerini (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) otomatik güncelle
     this.autoMigrateStudentClasses();
-    // 8. Sınıf kütüğünü (8-A Yavuz Selim Seven [9 Talebe], 8-B Tunahan Taşkın [9 Talebe]) zorla onar ve buluta mühürle
-    this.forceRepair8thGradeClasses(true);
+    // 8. Sınıf kütüğünü (8-A Yavuz Selim Seven [9 Talebe], 8-B Tunahan Taşkın [9 Talebe]) onar (pasiflikleri bozmadan)
+    this.forceRepair8thGradeClasses(false);
     // 8-A ve 8-B hoca atamalarını ve personel rollerini eşitle
     this.autoSyncStaffAndClassTeachers();
     // Dini ders grupları ve Dahili Hoca senkronizasyonunu otomatik sağla
@@ -305,25 +305,8 @@ class DataStore {
         this.saveDeletedStudentIds(deletedMap);
       }
 
-      // 2. Pasif Sicili'nden bu 18 öğrenciyi KESİNLİKLE çıkar (Hiçbiri pasif olamaz, hepsi aktif!)
+      // 2. Pasif Sicili: Kullanıcının pasife aldığı talebeleri KORU (asla ezme veya silme)
       const passiveMap = this.getPassiveStudentIds();
-      let passiveChanged = false;
-      const all18Ids = [...class8AIds, ...class8BIds];
-      all18Ids.forEach(id => {
-        if (passiveMap[id]) {
-          delete passiveMap[id];
-          passiveChanged = true;
-        }
-      });
-      removed8thGradeIds.forEach(id => {
-        if (passiveMap[id]) {
-          delete passiveMap[id];
-          passiveChanged = true;
-        }
-      });
-      if (passiveChanged) {
-        this.savePassiveStudentIds(passiveMap);
-      }
 
       // 3. Öğrenci Listesini Yükle ve Onar
       let studentsRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
@@ -354,7 +337,7 @@ class DataStore {
         return true;
       });
 
-      // Kalan 18 talebeyi harfiyen doğru sınıfa, hocaya ata ve aktif yap
+      // Kalan 18 talebeyi harfiyen doğru sınıfa ve hocaya ata (pasiflikleri koru)
       students = students.map(s => {
         if (!s) return s;
         const no = parseInt(s.studentNo, 10);
@@ -381,16 +364,14 @@ class DataStore {
         }
 
         if (targetClass && targetTeacher) {
-          this.markStudentLocallyEdited(s.id, ['className', 'etutHocasi', 'isPassive', 'status']);
-          const needsFix = s.className !== targetClass || s.etutHocasi !== targetTeacher || s.isPassive === true || s.status === 'passive';
+          const needsFix = s.className !== targetClass || s.etutHocasi !== targetTeacher;
           if (needsFix) {
             hasChanges = true;
+            this.markStudentLocallyEdited(s.id, ['className', 'etutHocasi']);
             return {
               ...s,
               className: targetClass,
               etutHocasi: targetTeacher,
-              isPassive: false,
-              status: 'active',
               updatedAt: nowIso
             };
           }
@@ -403,13 +384,14 @@ class DataStore {
       SEED_STUDENTS.forEach(seed => {
         const sNo = parseInt(seed.studentNo, 10);
         if ((class8ANumbers.has(sNo) || class8BNumbers.has(sNo)) && !existingIds.has(seed.id)) {
+          const isPass = this.isStudentPassive(seed.id);
           students.push({
             ...seed,
-            isPassive: false,
-            status: 'active',
+            isPassive: isPass,
+            status: isPass ? 'passive' : 'active',
             updatedAt: nowIso
           });
-          this.markStudentLocallyEdited(seed.id, ['className', 'etutHocasi', 'isPassive', 'status']);
+          this.markStudentLocallyEdited(seed.id, ['className', 'etutHocasi']);
           hasChanges = true;
         }
       });
@@ -920,7 +902,7 @@ class DataStore {
 
           let mergedSt;
           if (preferLocal) {
-            const finalPassive = localSt.isPassive === true || localSt.status === 'passive';
+            const finalPassive = (passiveMap[localSt.id] && passiveMap[localSt.id].isPassive === true) || localSt.isPassive === true || localSt.status === 'passive';
             mergedSt = {
               ...cloudSt,
               ...localSt,
@@ -928,7 +910,7 @@ class DataStore {
               status: finalPassive ? 'passive' : 'active'
             };
           } else {
-            const finalPassive = cloudSt.isPassive === true || cloudSt.status === 'passive';
+            const finalPassive = (passiveMap[cloudSt.id] && passiveMap[cloudSt.id].isPassive === true) || (passiveMap[localSt.id] && passiveMap[localSt.id].isPassive === true) || cloudSt.isPassive === true || cloudSt.status === 'passive' || localSt.isPassive === true || localSt.status === 'passive';
             mergedSt = {
               ...localSt,
               ...cloudSt,
@@ -948,20 +930,16 @@ class DataStore {
             }
           }
 
-          // 8. Sınıf Kesin Dağılım Koruması (Buluttan eski 8-A / 8-B şubeleri gelse bile asla ezilemez!)
+          // 8. Sınıf Kesin Dağılım Koruması (Buluttan eski 8-A / 8-B şubeleri gelse bile doğru hoca ve şube korunur)
           const no8 = parseInt(mergedSt.studentNo, 10);
           const c8ANos = [814, 815, 822, 806, 819, 820, 802, 808, 811];
           const c8BNos = [801, 805, 816, 810, 809, 821, 807, 813, 818];
           if (c8ANos.includes(no8)) {
             mergedSt.className = '8-A';
             mergedSt.etutHocasi = 'YAVUZ SELİM SEVEN';
-            mergedSt.isPassive = false;
-            mergedSt.status = 'active';
           } else if (c8BNos.includes(no8)) {
             mergedSt.className = '8-B';
             mergedSt.etutHocasi = 'TUNAHAN TAŞKIN';
-            mergedSt.isPassive = false;
-            mergedSt.status = 'active';
           }
 
           return mergedSt;
@@ -986,13 +964,9 @@ class DataStore {
         if (c8ANos.includes(no8s)) {
           singleSt.className = '8-A';
           singleSt.etutHocasi = 'YAVUZ SELİM SEVEN';
-          singleSt.isPassive = false;
-          singleSt.status = 'active';
         } else if (c8BNos.includes(no8s)) {
           singleSt.className = '8-B';
           singleSt.etutHocasi = 'TUNAHAN TAŞKIN';
-          singleSt.isPassive = false;
-          singleSt.status = 'active';
         }
 
         return singleSt;

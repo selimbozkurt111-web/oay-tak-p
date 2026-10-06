@@ -1128,7 +1128,12 @@ window.MockExamModule = {
 
       // QR Kod Payload: OAY_MOCK:{examId}:{studentId}:{studentNo}:{className}:{booklet}
       const qrPayload = `OAY_MOCK:${exam.id}:${stId}:${stNo}:${stClass}:${bLet}`;
-      const qrSvg = window.MiniQRCode.generateSvg(qrPayload, 84);
+      let qrSvg = '';
+      if (window.MiniQRCode && typeof window.MiniQRCode.generateSvg === 'function') {
+        qrSvg = window.MiniQRCode.generateSvg(qrPayload, 84);
+      } else {
+        qrSvg = `<div style="width:84px;height:84px;border:2px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:monospace;text-align:center;">QR<br>${stNo}-${bLet}</div>`;
+      }
 
       printHtml += `
         <div class="sheet">
@@ -1204,14 +1209,54 @@ window.MockExamModule = {
       </html>
     `;
 
-    const win = window.open('', '_blank');
-    if (win) {
-      win.document.open();
-      win.document.write(printHtml);
-      win.document.close();
-    } else {
-      alert('Yazdırma penceresi açılamadı. Lütfen tarayıcınızın açılır pencere (pop-up) engelini kaldırınız.');
+    if (window.App && window.App.showToast) {
+      window.App.showToast('🖨️ Optik formlar hazırlanıyor, yazdırma ekranı açılıyor...', 'info');
     }
+
+    // Modern Pop-up Engeli Olmayan Güvenli Iframe Yazdırma Hattı
+    let printFrame = document.getElementById('mock-print-iframe');
+    if (!printFrame) {
+      printFrame = document.createElement('iframe');
+      printFrame.id = 'mock-print-iframe';
+      printFrame.style.position = 'fixed';
+      printFrame.style.right = '0';
+      printFrame.style.bottom = '0';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = '0';
+      printFrame.style.visibility = 'hidden';
+      document.body.appendChild(printFrame);
+    }
+
+    const frameDoc = printFrame.contentWindow.document || printFrame.contentDocument;
+    frameDoc.open();
+    frameDoc.write(printHtml);
+    frameDoc.close();
+
+    const doPrint = () => {
+      try {
+        printFrame.contentWindow.focus();
+        printFrame.contentWindow.print();
+      } catch (err) {
+        console.warn('Iframe print tetiklenemedi, fallback pencere deneniyor:', err);
+        try {
+          const win = window.open('', '_blank');
+          if (win) {
+            win.document.open();
+            win.document.write(printHtml);
+            win.document.close();
+            win.focus();
+            setTimeout(() => { win.print(); }, 400);
+          } else {
+            alert('Lütfen tarayıcınızın yazdırma / pop-up iznini açınız.');
+          }
+        } catch (e2) {
+          alert('Yazdırma ekranı açılamadı.');
+        }
+      }
+    };
+
+    setTimeout(doPrint, 400);
   },
 
   // ========================================================
