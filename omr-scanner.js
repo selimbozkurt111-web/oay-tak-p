@@ -618,6 +618,34 @@ window.OMRScanner = {
         </div>
 
         <div class="space-y-3 text-xs">
+          <!-- FORM ŞABLONU SEÇİMİ -->
+          <div>
+            <label class="block font-black text-slate-800 mb-1.5 uppercase tracking-wide">YAZDIRILACAK OPTİK FORM ŞABLONU *</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <label class="flex items-start gap-2.5 p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/70 cursor-pointer shadow-xs transition">
+                <input type="radio" name="omr-print-mode" value="LGS_LANDSCAPE" checked class="mt-0.5 text-emerald-600 focus:ring-emerald-500">
+                <div>
+                  <div class="font-black text-slate-900 text-xs flex items-center gap-1">
+                    <span>🎯</span> <span>6 Dersli Kurumsal LGS</span>
+                  </div>
+                  <div class="text-[10px] text-emerald-800 font-bold mt-0.5">A4 Yatay • Yeni Şablon (Örnek Görseliniz)</div>
+                  <div class="text-[9px] text-slate-500 mt-0.5">Türkçe, İnkılap, Din, İngilizce, Matematik, Fen</div>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-2.5 p-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer transition">
+                <input type="radio" name="omr-print-mode" value="SINGLE_TEST" class="mt-0.5 text-emerald-600 focus:ring-emerald-500">
+                <div>
+                  <div class="font-bold text-slate-800 text-xs flex items-center gap-1">
+                    <span>📝</span> <span>Tek Derslik Etüt Testi</span>
+                  </div>
+                  <div class="text-[10px] text-slate-600 font-medium mt-0.5">A4 Dikey • 1 Sayfada 2 Adet Form</div>
+                  <div class="text-[9px] text-slate-500 mt-0.5">Sadece ${activeTestMeta.subject || 'Tek Ders'}</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block font-bold text-slate-700 mb-1">Yazdırılacak Şube:</label>
@@ -654,16 +682,13 @@ window.OMRScanner = {
           <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-slate-700 space-y-1 text-[11px] leading-relaxed">
             <div class="font-bold text-amber-900 flex items-center gap-1.5">
               <span>💡</span>
-              <span>Sayfa & Tasarruf Düzeni:</span>
+              <span>Sayfa & Optik Düzeni:</span>
             </div>
             <p>
-              • <strong>1 Sayfa A4 = 2 Adet Optik Form</strong> basılır (ortasından kesip iki talebeye dağıtabilirsiniz).
+              • <strong>6 Dersli LGS Şablonu:</strong> Tek A4 kağıdına <strong>Yatay (Landscape)</strong> olarak tam sayfa basılır. 4 köşe L-köşebenti, üst gri bilgi kartı, sol karekod ve 6 ders sütunu (1, 10, 19 siyah referans kareleri) içerir.
             </p>
             <p>
-              • Her formun sağ üst köşesinde talebenin adı, okul no ve sınıf bilgisi gömülü <strong>özel QR kod</strong> yer alır.
-            </p>
-            <p>
-              • Talebe numara kodlamakla vakit kaybetmez; kamera kağıdı gördüğü an kim olduğunu <strong>%100 hatasız</strong> anlar.
+              • <strong>Tek Derslik Form:</strong> 1 Sayfa A4'e 2 adet dikey form basılır (ortadan kesmeli).
             </p>
           </div>
         </div>
@@ -684,6 +709,9 @@ window.OMRScanner = {
   },
 
   generateAndPrintForms: function() {
+    const modeRadio = document.querySelector('input[name="omr-print-mode"]:checked');
+    const printMode = modeRadio ? modeRadio.value : 'LGS_LANDSCAPE';
+
     const classSelect = document.getElementById('omr-print-class-select');
     const qCountSelect = document.getElementById('omr-print-q-count');
     const bookletSelect = document.getElementById('omr-print-booklet');
@@ -691,6 +719,18 @@ window.OMRScanner = {
     const selectedClass = classSelect ? classSelect.value : 'ALL';
     const totalQ = parseInt(qCountSelect ? qCountSelect.value : '20', 10) || 20;
     const defaultBooklet = bookletSelect ? bookletSelect.value : 'A';
+
+    // Eğer 6 Dersli LGS Optik Formu seçildiyse doğrudan MockExamModule A4 Yatay motorunu çalıştır!
+    if (printMode === 'LGS_LANDSCAPE') {
+      if (window.MockExamModule && typeof window.MockExamModule.executePrintForms === 'function') {
+        window.MockExamModule.executePrintForms(null, {
+          selClass: selectedClass,
+          selBooklet: defaultBooklet,
+          isBlank: selectedClass === 'BLANK'
+        });
+        return;
+      }
+    }
 
     let allStudents = (window.Store && typeof window.Store.getStudents === 'function')
       ? window.Store.getStudents(false)

@@ -12,7 +12,7 @@
   <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v7.7 - DENEME SINAVI & KAZANIM ANALİZİ) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20261006_v8.0_REMOVE_REPAIR_BUTTON';
+      var CURRENT_BUILD = '20261006_v8.1_LGS_OPTICAL_LANDSCAPE_A4';
       var savedBuild = localStorage.getItem('oay_app_build_version');
 
       // Kullanıcının dilediğinde manuel de tetikleyebileceği evrensel sıfırlama fonksiyonu
@@ -401,30 +401,30 @@
       class="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-slate-900/95 hover:bg-slate-900 text-amber-300 hover:text-amber-200 border-2 border-amber-400 shadow-2xl text-xs font-black backdrop-blur transition-all active:scale-95 cursor-pointer"
       title="Eski önbelleği temizleyip en yeni sistemi zorla yükler">
       <span class="text-sm">🔄</span>
-      <span>Önbelleği Temizle (v8.0)</span>
+      <span>Önbelleği Temizle (v8.1)</span>
     </button>
   </div>
 
-  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v8.0 Sürüm İmzası) -->
-  <script src="js/hadisler.js?v=8.0"></script>
-  <script src="js/store.js?v=8.0"></script>
-  <script src="js/attendance.js?v=8.0"></script>
-  <script src="js/leave-tracker.js?v=8.0"></script>
-  <script src="js/leave-return.js?v=8.0"></script>
-  <script src="js/quran-tracker.js?v=8.0"></script>
-  <script src="js/performance.js?v=8.0"></script>
-  <script src="js/omr-scanner.js?v=8.0"></script>
-  <script src="js/test-results.js?v=8.0"></script>
-  <script src="js/mock-exam.js?v=8.0"></script>
-  <script src="js/leaderboard.js?v=8.0"></script>
-  <script src="js/parent-portal.js?v=8.0"></script>
-  <script src="js/app.js?v=8.0"></script>
+  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v8.1 Sürüm İmzası) -->
+  <script src="js/hadisler.js?v=8.1"></script>
+  <script src="js/store.js?v=8.1"></script>
+  <script src="js/attendance.js?v=8.1"></script>
+  <script src="js/leave-tracker.js?v=8.1"></script>
+  <script src="js/leave-return.js?v=8.1"></script>
+  <script src="js/quran-tracker.js?v=8.1"></script>
+  <script src="js/performance.js?v=8.1"></script>
+  <script src="js/omr-scanner.js?v=8.1"></script>
+  <script src="js/test-results.js?v=8.1"></script>
+  <script src="js/mock-exam.js?v=8.1"></script>
+  <script src="js/leaderboard.js?v=8.1"></script>
+  <script src="js/parent-portal.js?v=8.1"></script>
+  <script src="js/app.js?v=8.1"></script>
 
   <!-- Service Worker Kaydı (Kısayol ve PWA Hızlı Başlatma) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./sw.js?v=8.0').then(function(reg) {
+        navigator.serviceWorker.register('./sw.js?v=8.1').then(function(reg) {
           if (reg) {
             reg.update();
           }
