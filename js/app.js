@@ -12,8 +12,13 @@ window.App = {
   showAdminOtpOnScreen: true, // Kodu ekranda gösterme tercihi
   lastGeneratedAdminOtp: '',
   studentFilterClass: 'ALL',
-  studentFilterStatus: 'ALL', // 'ALL' | 'ACTIVE' | 'PASSIVE'
   studentSearchQuery: '',
+  studentSortField: 'studentNo',
+  studentSortOrder: 'asc',
+  studentTableEditMode: false,
+  studentDrafts: {},
+  studentNewDrafts: [],
+  studentDeletedDrafts: new Set(),
 
   init() {
     const saved = sessionStorage.getItem('yoklama_active_session') || localStorage.getItem('yoklama_active_session');
@@ -35,6 +40,14 @@ window.App = {
       }
     }
 
+    // Sayfadan ayrılma uyarısı (Kaydedilmemiş öğrenci taslakları varsa)
+    window.addEventListener('beforeunload', (e) => {
+      if (this.hasUnsavedStudentChanges && this.hasUnsavedStudentChanges()) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+
     this.renderHeader();
     this.renderMainContent();
 
@@ -51,13 +64,14 @@ window.App = {
           return; // Klavyenin kapanmasını ve ekranın başa zıplamasını %100 engeller
         }
 
-        // 2. Takviye Notları, Test Neticeleri, Canlı Excel ve Ayarlar kendi durumunu yönetir;
+        // 2. Takviye Notları, Test Neticeleri, Canlı Excel, Öğrenci Toplu Düzenleme ve Ayarlar kendi durumunu yönetir;
         // Arka plan senkronizasyonu bu ekranların DOM'unu ve odağını ASLA ezmemelidir!
         if (
           this.activeTab === 'performans' || 
           this.activeTab === 'akademi' || 
           this.activeTab === 'test_results' || 
           this.activeTab === 'ogrenciler_excel' || 
+          (this.activeTab === 'ogrenciler' && (this.studentTableEditMode || (typeof this.hasUnsavedStudentChanges === 'function' && this.hasUnsavedStudentChanges()))) ||
           this.activeTab === 'ayarlar'
         ) {
           return;
@@ -448,6 +462,12 @@ window.App = {
   },
 
   setTab(tab) {
+    if (this.activeTab === 'ogrenciler' && tab !== 'ogrenciler' && typeof this.hasUnsavedStudentChanges === 'function' && this.hasUnsavedStudentChanges()) {
+      if (!confirm('Kaydedilmemiş öğrenci değişiklikleriniz var!\n\nKaydetmeden başka bir sekmeye geçerseniz yaptığınız düzenlemeler silinecektir. Çıkmak istediğinizden emin misiniz?')) {
+        return;
+      }
+      this.discardStudentDrafts(false);
+    }
     this.activeTab = tab;
     this.renderHeader();
     this.renderMainContent();
@@ -644,6 +664,12 @@ window.App = {
   },
 
   navigateFromDrawer(tab, category = null, targetClass = null) {
+    if (this.activeTab === 'ogrenciler' && tab !== 'ogrenciler' && typeof this.hasUnsavedStudentChanges === 'function' && this.hasUnsavedStudentChanges()) {
+      if (!confirm('Kaydedilmemiş öğrenci değişiklikleriniz var!\n\nKaydetmeden başka bir ekrana geçerseniz bu değişiklikler kaybolacaktır. Çıkmak istediğinizden emin misiniz?')) {
+        return;
+      }
+      this.discardStudentDrafts(false);
+    }
     this.closeDrawer();
     this.activeTab = tab;
     if (tab === 'yoklama' && category && window.AttendanceModule) {
@@ -1423,7 +1449,453 @@ window.App = {
     return false;
   },
 
-  // --- Öğrenci & Şifre Yönetimi Görünümü ---
+  // --- Öğrenci Sıralama ve Toplu Düzenleme (Excel Modu) Yardımcı Metodları ---
+  getEffectiveStudentData(s) {
+    if (!s) return s;
+    const draft = (this.studentDrafts && this.studentDrafts[s.id]) || {};
+    return {
+      ...s,
+      ...draft
+    };
+  },
+
+  hasUnsavedStudentChanges() {
+    const editCount = this.studentDrafts ? Object.keys(this.studentDrafts).length : 0;
+    const newCount = this.studentNewDrafts ? this.studentNewDrafts.length : 0;
+    const delCount = (this.studentDeletedDrafts && this.studentDeletedDrafts.size) ? this.studentDeletedDrafts.size : 0;
+    return (editCount + newCount + delCount) > 0;
+  },
+
+  getStudentChangesCount() {
+    const editCount = this.studentDrafts ? Object.keys(this.studentDrafts).length : 0;
+    const newCount = this.studentNewDrafts ? this.studentNewDrafts.length : 0;
+    const delCount = (this.studentDeletedDrafts && this.studentDeletedDrafts.size) ? this.studentDeletedDrafts.size : 0;
+    return editCount + newCount + delCount;
+  },
+
+  toggleStudentSort(field) {
+    if (this.studentSortField === field) {
+      this.studentSortOrder = this.studentSortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.studentSortField = field;
+      this.studentSortOrder = 'asc';
+    }
+    this.renderStudentsView();
+  },
+
+  handleSortDropdownChange(val) {
+    if (!val) return;
+    const parts = val.split('_');
+    if (parts.length === 2) {
+      this.studentSortField = parts[0];
+      this.studentSortOrder = parts[1];
+      this.renderStudentsView();
+    }
+  },
+
+  getSortIndicator(field) {
+    if (this.studentSortField !== field) {
+      return '<span class="text-slate-400 font-mono text-[10px] ml-1">↕</span>';
+    }
+    return this.studentSortOrder === 'asc'
+      ? '<span class="text-emerald-700 font-black text-xs ml-1">▲</span>'
+      : '<span class="text-emerald-700 font-black text-xs ml-1">▼</span>';
+  },
+
+  sortStudentsList(students) {
+    const field = this.studentSortField || 'studentNo';
+    const order = this.studentSortOrder === 'desc' ? -1 : 1;
+
+    return [...students].sort((aRaw, bRaw) => {
+      const a = this.getEffectiveStudentData(aRaw);
+      const b = this.getEffectiveStudentData(bRaw);
+
+      if (field === 'studentNo') {
+        const noA = parseInt(a.studentNo, 10) || 0;
+        const noB = parseInt(b.studentNo, 10) || 0;
+        if (noA !== noB) return (noA - noB) * order;
+        return (a.id || '').localeCompare(b.id || '') * order;
+      }
+
+      if (field === 'name') {
+        const nameA = `${a.firstName || ''} ${a.lastName || ''}`.trim();
+        const nameB = `${b.firstName || ''} ${b.lastName || ''}`.trim();
+        return nameA.localeCompare(nameB, 'tr', { sensitivity: 'base' }) * order;
+      }
+
+      if (field === 'firstName') {
+        const valA = (a.firstName || '').trim();
+        const valB = (b.firstName || '').trim();
+        return valA.localeCompare(valB, 'tr', { sensitivity: 'base' }) * order;
+      }
+
+      if (field === 'lastName') {
+        const valA = (a.lastName || '').trim();
+        const valB = (b.lastName || '').trim();
+        return valA.localeCompare(valB, 'tr', { sensitivity: 'base' }) * order;
+      }
+
+      if (field === 'className') {
+        const valA = (a.className || '').trim();
+        const valB = (b.className || '').trim();
+        return valA.localeCompare(valB, 'tr', { numeric: true, sensitivity: 'base' }) * order;
+      }
+
+      if (field === 'etutHocasi') {
+        const valA = (a.etutHocasi || '').trim();
+        const valB = (b.etutHocasi || '').trim();
+        return valA.localeCompare(valB, 'tr', { sensitivity: 'base' }) * order;
+      }
+
+      if (field === 'dahiliHoca') {
+        const valA = (a.dahiliHoca || '').trim();
+        const valB = (b.dahiliHoca || '').trim();
+        return valA.localeCompare(valB, 'tr', { sensitivity: 'base' }) * order;
+      }
+
+      if (field === 'yatakhane') {
+        const valA = (a.yatakhane || '').trim();
+        const valB = (b.yatakhane || '').trim();
+        return valA.localeCompare(valB, 'tr', { numeric: true, sensitivity: 'base' }) * order;
+      }
+
+      if (field === 'password') {
+        const valA = (a.password || '').trim();
+        const valB = (b.password || '').trim();
+        return valA.localeCompare(valB, 'tr', { numeric: true, sensitivity: 'base' }) * order;
+      }
+
+      if (field === 'familyCode') {
+        const valA = (a.familyCode || '').trim();
+        const valB = (b.familyCode || '').trim();
+        return valA.localeCompare(valB, 'tr', { sensitivity: 'base' }) * order;
+      }
+
+      if (field === 'phone') {
+        const valA = (a.parentPhone || a.fatherPhone || '').trim();
+        const valB = (b.parentPhone || b.fatherPhone || '').trim();
+        return valA.localeCompare(valB, 'tr', { sensitivity: 'base' }) * order;
+      }
+
+      const valA = (a[field] || '').toString();
+      const valB = (b[field] || '').toString();
+      return valA.localeCompare(valB, 'tr', { sensitivity: 'base' }) * order;
+    });
+  },
+
+  toggleStudentTableEditMode(force) {
+    const newMode = (typeof force === 'boolean') ? force : !this.studentTableEditMode;
+    if (!newMode && this.hasUnsavedStudentChanges()) {
+      if (!confirm('Kaydedilmemiş öğrenci değişiklikleriniz var!\n\nDüzenleme modundan çıkarsanız bu değişiklikler iptal edilecektir. Çıkmak istediğinizden emin misiniz?')) {
+        return;
+      }
+      this.discardStudentDrafts(false);
+    }
+    this.studentTableEditMode = newMode;
+    this.renderStudentsView();
+  },
+
+  handleStudentCellChange(studentId, field, value) {
+    if (!this.studentDrafts) this.studentDrafts = {};
+    if (!this.studentDrafts[studentId]) {
+      this.studentDrafts[studentId] = {};
+    }
+    this.studentDrafts[studentId][field] = value;
+
+    if (field === 'lastName') {
+      const cleanLast = value.trim();
+      if (!this.studentDrafts[studentId].familyCodeExplicit) {
+        const autoFam = (cleanLast ? cleanLast + '2026' : 'AILE2026').toUpperCase();
+        this.studentDrafts[studentId].familyCode = autoFam;
+        const famInput = document.querySelector(`[data-st-id="${studentId}"][data-st-field="familyCode"]`);
+        if (famInput) famInput.value = autoFam;
+      }
+    } else if (field === 'familyCode') {
+      this.studentDrafts[studentId].familyCodeExplicit = true;
+    }
+
+    const inputEl = document.querySelector(`[data-st-id="${studentId}"][data-st-field="${field}"]`);
+    if (inputEl) {
+      inputEl.classList.add('bg-amber-100/60', 'border-amber-400', 'font-bold');
+    }
+    const rowEl = document.getElementById(`student-row-${studentId}`);
+    if (rowEl) {
+      rowEl.classList.add('bg-amber-50/50');
+    }
+
+    this.updateStudentDraftActionBar();
+  },
+
+  handleNewStudentCellChange(tempIndex, field, value) {
+    if (!this.studentNewDrafts || !this.studentNewDrafts[tempIndex]) return;
+    this.studentNewDrafts[tempIndex][field] = value;
+
+    if (field === 'lastName' && !this.studentNewDrafts[tempIndex].familyCodeExplicit) {
+      const cleanLast = value.trim();
+      const autoFam = (cleanLast ? cleanLast + '2026' : 'AILE2026').toUpperCase();
+      this.studentNewDrafts[tempIndex].familyCode = autoFam;
+      const famInput = document.querySelector(`[data-new-index="${tempIndex}"][data-st-field="familyCode"]`);
+      if (famInput) famInput.value = autoFam;
+    } else if (field === 'familyCode') {
+      this.studentNewDrafts[tempIndex].familyCodeExplicit = true;
+    }
+
+    this.updateStudentDraftActionBar();
+  },
+
+  handleExcelKeyDown(event, studentId, field, isNew = false, newIndex = null) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const currentInput = event.target;
+      const currentTr = currentInput ? currentInput.closest('tr') : null;
+      if (!currentTr) return;
+      const nextTr = currentTr.nextElementSibling;
+      if (nextTr) {
+        const nextInput = nextTr.querySelector(`[data-st-field="${field}"]`);
+        if (nextInput) {
+          nextInput.focus();
+          if (nextInput.select) nextInput.select();
+        }
+      } else if (isNew || (currentTr.parentElement && currentTr.parentElement.lastElementChild === currentTr)) {
+        this.addNewStudentRowDraft();
+      }
+    }
+  },
+
+  updateStudentDraftActionBar() {
+    const bar = document.getElementById('student-draft-action-bar');
+    const badge = document.getElementById('student-draft-count-badge');
+    const saveBtn = document.getElementById('student-draft-save-btn');
+    const count = this.getStudentChangesCount();
+
+    if (bar) {
+      if (count > 0 || this.studentTableEditMode) {
+        bar.classList.remove('hidden');
+        if (badge) {
+          badge.innerText = count > 0 ? `${count} Değişiklik Bekliyor` : 'Excel Modu Aktif (Değişiklik bekleniyor)';
+        }
+        if (saveBtn) {
+          saveBtn.innerHTML = `<span>💾</span><span>Değişiklikleri Kaydet (${count})</span>`;
+          if (count === 0) {
+            saveBtn.classList.add('opacity-50', 'pointer-events-none');
+          } else {
+            saveBtn.classList.remove('opacity-50', 'pointer-events-none');
+          }
+        }
+      } else {
+        bar.classList.add('hidden');
+      }
+    }
+  },
+
+  addNewStudentRowDraft() {
+    if (!this.studentTableEditMode) {
+      this.studentTableEditMode = true;
+    }
+    const all = window.Store.getAllStudents ? window.Store.getAllStudents() : window.Store.getStudents(true);
+    const maxNo = all.reduce((max, s) => Math.max(max, parseInt(s.studentNo, 10) || 0), 100);
+    const nextNo = (maxNo + 1 + (this.studentNewDrafts ? this.studentNewDrafts.length : 0)).toString();
+
+    if (!this.studentNewDrafts) this.studentNewDrafts = [];
+    this.studentNewDrafts.push({
+      studentNo: nextNo,
+      firstName: '',
+      lastName: '',
+      className: (this.studentFilterClass && this.studentFilterClass !== 'ALL') ? this.studentFilterClass : '5-A',
+      etutHocasi: '',
+      dahiliHoca: '',
+      yatakhane: '',
+      password: '123',
+      familyCode: 'AILE2026',
+      parentPhone: ''
+    });
+
+    this.renderStudentsView();
+    setTimeout(() => {
+      const idx = this.studentNewDrafts.length - 1;
+      const fnInput = document.querySelector(`[data-new-index="${idx}"][data-st-field="firstName"]`);
+      if (fnInput) {
+        fnInput.focus();
+        fnInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  },
+
+  removeNewStudentRowDraft(tempIndex) {
+    if (this.studentNewDrafts && this.studentNewDrafts[tempIndex]) {
+      this.studentNewDrafts.splice(tempIndex, 1);
+      this.renderStudentsView();
+    }
+  },
+
+  markStudentDraftForDeletion(studentId) {
+    if (!this.studentDeletedDrafts) this.studentDeletedDrafts = new Set();
+    if (this.studentDeletedDrafts.has(studentId)) {
+      this.studentDeletedDrafts.delete(studentId);
+    } else {
+      this.studentDeletedDrafts.add(studentId);
+    }
+    this.renderStudentsView();
+  },
+
+  saveAllStudentDrafts() {
+    if (!this.canManageStudents()) {
+      this.showToast('Öğrenci kaydetme yetkiniz bulunmamaktadır.', 'error');
+      return;
+    }
+
+    if (!this.hasUnsavedStudentChanges()) {
+      this.showToast('Kaydedilecek herhangi bir değişiklik bulunmuyor.', 'info');
+      return;
+    }
+
+    // 1. Yeni eklenen taslakların validasyonu
+    if (this.studentNewDrafts && this.studentNewDrafts.length > 0) {
+      for (let i = 0; i < this.studentNewDrafts.length; i++) {
+        const item = this.studentNewDrafts[i];
+        if (!item.firstName || !item.firstName.trim()) {
+          this.showToast(`Yeni eklenen #${item.studentNo} nolu öğrencinin Adı boş bırakılamaz!`, 'warning');
+          const fnInput = document.querySelector(`[data-new-index="${i}"][data-st-field="firstName"]`);
+          if (fnInput) fnInput.focus();
+          return;
+        }
+        if (!item.lastName || !item.lastName.trim()) {
+          this.showToast(`Yeni eklenen #${item.studentNo} nolu öğrencinin Soyadı boş bırakılamaz!`, 'warning');
+          const lnInput = document.querySelector(`[data-new-index="${i}"][data-st-field="lastName"]`);
+          if (lnInput) lnInput.focus();
+          return;
+        }
+      }
+    }
+
+    // 2. Mevcut öğrencilerin taslak validasyonu (No, Adı, Soyadı boş bırakılmamalı)
+    if (this.studentDrafts) {
+      for (const [stId, patch] of Object.entries(this.studentDrafts)) {
+        if (this.studentDeletedDrafts && this.studentDeletedDrafts.has(stId)) continue;
+        if (patch.studentNo !== undefined && !patch.studentNo.toString().trim()) {
+          this.showToast('Öğrenci numarası boş bırakılamaz!', 'warning');
+          return;
+        }
+        if (patch.firstName !== undefined && !patch.firstName.trim()) {
+          this.showToast('Öğrenci adı boş bırakılamaz!', 'warning');
+          return;
+        }
+        if (patch.lastName !== undefined && !patch.lastName.trim()) {
+          this.showToast('Öğrenci soyadı boş bırakılamaz!', 'warning');
+          return;
+        }
+      }
+    }
+
+    // 3. Değişiklikleri birleştir
+    let allStudents = window.Store.getAllStudents ? window.Store.getAllStudents() : window.Store.getStudents(true);
+    let updatedList = [...allStudents];
+
+    // Silinenleri çıkar
+    if (this.studentDeletedDrafts && this.studentDeletedDrafts.size > 0) {
+      this.studentDeletedDrafts.forEach(delId => {
+        window.Store.deleteStudent(delId);
+      });
+      updatedList = window.Store.getAllStudents ? window.Store.getAllStudents() : window.Store.getStudents(true);
+    }
+
+    const nowIso = new Date().toISOString();
+
+    // Mevcut öğrencileri güncelle
+    if (this.studentDrafts && Object.keys(this.studentDrafts).length > 0) {
+      updatedList = updatedList.map(st => {
+        if (this.studentDrafts[st.id]) {
+          const patch = this.studentDrafts[st.id];
+          const merged = { ...st };
+          if (patch.studentNo !== undefined) merged.studentNo = patch.studentNo.toString().trim();
+          if (patch.firstName !== undefined) merged.firstName = patch.firstName.trim().toUpperCase();
+          if (patch.lastName !== undefined) merged.lastName = patch.lastName.trim().toUpperCase();
+          if (patch.className !== undefined) merged.className = patch.className.trim();
+          if (patch.etutHocasi !== undefined) merged.etutHocasi = patch.etutHocasi.trim();
+          if (patch.dahiliHoca !== undefined) merged.dahiliHoca = patch.dahiliHoca.trim();
+          if (patch.yatakhane !== undefined) merged.yatakhane = patch.yatakhane.trim();
+          if (patch.password !== undefined) merged.password = patch.password.trim() || '123';
+          if (patch.familyCode !== undefined) merged.familyCode = patch.familyCode.trim().toUpperCase();
+          if (patch.parentPhone !== undefined) {
+            merged.parentPhone = patch.parentPhone.trim();
+            merged.fatherPhone = patch.parentPhone.trim();
+          }
+          merged.updatedAt = nowIso;
+          merged.isPassive = false;
+          merged.status = 'active';
+
+          if (window.Store && typeof window.Store.markStudentLocallyEdited === 'function') {
+            window.Store.markStudentLocallyEdited(st.id, Object.keys(patch));
+          }
+          return merged;
+        }
+        return st;
+      });
+    }
+
+    // Yeni eklenenleri ekle
+    if (this.studentNewDrafts && this.studentNewDrafts.length > 0) {
+      this.studentNewDrafts.forEach(newDraft => {
+        const generatedId = 'std_' + (newDraft.studentNo || Date.now()) + '_' + Math.random().toString(36).substr(2, 4);
+        const newStudent = {
+          id: generatedId,
+          studentNo: (newDraft.studentNo || '').toString().trim(),
+          firstName: (newDraft.firstName || '').trim().toUpperCase(),
+          lastName: (newDraft.lastName || '').trim().toUpperCase(),
+          className: (newDraft.className || '5-A').trim(),
+          school: '-',
+          seviye: 'Seviye 1',
+          etutHocasi: (newDraft.etutHocasi || '').trim(),
+          dahiliHoca: (newDraft.dahiliHoca || '').trim(),
+          yatakhane: (newDraft.yatakhane || '').trim(),
+          password: (newDraft.password || '123').trim(),
+          familyCode: (newDraft.familyCode || (newDraft.lastName ? newDraft.lastName.trim() + '2026' : 'AILE2026')).toUpperCase(),
+          fatherName: '',
+          fatherPhone: (newDraft.parentPhone || '').trim(),
+          parentPhone: (newDraft.parentPhone || '').trim(),
+          motherName: '',
+          motherPhone: '',
+          isPassive: false,
+          status: 'active',
+          updatedAt: nowIso
+        };
+        updatedList.push(newStudent);
+        if (window.Store && typeof window.Store.markStudentLocallyEdited === 'function') {
+          window.Store.markStudentLocallyEdited(generatedId, ['all']);
+        }
+      });
+    }
+
+    const changeCount = this.getStudentChangesCount();
+
+    // 4. Store ve Buluta Kaydet (Canlı değil, sadece butona basınca tek seferde kaydeder)
+    window.Store.saveStudents(updatedList);
+
+    // 5. Taslakları Sıfırla
+    this.studentDrafts = {};
+    this.studentNewDrafts = [];
+    this.studentDeletedDrafts = new Set();
+
+    this.showToast(`✓ Harika! ${changeCount} adet değişiklik ve öğrenci kaydı başarıyla kaydedildi!`, 'success');
+    this.renderStudentsView();
+  },
+
+  discardStudentDrafts(shouldConfirm = true) {
+    if (shouldConfirm && this.hasUnsavedStudentChanges()) {
+      if (!confirm('Yapılan tüm değişiklikler ve yeni satırlar iptal edilecek, orijinal veriler korunacak.\n\nEmin misiniz?')) {
+        return;
+      }
+    }
+
+    this.studentDrafts = {};
+    this.studentNewDrafts = [];
+    this.studentDeletedDrafts = new Set();
+
+    this.showToast('Değişiklikler iptal edildi. Orijinal veriler korundu.', 'info');
+    this.renderStudentsView();
+  },
+
+  // --- Öğrenci & Şifre Yönetimi Görünümü (Sıralamalı & Excel Modlu) ---
   renderStudentsView() {
     const container = document.getElementById('students-container');
     if (!container) return;
@@ -1432,144 +1904,656 @@ window.App = {
     const canEdit = this.canManageStudents();
     const classes = window.Store.getClasses(true);
     let allStudentsList = window.Store.getAllStudents ? window.Store.getAllStudents() : window.Store.getStudents(true);
-    let students = [...allStudentsList];
 
+    // Datalistleri (Hocalar ve Yatakhaneler) dinamik oluştur
+    const staffList = (window.Store && typeof window.Store.getStaff === 'function') ? window.Store.getStaff() : [];
+    const teacherSet = new Set();
+    staffList.forEach(stf => { if (stf.fullName) teacherSet.add(stf.fullName.trim().toUpperCase()); });
+    allStudentsList.forEach(s => {
+      if (s.etutHocasi && s.etutHocasi !== '-') teacherSet.add(s.etutHocasi.trim().toUpperCase());
+      if (s.dahiliHoca && s.dahiliHoca !== '-') teacherSet.add(s.dahiliHoca.trim().toUpperCase());
+    });
+    const teacherList = Array.from(teacherSet).filter(Boolean).sort((a,b) => a.localeCompare(b, 'tr'));
+
+    const dormSet = new Set(['Oda 101', 'Oda 102', 'Oda 201', 'Oda 202', 'Oda 301', 'Oda 302', 'Oda 401', 'Oda 402', 'Oda 403', 'Oda 404', 'Oda 405']);
+    allStudentsList.forEach(s => { if (s.yatakhane && s.yatakhane !== '-') dormSet.add(s.yatakhane.trim()); });
+    const dormList = Array.from(dormSet).filter(Boolean).sort((a,b) => a.localeCompare(b, 'tr', { numeric: true }));
+
+    // Filtreleme
+    let filteredStudents = [...allStudentsList];
     if (this.studentFilterClass !== 'ALL') {
-      students = students.filter(s => s.className === this.studentFilterClass);
+      filteredStudents = filteredStudents.filter(s => {
+        const eff = this.getEffectiveStudentData(s);
+        return eff.className === this.studentFilterClass;
+      });
     }
     if (this.studentSearchQuery) {
-      students = students.filter(s =>
-        s.firstName.toLowerCase().includes(this.studentSearchQuery) ||
-        s.lastName.toLowerCase().includes(this.studentSearchQuery) ||
-        s.studentNo.toString().includes(this.studentSearchQuery) ||
-        (s.familyCode && s.familyCode.toLowerCase().includes(this.studentSearchQuery)) ||
-        (s.etutHocasi && s.etutHocasi.toLowerCase().includes(this.studentSearchQuery)) ||
-        (s.dahiliHoca && s.dahiliHoca.toLowerCase().includes(this.studentSearchQuery))
+      const q = this.studentSearchQuery.toLowerCase();
+      filteredStudents = filteredStudents.filter(s => {
+        const eff = this.getEffectiveStudentData(s);
+        return (
+          (eff.firstName && eff.firstName.toLowerCase().includes(q)) ||
+          (eff.lastName && eff.lastName.toLowerCase().includes(q)) ||
+          (eff.studentNo && eff.studentNo.toString().includes(q)) ||
+          (eff.familyCode && eff.familyCode.toLowerCase().includes(q)) ||
+          (eff.etutHocasi && eff.etutHocasi.toLowerCase().includes(q)) ||
+          (eff.dahiliHoca && eff.dahiliHoca.toLowerCase().includes(q)) ||
+          (eff.yatakhane && eff.yatakhane.toLowerCase().includes(q)) ||
+          (eff.password && eff.password.toLowerCase().includes(q))
+        );
+      });
+    }
+
+    // Sıralama
+    filteredStudents = this.sortStudentsList(filteredStudents);
+
+    // Yeni taslak satırları
+    let newDraftsList = (this.studentNewDrafts || []).map((d, idx) => ({ ...d, tempIndex: idx }));
+    if (this.studentFilterClass !== 'ALL') {
+      newDraftsList = newDraftsList.filter(d => d.className === this.studentFilterClass);
+    }
+    if (this.studentSearchQuery) {
+      const q = this.studentSearchQuery.toLowerCase();
+      newDraftsList = newDraftsList.filter(d =>
+        (d.firstName && d.firstName.toLowerCase().includes(q)) ||
+        (d.lastName && d.lastName.toLowerCase().includes(q)) ||
+        (d.studentNo && d.studentNo.toString().includes(q))
       );
     }
 
+    const changeCount = this.getStudentChangesCount();
+    const isEditMode = this.studentTableEditMode && canEdit;
+
     container.innerHTML = `
+      <!-- Otomatik Tamamlama Datalistleri -->
+      <datalist id="etut-hocasi-list">
+        ${teacherList.map(t => `<option value="${t}">`).join('')}
+      </datalist>
+      <datalist id="dahili-hoca-list">
+        ${teacherList.map(t => `<option value="${t}">`).join('')}
+      </datalist>
+      <datalist id="yatakhane-list">
+        ${dormList.map(d => `<option value="${d}">`).join('')}
+      </datalist>
+
+      <!-- Üst Kontrol Paneli -->
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 animate-fade-in">
         <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
             <h3 class="font-black text-slate-900 text-lg flex items-center gap-2">
-              <span>👥 Öğrenci & Veli Giriş Şifreleri</span>
-              ${!canEdit ? '<span class="text-xs px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold">(Salt Okunur Liste)</span>' : ''}
+              <span>👥 Öğrenci Yönetimi & Veli Şifreleri</span>
+              ${isEditMode 
+                ? '<span class="text-xs px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-black tracking-wide border border-amber-400">📊 EXCEL TOPLU DÜZENLEME MODU</span>' 
+                : (!canEdit ? '<span class="text-xs px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold">(Salt Okunur Liste)</span>' : '')}
             </h3>
-            <p class="text-xs text-slate-500">
-              ${canEdit ? 'Öğrencileri, sınıflarını, hocalarını ve veli giriş şifrelerini buradan yönetebilirsiniz.' : 'Eğitmenler listeyi inceleyebilir; düzenleme yetkisi Ana Yöneticidedir.'}
+            <p class="text-xs text-slate-500 mt-0.5">
+              ${isEditMode 
+                ? 'Hücrelere doğrudan tıklayarak düzenleyebilirsiniz. "Değişiklikleri Kaydet" butonuna basana kadar hiçbir şey kaydedilmez.' 
+                : (canEdit ? 'Talebe kütüğünü, sınıfları, hocaları ve veli şifrelerini yönetin. Sütun başlıklarına tıklayarak sıralayabilirsiniz.' : 'Eğitmenler listeyi inceleyebilir; düzenleme yetkisi Ana Yöneticidedir.')}
             </p>
           </div>
 
-          <div class="flex items-center gap-2.5">
-            <button onclick="window.App.exportStudentsToCsv()" 
-              class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer"
+          <div class="flex flex-wrap items-center gap-2">
+            ${canEdit ? `
+              <button type="button" onclick="window.App.toggleStudentTableEditMode()" 
+                class="px-4 py-2 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                  isEditMode 
+                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-300' 
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                }">
+                <span>${isEditMode ? '👁️ Normal Görünüme Dön' : '📊 Excel Tablo Modu (Toplu Düzenle)'}</span>
+              </button>
+
+              ${isEditMode ? `
+                <button type="button" onclick="window.App.addNewStudentRowDraft()" 
+                  class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95">
+                  <span>➕ Yeni Satır Ekle</span>
+                </button>
+              ` : ''}
+            ` : ''}
+
+            <button type="button" onclick="window.App.exportStudentsToCsv()" 
+              class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
               title="Tüm öğrenci tablosunu Excel uyumlu CSV dosyası olarak bilgisayarınıza indirin">
               <span>📥</span>
-              <span>Excel (CSV) İndir</span>
+              <span>CSV İndir</span>
             </button>
-            ${canEdit ? `
-              <button onclick="window.App.openBulkImportModal()" 
-                class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-                <span>📋 Excel'den Toplu Ekle</span>
+
+            ${canEdit && !isEditMode ? `
+              <button type="button" onclick="window.App.openBulkImportModal()" 
+                class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                <span>📋 Toplu Ekle</span>
               </button>
-              <button onclick="window.App.openStudentModal()" 
-                class="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5 cursor-pointer">
-                <span>+ Yeni Öğrenci Ekle</span>
+              <button type="button" onclick="window.App.openStudentModal()" 
+                class="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                <span>+ Yeni Öğrenci</span>
               </button>
             ` : ''}
           </div>
         </div>
 
+        <!-- Filtreler ve Sıralama Çubuğu -->
         <div class="flex flex-wrap items-center justify-between gap-3 pt-4">
           <div class="flex flex-wrap items-center gap-3">
-            <div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-bold text-slate-500">Sınıf:</span>
               <select onchange="window.App.studentFilterClass = this.value; window.App.renderStudentsView();"
-                class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 focus:outline-none">
+                class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 focus:outline-none cursor-pointer">
                 <option value="ALL">Tüm Sınıflar</option>
                 ${classes.map(c => `<option value="${c}" ${this.studentFilterClass === c ? 'selected' : ''}>${c}</option>`).join('')}
               </select>
             </div>
 
-            <div>
-              <input type="text" placeholder="İsim, No veya Hoca ara..." 
+            <div class="flex items-center gap-1.5">
+              <input type="text" placeholder="İsim, No, Hoca veya Oda ara..." 
                 value="${this.studentSearchQuery}"
                 oninput="window.App.studentSearchQuery = this.value.toLowerCase().trim(); window.App.renderStudentsView();"
-                class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-700 focus:outline-none w-64">
+                class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-700 focus:outline-none w-56 sm:w-64">
+            </div>
+
+            <!-- Mobil ve Hızlı Sıralama Seçici -->
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-bold text-slate-500">Sırala:</span>
+              <select onchange="window.App.handleSortDropdownChange(this.value)"
+                class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 focus:outline-none cursor-pointer">
+                <option value="studentNo_asc" ${this.studentSortField === 'studentNo' && this.studentSortOrder === 'asc' ? 'selected' : ''}>No (Küçükten Büyüğe ▲)</option>
+                <option value="studentNo_desc" ${this.studentSortField === 'studentNo' && this.studentSortOrder === 'desc' ? 'selected' : ''}>No (Büyükten Küçüğe ▼)</option>
+                <option value="name_asc" ${this.studentSortField === 'name' && this.studentSortOrder === 'asc' ? 'selected' : ''}>Ad Soyad (A - Z ▲)</option>
+                <option value="name_desc" ${this.studentSortField === 'name' && this.studentSortOrder === 'desc' ? 'selected' : ''}>Ad Soyad (Z - A ▼)</option>
+                <option value="className_asc" ${this.studentSortField === 'className' && this.studentSortOrder === 'asc' ? 'selected' : ''}>Sınıf (5-A -> 8-B ▲)</option>
+                <option value="className_desc" ${this.studentSortField === 'className' && this.studentSortOrder === 'desc' ? 'selected' : ''}>Sınıf (8-B -> 5-A ▼)</option>
+                <option value="etutHocasi_asc" ${this.studentSortField === 'etutHocasi' && this.studentSortOrder === 'asc' ? 'selected' : ''}>Etüt Hocası (A - Z ▲)</option>
+                <option value="dahiliHoca_asc" ${this.studentSortField === 'dahiliHoca' && this.studentSortOrder === 'asc' ? 'selected' : ''}>Dahili Hocası (A - Z ▲)</option>
+                <option value="yatakhane_asc" ${this.studentSortField === 'yatakhane' && this.studentSortOrder === 'asc' ? 'selected' : ''}>Yatakhane / Oda (101 -> 405 ▲)</option>
+                <option value="password_asc" ${this.studentSortField === 'password' && this.studentSortOrder === 'asc' ? 'selected' : ''}>Veli Şifresi (A - Z ▲)</option>
+                <option value="familyCode_asc" ${this.studentSortField === 'familyCode' && this.studentSortOrder === 'asc' ? 'selected' : ''}>Aile Kodu (A - Z ▲)</option>
+              </select>
             </div>
           </div>
-          <span class="text-xs font-bold text-slate-500">Listelenen: ${students.length} Talebe</span>
+
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-slate-500">Listelenen: ${filteredStudents.length + newDraftsList.length} Talebe</span>
+          </div>
         </div>
       </div>
 
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      ${isEditMode ? `
+        <!-- Excel Modu Bilgilendirme ve Hızlı Kullanım Çubuğu -->
+        <div class="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-amber-500/10 border-2 border-amber-300 rounded-2xl p-4 mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl shrink-0">📊</span>
+            <div>
+              <div class="font-black text-sm text-amber-900">Excel Düzenleme Modu Aktif</div>
+              <div class="text-[11px] text-amber-800">
+                Kutuların içindeki yazıları dilediğiniz gibi değiştirin. <strong>Enter</strong> tuşuna basarak bir alt satıra geçebilirsiniz. 
+                Değişiklikleriniz canlı kaydedilmez; bitirince en alttaki <strong>"Değişiklikleri Kaydet"</strong> butonuna basınız.
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="window.App.addNewStudentRowDraft()" 
+              class="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-xl text-xs transition cursor-pointer">
+              ➕ Yeni Satır Ekle
+            </button>
+            <button type="button" onclick="window.App.toggleStudentTableEditMode(false)" 
+              class="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold rounded-xl text-xs transition cursor-pointer">
+              ✕ Düzenlemeden Çık
+            </button>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Öğrenci Tablosu -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase">
-                <th class="py-3 px-4 text-center w-16">No</th>
-                <th class="py-3 px-4">Giriş Yapılacak İsim</th>
-                <th class="py-3 px-4">Sınıfı</th>
-                <th class="py-3 px-4">Etüt & Dahili Hocası</th>
-                <th class="py-3 px-4">Yatakhane</th>
-                <th class="py-3 px-4">Veli Giriş Şifresi <span class="text-[9px] font-bold text-amber-700 block lowercase">değişenler vurgulu</span></th>
-                <th class="py-3 px-4">Ortak Aile Kodu</th>
-                ${canEdit ? '<th class="py-3 px-4 text-right">İşlem</th>' : ''}
+              <tr class="bg-slate-100/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase select-none">
+                <th class="py-3 px-3 text-center w-20">
+                  <button type="button" onclick="window.App.toggleStudentSort('studentNo')" class="font-bold flex items-center justify-center gap-1 cursor-pointer w-full text-center hover:text-slate-900">
+                    <span>No</span>
+                    ${this.getSortIndicator('studentNo')}
+                  </button>
+                </th>
+                ${isEditMode ? `
+                  <th class="py-3 px-3 min-w-[140px]">
+                    <button type="button" onclick="window.App.toggleStudentSort('firstName')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                      <span>Adı</span>
+                      ${this.getSortIndicator('firstName')}
+                    </button>
+                  </th>
+                  <th class="py-3 px-3 min-w-[130px]">
+                    <button type="button" onclick="window.App.toggleStudentSort('lastName')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                      <span>Soyadı</span>
+                      ${this.getSortIndicator('lastName')}
+                    </button>
+                  </th>
+                ` : `
+                  <th class="py-3 px-4 min-w-[180px]">
+                    <button type="button" onclick="window.App.toggleStudentSort('name')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                      <span>Giriş Yapılacak İsim</span>
+                      ${this.getSortIndicator('name')}
+                    </button>
+                  </th>
+                `}
+                <th class="py-3 px-3 w-28">
+                  <button type="button" onclick="window.App.toggleStudentSort('className')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                    <span>Sınıfı</span>
+                    ${this.getSortIndicator('className')}
+                  </button>
+                </th>
+                <th class="py-3 px-3 min-w-[150px]">
+                  <button type="button" onclick="window.App.toggleStudentSort('etutHocasi')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                    <span>Etüt Hocası</span>
+                    ${this.getSortIndicator('etutHocasi')}
+                  </button>
+                </th>
+                <th class="py-3 px-3 min-w-[150px]">
+                  <button type="button" onclick="window.App.toggleStudentSort('dahiliHoca')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                    <span>Dahili Hocası</span>
+                    ${this.getSortIndicator('dahiliHoca')}
+                  </button>
+                </th>
+                <th class="py-3 px-3 min-w-[110px]">
+                  <button type="button" onclick="window.App.toggleStudentSort('yatakhane')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                    <span>Yatakhane</span>
+                    ${this.getSortIndicator('yatakhane')}
+                  </button>
+                </th>
+                <th class="py-3 px-3 min-w-[110px]">
+                  <button type="button" onclick="window.App.toggleStudentSort('password')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                    <span>Veli Şifresi</span>
+                    ${this.getSortIndicator('password')}
+                  </button>
+                </th>
+                <th class="py-3 px-3 min-w-[130px]">
+                  <button type="button" onclick="window.App.toggleStudentSort('familyCode')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                    <span>Aile Kodu</span>
+                    ${this.getSortIndicator('familyCode')}
+                  </button>
+                </th>
+                <th class="py-3 px-3 min-w-[130px]">
+                  <button type="button" onclick="window.App.toggleStudentSort('phone')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                    <span>Veli Telefon</span>
+                    ${this.getSortIndicator('phone')}
+                  </button>
+                </th>
+                ${canEdit ? '<th class="py-3 px-3 text-right min-w-[90px]">İşlem</th>' : ''}
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-sm">
-              ${students.length === 0 ? `
-                <tr><td colspan="${canEdit ? 8 : 7}" class="py-12 text-center text-slate-400">Öğrenci bulunamadı.</td></tr>
-              ` : students.map(s => {
-                return `
-                  <tr class="table-row-hover transition">
-                    <td class="py-3 px-4 text-center font-bold text-slate-700">
-                      ${s.studentNo}
-                    </td>
-                    <td class="py-3 px-4">
-                      <div class="font-bold text-slate-900">
-                        ${s.firstName} ${s.lastName}
+              ${(filteredStudents.length === 0 && newDraftsList.length === 0) ? `
+                <tr><td colspan="${canEdit ? (isEditMode ? 12 : 11) : 10}" class="py-12 text-center text-slate-400">Öğrenci bulunamadı.</td></tr>
+              ` : `
+                ${filteredStudents.map(s => {
+                  const eff = this.getEffectiveStudentData(s);
+                  const isDeleted = this.studentDeletedDrafts && this.studentDeletedDrafts.has(s.id);
+                  const hasDraft = this.studentDrafts && !!this.studentDrafts[s.id];
+
+                  if (isEditMode) {
+                    return `
+                      <tr id="student-row-${s.id}" class="transition ${isDeleted ? 'bg-rose-50/70 opacity-60 line-through' : (hasDraft ? 'bg-amber-50/50' : 'hover:bg-slate-50/50')}">
+                        <!-- No -->
+                        <td class="py-2 px-2 text-center">
+                          <input type="number" 
+                            data-st-id="${s.id}" data-st-field="studentNo" 
+                            value="${eff.studentNo || ''}"
+                            oninput="window.App.handleStudentCellChange('${s.id}', 'studentNo', this.value)"
+                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'studentNo')"
+                            class="w-16 px-1.5 py-1 text-center font-bold text-xs bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].studentNo !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+                            ${isDeleted ? 'disabled' : ''}>
+                        </td>
+
+                        <!-- Adı -->
+                        <td class="py-2 px-2">
+                          <input type="text" 
+                            data-st-id="${s.id}" data-st-field="firstName" 
+                            value="${eff.firstName || ''}"
+                            oninput="window.App.handleStudentCellChange('${s.id}', 'firstName', this.value)"
+                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'firstName')"
+                            class="w-full min-w-[130px] px-2 py-1 font-bold text-xs text-slate-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].firstName !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                            ${isDeleted ? 'disabled' : ''}>
+                        </td>
+
+                        <!-- Soyadı -->
+                        <td class="py-2 px-2">
+                          <input type="text" 
+                            data-st-id="${s.id}" data-st-field="lastName" 
+                            value="${eff.lastName || ''}"
+                            oninput="window.App.handleStudentCellChange('${s.id}', 'lastName', this.value)"
+                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'lastName')"
+                            class="w-full min-w-[120px] px-2 py-1 font-bold text-xs text-slate-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].lastName !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                            ${isDeleted ? 'disabled' : ''}>
+                        </td>
+
+                        <!-- Sınıfı -->
+                        <td class="py-2 px-2">
+                          <select 
+                            data-st-id="${s.id}" data-st-field="className" 
+                            onchange="window.App.handleStudentCellChange('${s.id}', 'className', this.value)"
+                            class="w-full px-2 py-1 font-bold text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:outline-none cursor-pointer ${hasDraft && this.studentDrafts[s.id].className !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                            ${isDeleted ? 'disabled' : ''}>
+                            ${['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'].map(c => `
+                              <option value="${c}" ${eff.className === c ? 'selected' : ''}>${c}</option>
+                            `).join('')}
+                          </select>
+                        </td>
+
+                        <!-- Etüt Hocası -->
+                        <td class="py-2 px-2">
+                          <input type="text" list="etut-hocasi-list"
+                            data-st-id="${s.id}" data-st-field="etutHocasi" 
+                            value="${eff.etutHocasi || ''}"
+                            placeholder="Etüt Hocası..."
+                            oninput="window.App.handleStudentCellChange('${s.id}', 'etutHocasi', this.value)"
+                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'etutHocasi')"
+                            class="w-full min-w-[140px] px-2 py-1 text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].etutHocasi !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+                            ${isDeleted ? 'disabled' : ''}>
+                        </td>
+
+                        <!-- Dahili Hocası -->
+                        <td class="py-2 px-2">
+                          <input type="text" list="dahili-hoca-list"
+                            data-st-id="${s.id}" data-st-field="dahiliHoca" 
+                            value="${eff.dahiliHoca || ''}"
+                            placeholder="Dahili Hocası..."
+                            oninput="window.App.handleStudentCellChange('${s.id}', 'dahiliHoca', this.value)"
+                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'dahiliHoca')"
+                            class="w-full min-w-[140px] px-2 py-1 text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].dahiliHoca !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+                            ${isDeleted ? 'disabled' : ''}>
+                        </td>
+
+                        <!-- Yatakhane -->
+                        <td class="py-2 px-2">
+                          <input type="text" list="yatakhane-list"
+                            data-st-id="${s.id}" data-st-field="yatakhane" 
+                            value="${eff.yatakhane || ''}"
+                            placeholder="Oda No..."
+                            oninput="window.App.handleStudentCellChange('${s.id}', 'yatakhane', this.value)"
+                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'yatakhane')"
+                            class="w-full min-w-[100px] px-2 py-1 text-xs font-medium text-indigo-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].yatakhane !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+                            ${isDeleted ? 'disabled' : ''}>
+                        </td>
+
+                        <!-- Veli Şifresi -->
+                        <td class="py-2 px-2">
+                          <input type="text" 
+                            data-st-id="${s.id}" data-st-field="password" 
+                            value="${eff.password || '123'}"
+                            oninput="window.App.handleStudentCellChange('${s.id}', 'password', this.value)"
+                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'password')"
+                            class="w-full min-w-[100px] px-2 py-1 text-xs font-mono font-bold text-amber-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].password !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                            ${isDeleted ? 'disabled' : ''}>
+                        </td>
+
+                        <!-- Aile Kodu -->
+                        <td class="py-2 px-2">
+                          <input type="text" 
+                            data-st-id="${s.id}" data-st-field="familyCode" 
+                            value="${eff.familyCode || ''}"
+                            oninput="window.App.handleStudentCellChange('${s.id}', 'familyCode', this.value)"
+                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'familyCode')"
+                            class="w-full min-w-[120px] px-2 py-1 text-xs font-mono font-bold uppercase text-slate-700 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].familyCode !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                            ${isDeleted ? 'disabled' : ''}>
+                        </td>
+
+                        <!-- Veli Telefon -->
+                        <td class="py-2 px-2">
+                          <input type="tel" 
+                            data-st-id="${s.id}" data-st-field="parentPhone" 
+                            value="${eff.parentPhone || eff.fatherPhone || ''}"
+                            placeholder="05xx..."
+                            oninput="window.App.handleStudentCellChange('${s.id}', 'parentPhone', this.value)"
+                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'parentPhone')"
+                            class="w-full min-w-[120px] px-2 py-1 text-xs font-mono text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].parentPhone !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                            ${isDeleted ? 'disabled' : ''}>
+                        </td>
+
+                        <!-- İşlem -->
+                        <td class="py-2 px-2 text-right whitespace-nowrap">
+                          ${isDeleted ? `
+                            <button type="button" onclick="window.App.markStudentDraftForDeletion('${s.id}')"
+                              class="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded-lg text-xs transition cursor-pointer"
+                              title="Silmeyi Geri Al">
+                              ↩️ Geri Al
+                            </button>
+                          ` : `
+                            <button type="button" onclick="window.App.markStudentDraftForDeletion('${s.id}')"
+                              class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition text-xs cursor-pointer"
+                              title="Silmek İçin İşaretle">
+                              🗑️
+                            </button>
+                          `}
+                        </td>
+                      </tr>
+                    `;
+                  } else {
+                    // --- NORMAL GÖRÜNÜM MODU ---
+                    return `
+                      <tr class="table-row-hover transition ${hasDraft ? 'bg-amber-50/40' : ''}">
+                        <td class="py-3 px-3 text-center font-bold text-slate-700">
+                          ${eff.studentNo}
+                        </td>
+                        <td class="py-3 px-4">
+                          <div class="font-bold text-slate-900 flex items-center gap-1.5">
+                            <span>${eff.firstName} ${eff.lastName}</span>
+                            ${hasDraft ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 font-black uppercase">Taslak</span>' : ''}
+                          </div>
+                        </td>
+                        <td class="py-3 px-3 text-xs font-bold text-slate-800">${eff.className}</td>
+                        <td class="py-3 px-3 text-xs text-slate-700 font-medium">${eff.etutHocasi || '-'}</td>
+                        <td class="py-3 px-3 text-xs text-slate-600 font-medium">${eff.dahiliHoca || '-'}</td>
+                        <td class="py-3 px-3 text-xs font-bold text-indigo-800">${eff.yatakhane || '-'}</td>
+                        <td class="py-3 px-3">
+                          ${eff.password && eff.password.trim() !== '123' ? `
+                            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 font-mono font-black text-xs border border-amber-300 shadow-2xs">
+                              <span title="Şifre güncellendi">🔑</span>
+                              <span>${eff.password}</span>
+                              <span class="text-[9px] font-sans px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 uppercase font-black tracking-tight">Değişti</span>
+                            </div>
+                          ` : `
+                            <span class="px-2.5 py-1 rounded bg-slate-100 text-slate-700 font-mono font-bold text-xs border border-slate-200" title="Varsayılan Şifre: 123">
+                              ${eff.password || '123'}
+                            </span>
+                          `}
+                        </td>
+                        <td class="py-3 px-3">
+                          <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-slate-600">
+                            ${eff.familyCode || '-'}
+                          </span>
+                        </td>
+                        <td class="py-3 px-3 text-xs font-mono text-slate-600">
+                          ${eff.parentPhone || eff.fatherPhone || '-'}
+                        </td>
+                        ${canEdit ? `
+                          <td class="py-3 px-3 text-right">
+                            <div class="flex items-center justify-end gap-1.5">
+                              <button onclick="window.App.openStudentModal('${s.id}')"
+                                class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs transition flex items-center gap-1 cursor-pointer" title="Düzenle / Şifre Değiştir">
+                                <span>✏️</span>
+                                <span>Düzenle</span>
+                              </button>
+                              <button onclick="window.App.deleteStudent('${s.id}')"
+                                class="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition text-xs cursor-pointer" title="Kalıcı Olarak Sil">🗑️</button>
+                            </div>
+                          </td>
+                        ` : ''}
+                      </tr>
+                    `;
+                  }
+                }).join('')}
+
+                ${isEditMode && newDraftsList.map(item => `
+                  <!-- Yeni Eklenen Taslak Satırı -->
+                  <tr class="bg-emerald-50/70 border-2 border-emerald-300 transition">
+                    <!-- No -->
+                    <td class="py-2 px-2 text-center">
+                      <div class="flex flex-col items-center gap-0.5">
+                        <span class="text-[9px] px-1 bg-emerald-600 text-white font-black rounded uppercase">Yeni</span>
+                        <input type="number" 
+                          data-new-index="${item.tempIndex}" data-st-field="studentNo" 
+                          value="${item.studentNo || ''}"
+                          oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'studentNo', this.value)"
+                          onkeydown="window.App.handleExcelKeyDown(event, null, 'studentNo', true, ${item.tempIndex})"
+                          class="w-16 px-1.5 py-1 text-center font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
                       </div>
                     </td>
-                    <td class="py-3 px-4 text-xs font-bold text-slate-800">${s.className}</td>
-                    <td class="py-3 px-4 text-xs text-slate-600">${s.etutHocasi || '-'}<br><span class="text-[10px] text-slate-400">${s.dahiliHoca || ''}</span></td>
-                    <td class="py-3 px-4 text-xs font-medium text-indigo-800">${s.yatakhane || '-'}</td>
-                    <td class="py-3 px-4">
-                      ${s.password && s.password.trim() !== '123' ? `
-                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 font-mono font-black text-xs border border-amber-300 shadow-2xs">
-                          <span title="Şifre güncellendi">🔑</span>
-                          <span>${s.password}</span>
-                          <span class="text-[9px] font-sans px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 uppercase font-black tracking-tight">Değişti</span>
-                        </div>
-                      ` : `
-                        <span class="px-2.5 py-1 rounded bg-slate-100 text-slate-700 font-mono font-bold text-xs border border-slate-200" title="Varsayılan Şifre: 123">
-                          ${s.password || '123'}
-                        </span>
-                      `}
+
+                    <!-- Adı -->
+                    <td class="py-2 px-2">
+                      <input type="text" 
+                        data-new-index="${item.tempIndex}" data-st-field="firstName" 
+                        value="${item.firstName || ''}"
+                        placeholder="Öğrenci Adı *"
+                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'firstName', this.value)"
+                        onkeydown="window.App.handleExcelKeyDown(event, null, 'firstName', true, ${item.tempIndex})"
+                        class="w-full min-w-[130px] px-2 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
                     </td>
-                    <td class="py-3 px-4">
-                      <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-slate-600">
-                        ${s.familyCode || '-'}
-                      </span>
+
+                    <!-- Soyadı -->
+                    <td class="py-2 px-2">
+                      <input type="text" 
+                        data-new-index="${item.tempIndex}" data-st-field="lastName" 
+                        value="${item.lastName || ''}"
+                        placeholder="Soyadı *"
+                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'lastName', this.value)"
+                        onkeydown="window.App.handleExcelKeyDown(event, null, 'lastName', true, ${item.tempIndex})"
+                        class="w-full min-w-[120px] px-2 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
                     </td>
-                    ${canEdit ? `
-                      <td class="py-3 px-4 text-right">
-                        <div class="flex items-center justify-end gap-1.5">
-                          <button onclick="window.App.openStudentModal('${s.id}')"
-                            class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs transition flex items-center gap-1 cursor-pointer" title="Düzenle / Şifre Değiştir">
-                            <span>✏️</span>
-                            <span>Düzenle</span>
-                          </button>
-                          <button onclick="window.App.deleteStudent('${s.id}')"
-                            class="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition text-xs cursor-pointer" title="Kalıcı Olarak Sil">🗑️</button>
-                        </div>
-                      </td>
-                    ` : ''}
+
+                    <!-- Sınıfı -->
+                    <td class="py-2 px-2">
+                      <select 
+                        data-new-index="${item.tempIndex}" data-st-field="className" 
+                        onchange="window.App.handleNewStudentCellChange(${item.tempIndex}, 'className', this.value)"
+                        class="w-full px-2 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer">
+                        ${['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'].map(c => `
+                          <option value="${c}" ${item.className === c ? 'selected' : ''}>${c}</option>
+                        `).join('')}
+                      </select>
+                    </td>
+
+                    <!-- Etüt Hocası -->
+                    <td class="py-2 px-2">
+                      <input type="text" list="etut-hocasi-list"
+                        data-new-index="${item.tempIndex}" data-st-field="etutHocasi" 
+                        value="${item.etutHocasi || ''}"
+                        placeholder="Etüt Hocası..."
+                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'etutHocasi', this.value)"
+                        onkeydown="window.App.handleExcelKeyDown(event, null, 'etutHocasi', true, ${item.tempIndex})"
+                        class="w-full min-w-[140px] px-2 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </td>
+
+                    <!-- Dahili Hocası -->
+                    <td class="py-2 px-2">
+                      <input type="text" list="dahili-hoca-list"
+                        data-new-index="${item.tempIndex}" data-st-field="dahiliHoca" 
+                        value="${item.dahiliHoca || ''}"
+                        placeholder="Dahili Hocası..."
+                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'dahiliHoca', this.value)"
+                        onkeydown="window.App.handleExcelKeyDown(event, null, 'dahiliHoca', true, ${item.tempIndex})"
+                        class="w-full min-w-[140px] px-2 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </td>
+
+                    <!-- Yatakhane -->
+                    <td class="py-2 px-2">
+                      <input type="text" list="yatakhane-list"
+                        data-new-index="${item.tempIndex}" data-st-field="yatakhane" 
+                        value="${item.yatakhane || ''}"
+                        placeholder="Oda No..."
+                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'yatakhane', this.value)"
+                        onkeydown="window.App.handleExcelKeyDown(event, null, 'yatakhane', true, ${item.tempIndex})"
+                        class="w-full min-w-[100px] px-2 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </td>
+
+                    <!-- Veli Şifresi -->
+                    <td class="py-2 px-2">
+                      <input type="text" 
+                        data-new-index="${item.tempIndex}" data-st-field="password" 
+                        value="${item.password || '123'}"
+                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'password', this.value)"
+                        onkeydown="window.App.handleExcelKeyDown(event, null, 'password', true, ${item.tempIndex})"
+                        class="w-full min-w-[100px] px-2 py-1 text-xs font-mono font-bold bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </td>
+
+                    <!-- Aile Kodu -->
+                    <td class="py-2 px-2">
+                      <input type="text" 
+                        data-new-index="${item.tempIndex}" data-st-field="familyCode" 
+                        value="${item.familyCode || 'AILE2026'}"
+                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'familyCode', this.value)"
+                        onkeydown="window.App.handleExcelKeyDown(event, null, 'familyCode', true, ${item.tempIndex})"
+                        class="w-full min-w-[120px] px-2 py-1 text-xs font-mono font-bold uppercase bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </td>
+
+                    <!-- Veli Telefon -->
+                    <td class="py-2 px-2">
+                      <input type="tel" 
+                        data-new-index="${item.tempIndex}" data-st-field="parentPhone" 
+                        value="${item.parentPhone || ''}"
+                        placeholder="05xx..."
+                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'parentPhone', this.value)"
+                        onkeydown="window.App.handleExcelKeyDown(event, null, 'parentPhone', true, ${item.tempIndex})"
+                        class="w-full min-w-[120px] px-2 py-1 text-xs font-mono bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </td>
+
+                    <!-- İşlem -->
+                    <td class="py-2 px-2 text-right">
+                      <button type="button" onclick="window.App.removeNewStudentRowDraft(${item.tempIndex})"
+                        class="px-2 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold rounded-lg text-xs transition cursor-pointer"
+                        title="Yeni Satırı Kaldır">
+                        ✕ Kaldır
+                      </button>
+                    </td>
                   </tr>
-                `;
-              }).join('')}
+                `).join('') || ''}
+              `}
             </tbody>
           </table>
+        </div>
+
+        ${isEditMode ? `
+          <!-- Excel Modunda Tablo Altı Yeni Satır Butonu -->
+          <div class="p-3.5 bg-slate-50 border-t border-slate-200 text-center">
+            <button type="button" onclick="window.App.addNewStudentRowDraft()" 
+              class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition inline-flex items-center gap-2 cursor-pointer active:scale-95">
+              <span>➕</span>
+              <span>Aşağıya Yeni Öğrenci Satırı Ekle</span>
+            </button>
+          </div>
+        ` : ''}
+      </div>
+
+      <!-- KESİN KAYDETME ÇUBUĞU (Canlı Kaydetmez, Sadece Butona Basınca Kaydeder) -->
+      <div id="student-draft-action-bar" 
+        class="sticky bottom-4 z-40 mt-4 bg-slate-950 text-white p-4 rounded-2xl shadow-2xl border-2 border-amber-400 flex flex-wrap items-center justify-between gap-4 animate-fade-in ${isEditMode || changeCount > 0 ? '' : 'hidden'}">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center text-xl shrink-0 border border-amber-400/40">
+            📊
+          </div>
+          <div>
+            <div class="font-black text-sm text-amber-300 flex items-center gap-2">
+              <span id="student-draft-count-badge">${changeCount > 0 ? changeCount + ' Değişiklik Bekliyor' : 'Excel Modu Aktif (Değişiklik bekleniyor)'}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 font-mono font-bold uppercase tracking-wide">
+                ${changeCount > 0 ? 'KAYDEDİLMEDİ' : 'HAZIR'}
+              </span>
+            </div>
+            <div class="text-xs text-slate-300">
+              💡 Değişiklikler canlı kaydedilmez. Yapılan düzeltmelerin geçerli olması için lütfen <strong>"Değişiklikleri Kaydet"</strong>e basınız.
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <button type="button" onclick="window.App.discardStudentDrafts(true)" 
+            class="px-4 py-2.5 bg-slate-800 hover:bg-rose-900 text-slate-200 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition cursor-pointer flex items-center gap-1.5 active:scale-95">
+            <span>↩️</span>
+            <span>Vazgeç / Sıfırla</span>
+          </button>
+          <button type="button" id="student-draft-save-btn" onclick="window.App.saveAllStudentDrafts()" 
+            class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-lg transition transform active:scale-95 cursor-pointer flex items-center gap-2 ring-2 ring-emerald-400 ${changeCount === 0 ? 'opacity-50 pointer-events-none' : ''}">
+            <span>💾</span>
+            <span>Değişiklikleri Kaydet (${changeCount})</span>
+          </button>
         </div>
       </div>
     `;
