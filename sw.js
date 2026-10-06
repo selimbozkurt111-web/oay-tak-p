@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v8.7 - Aktif/Pasif Koruması & Tümünü Aktif Yap Motoru)
-const CACHE_NAME = 'oay-takip-cache-v8.7';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v8.8 - QR Kodlu LGS Optik Form Yazdırma & Şube Onarımı)
+const CACHE_NAME = 'oay-takip-cache-v8.8';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [
