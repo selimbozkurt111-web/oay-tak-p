@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v9.2 - İngilizce Unicode Sıralama Düzeltmesi)
-const CACHE_NAME = 'oay-takip-cache-v9.2';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v9.3 - Pasife Alma Kaldırıldı & Kesin Aktiflik)
+const CACHE_NAME = 'oay-takip-cache-v9.3';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [
