@@ -20,6 +20,7 @@ const STORAGE_KEYS = {
   DUTIES: 'yoklama_daily_duties_v1',
   HADISLER: 'yoklama_custom_hadisler_v1',
   QURAN_TRACKER: 'yoklama_quran_tracker_v1',
+  MOCK_EXAMS: 'yoklama_mock_exams_v1',
   SETTINGS: 'yoklama_settings',
   INITIALIZED: 'yoklama_init_v5'
 };
@@ -176,8 +177,7 @@ class DataStore {
     }
     // Mevcut öğrencilerin şubelerini (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) otomatik güncelle
     this.autoMigrateStudentClasses();
-    // 8. Sınıf kütüğünü (8-A Yavuz Selim Seven [9 Talebe], 8-B Tunahan Taşkın [9 Talebe]) zorla onar ve buluta mühürle
-    this.forceRepair8thGradeClasses(true);
+    // 8-A ve 8-B kütük onarma kullanıcının talebiyle tamamen kaldırıldı
     // 8-A ve 8-B hoca atamalarını ve personel rollerini eşitle
     this.autoSyncStaffAndClassTeachers();
     // Dini ders grupları ve Dahili Hoca senkronizasyonunu otomatik sağla
@@ -278,6 +278,8 @@ class DataStore {
 
   // --- 8. Sınıf Kesin Kütük Onarıcısı (8-A: Yavuz Selim Seven [9], 8-B: Tunahan Taşkın [9] - Tam 18 Talebe) ---
   forceRepair8thGradeClasses(forceCloudPush = true) {
+    // 8. Sınıf kütük onarma kullanıcının talebiyle tamamen kaldırıldı
+    return { success: true, count: 0 };
     try {
       // 8-A Sınıfı (Yavuz Selim Seven): 9 Talebe
       const class8ANumbers = new Set([814, 815, 822, 806, 819, 820, 802, 808, 811]);
@@ -304,25 +306,8 @@ class DataStore {
         this.saveDeletedStudentIds(deletedMap);
       }
 
-      // 2. Pasif Sicili'nden bu 18 öğrenciyi KESİNLİKLE çıkar (Hiçbiri pasif olamaz, hepsi aktif!)
+      // 2. Pasif Sicili: Kullanıcının pasife aldığı talebeleri KORU (asla ezme veya silme)
       const passiveMap = this.getPassiveStudentIds();
-      let passiveChanged = false;
-      const all18Ids = [...class8AIds, ...class8BIds];
-      all18Ids.forEach(id => {
-        if (passiveMap[id]) {
-          delete passiveMap[id];
-          passiveChanged = true;
-        }
-      });
-      removed8thGradeIds.forEach(id => {
-        if (passiveMap[id]) {
-          delete passiveMap[id];
-          passiveChanged = true;
-        }
-      });
-      if (passiveChanged) {
-        this.savePassiveStudentIds(passiveMap);
-      }
 
       // 3. Öğrenci Listesini Yükle ve Onar
       let studentsRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
@@ -353,7 +338,7 @@ class DataStore {
         return true;
       });
 
-      // Kalan 18 talebeyi harfiyen doğru sınıfa, hocaya ata ve aktif yap
+      // Kalan 18 talebeyi harfiyen doğru sınıfa ve hocaya ata (pasiflikleri koru)
       students = students.map(s => {
         if (!s) return s;
         const no = parseInt(s.studentNo, 10);
@@ -380,16 +365,14 @@ class DataStore {
         }
 
         if (targetClass && targetTeacher) {
-          this.markStudentLocallyEdited(s.id, ['className', 'etutHocasi', 'isPassive', 'status']);
-          const needsFix = s.className !== targetClass || s.etutHocasi !== targetTeacher || s.isPassive === true || s.status === 'passive';
+          const needsFix = s.className !== targetClass || s.etutHocasi !== targetTeacher;
           if (needsFix) {
             hasChanges = true;
+            this.markStudentLocallyEdited(s.id, ['className', 'etutHocasi']);
             return {
               ...s,
               className: targetClass,
               etutHocasi: targetTeacher,
-              isPassive: false,
-              status: 'active',
               updatedAt: nowIso
             };
           }
@@ -402,13 +385,14 @@ class DataStore {
       SEED_STUDENTS.forEach(seed => {
         const sNo = parseInt(seed.studentNo, 10);
         if ((class8ANumbers.has(sNo) || class8BNumbers.has(sNo)) && !existingIds.has(seed.id)) {
+          const isPass = this.isStudentPassive(seed.id);
           students.push({
             ...seed,
-            isPassive: false,
-            status: 'active',
+            isPassive: isPass,
+            status: isPass ? 'passive' : 'active',
             updatedAt: nowIso
           });
-          this.markStudentLocallyEdited(seed.id, ['className', 'etutHocasi', 'isPassive', 'status']);
+          this.markStudentLocallyEdited(seed.id, ['className', 'etutHocasi']);
           hasChanges = true;
         }
       });
@@ -919,7 +903,7 @@ class DataStore {
 
           let mergedSt;
           if (preferLocal) {
-            const finalPassive = localSt.isPassive === true || localSt.status === 'passive';
+            const finalPassive = (passiveMap[localSt.id] && passiveMap[localSt.id].isPassive === true) || localSt.isPassive === true || localSt.status === 'passive';
             mergedSt = {
               ...cloudSt,
               ...localSt,
@@ -927,7 +911,7 @@ class DataStore {
               status: finalPassive ? 'passive' : 'active'
             };
           } else {
-            const finalPassive = cloudSt.isPassive === true || cloudSt.status === 'passive';
+            const finalPassive = (passiveMap[cloudSt.id] && passiveMap[cloudSt.id].isPassive === true) || (passiveMap[localSt.id] && passiveMap[localSt.id].isPassive === true) || cloudSt.isPassive === true || cloudSt.status === 'passive' || localSt.isPassive === true || localSt.status === 'passive';
             mergedSt = {
               ...localSt,
               ...cloudSt,
@@ -947,20 +931,16 @@ class DataStore {
             }
           }
 
-          // 8. Sınıf Kesin Dağılım Koruması (Buluttan eski 8-A / 8-B şubeleri gelse bile asla ezilemez!)
+          // 8. Sınıf Kesin Dağılım Koruması (Buluttan eski 8-A / 8-B şubeleri gelse bile doğru hoca ve şube korunur)
           const no8 = parseInt(mergedSt.studentNo, 10);
           const c8ANos = [814, 815, 822, 806, 819, 820, 802, 808, 811];
           const c8BNos = [801, 805, 816, 810, 809, 821, 807, 813, 818];
           if (c8ANos.includes(no8)) {
             mergedSt.className = '8-A';
             mergedSt.etutHocasi = 'YAVUZ SELİM SEVEN';
-            mergedSt.isPassive = false;
-            mergedSt.status = 'active';
           } else if (c8BNos.includes(no8)) {
             mergedSt.className = '8-B';
             mergedSt.etutHocasi = 'TUNAHAN TAŞKIN';
-            mergedSt.isPassive = false;
-            mergedSt.status = 'active';
           }
 
           return mergedSt;
@@ -985,13 +965,9 @@ class DataStore {
         if (c8ANos.includes(no8s)) {
           singleSt.className = '8-A';
           singleSt.etutHocasi = 'YAVUZ SELİM SEVEN';
-          singleSt.isPassive = false;
-          singleSt.status = 'active';
         } else if (c8BNos.includes(no8s)) {
           singleSt.className = '8-B';
           singleSt.etutHocasi = 'TUNAHAN TAŞKIN';
-          singleSt.isPassive = false;
-          singleSt.status = 'active';
         }
 
         return singleSt;
@@ -1094,6 +1070,23 @@ class DataStore {
         }
       });
       localStorage.setItem(STORAGE_KEYS.TEST_RESULTS, JSON.stringify(Array.from(testMap.values())));
+    }
+
+    // 8c. Kurumsal Deneme Sınavları & Kazanım Analizleri (Mock Exams)
+    const cloudMockExams = toArray(cloudData.mockExams || cloudData.mock_exams);
+    if (cloudMockExams.length > 0) {
+      const localExams = this.getMockExams();
+      const examMap = new Map();
+      localExams.forEach(e => { if (e && e.id) examMap.set(e.id, e); });
+      cloudMockExams.forEach(e => {
+        if (e && e.id) {
+          const existing = examMap.get(e.id);
+          if (!existing || (e.updatedAt && (!existing.updatedAt || new Date(e.updatedAt) >= new Date(existing.updatedAt)))) {
+            examMap.set(e.id, e);
+          }
+        }
+      });
+      localStorage.setItem(STORAGE_KEYS.MOCK_EXAMS, JSON.stringify(Array.from(examMap.values())));
     }
 
     // 9. Ayarlar (Tarih, Pazar/Pazartesi saatleri vb. ortak ayarlar)
@@ -3104,6 +3097,75 @@ class DataStore {
     return results.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
   }
 
+  // --- Kurumsal Deneme Sınavları & Kazanım Analizi Metodları ---
+  getMockExams() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.MOCK_EXAMS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  getMockExamById(id) {
+    if (!id) return null;
+    return this.getMockExams().find(e => e.id === id) || null;
+  }
+
+  saveMockExam(examData) {
+    const list = this.getMockExams();
+    const id = examData.id || ('mock_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5));
+    const nowIso = new Date().toISOString();
+
+    const record = {
+      ...examData,
+      id,
+      updatedAt: nowIso,
+      createdAt: examData.createdAt || nowIso
+    };
+
+    const idx = list.findIndex(e => e.id === id);
+    if (idx !== -1) {
+      list[idx] = record;
+    } else {
+      list.unshift(record);
+    }
+
+    localStorage.setItem(STORAGE_KEYS.MOCK_EXAMS, JSON.stringify(list));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/mockExams', list);
+    }
+    window.dispatchEvent(new CustomEvent('mock-exams-updated', { detail: list }));
+    return record;
+  }
+
+  deleteMockExam(id) {
+    let list = this.getMockExams().filter(e => e.id !== id);
+    localStorage.setItem(STORAGE_KEYS.MOCK_EXAMS, JSON.stringify(list));
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/mockExams', list);
+    }
+    window.dispatchEvent(new CustomEvent('mock-exams-updated', { detail: list }));
+    return true;
+  }
+
+  getStudentMockExams(studentId) {
+    const list = this.getMockExams();
+    const results = [];
+    list.forEach(exam => {
+      if (exam.scores && exam.scores[studentId]) {
+        results.push({
+          examId: exam.id,
+          title: exam.title || 'Deneme Sınavı',
+          date: exam.date,
+          subjects: exam.subjects || [],
+          ...exam.scores[studentId]
+        });
+      }
+    });
+    return results.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }
+
   normalizeStatusCode(code) {
     if (!code) return 'VAR';
     let c = code.toString().trim()
@@ -4379,6 +4441,7 @@ class DataStore {
       passive_student_ids: this.getPassiveStudentIds(),
       deleted_student_ids: this.getDeletedStudentIds(),
       quranTracker: this.getAllQuranRecords(),
+      mockExams: this.getMockExams(),
       settings: this.getSettings()
     }, null, 2);
   }
@@ -4405,6 +4468,12 @@ class DataStore {
       if (parsed.customColumns) localStorage.setItem(STORAGE_KEYS.CUSTOM_COLUMNS, JSON.stringify(parsed.customColumns));
       if (parsed.dailyDuties) localStorage.setItem(STORAGE_KEYS.DUTIES, JSON.stringify(parsed.dailyDuties));
       if (parsed.hadisler) localStorage.setItem(STORAGE_KEYS.HADISLER, JSON.stringify(parsed.hadisler));
+      if (parsed.mockExams && Array.isArray(parsed.mockExams)) {
+        localStorage.setItem(STORAGE_KEYS.MOCK_EXAMS, JSON.stringify(parsed.mockExams));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/mockExams', parsed.mockExams);
+        }
+      }
       if (parsed.quranTracker && typeof parsed.quranTracker === 'object') {
         localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(parsed.quranTracker));
         try { localStorage.setItem('yoklama_quran_tracker_backup_v1', JSON.stringify(parsed.quranTracker)); } catch (e) {}

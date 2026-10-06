@@ -524,6 +524,14 @@ window.App = {
         }
       }
       activeTitle = `📝 Test & Etüt (${filterLabel})`;
+    } else if (this.activeTab === 'denemeler' || this.activeTab === 'deneme_sinavlari') {
+      let filterLabel = 'Tümü';
+      if (window.MockExamModule) {
+        if (window.MockExamModule.selectedGrade && window.MockExamModule.selectedGrade !== 'ALL') {
+          filterLabel = `${window.MockExamModule.selectedGrade}. Sınıf`;
+        }
+      }
+      activeTitle = `🎯 Deneme Sınavları & Kazanım (${filterLabel})`;
     } else if (this.activeTab === 'leaderboard') {
       activeTitle = '🏆 Haftanın & Ayın Talebesi';
     } else if (this.activeTab === 'kuran_takip' || this.activeTab === 'hatim') {
@@ -657,6 +665,13 @@ window.App = {
         if (targetClass && targetClass.startsWith('GRADE_')) {
           window.TestResultsModule.selectedGrade = targetClass.replace('GRADE_', '');
           window.TestResultsModule.selectedEtut = 'ALL';
+        }
+      }
+    }
+    if (tab === 'denemeler' || tab === 'deneme_sinavlari') {
+      if (window.MockExamModule) {
+        if (targetClass && targetClass.startsWith('GRADE_')) {
+          window.MockExamModule.selectedGrade = targetClass.replace('GRADE_', '');
         }
       }
     }
@@ -833,6 +848,26 @@ window.App = {
                   <span class="text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Yeni</span>
                 </div>
                 <div class="text-[10px] text-slate-400 font-medium">Başlık, Ders, Ünite, Doğru, Yanlış, Net & 100 Notu</div>
+              </div>
+            </div>
+            <span class="text-slate-300">→</span>
+          </button>
+
+          <!-- Deneme Sınavı Oluştur & Yönet (YENİ - 500 Puan & MEB Kazanımları) -->
+          <button type="button" onclick="window.App.navigateFromDrawer('denemeler')"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between ${
+              (this.activeTab === 'denemeler' || this.activeTab === 'deneme_sinavlari')
+                ? 'bg-purple-50 text-purple-900 font-black border border-purple-200 shadow-sm'
+                : 'text-slate-700 hover:bg-slate-50 font-bold'
+            }">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">🎯</span>
+              <div>
+                <div class="text-xs font-black flex items-center gap-1.5">
+                  <span>Deneme Sınavı Oluştur & Yönet</span>
+                  <span class="text-[9px] bg-purple-600 text-white px-1.5 py-0.5 rounded font-black tracking-wider uppercase">LGS 500P</span>
+                </div>
+                <div class="text-[10px] text-slate-400 font-medium">Soru sayısı, ders katsayıları, MEB kazanımları & karne</div>
               </div>
             </div>
             <span class="text-slate-300">→</span>
@@ -1290,7 +1325,7 @@ window.App = {
                 class="w-full py-2.5 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-black border-2 border-amber-300 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
                 title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
                 <span class="text-sm">🔄</span>
-                <span>Sistemi & Önbelleği Sıfırla (v6.1)</span>
+                <span>Sistemi & Önbelleği Sıfırla (v7.7)</span>
               </button>
             </div>
           </div>
@@ -1321,6 +1356,11 @@ window.App = {
       main.innerHTML = `<div id="test-results-container"></div>`;
       if (window.TestResultsModule) {
         window.TestResultsModule.init();
+      }
+    } else if (this.activeTab === 'denemeler' || this.activeTab === 'deneme_sinavlari') {
+      main.innerHTML = `<div id="mock-exam-container"></div>`;
+      if (window.MockExamModule) {
+        window.MockExamModule.init();
       }
     } else if (this.activeTab === 'leaderboard') {
       main.innerHTML = `<div id="leaderboard-container"></div>`;
@@ -1439,12 +1479,6 @@ window.App = {
               <span>Excel (CSV) İndir</span>
             </button>
             ${canEdit ? `
-              <button onclick="window.App.repair8thGradeClasses()" 
-                class="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
-                title="8-A (9 Talebe - Yavuz Selim Seven) ve 8-B (9 Talebe - Tunahan Taşkın) kütüğünü zorla eşitler ve buluta mühürler">
-                <span>⚡</span>
-                <span>8-A & 8-B Kütüğü Onar (9 + 9)</span>
-              </button>
               <button onclick="window.App.openBulkImportModal()" 
                 class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
                 <span>📋 Excel'den Toplu Ekle</span>
@@ -1594,23 +1628,9 @@ window.App = {
     `;
   },
 
-  // 8-A ve 8-B Sınıf Kütüğünü Zorla Onar ve Bulutla Eşitle
+  // 8-A ve 8-B Sınıf Kütüğü Onarma Fonksiyonu (Kullanıcı Talebiyle Kaldırıldı)
   repair8thGradeClasses() {
-    this.showToast('8. Sınıf kütüğü onarılıyor ve buluta aktarılıyor...', 'info');
-    if (window.Store && typeof window.Store.forceRepair8thGradeClasses === 'function') {
-      const res = window.Store.forceRepair8thGradeClasses(true);
-      if (res && res.success) {
-        this.showToast('✅ 8-A (9 Talebe - Yavuz Selim Seven) ve 8-B (9 Talebe - Tunahan Taşkın) kütüğü onarıldı ve buluta mühürlendi!', 'success');
-      } else {
-        this.showToast('8. Sınıf kütüğü onarıldı.', 'info');
-      }
-    }
-    this.renderHeader();
-    if (this.activeTab === 'ogrenciler_excel') {
-      this.renderStudentsView();
-    } else {
-      this.renderMainContent();
-    }
+    // Devre dışı bırakıldı
   },
 
   // --- Excel (CSV) Formatında İndirme (Türkçe Karakter ve Excel Uyumlu) ---
