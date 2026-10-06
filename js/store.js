@@ -327,7 +327,7 @@ class DataStore {
       console.warn('[activateAllStudents] Hata:', e);
       return { success: false, error: e };
     }
-  },
+  }
 
   // Pasiflik temizliği: Başlangıçta tüm öğrencileri kesinlikle aktif yap ve pasif sicilini temizle
   restoreAllActiveStudents() {
