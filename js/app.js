@@ -1977,14 +1977,14 @@ window.App = {
       </datalist>
 
       <!-- Üst Kontrol Paneli -->
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6 animate-fade-in">
-        <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3.5 sm:p-4 mb-4 animate-fade-in">
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
-            <h3 class="font-black text-slate-900 text-lg flex items-center gap-2">
+            <h3 class="font-black text-slate-900 text-base sm:text-lg flex items-center gap-2">
               <span>👥 Öğrenci Yönetimi & Veli Şifreleri</span>
               ${isEditMode 
-                ? '<span class="text-xs px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-black tracking-wide border border-amber-400">📊 EXCEL TOPLU DÜZENLEME MODU</span>' 
-                : (!canEdit ? '<span class="text-xs px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold">(Salt Okunur Liste)</span>' : '')}
+                ? '<span class="text-xs px-2.5 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-black tracking-wide border border-amber-400">📊 EXCEL MODU</span>' 
+                : (!canEdit ? '<span class="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold">(Salt Okunur)</span>' : '')}
             </h3>
             <p class="text-xs text-slate-500 mt-0.5">
               ${isEditMode 
@@ -1996,36 +1996,35 @@ window.App = {
           <div class="flex flex-wrap items-center gap-2">
             ${canEdit ? `
               <button type="button" onclick="window.App.toggleStudentTableEditMode()" 
-                class="px-4 py-2 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                class="px-3.5 py-1.5 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                   isEditMode 
                     ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-300' 
                     : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                 }">
-                <span>${isEditMode ? '👁️ Normal Görünüme Dön' : '📊 Excel Tablo Modu (Toplu Düzenle)'}</span>
+                <span>${isEditMode ? '👁️ Normal Görünüm' : '📊 Excel Tablo Modu (Toplu Düzenle)'}</span>
               </button>
 
               ${isEditMode ? `
                 <button type="button" onclick="window.App.addNewStudentRowDraft()" 
-                  class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95">
-                  <span>➕ Yeni Satır Ekle</span>
+                  class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1 cursor-pointer active:scale-95">
+                  <span>➕ Yeni Satır</span>
                 </button>
               ` : ''}
             ` : ''}
 
             <button type="button" onclick="window.App.exportStudentsToCsv()" 
-              class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+              class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1 cursor-pointer"
               title="Tüm öğrenci tablosunu Excel uyumlu CSV dosyası olarak bilgisayarınıza indirin">
-              <span>📥</span>
-              <span>CSV İndir</span>
+              <span>📥 CSV</span>
             </button>
 
             ${canEdit && !isEditMode ? `
               <button type="button" onclick="window.App.openBulkImportModal()" 
-                class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer">
                 <span>📋 Toplu Ekle</span>
               </button>
               <button type="button" onclick="window.App.openStudentModal()" 
-                class="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                class="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1 cursor-pointer">
                 <span>+ Yeni Öğrenci</span>
               </button>
             ` : ''}
@@ -2033,12 +2032,12 @@ window.App = {
         </div>
 
         <!-- Filtreler ve Sıralama Çubuğu -->
-        <div class="flex flex-wrap items-center justify-between gap-3 pt-4">
-          <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-3">
+          <div class="flex flex-wrap items-center gap-2.5">
             <div class="flex items-center gap-1.5">
               <span class="text-xs font-bold text-slate-500">Sınıf:</span>
               <select onchange="window.App.studentFilterClass = this.value; window.App.renderStudentsView();"
-                class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 focus:outline-none cursor-pointer">
+                class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 focus:outline-none cursor-pointer">
                 <option value="ALL">Tüm Sınıflar</option>
                 ${classes.map(c => `<option value="${c}" ${this.studentFilterClass === c ? 'selected' : ''}>${c}</option>`).join('')}
               </select>
@@ -2048,14 +2047,14 @@ window.App = {
               <input type="text" placeholder="İsim, No, Hoca veya Oda ara..." 
                 value="${this.studentSearchQuery}"
                 oninput="window.App.studentSearchQuery = this.value.toLowerCase().trim(); window.App.renderStudentsView();"
-                class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-700 focus:outline-none w-56 sm:w-64">
+                class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-700 focus:outline-none w-44 sm:w-56">
             </div>
 
             <!-- Mobil ve Hızlı Sıralama Seçici -->
             <div class="flex items-center gap-1.5">
               <span class="text-xs font-bold text-slate-500">Sırala:</span>
               <select onchange="window.App.handleSortDropdownChange(this.value)"
-                class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 focus:outline-none cursor-pointer">
+                class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 focus:outline-none cursor-pointer">
                 <option value="studentNo_asc" ${this.studentSortField === 'studentNo' && this.studentSortOrder === 'asc' ? 'selected' : ''}>No (Küçükten Büyüğe ▲)</option>
                 <option value="studentNo_desc" ${this.studentSortField === 'studentNo' && this.studentSortOrder === 'desc' ? 'selected' : ''}>No (Büyükten Küçüğe ▼)</option>
                 <option value="name_asc" ${this.studentSortField === 'name' && this.studentSortOrder === 'asc' ? 'selected' : ''}>Ad Soyad (A - Z ▲)</option>
@@ -2079,11 +2078,11 @@ window.App = {
 
       ${isEditMode ? `
         <!-- Excel Modu Bilgilendirme ve Hızlı Kullanım Çubuğu -->
-        <div class="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-amber-500/10 border-2 border-amber-300 rounded-2xl p-4 mb-4 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950">
-          <div class="flex items-center gap-3">
-            <span class="text-2xl shrink-0">📊</span>
+        <div class="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-amber-500/10 border-2 border-amber-300 rounded-xl p-3 mb-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950">
+          <div class="flex items-center gap-2.5">
+            <span class="text-xl shrink-0">📊</span>
             <div>
-              <div class="font-black text-sm text-amber-900">Excel Düzenleme Modu Aktif</div>
+              <div class="font-black text-xs text-amber-900">Excel Düzenleme Modu Aktif</div>
               <div class="text-[11px] text-amber-800">
                 Kutuların içindeki yazıları dilediğiniz gibi değiştirin. <strong>Enter</strong> tuşuna basarak bir alt satıra geçebilirsiniz. 
                 Değişiklikleriniz canlı kaydedilmez; bitirince en alttaki <strong>"Değişiklikleri Kaydet"</strong> butonuna basınız.
@@ -2092,98 +2091,109 @@ window.App = {
           </div>
           <div class="flex items-center gap-2">
             <button type="button" onclick="window.App.addNewStudentRowDraft()" 
-              class="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-xl text-xs transition cursor-pointer">
-              ➕ Yeni Satır Ekle
+              class="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white font-black rounded-lg text-xs transition cursor-pointer">
+              ➕ Yeni Satır
             </button>
             <button type="button" onclick="window.App.toggleStudentTableEditMode(false)" 
-              class="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold rounded-xl text-xs transition cursor-pointer">
-              ✕ Düzenlemeden Çık
+              class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold rounded-lg text-xs transition cursor-pointer">
+              ✕ Çık
             </button>
           </div>
         </div>
       ` : ''}
 
       <!-- Öğrenci Tablosu -->
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
+      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs mb-4">
+        <div class="overflow-x-auto w-full custom-scrollbar">
+          <table class="w-full text-left border-collapse text-xs table-auto ${isEditMode ? 'min-w-[960px]' : 'min-w-[820px]'}">
             <thead>
-              <tr class="bg-slate-100/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase select-none">
-                <th class="py-3 px-3 text-center w-20">
-                  <button type="button" onclick="window.App.toggleStudentSort('studentNo')" class="font-bold flex items-center justify-center gap-1 cursor-pointer w-full text-center hover:text-slate-900">
+              <tr class="bg-slate-100/90 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase select-none">
+                <th class="py-2.5 px-2 text-center w-12 shrink-0">
+                  <button type="button" onclick="window.App.toggleStudentSort('studentNo')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full text-center hover:text-slate-900">
                     <span>No</span>
                     ${this.getSortIndicator('studentNo')}
                   </button>
                 </th>
                 ${isEditMode ? `
-                  <th class="py-3 px-3 min-w-[140px]">
+                  <th class="py-2.5 px-2 w-28">
                     <button type="button" onclick="window.App.toggleStudentSort('firstName')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
                       <span>Adı</span>
                       ${this.getSortIndicator('firstName')}
                     </button>
                   </th>
-                  <th class="py-3 px-3 min-w-[130px]">
+                  <th class="py-2.5 px-2 w-24">
                     <button type="button" onclick="window.App.toggleStudentSort('lastName')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
                       <span>Soyadı</span>
                       ${this.getSortIndicator('lastName')}
                     </button>
                   </th>
                 ` : `
-                  <th class="py-3 px-4 min-w-[180px]">
+                  <th class="py-2.5 px-3 min-w-[140px]">
                     <button type="button" onclick="window.App.toggleStudentSort('name')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
                       <span>Giriş Yapılacak İsim</span>
                       ${this.getSortIndicator('name')}
                     </button>
                   </th>
                 `}
-                <th class="py-3 px-3 w-28">
-                  <button type="button" onclick="window.App.toggleStudentSort('className')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
-                    <span>Sınıfı</span>
+                <th class="py-2.5 px-1.5 w-14 text-center">
+                  <button type="button" onclick="window.App.toggleStudentSort('className')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
+                    <span>Sınıf</span>
                     ${this.getSortIndicator('className')}
                   </button>
                 </th>
-                <th class="py-3 px-3 min-w-[150px]">
-                  <button type="button" onclick="window.App.toggleStudentSort('etutHocasi')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
-                    <span>Etüt Hocası</span>
-                    ${this.getSortIndicator('etutHocasi')}
-                  </button>
-                </th>
-                <th class="py-3 px-3 min-w-[150px]">
-                  <button type="button" onclick="window.App.toggleStudentSort('dahiliHoca')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
-                    <span>Dahili Hocası</span>
-                    ${this.getSortIndicator('dahiliHoca')}
-                  </button>
-                </th>
-                <th class="py-3 px-3 min-w-[110px]">
-                  <button type="button" onclick="window.App.toggleStudentSort('yatakhane')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
-                    <span>Yatakhane</span>
+                ${isEditMode ? `
+                  <th class="py-2.5 px-2 w-32">
+                    <button type="button" onclick="window.App.toggleStudentSort('etutHocasi')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                      <span>Etüt Hocası</span>
+                      ${this.getSortIndicator('etutHocasi')}
+                    </button>
+                  </th>
+                  <th class="py-2.5 px-2 w-32">
+                    <button type="button" onclick="window.App.toggleStudentSort('dahiliHoca')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                      <span>Dahili Hocası</span>
+                      ${this.getSortIndicator('dahiliHoca')}
+                    </button>
+                  </th>
+                ` : `
+                  <th class="py-2.5 px-2.5 w-44">
+                    <div class="flex items-center gap-1 text-[10px]">
+                      <span>Hoca:</span>
+                      <button type="button" onclick="window.App.toggleStudentSort('etutHocasi')" class="hover:text-slate-900 underline decoration-slate-300" title="Etüt Hocasına göre sırala">Etüt ${this.getSortIndicator('etutHocasi')}</button>
+                      <span class="text-slate-300">/</span>
+                      <button type="button" onclick="window.App.toggleStudentSort('dahiliHoca')" class="hover:text-slate-900 underline decoration-slate-300" title="Dahili Hocasına göre sırala">Dahili ${this.getSortIndicator('dahiliHoca')}</button>
+                    </div>
+                  </th>
+                `}
+                <th class="py-2.5 px-2 w-20 text-center">
+                  <button type="button" onclick="window.App.toggleStudentSort('yatakhane')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
+                    <span>Oda</span>
                     ${this.getSortIndicator('yatakhane')}
                   </button>
                 </th>
-                <th class="py-3 px-3 min-w-[110px]">
-                  <button type="button" onclick="window.App.toggleStudentSort('password')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
-                    <span>Veli Şifresi</span>
+                <th class="py-2.5 px-2 w-20 text-center">
+                  <button type="button" onclick="window.App.toggleStudentSort('password')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
+                    <span>Şifre</span>
                     ${this.getSortIndicator('password')}
                   </button>
                 </th>
-                <th class="py-3 px-3 min-w-[130px]">
-                  <button type="button" onclick="window.App.toggleStudentSort('familyCode')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                <th class="py-2.5 px-2 w-24 text-center">
+                  <button type="button" onclick="window.App.toggleStudentSort('familyCode')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
                     <span>Aile Kodu</span>
                     ${this.getSortIndicator('familyCode')}
                   </button>
                 </th>
-                <th class="py-3 px-3 min-w-[130px]">
-                  <button type="button" onclick="window.App.toggleStudentSort('phone')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
-                    <span>Veli Telefon</span>
+                <th class="py-2.5 px-2 w-28 text-center">
+                  <button type="button" onclick="window.App.toggleStudentSort('phone')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
+                    <span>Veli Tel</span>
                     ${this.getSortIndicator('phone')}
                   </button>
                 </th>
-                ${canEdit ? '<th class="py-3 px-3 text-right min-w-[90px]">İşlem</th>' : ''}
+                ${canEdit ? `<th class="py-2.5 px-2 text-right ${isEditMode ? 'w-12' : 'w-20'}">İşlem</th>` : ''}
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 text-sm">
+            <tbody class="divide-y divide-slate-100 text-xs">
               ${(filteredStudents.length === 0 && newDraftsList.length === 0) ? `
-                <tr><td colspan="${canEdit ? (isEditMode ? 12 : 11) : 10}" class="py-12 text-center text-slate-400">Öğrenci bulunamadı.</td></tr>
+                <tr><td colspan="${canEdit ? (isEditMode ? 11 : 9) : (isEditMode ? 10 : 8)}" class="py-12 text-center text-slate-400">Öğrenci bulunamadı.</td></tr>
               ` : `
                 ${filteredStudents.map(s => {
                   const eff = this.getEffectiveStudentData(s);
@@ -2194,44 +2204,44 @@ window.App = {
                     return `
                       <tr id="student-row-${s.id}" class="transition ${isDeleted ? 'bg-rose-50/70 opacity-60 line-through' : (hasDraft ? 'bg-amber-50/50' : 'hover:bg-slate-50/50')}">
                         <!-- No -->
-                        <td class="py-2 px-2 text-center">
+                        <td class="py-1.5 px-1 text-center">
                           <input type="number" 
                             data-st-id="${s.id}" data-st-field="studentNo" 
                             value="${eff.studentNo || ''}"
                             oninput="window.App.handleStudentCellChange('${s.id}', 'studentNo', this.value)"
                             onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'studentNo')"
-                            class="w-16 px-1.5 py-1 text-center font-bold text-xs bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].studentNo !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+                            class="w-12 px-1 py-1 text-center font-bold text-xs bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].studentNo !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
                             ${isDeleted ? 'disabled' : ''}>
                         </td>
 
                         <!-- Adı -->
-                        <td class="py-2 px-2">
+                        <td class="py-1.5 px-1.5">
                           <input type="text" 
                             data-st-id="${s.id}" data-st-field="firstName" 
                             value="${eff.firstName || ''}"
                             oninput="window.App.handleStudentCellChange('${s.id}', 'firstName', this.value)"
                             onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'firstName')"
-                            class="w-full min-w-[130px] px-2 py-1 font-bold text-xs text-slate-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].firstName !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                            class="w-full px-1.5 py-1 font-bold text-xs text-slate-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].firstName !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
                             ${isDeleted ? 'disabled' : ''}>
                         </td>
 
                         <!-- Soyadı -->
-                        <td class="py-2 px-2">
+                        <td class="py-1.5 px-1.5">
                           <input type="text" 
                             data-st-id="${s.id}" data-st-field="lastName" 
                             value="${eff.lastName || ''}"
                             oninput="window.App.handleStudentCellChange('${s.id}', 'lastName', this.value)"
                             onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'lastName')"
-                            class="w-full min-w-[120px] px-2 py-1 font-bold text-xs text-slate-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].lastName !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                            class="w-full px-1.5 py-1 font-bold text-xs text-slate-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].lastName !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
                             ${isDeleted ? 'disabled' : ''}>
                         </td>
 
                         <!-- Sınıfı -->
-                        <td class="py-2 px-2">
+                        <td class="py-1.5 px-1">
                           <select 
                             data-st-id="${s.id}" data-st-field="className" 
                             onchange="window.App.handleStudentCellChange('${s.id}', 'className', this.value)"
-                            class="w-full px-2 py-1 font-bold text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:outline-none cursor-pointer ${hasDraft && this.studentDrafts[s.id].className !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                            class="w-full px-1 py-1 font-bold text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:outline-none cursor-pointer ${hasDraft && this.studentDrafts[s.id].className !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
                             ${isDeleted ? 'disabled' : ''}>
                             ${['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'].map(c => `
                               <option value="${c}" ${eff.className === c ? 'selected' : ''}>${c}</option>
@@ -2240,86 +2250,86 @@ window.App = {
                         </td>
 
                         <!-- Etüt Hocası -->
-                        <td class="py-2 px-2">
+                        <td class="py-1.5 px-1.5">
                           <input type="text" list="etut-hocasi-list"
                             data-st-id="${s.id}" data-st-field="etutHocasi" 
                             value="${eff.etutHocasi || ''}"
-                            placeholder="Etüt Hocası..."
+                            placeholder="Etüt..."
                             oninput="window.App.handleStudentCellChange('${s.id}', 'etutHocasi', this.value)"
                             onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'etutHocasi')"
-                            class="w-full min-w-[140px] px-2 py-1 text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].etutHocasi !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+                            class="w-full px-1.5 py-1 text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].etutHocasi !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
                             ${isDeleted ? 'disabled' : ''}>
                         </td>
 
                         <!-- Dahili Hocası -->
-                        <td class="py-2 px-2">
+                        <td class="py-1.5 px-1.5">
                           <input type="text" list="dahili-hoca-list"
                             data-st-id="${s.id}" data-st-field="dahiliHoca" 
                             value="${eff.dahiliHoca || ''}"
-                            placeholder="Dahili Hocası..."
+                            placeholder="Dahili..."
                             oninput="window.App.handleStudentCellChange('${s.id}', 'dahiliHoca', this.value)"
                             onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'dahiliHoca')"
-                            class="w-full min-w-[140px] px-2 py-1 text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].dahiliHoca !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+                            class="w-full px-1.5 py-1 text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].dahiliHoca !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
                             ${isDeleted ? 'disabled' : ''}>
                         </td>
 
                         <!-- Yatakhane -->
-                        <td class="py-2 px-2">
+                        <td class="py-1.5 px-1.5">
                           <input type="text" list="yatakhane-list"
                             data-st-id="${s.id}" data-st-field="yatakhane" 
                             value="${eff.yatakhane || ''}"
-                            placeholder="Oda No..."
+                            placeholder="Oda..."
                             oninput="window.App.handleStudentCellChange('${s.id}', 'yatakhane', this.value)"
                             onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'yatakhane')"
-                            class="w-full min-w-[100px] px-2 py-1 text-xs font-medium text-indigo-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].yatakhane !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+                            class="w-full px-1.5 py-1 text-xs font-medium text-indigo-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].yatakhane !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
                             ${isDeleted ? 'disabled' : ''}>
                         </td>
 
                         <!-- Veli Şifresi -->
-                        <td class="py-2 px-2">
+                        <td class="py-1.5 px-1.5">
                           <input type="text" 
                             data-st-id="${s.id}" data-st-field="password" 
                             value="${eff.password || '123'}"
                             oninput="window.App.handleStudentCellChange('${s.id}', 'password', this.value)"
                             onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'password')"
-                            class="w-full min-w-[100px] px-2 py-1 text-xs font-mono font-bold text-amber-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].password !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                            class="w-full px-1.5 py-1 text-xs font-mono font-bold text-center text-amber-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].password !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
                             ${isDeleted ? 'disabled' : ''}>
                         </td>
 
                         <!-- Aile Kodu -->
-                        <td class="py-2 px-2">
+                        <td class="py-1.5 px-1.5">
                           <input type="text" 
                             data-st-id="${s.id}" data-st-field="familyCode" 
                             value="${eff.familyCode || ''}"
                             oninput="window.App.handleStudentCellChange('${s.id}', 'familyCode', this.value)"
                             onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'familyCode')"
-                            class="w-full min-w-[120px] px-2 py-1 text-xs font-mono font-bold uppercase text-slate-700 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].familyCode !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                            class="w-full px-1.5 py-1 text-xs font-mono font-bold uppercase text-center text-slate-700 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].familyCode !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
                             ${isDeleted ? 'disabled' : ''}>
                         </td>
 
                         <!-- Veli Telefon -->
-                        <td class="py-2 px-2">
+                        <td class="py-1.5 px-1.5">
                           <input type="tel" 
                             data-st-id="${s.id}" data-st-field="parentPhone" 
                             value="${eff.parentPhone || eff.fatherPhone || ''}"
                             placeholder="05xx..."
                             oninput="window.App.handleStudentCellChange('${s.id}', 'parentPhone', this.value)"
                             onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'parentPhone')"
-                            class="w-full min-w-[120px] px-2 py-1 text-xs font-mono text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].parentPhone !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                            class="w-full px-1.5 py-1 text-xs font-mono text-center text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].parentPhone !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
                             ${isDeleted ? 'disabled' : ''}>
                         </td>
 
                         <!-- İşlem -->
-                        <td class="py-2 px-2 text-right whitespace-nowrap">
+                        <td class="py-1.5 px-1 text-center whitespace-nowrap">
                           ${isDeleted ? `
                             <button type="button" onclick="window.App.markStudentDraftForDeletion('${s.id}')"
-                              class="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded-lg text-xs transition cursor-pointer"
+                              class="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded text-[11px] transition cursor-pointer"
                               title="Silmeyi Geri Al">
-                              ↩️ Geri Al
+                              ↩️
                             </button>
                           ` : `
                             <button type="button" onclick="window.App.markStudentDraftForDeletion('${s.id}')"
-                              class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition text-xs cursor-pointer"
+                              class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition text-xs cursor-pointer"
                               title="Silmek İçin İşaretle">
                               🗑️
                             </button>
@@ -2331,50 +2341,50 @@ window.App = {
                     // --- NORMAL GÖRÜNÜM MODU ---
                     return `
                       <tr class="table-row-hover transition ${hasDraft ? 'bg-amber-50/40' : ''}">
-                        <td class="py-3 px-3 text-center font-bold text-slate-700">
+                        <td class="py-2.5 px-2 text-center font-bold text-slate-700">
                           ${eff.studentNo}
                         </td>
-                        <td class="py-3 px-4">
+                        <td class="py-2.5 px-3">
                           <div class="font-bold text-slate-900 flex items-center gap-1.5">
                             <span>${eff.firstName} ${eff.lastName}</span>
                             ${hasDraft ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 font-black uppercase">Taslak</span>' : ''}
                           </div>
                         </td>
-                        <td class="py-3 px-3 text-xs font-bold text-slate-800">${eff.className}</td>
-                        <td class="py-3 px-3 text-xs text-slate-700 font-medium">${eff.etutHocasi || '-'}</td>
-                        <td class="py-3 px-3 text-xs text-slate-600 font-medium">${eff.dahiliHoca || '-'}</td>
-                        <td class="py-3 px-3 text-xs font-bold text-indigo-800">${eff.yatakhane || '-'}</td>
-                        <td class="py-3 px-3">
+                        <td class="py-2.5 px-1.5 text-center text-xs font-bold text-slate-800">${eff.className}</td>
+                        <td class="py-2.5 px-2.5 text-xs">
+                          <div class="font-semibold text-slate-800 truncate" title="Etüt Hocası: ${eff.etutHocasi || '-'}">📚 ${eff.etutHocasi || '-'}</div>
+                          <div class="text-[11px] text-slate-500 truncate" title="Dahili Hoca: ${eff.dahiliHoca || '-'}">🏠 ${eff.dahiliHoca || '-'}</div>
+                        </td>
+                        <td class="py-2.5 px-2 text-center text-xs font-bold text-indigo-800">${eff.yatakhane || '-'}</td>
+                        <td class="py-2.5 px-2 text-center">
                           ${eff.password && eff.password.trim() !== '123' ? `
-                            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 font-mono font-black text-xs border border-amber-300 shadow-2xs">
+                            <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-900 font-mono font-black text-xs border border-amber-300">
                               <span title="Şifre güncellendi">🔑</span>
                               <span>${eff.password}</span>
-                              <span class="text-[9px] font-sans px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 uppercase font-black tracking-tight">Değişti</span>
                             </div>
                           ` : `
-                            <span class="px-2.5 py-1 rounded bg-slate-100 text-slate-700 font-mono font-bold text-xs border border-slate-200" title="Varsayılan Şifre: 123">
+                            <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-bold text-xs border border-slate-200" title="Varsayılan Şifre: 123">
                               ${eff.password || '123'}
                             </span>
                           `}
                         </td>
-                        <td class="py-3 px-3">
+                        <td class="py-2.5 px-2 text-center">
                           <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-slate-600">
                             ${eff.familyCode || '-'}
                           </span>
                         </td>
-                        <td class="py-3 px-3 text-xs font-mono text-slate-600">
+                        <td class="py-2.5 px-2 text-center text-xs font-mono text-slate-600">
                           ${eff.parentPhone || eff.fatherPhone || '-'}
                         </td>
                         ${canEdit ? `
-                          <td class="py-3 px-3 text-right">
-                            <div class="flex items-center justify-end gap-1.5">
+                          <td class="py-2.5 px-2 text-right">
+                            <div class="flex items-center justify-end gap-1">
                               <button onclick="window.App.openStudentModal('${s.id}')"
-                                class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs transition flex items-center gap-1 cursor-pointer" title="Düzenle / Şifre Değiştir">
+                                class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded text-xs transition flex items-center gap-1 cursor-pointer" title="Düzenle / Şifre Değiştir">
                                 <span>✏️</span>
-                                <span>Düzenle</span>
                               </button>
                               <button onclick="window.App.deleteStudent('${s.id}')"
-                                class="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition text-xs cursor-pointer" title="Kalıcı Olarak Sil">🗑️</button>
+                                class="p-1 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded transition text-xs cursor-pointer" title="Kalıcı Olarak Sil">🗑️</button>
                             </div>
                           </td>
                         ` : ''}
@@ -2387,46 +2397,46 @@ window.App = {
                   <!-- Yeni Eklenen Taslak Satırı -->
                   <tr class="bg-emerald-50/70 border-2 border-emerald-300 transition">
                     <!-- No -->
-                    <td class="py-2 px-2 text-center">
+                    <td class="py-1.5 px-1 text-center">
                       <div class="flex flex-col items-center gap-0.5">
-                        <span class="text-[9px] px-1 bg-emerald-600 text-white font-black rounded uppercase">Yeni</span>
+                        <span class="text-[8px] px-1 bg-emerald-600 text-white font-black rounded uppercase">Yeni</span>
                         <input type="number" 
                           data-new-index="${item.tempIndex}" data-st-field="studentNo" 
                           value="${item.studentNo || ''}"
                           oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'studentNo', this.value)"
                           onkeydown="window.App.handleExcelKeyDown(event, null, 'studentNo', true, ${item.tempIndex})"
-                          class="w-16 px-1.5 py-1 text-center font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                          class="w-12 px-1 py-1 text-center font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
                       </div>
                     </td>
 
                     <!-- Adı -->
-                    <td class="py-2 px-2">
+                    <td class="py-1.5 px-1.5">
                       <input type="text" 
                         data-new-index="${item.tempIndex}" data-st-field="firstName" 
                         value="${item.firstName || ''}"
-                        placeholder="Öğrenci Adı *"
+                        placeholder="Adı *"
                         oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'firstName', this.value)"
                         onkeydown="window.App.handleExcelKeyDown(event, null, 'firstName', true, ${item.tempIndex})"
-                        class="w-full min-w-[130px] px-2 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        class="w-full px-1.5 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
                     </td>
 
                     <!-- Soyadı -->
-                    <td class="py-2 px-2">
+                    <td class="py-1.5 px-1.5">
                       <input type="text" 
                         data-new-index="${item.tempIndex}" data-st-field="lastName" 
                         value="${item.lastName || ''}"
                         placeholder="Soyadı *"
                         oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'lastName', this.value)"
                         onkeydown="window.App.handleExcelKeyDown(event, null, 'lastName', true, ${item.tempIndex})"
-                        class="w-full min-w-[120px] px-2 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        class="w-full px-1.5 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
                     </td>
 
                     <!-- Sınıfı -->
-                    <td class="py-2 px-2">
+                    <td class="py-1.5 px-1">
                       <select 
                         data-new-index="${item.tempIndex}" data-st-field="className" 
                         onchange="window.App.handleNewStudentCellChange(${item.tempIndex}, 'className', this.value)"
-                        class="w-full px-2 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer">
+                        class="w-full px-1 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer">
                         ${['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'].map(c => `
                           <option value="${c}" ${item.className === c ? 'selected' : ''}>${c}</option>
                         `).join('')}
@@ -2434,75 +2444,75 @@ window.App = {
                     </td>
 
                     <!-- Etüt Hocası -->
-                    <td class="py-2 px-2">
+                    <td class="py-1.5 px-1.5">
                       <input type="text" list="etut-hocasi-list"
                         data-new-index="${item.tempIndex}" data-st-field="etutHocasi" 
                         value="${item.etutHocasi || ''}"
-                        placeholder="Etüt Hocası..."
+                        placeholder="Etüt..."
                         oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'etutHocasi', this.value)"
                         onkeydown="window.App.handleExcelKeyDown(event, null, 'etutHocasi', true, ${item.tempIndex})"
-                        class="w-full min-w-[140px] px-2 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        class="w-full px-1.5 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
                     </td>
 
                     <!-- Dahili Hocası -->
-                    <td class="py-2 px-2">
+                    <td class="py-1.5 px-1.5">
                       <input type="text" list="dahili-hoca-list"
                         data-new-index="${item.tempIndex}" data-st-field="dahiliHoca" 
                         value="${item.dahiliHoca || ''}"
-                        placeholder="Dahili Hocası..."
+                        placeholder="Dahili..."
                         oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'dahiliHoca', this.value)"
                         onkeydown="window.App.handleExcelKeyDown(event, null, 'dahiliHoca', true, ${item.tempIndex})"
-                        class="w-full min-w-[140px] px-2 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        class="w-full px-1.5 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
                     </td>
 
                     <!-- Yatakhane -->
-                    <td class="py-2 px-2">
+                    <td class="py-1.5 px-1.5">
                       <input type="text" list="yatakhane-list"
                         data-new-index="${item.tempIndex}" data-st-field="yatakhane" 
                         value="${item.yatakhane || ''}"
-                        placeholder="Oda No..."
+                        placeholder="Oda..."
                         oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'yatakhane', this.value)"
                         onkeydown="window.App.handleExcelKeyDown(event, null, 'yatakhane', true, ${item.tempIndex})"
-                        class="w-full min-w-[100px] px-2 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        class="w-full px-1.5 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
                     </td>
 
                     <!-- Veli Şifresi -->
-                    <td class="py-2 px-2">
+                    <td class="py-1.5 px-1.5">
                       <input type="text" 
                         data-new-index="${item.tempIndex}" data-st-field="password" 
                         value="${item.password || '123'}"
                         oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'password', this.value)"
                         onkeydown="window.App.handleExcelKeyDown(event, null, 'password', true, ${item.tempIndex})"
-                        class="w-full min-w-[100px] px-2 py-1 text-xs font-mono font-bold bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        class="w-full px-1.5 py-1 text-xs font-mono font-bold text-center bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
                     </td>
 
                     <!-- Aile Kodu -->
-                    <td class="py-2 px-2">
+                    <td class="py-1.5 px-1.5">
                       <input type="text" 
                         data-new-index="${item.tempIndex}" data-st-field="familyCode" 
                         value="${item.familyCode || 'AILE2026'}"
                         oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'familyCode', this.value)"
                         onkeydown="window.App.handleExcelKeyDown(event, null, 'familyCode', true, ${item.tempIndex})"
-                        class="w-full min-w-[120px] px-2 py-1 text-xs font-mono font-bold uppercase bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        class="w-full px-1.5 py-1 text-xs font-mono font-bold uppercase text-center bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
                     </td>
 
                     <!-- Veli Telefon -->
-                    <td class="py-2 px-2">
+                    <td class="py-1.5 px-1.5">
                       <input type="tel" 
                         data-new-index="${item.tempIndex}" data-st-field="parentPhone" 
                         value="${item.parentPhone || ''}"
                         placeholder="05xx..."
                         oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'parentPhone', this.value)"
                         onkeydown="window.App.handleExcelKeyDown(event, null, 'parentPhone', true, ${item.tempIndex})"
-                        class="w-full min-w-[120px] px-2 py-1 text-xs font-mono bg-white border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        class="w-full px-1.5 py-1 text-xs font-mono text-center bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
                     </td>
 
                     <!-- İşlem -->
-                    <td class="py-2 px-2 text-right">
+                    <td class="py-1.5 px-1 text-center">
                       <button type="button" onclick="window.App.removeNewStudentRowDraft(${item.tempIndex})"
-                        class="px-2 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold rounded-lg text-xs transition cursor-pointer"
+                        class="px-2 py-0.5 bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold rounded text-[11px] transition cursor-pointer"
                         title="Yeni Satırı Kaldır">
-                        ✕ Kaldır
+                        ✕
                       </button>
                     </td>
                   </tr>
@@ -2514,11 +2524,11 @@ window.App = {
 
         ${isEditMode ? `
           <!-- Excel Modunda Tablo Altı Yeni Satır Butonu -->
-          <div class="p-3.5 bg-slate-50 border-t border-slate-200 text-center">
+          <div class="p-3 bg-slate-50 border-t border-slate-200 text-center">
             <button type="button" onclick="window.App.addNewStudentRowDraft()" 
-              class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition inline-flex items-center gap-2 cursor-pointer active:scale-95">
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition inline-flex items-center gap-1.5 cursor-pointer active:scale-95">
               <span>➕</span>
-              <span>Aşağıya Yeni Öğrenci Satırı Ekle</span>
+              <span>Yeni Öğrenci Satırı Ekle</span>
             </button>
           </div>
         ` : ''}
@@ -2526,31 +2536,31 @@ window.App = {
 
       <!-- KESİN KAYDETME ÇUBUĞU (Canlı Kaydetmez, Sadece Butona Basınca Kaydeder) -->
       <div id="student-draft-action-bar" 
-        class="sticky bottom-4 z-40 mt-4 bg-slate-950 text-white p-4 rounded-2xl shadow-2xl border-2 border-amber-400 flex flex-wrap items-center justify-between gap-4 animate-fade-in ${isEditMode || changeCount > 0 ? '' : 'hidden'}">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center text-xl shrink-0 border border-amber-400/40">
+        class="sticky bottom-3 z-40 mt-3 bg-slate-950 text-white p-3 sm:p-3.5 rounded-xl shadow-2xl border-2 border-amber-400 flex flex-wrap items-center justify-between gap-3 animate-fade-in ${isEditMode || changeCount > 0 ? '' : 'hidden'}">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-amber-400/20 text-amber-300 flex items-center justify-center text-base shrink-0 border border-amber-400/40">
             📊
           </div>
           <div>
-            <div class="font-black text-sm text-amber-300 flex items-center gap-2">
-              <span id="student-draft-count-badge">${changeCount > 0 ? changeCount + ' Değişiklik Bekliyor' : 'Excel Modu Aktif (Değişiklik bekleniyor)'}</span>
-              <span class="text-[10px] px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 font-mono font-bold uppercase tracking-wide">
+            <div class="font-black text-xs sm:text-sm text-amber-300 flex items-center gap-2">
+              <span id="student-draft-count-badge">${changeCount > 0 ? changeCount + ' Değişiklik Bekliyor' : 'Excel Modu Aktif'}</span>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 font-mono font-bold uppercase tracking-wide">
                 ${changeCount > 0 ? 'KAYDEDİLMEDİ' : 'HAZIR'}
               </span>
             </div>
-            <div class="text-xs text-slate-300">
-              💡 Değişiklikler canlı kaydedilmez. Yapılan düzeltmelerin geçerli olması için lütfen <strong>"Değişiklikleri Kaydet"</strong>e basınız.
+            <div class="text-[11px] text-slate-300">
+              💡 Değişikliklerin geçerli olması için lütfen <strong>"Değişiklikleri Kaydet"</strong>e basınız.
             </div>
           </div>
         </div>
-        <div class="flex items-center gap-2.5">
+        <div class="flex items-center gap-2">
           <button type="button" onclick="window.App.discardStudentDrafts(true)" 
-            class="px-4 py-2.5 bg-slate-800 hover:bg-rose-900 text-slate-200 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition cursor-pointer flex items-center gap-1.5 active:scale-95">
+            class="px-3 py-2 bg-slate-800 hover:bg-rose-900 text-slate-200 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition cursor-pointer flex items-center gap-1 active:scale-95">
             <span>↩️</span>
-            <span>Vazgeç / Sıfırla</span>
+            <span>Vazgeç</span>
           </button>
           <button type="button" id="student-draft-save-btn" onclick="window.App.saveAllStudentDrafts()" 
-            class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-lg transition transform active:scale-95 cursor-pointer flex items-center gap-2 ring-2 ring-emerald-400 ${changeCount === 0 ? 'opacity-50 pointer-events-none' : ''}">
+            class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-lg transition transform active:scale-95 cursor-pointer flex items-center gap-1.5 ring-2 ring-emerald-400 ${changeCount === 0 ? 'opacity-50 pointer-events-none' : ''}">
             <span>💾</span>
             <span>Değişiklikleri Kaydet (${changeCount})</span>
           </button>
