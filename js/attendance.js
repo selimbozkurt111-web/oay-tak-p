@@ -44,7 +44,8 @@ window.AttendanceModule = {
       { code: 'YOK', label: 'Yok', bg: '#ef4444', border: '#dc2626', activeClass: 'bg-rose-600 text-white shadow-md ring-2 ring-rose-300' },
       { code: 'GEC', label: 'Geç', bg: '#f59e0b', border: '#d97706', activeClass: 'bg-amber-500 text-white shadow-md ring-2 ring-amber-300' },
       { code: 'TAKKESIZ', label: 'Takkesiz', bg: '#9333ea', border: '#7e22ce', activeClass: 'bg-purple-700 text-white shadow-md ring-2 ring-purple-300' },
-      { code: 'IZINLI', label: 'İzinli', bg: '#0d9488', border: '#0f766e', activeClass: 'bg-teal-600 text-white shadow-md ring-2 ring-teal-300' }
+      { code: 'IZINLI', label: 'İzinli', bg: '#0d9488', border: '#0f766e', activeClass: 'bg-teal-600 text-white shadow-md ring-2 ring-teal-300' },
+      { code: 'OKULDA', label: 'Okulda', bg: '#0284c7', border: '#0369a1', activeClass: 'bg-sky-600 text-white shadow-md ring-2 ring-sky-300' }
     ],
     yatak: [
       { code: 'IYI', label: 'İyi', bg: '#10b981', border: '#059669', activeClass: 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-300' },
@@ -171,8 +172,15 @@ window.AttendanceModule = {
     }
   },
 
-  getDefaultStatus() {
-    if (this.currentCategory === 'namaz') return 'VAR';
+  getDefaultStatus(student = null) {
+    if (this.currentCategory === 'namaz') {
+      if (student && window.Store && typeof window.Store.isStudentAtSchoolSlot === 'function') {
+        if (window.Store.isStudentAtSchoolSlot(student, this.currentDate, this.currentPrayer)) {
+          return 'OKULDA';
+        }
+      }
+      return 'VAR';
+    }
     if (this.currentCategory === 'yatak') return 'IYI';
     if (this.currentCategory === 'okul_donusu') return 'GELDI';
     return 'VAR';
@@ -191,12 +199,23 @@ window.AttendanceModule = {
         status: normalized
       };
     });
+
+    // Hafta içi Öğle veya İkindi vakitlerinde okulda olan sınıfların öğrencilerine (kaydı henüz yoksa) otomatik 'OKULDA' ata
+    if (this.currentCategory === 'namaz' && (this.currentPrayer === 'Öğle' || this.currentPrayer === 'İkindi') && window.Store && typeof window.Store.isStudentAtSchoolSlot === 'function') {
+      const allStudents = window.Store.getStudents ? window.Store.getStudents() : [];
+      allStudents.forEach(s => {
+        if (!this.draftAttendance[s.id] && window.Store.isStudentAtSchoolSlot(s, this.currentDate, this.currentPrayer)) {
+          this.draftAttendance[s.id] = { status: 'OKULDA' };
+        }
+      });
+    }
   },
 
   // Butona dokunulduğunda ANINDA OTOMATİK KAYIT
   setStatus(studentId, statusCode) {
     if (!this.draftAttendance[studentId]) {
-      this.draftAttendance[studentId] = { status: this.getDefaultStatus() };
+      const student = window.Store.getStudentById ? window.Store.getStudentById(studentId) : null;
+      this.draftAttendance[studentId] = { status: this.getDefaultStatus(student) };
     }
 
     let finalStatusCode = statusCode;
@@ -262,11 +281,11 @@ window.AttendanceModule = {
     const allStudents = this.getAllStudentsForCurrentView();
     if (!allStudents || allStudents.length === 0) return;
 
-    const defaultStatus = this.getDefaultStatus();
     const subKey = this.currentCategory === 'namaz' ? this.currentPrayer : this.currentCategory;
     const activeUser = window.Store.getCurrentUserName();
 
     const records = allStudents.map(s => {
+      const defaultStatus = this.getDefaultStatus(s);
       const draft = this.draftAttendance[s.id];
       const status = draft ? draft.status : defaultStatus;
       this.draftAttendance[s.id] = { status };
@@ -293,11 +312,11 @@ window.AttendanceModule = {
     const allStudents = this.getAllStudentsForCurrentView();
     if (!allStudents || allStudents.length === 0) return;
 
-    const defaultStatus = this.getDefaultStatus();
     const subKey = this.currentCategory === 'namaz' ? this.currentPrayer : this.currentCategory;
     const activeUser = window.Store.getCurrentUserName();
 
     const records = allStudents.map(s => {
+      const defaultStatus = this.getDefaultStatus(s);
       this.draftAttendance[s.id] = { status: defaultStatus };
       return {
         studentId: s.id,
@@ -427,8 +446,8 @@ window.AttendanceModule = {
     let students = this.getAllStudentsForCurrentView();
 
     if (this.statusFilter && this.statusFilter !== 'ALL') {
-      const defaultStatus = this.getDefaultStatus();
       students = students.filter(s => {
+        const defaultStatus = this.getDefaultStatus(s);
         const draft = this.draftAttendance[s.id];
         const status = draft ? draft.status : defaultStatus;
         if (this.statusFilter === 'YOK') {
@@ -445,6 +464,9 @@ window.AttendanceModule = {
         }
         if (this.statusFilter === 'IZINLI') {
           return status === 'IZINLI';
+        }
+        if (this.statusFilter === 'OKULDA') {
+          return status === 'OKULDA';
         }
         if (this.statusFilter === 'GEC_TAKKESIZ') {
           return status === 'GEC_TAKKESIZ';
@@ -1226,11 +1248,10 @@ window.AttendanceModule = {
     currentStatuses.forEach(st => { counts[st.code] = 0; });
     let gecTakkesizCount = 0;
 
-    const defaultStatus = this.getDefaultStatus();
-
     allStudents.forEach(s => {
+      const def = this.getDefaultStatus(s);
       const draft = this.draftAttendance[s.id];
-      const status = draft ? draft.status : defaultStatus;
+      const status = draft ? draft.status : def;
       if (status === 'GEC_TAKKESIZ') {
         gecTakkesizCount++;
         counts['GEC'] = (counts['GEC'] || 0) + 1;
@@ -1238,7 +1259,7 @@ window.AttendanceModule = {
       } else if (counts[status] !== undefined) {
         counts[status]++;
       } else {
-        counts[defaultStatus] = (counts[defaultStatus] || 0) + 1;
+        counts[def] = (counts[def] || 0) + 1;
       }
     });
 
@@ -1351,6 +1372,7 @@ window.AttendanceModule = {
     }
 
     container.innerHTML = students.map(s => {
+      const defaultStatus = this.getDefaultStatus(s);
       const draft = this.draftAttendance[s.id] || { status: defaultStatus };
       const currentStatus = draft.status || defaultStatus;
       const isYok = (currentStatus === 'YOK');
@@ -1370,6 +1392,11 @@ window.AttendanceModule = {
               <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold text-[10px] shrink-0">
                 ${s.className}
               </span>
+              ${this.currentCategory === 'namaz' && currentStatus === 'OKULDA' ? `
+                <span class="px-2 py-0.5 rounded-md bg-sky-100 text-sky-900 border border-sky-300 font-black text-[10px] shrink-0 flex items-center gap-1 shadow-2xs">
+                  <span>🎒</span> <span>OKULDA</span>
+                </span>
+              ` : ''}
               ${this.currentCategory === 'namaz' && isYok ? `
                 <span class="px-2 py-0.5 rounded-md bg-rose-600 text-white font-black text-[10px] shrink-0 flex items-center gap-1 shadow-2xs animate-pulse">
                   <span>🔴</span> <span>NAMAZDA YOK</span>

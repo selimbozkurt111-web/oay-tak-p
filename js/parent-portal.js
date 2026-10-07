@@ -289,9 +289,9 @@ window.ParentPortal = {
             </div>
           </div>
 
-          <!-- 5 Yoklama Durumu İstatistiği -->
-          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-4">
-            ${['VAR', 'YOK', 'GEC', 'TAKKESIZ', 'IZINLI'].map(code => {
+          <!-- Yoklama Durumu İstatistiği -->
+          <div class="grid grid-cols-2 ${(stats.counts.OKULDA || 0) > 0 ? 'sm:grid-cols-6' : 'sm:grid-cols-5'} gap-2.5 pt-4">
+            ${['VAR', 'YOK', 'GEC', 'TAKKESIZ', 'IZINLI', ...((stats.counts.OKULDA || 0) > 0 ? ['OKULDA'] : [])].map(code => {
               const cfg = window.STATUS_CONFIG[code] || window.STATUS_CONFIG['VAR'];
               const count = stats.counts[code] || 0;
               return `
@@ -355,6 +355,11 @@ window.ParentPortal = {
                     <span>•</span>
                     <span>📚 Akademi: <strong>${studentRankItem.akademi.points} Puan</strong></span>
                   </div>
+                  ${studentRankItem.namaz.isNormalized ? `
+                    <div class="text-[10.5px] text-sky-800 bg-sky-50 px-2.5 py-1 rounded-xl border border-sky-200 mt-1.5 inline-block">
+                      ⚖️ <strong>Adil Oransal Puanlama (3. Model):</strong> Okulda olunan ${studentRankItem.namaz.okuldaCount} vakit muaf tutulmuş; kurstaki ibadet devam başarısı (%${studentRankItem.namaz.successPercent}) genel ölçeğe eşitlenmiştir.
+                    </div>
+                  ` : ''}
                 </div>
               </div>
 
@@ -496,14 +501,19 @@ window.ParentPortal = {
               <div class="col-span-2 sm:col-span-1 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-4 text-white flex flex-col justify-between shadow-sm">
                 <span class="text-[10px] font-bold uppercase text-emerald-100">DEVAM ORANI</span>
                 <div class="text-3xl font-black mt-1">%${prayerRep.attendanceRate}</div>
-                <span class="text-[10px] text-emerald-100 mt-1">${prayerRep.attendedCount} / ${prayerRep.totalSlots} Vakit</span>
+                <div class="mt-1">
+                  <span class="text-[10px] text-emerald-100 block">${prayerRep.attendedCount} / ${prayerRep.evaluatedTotal} Vakit</span>
+                  ${prayerRep.overallCounts.OKULDA > 0 ? `
+                    <span class="text-[9px] text-emerald-200 font-semibold block">• ${prayerRep.overallCounts.OKULDA} Okulda (Muaf)</span>
+                  ` : ''}
+                </div>
               </div>
 
               <!-- 5 Vakit Dağılımı -->
               ${prayers.map(p => {
                 const pData = prayerRep.prayerStats[p];
-                const attended = pData.VAR + pData.TAKKESIZ + pData.GEC;
-                const totalDay = reportRange.dates.length - pData.IZINLI;
+                const attended = pData.VAR + pData.TAKKESIZ + pData.GEC + (pData.GEC_TAKKESIZ || 0);
+                const totalDay = reportRange.dates.length - (pData.IZINLI || 0) - (pData.OKULDA || 0) - (pData.GIRILMEDI || 0);
                 const pRate = totalDay > 0 ? Math.round((attended / totalDay) * 100) : 100;
                 const icon = p === 'Sabah' ? '🌅' : (p === 'Öğle' ? '☀️' : (p === 'İkindi' ? '🌤️' : (p === 'Akşam' ? '🌇' : '🌙')));
                 return `
@@ -514,7 +524,12 @@ window.ParentPortal = {
                     </div>
                     <div class="mt-2">
                       <div class="text-sm font-black text-emerald-700">%${pRate}</div>
-                      <div class="text-[10px] text-slate-400 font-bold">${attended} / ${totalDay} Vakit</div>
+                      <div class="text-[10px] text-slate-400 font-bold">
+                        ${totalDay > 0 ? `${attended} / ${totalDay} Vakit` : (pData.OKULDA > 0 ? '🎒 Okulda (Muaf)' : 'Kayıt Yok')}
+                      </div>
+                      ${pData.OKULDA > 0 && totalDay > 0 ? `
+                        <div class="text-[9px] text-sky-600 font-semibold mt-0.5">${pData.OKULDA} Okulda</div>
+                      ` : ''}
                     </div>
                   </div>
                 `;
@@ -525,7 +540,7 @@ window.ParentPortal = {
             <div class="rounded-2xl border border-slate-200 overflow-hidden">
               <div class="p-3 bg-slate-50 border-b border-slate-200 font-black text-xs text-slate-700 flex items-center justify-between">
                 <span>🗓️ Günlük 5 Vakit Namaz Katılım Detayı</span>
-                <span class="text-[11px] text-slate-400 font-normal">Yeşil: Kılındı • Mor: Takkesiz • Kırmızı: Yok</span>
+                <span class="text-[11px] text-slate-400 font-normal">Yeşil: Kılındı • Mavi: Okulda • Mor: Takkesiz • Kırmızı: Yok</span>
               </div>
               <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse text-xs min-w-[500px]">

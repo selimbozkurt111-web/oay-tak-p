@@ -33,6 +33,7 @@ const STATUS_CONFIG = {
   TAKKESIZ: { code: 'TAKKESIZ', label: 'Takkesiz', short: 'Takkesiz', bg: '#9333ea', border: '#7e22ce', desc: 'Takkesiz katıldı' },
   GEC_TAKKESIZ: { code: 'GEC_TAKKESIZ', label: 'Geç + Takkesiz', short: 'Geç+Tak.', bg: '#9333ea', border: '#7e22ce', desc: 'Hem geç kaldı hem takkesiz katıldı' },
   IZINLI: { code: 'IZINLI', label: 'İzinli', short: 'İzinli', bg: '#0d9488', border: '#0f766e', desc: 'İzinli / Raporlu' },
+  OKULDA: { code: 'OKULDA', label: 'Okulda', short: 'Okul', bg: '#0284c7', border: '#0369a1', desc: 'MEB Okulunda (Ders/Etüt)' },
 
   // Yatak Yoklaması
   IYI: { code: 'IYI', label: 'İyi', short: 'İyi', bg: '#10b981', border: '#059669', desc: 'Yatak ve oda temiz/düzenli' },
@@ -54,6 +55,8 @@ STATUS_CONFIG.GT = STATUS_CONFIG.GEC_TAKKESIZ;
 STATUS_CONFIG.TG = STATUS_CONFIG.GEC_TAKKESIZ;
 STATUS_CONFIG.TAKKESIZ_GEC = STATUS_CONFIG.GEC_TAKKESIZ;
 STATUS_CONFIG.I = STATUS_CONFIG.IZINLI;
+STATUS_CONFIG.O = STATUS_CONFIG.OKULDA;
+STATUS_CONFIG.OKUL = STATUS_CONFIG.OKULDA;
 STATUS_CONFIG.E = STATUS_CONFIG.VAR;
 
 const DEFAULT_SETTINGS = {
@@ -187,8 +190,11 @@ class DataStore {
     this.autoSyncStaffAndClassTeachers();
     // Dini ders grupları ve Dahili Hoca senkronizasyonunu otomatik sağla
     this.autoSyncDahiliHocalarAndQuran();
-    // Pasiflik temizliği: Kullanıcının talebi olmadan pasife geçmiş tüm öğrencileri aktif yap
-    this.restoreAllActiveStudents();
+    // Pasiflik temizliği: Pasif sicilini yerel hafızada temizle (Buluta gereksiz yükleme yapmaz)
+    try {
+      localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
+      localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
+    } catch (e) {}
 
     if (!localStorage.getItem(STORAGE_KEYS.ACADEMIC_SCORES)) {
       const today = new Date().toISOString().split('T')[0];
@@ -385,44 +391,35 @@ class DataStore {
     }
   }
 
-  // Tüm talebeleri tek tıkla %100 kesin AKTİF yapma motoru (Bulut ve Yerel Pasif Sicilini Temizler)
-  activateAllStudents() {
+  // Tüm talebeleri güvenli bir şekilde AKTİF yapma motoru (Bulut ve Yerel Pasif Sicilini Temizler)
+  activateAllStudents(forceCloudPush = false) {
     try {
       localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
       localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
       let raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
       let students = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(students) || students.length === 0) {
+      const hadLocalStudents = Array.isArray(students) && students.length > 0;
+      if (!hadLocalStudents) {
         students = [...SEED_STUDENTS];
       }
-      const nowIso = new Date().toISOString();
+      let anyChanged = false;
       students.forEach(s => {
         if (s) {
-          s.isPassive = false;
-          s.status = 'active';
+          if (s.isPassive === true || s.status !== 'active') {
+            s.isPassive = false;
+            s.status = 'active';
+            anyChanged = true;
+          }
           delete s.aktif;
           delete s.active;
-          s.updatedAt = nowIso;
-          if (s.id) {
-            this.markStudentLocallyEdited(s.id, ['isPassive', 'status']);
-          }
         }
       });
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-      this._lastStudentEditTime = Date.now();
-      this._lastStudentPushTime = Date.now();
-      if (this.isCloudEnabled()) {
-        const baseUrl = this.getFirebaseUrl();
-        if (baseUrl) {
-          try {
-            fetch(`${baseUrl}/kurs_data/passive_student_ids.json`, { method: 'DELETE' }).catch(() => {});
-            fetch(`${baseUrl}/kurs_data/passive_student_ids.json`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: '{}'
-            }).catch(() => {});
-          } catch (e) {}
-        }
+      
+      // Buluta yalnızca açıkça istenirse (forceCloudPush=true), yerelde önceden kayıtlı öğrenci varsa ve değişiklik olduysa gönder
+      if (forceCloudPush && hadLocalStudents && anyChanged && this.isCloudEnabled()) {
+        this._lastStudentEditTime = Date.now();
+        this._lastStudentPushTime = Date.now();
         this.syncToCloud('kurs_data/passive_student_ids', {});
         this.syncToCloud('kurs_data/students', students);
       }
@@ -436,9 +433,9 @@ class DataStore {
     }
   }
 
-  // Pasiflik temizliği: Başlangıçta tüm öğrencileri kesinlikle aktif yap ve pasif sicilini temizle
+  // Pasiflik temizliği: Tüm öğrencileri yerelde aktif tutar, bulutu ASLA ezmez
   restoreAllActiveStudents() {
-    return this.activateAllStudents();
+    return this.activateAllStudents(false);
   }
 
   // --- 8. Sınıf Kesin Kütük Onarıcısı (8-A: Yavuz Selim Seven [9], 8-B: Tunahan Taşkın [9] - Tam 18 Talebe) ---
@@ -1041,6 +1038,13 @@ class DataStore {
         localStudents = this.getAllStudents();
       }
 
+      // Buluttan yeni veri yazmadan önce yerel öğrenci yedeği al (Veri kaybını %100 önler)
+      try {
+        if (localStudents && localStudents.length > 0) {
+          localStorage.setItem('yoklama_students_backup_pre_cloud_sync', JSON.stringify(localStudents));
+        }
+      } catch (e) {}
+
       const localStudentMap = new Map();
       localStudents.forEach(s => { if (s && s.id) localStudentMap.set(s.id, s); });
 
@@ -1068,6 +1072,37 @@ class DataStore {
           };
           delete mergedSt.aktif;
           delete mergedSt.active;
+
+          // ASLA BOŞ VERİYLE GERÇEK VERİYİ EZME (Non-Destructive Field Protection):
+          // Yerelde dolu olan telefon, veli şifresi, oda, veli adı gibi özel alanlar buluttan gelen boşlukla asla silinemez!
+          const protectFields = [
+            'fatherPhone', 'motherPhone', 'parentPhone', 
+            'fatherName', 'motherName', 
+            'yatakhane', 'notes', 'note', 'school'
+          ];
+          protectFields.forEach(fld => {
+            const lVal = (localSt[fld] || '').toString().trim();
+            const cVal = (cloudSt[fld] || '').toString().trim();
+            if (lVal && !cVal) {
+              mergedSt[fld] = localSt[fld];
+            } else if (!lVal && cVal) {
+              mergedSt[fld] = cloudSt[fld];
+            }
+          });
+
+          // Şifre koruması: Yerelde 123'ten farklı özel şifre varsa ve bulut 123 ise yereldeki şifreyi koru
+          const lPass = (localSt.password || '').toString().trim();
+          const cPass = (cloudSt.password || '').toString().trim();
+          if (lPass && lPass !== '123' && (!cPass || cPass === '123')) {
+            mergedSt.password = localSt.password;
+          }
+
+          // Aile kodu koruması
+          const lFam = (localSt.familyCode || '').toString().trim();
+          const cFam = (cloudSt.familyCode || '').toString().trim();
+          if (lFam && lFam !== 'AILE2026' && (!cFam || cFam === 'AILE2026')) {
+            mergedSt.familyCode = localSt.familyCode;
+          }
 
           // dahiliHoca koruması: Asla boş veya jenerik bırakma
           const curDahili = (mergedSt.dahiliHoca || '').trim();
@@ -2098,16 +2133,41 @@ class DataStore {
 
     sanitizedStudents.forEach(s => {
       if (!s || !s.id) return;
-      if (!s.updatedAt) s.updatedAt = nowIso;
+      s.updatedAt = nowIso;
       s.isPassive = false;
       s.status = 'active';
       delete s.aktif;
       delete s.active;
+      // Her kaydedilen öğrenciyi yerel düzenleme kalkanına kaydet (Bulutun ezmesini önler)
+      this.markStudentLocallyEdited(s.id, ['ALL']);
     });
 
     localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
     localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(sanitizedStudents));
+
+    // OTOMATİK ÇOKLU YEDEKLEME MOTORU (Otomatik Veri Kaybı Önleme Kalkanı)
+    try {
+      localStorage.setItem('yoklama_students_backup_v1', JSON.stringify(sanitizedStudents));
+      localStorage.setItem('yoklama_students_backup_last', JSON.stringify(sanitizedStudents));
+      localStorage.setItem('yoklama_students_backup_timestamp', nowIso);
+
+      let snapshots = [];
+      const rawSnap = localStorage.getItem('yoklama_students_snapshots');
+      if (rawSnap) {
+        try { snapshots = JSON.parse(rawSnap) || []; } catch (e) {}
+      }
+      snapshots.unshift({
+        savedAt: nowIso,
+        count: sanitizedStudents.length,
+        students: sanitizedStudents
+      });
+      if (snapshots.length > 5) snapshots.length = 5;
+      localStorage.setItem('yoklama_students_snapshots', JSON.stringify(snapshots));
+    } catch (e) {
+      console.warn('Backup save error:', e);
+    }
+
     this._lastStudentPushTime = Date.now();
     this._lastStudentEditTime = Date.now();
     if (this.isCloudEnabled()) {
@@ -2146,6 +2206,185 @@ class DataStore {
     try {
       window.dispatchEvent(new CustomEvent('students-updated', { detail: sanitizedStudents }));
     } catch (e) {}
+  }
+
+  // ========================================================
+  // --- ÖĞRENCİ VERİTABANI YEDEKLEME VE KURTARMA MOTORU ---
+  // ========================================================
+  hasStudentBackup() {
+    try {
+      const keys = ['yoklama_students_backup_v1', 'yoklama_students_backup_last', 'yoklama_students_backup_pre_cloud_sync'];
+      for (const k of keys) {
+        const val = localStorage.getItem(k);
+        if (val) {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed) && parsed.length > 0) return true;
+        }
+      }
+      const rawSnap = localStorage.getItem('yoklama_students_snapshots');
+      if (rawSnap) {
+        const snaps = JSON.parse(rawSnap);
+        if (Array.isArray(snaps) && snaps.length > 0) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  getStudentBackupSummary() {
+    try {
+      const timestamp = localStorage.getItem('yoklama_students_backup_timestamp');
+      let count = 0;
+      let phoneCount = 0;
+      const raw = localStorage.getItem('yoklama_students_backup_v1') || localStorage.getItem('yoklama_students_backup_last');
+      if (raw) {
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          count = list.length;
+          phoneCount = list.filter(s => s && ((s.fatherPhone && s.fatherPhone.trim()) || (s.parentPhone && s.parentPhone.trim()))).length;
+        }
+      }
+      return {
+        hasBackup: count > 0,
+        count,
+        phoneCount,
+        timestamp: timestamp ? new Date(timestamp).toLocaleString('tr-TR') : 'Mevcut'
+      };
+    } catch (e) {
+      return { hasBackup: false, count: 0, phoneCount: 0, timestamp: null };
+    }
+  }
+
+  restoreStudentsFromBackup() {
+    try {
+      const backupKeys = [
+        'yoklama_students_backup_v1',
+        'yoklama_students_backup_last',
+        'yoklama_students_backup_pre_cloud_sync',
+        'yoklama_students_backup_v2'
+      ];
+      let bestCandidate = null;
+      let maxScore = -1;
+
+      // 1. Snapshot listesinden tara
+      const rawSnap = localStorage.getItem('yoklama_students_snapshots');
+      if (rawSnap) {
+        try {
+          const snaps = JSON.parse(rawSnap);
+          if (Array.isArray(snaps)) {
+            snaps.forEach(snap => {
+              if (snap && Array.isArray(snap.students)) {
+                const score = this.calculateStudentDataQualityScore(snap.students);
+                if (score > maxScore) {
+                  maxScore = score;
+                  bestCandidate = snap.students;
+                }
+              }
+            });
+          }
+        } catch (e) {}
+      }
+
+      // 2. Yedek anahtarlarından tara
+      backupKeys.forEach(key => {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const score = this.calculateStudentDataQualityScore(parsed);
+            if (score > maxScore) {
+              maxScore = score;
+              bestCandidate = parsed;
+            }
+          }
+        } catch (e) {}
+      });
+
+      if (!bestCandidate || bestCandidate.length === 0) {
+        return { success: false, message: 'Cihazda kurtarılacak kayıtlı öğrenci yedeği bulunamadı.' };
+      }
+
+      // Mevcut liste ile güvenli birleştirme (Non-destructive merge)
+      const current = this.getAllStudents();
+      const currentMap = new Map();
+      current.forEach(s => { if (s && s.id) currentMap.set(s.id, s); });
+
+      const restoredList = [];
+      bestCandidate.forEach(candSt => {
+        if (!candSt || !candSt.id) return;
+        const curr = currentMap.get(candSt.id);
+        if (curr) {
+          const merged = { ...curr, ...candSt };
+          ['fatherPhone', 'motherPhone', 'parentPhone', 'fatherName', 'motherName', 'yatakhane', 'password', 'school', 'notes', 'note'].forEach(f => {
+            const val = (candSt[f] || '').toString().trim();
+            if (val) merged[f] = candSt[f];
+          });
+          restoredList.push(merged);
+          currentMap.delete(candSt.id);
+        } else {
+          restoredList.push(candSt);
+        }
+      });
+      currentMap.forEach(s => restoredList.push(s));
+
+      this.saveStudents(restoredList);
+      return { 
+        success: true, 
+        count: restoredList.length, 
+        message: `${restoredList.length} öğrencinin telefon numaraları, odaları ve şifreleri yedekten başarıyla kurtarıldı!` 
+      };
+    } catch (err) {
+      console.error('restoreStudentsFromBackup error:', err);
+      return { success: false, message: 'Geri yükleme hatası: ' + err.message };
+    }
+  }
+
+  calculateStudentDataQualityScore(studentsList) {
+    if (!Array.isArray(studentsList)) return 0;
+    let score = 0;
+    studentsList.forEach(s => {
+      if (!s) return;
+      if (s.fatherPhone && s.fatherPhone.trim()) score += 10;
+      if (s.motherPhone && s.motherPhone.trim()) score += 10;
+      if (s.parentPhone && s.parentPhone.trim()) score += 10;
+      if (s.fatherName && s.fatherName.trim()) score += 5;
+      if (s.motherName && s.motherName.trim()) score += 5;
+      if (s.yatakhane && s.yatakhane.trim() && s.yatakhane !== '-') score += 3;
+      if (s.password && s.password !== '123') score += 5;
+      if (s.notes && s.notes.trim()) score += 5;
+    });
+    return score;
+  }
+
+  exportStudentsJSON() {
+    try {
+      const students = this.getAllStudents();
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(students, null, 2));
+      const a = document.createElement('a');
+      a.setAttribute("href", dataStr);
+      a.setAttribute("download", `oay_ogrenci_listesi_${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return true;
+    } catch (e) {
+      console.error('exportStudentsJSON error:', e);
+      return false;
+    }
+  }
+
+  importStudentsJSON(jsonString) {
+    try {
+      const parsed = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+      const list = Array.isArray(parsed) ? parsed : (parsed && parsed.students && Array.isArray(parsed.students) ? parsed.students : null);
+      if (!list || list.length === 0) {
+        return { success: false, message: 'Geçersiz dosya formatı veya boş öğrenci listesi.' };
+      }
+      this.saveStudents(list);
+      return { success: true, count: list.length, message: `${list.length} öğrenci başarıyla içe aktarıldı ve kaydedildi!` };
+    } catch (e) {
+      return { success: false, message: 'Dosya okuma hatası: ' + e.message };
+    }
   }
 
   addStudent(student) {
@@ -2776,14 +3015,14 @@ class DataStore {
     });
 
     const prayerStats = {
-      Sabah: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
-      Öğle: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
-      İkindi: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
-      Akşam: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
-      Yatsı: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 }
+      Sabah: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, OKULDA: 0, GIRILMEDI: 0 },
+      Öğle: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, OKULDA: 0, GIRILMEDI: 0 },
+      İkindi: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, OKULDA: 0, GIRILMEDI: 0 },
+      Akşam: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, OKULDA: 0, GIRILMEDI: 0 },
+      Yatsı: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, OKULDA: 0, GIRILMEDI: 0 }
     };
 
-    const overallCounts = { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 };
+    const overallCounts = { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, OKULDA: 0, GIRILMEDI: 0 };
     const totalSlots = dates.length * 5;
 
     // Kurs genelinde hangi vakitlerin yoklaması yapılmış tespit et
@@ -2794,6 +3033,8 @@ class DataStore {
       if (takenPrayersMap[a.date]) takenPrayersMap[a.date][p] = true;
     });
 
+    const studentObj = this.getStudentById(studentId);
+
     dates.forEach(d => {
       prayers.forEach(p => {
         const wasTaken = takenPrayersMap[d] && takenPrayersMap[d][p];
@@ -2803,14 +3044,28 @@ class DataStore {
           return;
         }
 
-        const st = grid[d][p] || 'VAR'; // Yoklama yapıldı ve devamsız yazılmadıysa mevcut (VAR)
-        prayerStats[p][st] = (prayerStats[p][st] || 0) + 1;
-        overallCounts[st] = (overallCounts[st] || 0) + 1;
+        let st = grid[d] ? grid[d][p] : null;
+        if (!st && this.isStudentAtSchoolSlot(studentObj, d, p)) {
+          st = 'OKULDA';
+          if (grid[d]) grid[d][p] = 'OKULDA';
+        }
+        if (!st) st = 'VAR'; // Yoklama yapıldı ve devamsız yazılmadıysa mevcut (VAR)
+
+        if (prayerStats[p][st] !== undefined) {
+          prayerStats[p][st]++;
+        } else {
+          prayerStats[p][st] = 1;
+        }
+        if (overallCounts[st] !== undefined) {
+          overallCounts[st]++;
+        } else {
+          overallCounts[st] = 1;
+        }
       });
     });
 
     const attendedCount = overallCounts.VAR + overallCounts.TAKKESIZ + overallCounts.GEC + (overallCounts.GEC_TAKKESIZ || 0);
-    const evaluatedTotal = totalSlots - overallCounts.IZINLI - overallCounts.GIRILMEDI;
+    const evaluatedTotal = totalSlots - (overallCounts.IZINLI || 0) - (overallCounts.OKULDA || 0) - (overallCounts.GIRILMEDI || 0);
     const attendanceRate = evaluatedTotal > 0 
       ? Math.min(100, Math.max(0, Math.round((attendedCount / evaluatedTotal) * 100))) 
       : 100;
@@ -2843,7 +3098,7 @@ class DataStore {
       sumRate += r.attendanceRate;
       prayers.forEach(p => {
         const pAttended = r.prayerStats[p].VAR + r.prayerStats[p].TAKKESIZ + r.prayerStats[p].GEC + (r.prayerStats[p].GEC_TAKKESIZ || 0);
-        const pEval = dates.length - r.prayerStats[p].IZINLI - r.prayerStats[p].GIRILMEDI;
+        const pEval = dates.length - (r.prayerStats[p].IZINLI || 0) - (r.prayerStats[p].OKULDA || 0) - (r.prayerStats[p].GIRILMEDI || 0);
         prayerTotals[p].attended += pAttended;
         prayerTotals[p].total += Math.max(0, pEval);
       });
@@ -3157,20 +3412,37 @@ class DataStore {
     if (c === 'G' || c === 'GEC') return 'GEC';
     if (c === 'T' || c === 'TAKKESIZ') return 'TAKKESIZ';
     if (c === 'I' || c === 'IZINLI') return 'IZINLI';
+    if (c === 'OKULDA' || c === 'OKUL' || c === 'O') return 'OKULDA';
     if (c === 'IYI' || c === 'ORTA' || c === 'KOTU' || c === 'GELDI' || c === 'GELMEDI') return c;
     return 'VAR';
+  }
+
+  // Hafta içi Öğle ve İkindi vakitlerinde MEB okulunda olan sınıfların kontrolü (5-A, 5-B, 6-A, 6-B ve 7-A)
+  isStudentAtSchoolSlot(studentOrClass, dateStr, prayerTime) {
+    if (prayerTime !== 'Öğle' && prayerTime !== 'İkindi') return false;
+    const dayName = this.getDayName(dateStr);
+    if (dayName === 'Cumartesi' || dayName === 'Pazar') return false; // Hafta sonu kurstalar
+
+    let c = typeof studentOrClass === 'string' ? studentOrClass : (studentOrClass?.className || '');
+    c = (c || '').trim().toUpperCase();
+
+    // 5-A, 5-B, 6-A, 6-B (veya 5. Sınıf, 6. Sınıf) ile 7-A
+    if (c.startsWith('5') || c.startsWith('6')) return true;
+    if (c === '7-A' || c === '7/A' || c === '7 A') return true;
+
+    return false;
   }
 
   getStudentStats(studentId) {
     const records = this.getAttendanceForStudent(studentId);
     const totalDays = records.length;
-    const counts = { VAR: 0, YOK: 0, GEC: 0, TAKKESIZ: 0, GEC_TAKKESIZ: 0, IZINLI: 0 };
+    const counts = { VAR: 0, YOK: 0, GEC: 0, TAKKESIZ: 0, GEC_TAKKESIZ: 0, IZINLI: 0, OKULDA: 0 };
     records.forEach(r => {
       const st = this.normalizeStatusCode(r.status);
       counts[st] = (counts[st] || 0) + 1;
     });
     const presentCount = (counts.VAR || 0) + (counts.TAKKESIZ || 0) + (counts.GEC || 0) + (counts.GEC_TAKKESIZ || 0);
-    const effectiveTotal = totalDays - (counts.IZINLI || 0);
+    const effectiveTotal = totalDays - (counts.IZINLI || 0) - (counts.OKULDA || 0);
     const attendanceRate = effectiveTotal > 0 ? Math.round((presentCount / effectiveTotal) * 100) : 100;
     const perfs = this.getPerformanceForStudent(studentId);
     let avgScore = 0;
@@ -3229,8 +3501,8 @@ class DataStore {
       const dayName = this.getDayName(rec.date);
 
       if (cat === 'namaz') {
-        // Namazda VAR ve İZİNLİ hariç olanlar (YOK, TAKKESIZ, GEC, GEC_TAKKESIZ)
-        if (st !== 'VAR' && st !== 'IZINLI' && st !== 'E' && st !== 'I') {
+        // Namazda VAR, İZİNLİ ve OKULDA hariç olanlar (YOK, TAKKESIZ, GEC, GEC_TAKKESIZ)
+        if (st !== 'VAR' && st !== 'IZINLI' && st !== 'OKULDA' && st !== 'E' && st !== 'I') {
           const pLabel = rec.prayerTime || 'Namaz';
           if (st === 'GEC_TAKKESIZ') {
             // Hem geç kaldı (+30 dk) hem takkesiz (+30 dk) -> 2 kusur, +60 dk ceza
@@ -4044,62 +4316,108 @@ class DataStore {
       }
     });
 
-    let namazPoints = 0;
+    let rawEarnedNamazPoints = 0;
     let varCount = 0;
     let gecCount = 0;
     let takkesizCount = 0;
     let gecTakkesizCount = 0;
     let yokCount = 0;
     let izinliCount = 0;
+    let okuldaCount = 0;
     let fullBonusCount = 0;
+    let studentAccountableSlots = 0;
+    let totalPossibleWeekSlots = 0;
 
     dates.forEach(d => {
       let dayAttendedPrayers = 0;
       let dayHasYok = false;
-      let dayPrayersTakenCount = 0;
+      let dayAccountablePrayersCount = 0;
 
       prayers.forEach(p => {
         const wasTaken = takenPrayersMap[d] && takenPrayersMap[d][p];
         if (!wasTaken) return; // Bu vakit yoklaması henüz alınmamış / kılınmamış
 
-        dayPrayersTakenCount++;
+        totalPossibleWeekSlots++;
 
         // Talebenin bu vakit için kaydı var mı?
-        const st = namazGrid[d] ? namazGrid[d][p] : null;
+        let st = namazGrid[d] ? namazGrid[d][p] : null;
+
+        // Eğer kayıt girilmemişse ama öğrenci hafta içi Öğle/İkindi okul sınıfındaysa -> Otomatik OKULDA
+        if (!st && this.isStudentAtSchoolSlot(student, d, p)) {
+          st = 'OKULDA';
+        }
+
         if (!st) return; // Kaydı olmayan (gelmeyen / pasif) talebeye asla bedava puan verilmez!
 
+        if (st === 'OKULDA') {
+          okuldaCount++;
+          // 3. Model: Okulda olunan vakitler kurstaki sorumlu olunan vakit havuzundan düşülür
+          return;
+        }
+
+        if (st === 'IZINLI') {
+          izinliCount++;
+          return;
+        }
+
+        dayAccountablePrayersCount++;
+        studentAccountableSlots++;
+
         if (st === 'VAR') {
-          namazPoints += 10;
+          rawEarnedNamazPoints += 10;
           varCount++;
           dayAttendedPrayers++;
         } else if (st === 'GEC') {
-          namazPoints += 5;
+          rawEarnedNamazPoints += 5;
           gecCount++;
           dayAttendedPrayers++;
         } else if (st === 'TAKKESIZ') {
-          namazPoints += 5;
+          rawEarnedNamazPoints += 5;
           takkesizCount++;
           dayAttendedPrayers++;
         } else if (st === 'GEC_TAKKESIZ') {
-          namazPoints += 2;
+          rawEarnedNamazPoints += 2;
           gecTakkesizCount++;
           dayAttendedPrayers++;
         } else if (st === 'YOK') {
           yokCount++;
           dayHasYok = true;
-        } else if (st === 'IZINLI') {
-          izinliCount++;
         }
       });
 
-      // Eğer o gün 5 vakit namaz kılınmışsa ve talebe hepsine katılmışsa -> +15 Günlük Tam İbadet Bonusu
-      if (dayPrayersTakenCount === 5 && dayAttendedPrayers === 5 && !dayHasYok) {
+      // Günlük Tam İbadet Bonusu (+15 Puan):
+      // Talebenin o gün kursta sorumlu olduğu vakitlerin hepsine katılmış olması ve hiç 'YOK' devamsızlığı olmaması gerekir.
+      if (dayAccountablePrayersCount > 0 && dayAccountablePrayersCount === dayAttendedPrayers && !dayHasYok) {
         fullBonusCount++;
       }
     });
 
+    // ========================================================
+    // --- 3. MODEL: ORANSAL (YÜZDELİK) NORMALİZASYON MOTORU ---
+    // ========================================================
+    // Talebenin kurstaki sorumlu olduğu vakitlerdeki başarı oranı (%0 - %100) hesaplanır.
+    // Bu başarı oranı, kurs genelindeki tam vakit ölçeğine (örn: 35 vakit = 350 puan) oranlanır.
+    // Böylece öğrenci kursta ne kadar gayret gösterdiyse hak ettiği puanı adilce alır.
+    const maxPossiblePointsForStudent = studentAccountableSlots * 10;
+    const fullScaleMaxPoints = totalPossibleWeekSlots * 10;
+
+    let normalizedNamazPoints = rawEarnedNamazPoints;
+    let isNormalized = false;
+    let successPercent = 100;
+
+    if (maxPossiblePointsForStudent > 0 && fullScaleMaxPoints > 0) {
+      const ratio = rawEarnedNamazPoints / maxPossiblePointsForStudent;
+      successPercent = Math.round(ratio * 100);
+      if (studentAccountableSlots < totalPossibleWeekSlots) {
+        normalizedNamazPoints = Math.round(ratio * fullScaleMaxPoints);
+        isNormalized = true;
+      } else {
+        normalizedNamazPoints = rawEarnedNamazPoints;
+      }
+    }
+
     const fullBonusPoints = fullBonusCount * 15;
-    const totalNamazPoints = namazPoints + fullBonusPoints;
+    const totalNamazPoints = normalizedNamazPoints + fullBonusPoints;
 
     // 2. Yatak Düzeni Puanı
     // Yatak yoklaması yapılan günleri tespit et
@@ -4256,7 +4574,14 @@ class DataStore {
       totalScore,
       namaz: {
         points: totalNamazPoints,
-        basePoints: namazPoints,
+        basePoints: normalizedNamazPoints,
+        rawEarnedPoints: rawEarnedNamazPoints,
+        maxPossiblePoints: maxPossiblePointsForStudent,
+        accountableSlots: studentAccountableSlots,
+        totalPossibleSlots: totalPossibleWeekSlots,
+        okuldaCount,
+        isNormalized,
+        successPercent,
         varCount,
         gecCount,
         takkesizCount,

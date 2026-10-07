@@ -577,8 +577,9 @@ window.LeaderboardModule = {
                   </div>
                 </td>
                 <td class="p-3 text-center">
-                  <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[11px]">
+                  <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[11px] inline-flex items-center gap-1" ${item.namaz.isNormalized ? `title="Okulda olunan ${item.namaz.okuldaCount} vakit için adil oransal puanlama uygulandı (%${item.namaz.successPercent})"` : ''}>
                     +${item.namaz.points}
+                    ${item.namaz.isNormalized ? '<span class="text-[10px]" title="Adil Oransal Puanlama (3. Model)">🎒</span>' : ''}
                   </span>
                 </td>
                 <td class="p-3 text-center">
@@ -706,9 +707,17 @@ window.LeaderboardModule = {
                 ${item.namaz.izinliCount > 0 ? `
                   <div class="text-teal-600 font-medium">• İzinli: <strong>${item.namaz.izinliCount} vakit</strong> (etkisiz)</div>
                 ` : ''}
+                ${item.namaz.okuldaCount > 0 ? `
+                  <div class="text-sky-700 font-medium">• 🎒 Okulda (Muaf): <strong>${item.namaz.okuldaCount} vakit</strong> (derste)</div>
+                ` : ''}
+                ${item.namaz.isNormalized ? `
+                  <div class="text-[10px] text-sky-900 bg-sky-100/80 p-2 rounded-xl mt-1.5 border border-sky-200 leading-snug">
+                    ⚖️ <strong>Adil Oransal Puanlama (3. Model):</strong> Okul saatleri muaf tutuldu. Kurstaki sorumlu olduğu <strong>${item.namaz.accountableSlots} vakitteki</strong> başarı oranı (<strong>%${item.namaz.successPercent}</strong>), genel tam vakit ölçeğine dengelendi (${item.namaz.rawEarnedPoints} p. &rarr; <strong>${item.namaz.basePoints} p.</strong>).
+                  </div>
+                ` : ''}
                 ${item.namaz.fullBonusCount > 0 ? `
                   <div class="font-black text-emerald-800 pt-1 border-t border-emerald-200">
-                    ⭐ ${item.namaz.fullBonusCount} gün 5 vakit tam ibadet bonusu: <strong>+${item.namaz.fullBonusPoints} puan</strong>
+                    ⭐ ${item.namaz.fullBonusCount} gün tam ibadet bonusu: <strong>+${item.namaz.fullBonusPoints} puan</strong>
                   </div>
                 ` : ''}
               </div>
