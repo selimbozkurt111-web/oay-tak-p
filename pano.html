@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
   <meta name="description" content="Ömer Avniyel Akademi Canlı TV Bilgi ve Duyuru Panosu">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v9.6 - ÖĞRENCİ VERİ GÜVENLİĞİ VE YEDEKTEN KURTARMA KALKANI) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v9.8 - OKUL SAATLERİ ORANSAL PUANLAMA & ADİL YOKLAMA TAM ONARIM) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20261007_v9.6_RESTORE_STUDENT_DATA_PROTECTION';
+      var CURRENT_BUILD = '20261007_v9.8_FAIR_SCHOOL_SCORING_FIX';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -310,15 +310,15 @@
   <div class="fixed bottom-8 right-3 z-40 opacity-60 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-2.5 py-1 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[10px] font-black shadow-lg flex items-center gap-1 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v9.6)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v9.8)</span>
     </button>
   </div>
 
-  <!-- Hadis Veritabanı, Store, Leaderboard ve Kur'an Hatim Modülleri (v9.6) -->
-  <script src="js/hadisler.js?v=9.6"></script>
-  <script src="js/store.js?v=9.6"></script>
-  <script src="js/leaderboard.js?v=9.6"></script>
-  <script src="js/quran-tracker.js?v=9.6"></script>
+  <!-- Hadis Veritabanı, Store, Leaderboard ve Kur'an Hatim Modülleri (v9.8) -->
+  <script src="js/hadisler.js?v=9.8"></script>
+  <script src="js/store.js?v=9.8"></script>
+  <script src="js/leaderboard.js?v=9.8"></script>
+  <script src="js/quran-tracker.js?v=9.8"></script>
 
   <!-- Pano TV Yönetim Motoru (v7.0 - Kesintisiz Kalp Atışı & Donmayan Sayaç) -->
   <script>
@@ -647,6 +647,17 @@
         } catch (e) {}
       },
 
+      getTodayDate() {
+        if (window.Store && typeof window.Store.getTodayDate === 'function') {
+          return window.Store.getTodayDate();
+        }
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      },
+
       updateClock() {
         try {
           const now = new Date();
@@ -763,7 +774,7 @@
         if (!container || !window.Store) return;
 
         try {
-          const data = window.Store.getLeaderboard('haftalik', new Date().toISOString().split('T')[0], 'ALL');
+          const data = window.Store.getLeaderboard('haftalik', this.getTodayDate(), 'ALL');
           const rawRanking = (data && data.ranking) ? data.ranking : [];
           const ranking = rawRanking.filter(r => {
             if (!r || !r.student || !r.student.id) return false;
@@ -1044,7 +1055,7 @@
           return a.label.localeCompare(b.label, 'tr');
         });
 
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = this.getTodayDate();
 
         // Her bir sınıf seviyesinin tüm şubeler (A & B) genelindeki liderini ve takipçisini bul
         const gradeLeaders = sortedGrades.map(g => {
@@ -1515,7 +1526,7 @@
 
       // SLAYT 6: ⚠️ HAFTALIK İNTİZAM & ÇIKIŞ TELAFİ RAPORU
       renderSlidePenalties(container) {
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = this.getTodayDate();
         const res = (window.Store && typeof window.Store.getPanoPenalizedStudents === 'function')
           ? window.Store.getPanoPenalizedStudents(todayStr)
           : { totalPenalizedCount: 0, penalizedStudents: [], totalStudents: 0, onTimeCount: 0 };

@@ -10,7 +10,19 @@
 
 window.LeaderboardModule = {
   period: 'haftalik', // 'haftalik' | 'aylik'
-  targetDate: new Date().toISOString().split('T')[0],
+  getTodayStr() {
+    return (window.Store && typeof window.Store.getTodayDate === 'function')
+      ? window.Store.getTodayDate()
+      : new Date().toLocaleDateString('en-CA');
+  },
+
+  get targetDate() {
+    return this._targetDate || this.getTodayStr();
+  },
+  set targetDate(val) {
+    this._targetDate = val;
+  },
+
   classFilter: 'ALL', // 'ALL' | '5. Sınıf' | '6. Sınıf' | '7. Sınıf' | '8. Sınıf'
   searchQuery: '',
   detailStudentId: null,
@@ -35,7 +47,7 @@ window.LeaderboardModule = {
   },
 
   setToday() {
-    this.targetDate = new Date().toISOString().split('T')[0];
+    this.targetDate = this.getTodayStr();
     this.renderView();
   },
 
@@ -577,8 +589,9 @@ window.LeaderboardModule = {
                   </div>
                 </td>
                 <td class="p-3 text-center">
-                  <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[11px]">
+                  <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[11px] inline-flex items-center gap-1" ${item.namaz.isNormalized ? `title="Okulda olunan ${item.namaz.okuldaCount} vakit için adil oransal puanlama uygulandı (%${item.namaz.successPercent})"` : ''}>
                     +${item.namaz.points}
+                    ${item.namaz.isNormalized ? '<span class="text-[10px]" title="Adil Oransal Puanlama (3. Model)">🎒</span>' : ''}
                   </span>
                 </td>
                 <td class="p-3 text-center">
@@ -700,9 +713,23 @@ window.LeaderboardModule = {
                 <div>• Geç Kaldı: <strong>${item.namaz.gecCount} vakit</strong> (+${item.namaz.gecCount * 5} puan)</div>
                 <div>• Takkesiz Katıldı: <strong>${item.namaz.takkesizCount} vakit</strong> (+${item.namaz.takkesizCount * 5} puan)</div>
                 <div>• Geç + Takkesiz: <strong>${item.namaz.gecTakkesizCount} vakit</strong> (+${item.namaz.gecTakkesizCount * 2} puan)</div>
+                ${item.namaz.yokCount > 0 ? `
+                  <div class="text-rose-600 font-medium">• Kılmadı / Yok: <strong>${item.namaz.yokCount} vakit</strong> (0 puan)</div>
+                ` : ''}
+                ${item.namaz.izinliCount > 0 ? `
+                  <div class="text-teal-600 font-medium">• İzinli: <strong>${item.namaz.izinliCount} vakit</strong> (etkisiz)</div>
+                ` : ''}
+                ${item.namaz.okuldaCount > 0 ? `
+                  <div class="text-sky-700 font-medium">• 🎒 Okulda (Muaf): <strong>${item.namaz.okuldaCount} vakit</strong> (derste)</div>
+                ` : ''}
+                ${item.namaz.isNormalized ? `
+                  <div class="text-[10px] text-sky-900 bg-sky-100/80 p-2 rounded-xl mt-1.5 border border-sky-200 leading-snug">
+                    ⚖️ <strong>Adil Oransal Puanlama (3. Model):</strong> Okul saatleri muaf tutuldu. Kurstaki sorumlu olduğu <strong>${item.namaz.accountableSlots} vakitteki</strong> başarı oranı (<strong>%${item.namaz.successPercent}</strong>), genel tam vakit ölçeğine dengelendi (${item.namaz.rawEarnedPoints} p. &rarr; <strong>${item.namaz.basePoints} p.</strong>).
+                  </div>
+                ` : ''}
                 ${item.namaz.fullBonusCount > 0 ? `
                   <div class="font-black text-emerald-800 pt-1 border-t border-emerald-200">
-                    ⭐ ${item.namaz.fullBonusCount} gün 5 vakit tam ibadet bonusu: <strong>+${item.namaz.fullBonusPoints} puan</strong>
+                    ⭐ ${item.namaz.fullBonusCount} gün tam ibadet bonusu: <strong>+${item.namaz.fullBonusPoints} puan</strong>
                   </div>
                 ` : ''}
               </div>
@@ -730,6 +757,9 @@ window.LeaderboardModule = {
               <div class="text-[11px] text-slate-600 space-y-0.5">
                 <div>• Vaktinde Geldi: <strong>${item.okul.geldiCount} gün</strong> (+${item.okul.geldiCount * 10} puan)</div>
                 <div>• Geç Geldi: <strong>${item.okul.gecCount} gün</strong> (+${item.okul.gecCount * 3} puan)</div>
+                ${item.okul.gelmediCount > 0 ? `
+                  <div class="text-rose-600 font-medium">• Gelmedi: <strong>${item.okul.gelmediCount} gün</strong> (0 puan)</div>
+                ` : ''}
               </div>
             </div>
 
@@ -745,22 +775,34 @@ window.LeaderboardModule = {
               </div>
             </div>
 
-            <!-- 5. Akademi / Takviye Ders Notları -->
+            <!-- 5. Akademi / Takviye Ders Notları & Test Neticeleri -->
             <div class="p-3.5 rounded-2xl border border-sky-200 bg-sky-50/40 space-y-1.5 sm:col-span-2">
               <div class="flex items-center justify-between font-bold text-sky-950">
-                <span class="flex items-center gap-1.5"><span>📚</span> Takviye Ders Başarısı (Akademi)</span>
+                <span class="flex items-center gap-1.5"><span>📚</span> Takviye Ders & Test Başarısı (Akademi)</span>
                 <span class="font-black text-sky-700 text-sm">+${item.akademi.points} Puan</span>
               </div>
               ${item.akademi.scores.length === 0 ? `
-                <div class="text-[11px] text-slate-400">Bu dönemde girilen sınav notu bulunmuyor.</div>
+                <div class="text-[11px] text-slate-400">Bu dönemde girilen sınav veya test notu bulunmuyor.</div>
               ` : `
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1">
-                  ${item.akademi.scores.map(s => `
-                    <div class="p-2 bg-white rounded-xl border border-sky-100 flex items-center justify-between">
-                      <span class="font-bold text-slate-800">${s.subject}:</span>
-                      <span class="px-1.5 py-0.5 rounded bg-sky-100 text-sky-900 font-black">${s.score} / 100</span>
-                    </div>
-                  `).join('')}
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 pt-1">
+                  ${item.akademi.scores.map(s => {
+                    const icon = s.type === 'test' ? '📝' : '📚';
+                    const name = s.title || s.subject || 'Ders Notu';
+                    const earned = s.pointsEarned !== undefined ? s.pointsEarned : Math.round((Number(s.score) || 0) / 3);
+                    return `
+                      <div class="p-2 bg-white rounded-xl border border-sky-100 flex items-center justify-between shadow-2xs">
+                        <div class="truncate mr-2">
+                          <span class="text-xs mr-1">${icon}</span>
+                          <span class="font-bold text-slate-800 text-[11px] truncate">${name}</span>
+                          ${s.date ? `<div class="text-[9px] text-slate-400 font-medium">${s.date}</div>` : ''}
+                        </div>
+                        <div class="text-right flex-shrink-0">
+                          <div class="px-1.5 py-0.5 rounded bg-sky-100 text-sky-900 font-black text-[11px]">${s.score} / 100</div>
+                          <div class="text-[9px] font-bold text-emerald-600 mt-0.5">+${earned} Puan</div>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
                 </div>
               `}
             </div>

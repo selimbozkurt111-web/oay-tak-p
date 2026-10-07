@@ -33,6 +33,7 @@ const STATUS_CONFIG = {
   TAKKESIZ: { code: 'TAKKESIZ', label: 'Takkesiz', short: 'Takkesiz', bg: '#9333ea', border: '#7e22ce', desc: 'Takkesiz katıldı' },
   GEC_TAKKESIZ: { code: 'GEC_TAKKESIZ', label: 'Geç + Takkesiz', short: 'Geç+Tak.', bg: '#9333ea', border: '#7e22ce', desc: 'Hem geç kaldı hem takkesiz katıldı' },
   IZINLI: { code: 'IZINLI', label: 'İzinli', short: 'İzinli', bg: '#0d9488', border: '#0f766e', desc: 'İzinli / Raporlu' },
+  OKULDA: { code: 'OKULDA', label: 'Okulda', short: 'Okul', bg: '#0284c7', border: '#0369a1', desc: 'MEB Okulunda (Ders/Etüt)' },
 
   // Yatak Yoklaması
   IYI: { code: 'IYI', label: 'İyi', short: 'İyi', bg: '#10b981', border: '#059669', desc: 'Yatak ve oda temiz/düzenli' },
@@ -54,6 +55,8 @@ STATUS_CONFIG.GT = STATUS_CONFIG.GEC_TAKKESIZ;
 STATUS_CONFIG.TG = STATUS_CONFIG.GEC_TAKKESIZ;
 STATUS_CONFIG.TAKKESIZ_GEC = STATUS_CONFIG.GEC_TAKKESIZ;
 STATUS_CONFIG.I = STATUS_CONFIG.IZINLI;
+STATUS_CONFIG.O = STATUS_CONFIG.OKULDA;
+STATUS_CONFIG.OKUL = STATUS_CONFIG.OKULDA;
 STATUS_CONFIG.E = STATUS_CONFIG.VAR;
 
 const DEFAULT_SETTINGS = {
@@ -2933,6 +2936,14 @@ class DataStore {
   }
 
   // --- Namaz Haftalık & Aylık Raporlama & Haftanın Talebesi Dönemi ---
+  getTodayDate() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   getWeekRange(dateStr) {
     let parts;
     if (typeof dateStr === 'string' && dateStr.includes('-')) {
@@ -3012,14 +3023,14 @@ class DataStore {
     });
 
     const prayerStats = {
-      Sabah: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
-      Öğle: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
-      İkindi: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
-      Akşam: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 },
-      Yatsı: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 }
+      Sabah: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, OKULDA: 0, GIRILMEDI: 0 },
+      Öğle: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, OKULDA: 0, GIRILMEDI: 0 },
+      İkindi: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, OKULDA: 0, GIRILMEDI: 0 },
+      Akşam: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, OKULDA: 0, GIRILMEDI: 0 },
+      Yatsı: { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, OKULDA: 0, GIRILMEDI: 0 }
     };
 
-    const overallCounts = { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, GIRILMEDI: 0 };
+    const overallCounts = { VAR: 0, TAKKESIZ: 0, GEC: 0, GEC_TAKKESIZ: 0, YOK: 0, IZINLI: 0, OKULDA: 0, GIRILMEDI: 0 };
     const totalSlots = dates.length * 5;
 
     // Kurs genelinde hangi vakitlerin yoklaması yapılmış tespit et
@@ -3030,6 +3041,8 @@ class DataStore {
       if (takenPrayersMap[a.date]) takenPrayersMap[a.date][p] = true;
     });
 
+    const studentObj = this.getStudentById(studentId);
+
     dates.forEach(d => {
       prayers.forEach(p => {
         const wasTaken = takenPrayersMap[d] && takenPrayersMap[d][p];
@@ -3039,14 +3052,29 @@ class DataStore {
           return;
         }
 
-        const st = grid[d][p] || 'VAR'; // Yoklama yapıldı ve devamsız yazılmadıysa mevcut (VAR)
-        prayerStats[p][st] = (prayerStats[p][st] || 0) + 1;
-        overallCounts[st] = (overallCounts[st] || 0) + 1;
+        let st = grid[d] ? grid[d][p] : null;
+        if (this.isStudentAtSchoolSlot(studentObj, d, p) && st !== 'VAR') {
+          st = 'OKULDA';
+          if (!grid[d]) grid[d] = {};
+          grid[d][p] = 'OKULDA';
+        }
+        if (!st) st = 'VAR'; // Yoklama yapıldı ve devamsız yazılmadıysa mevcut (VAR)
+
+        if (prayerStats[p][st] !== undefined) {
+          prayerStats[p][st]++;
+        } else {
+          prayerStats[p][st] = 1;
+        }
+        if (overallCounts[st] !== undefined) {
+          overallCounts[st]++;
+        } else {
+          overallCounts[st] = 1;
+        }
       });
     });
 
     const attendedCount = overallCounts.VAR + overallCounts.TAKKESIZ + overallCounts.GEC + (overallCounts.GEC_TAKKESIZ || 0);
-    const evaluatedTotal = totalSlots - overallCounts.IZINLI - overallCounts.GIRILMEDI;
+    const evaluatedTotal = totalSlots - (overallCounts.IZINLI || 0) - (overallCounts.OKULDA || 0) - (overallCounts.GIRILMEDI || 0);
     const attendanceRate = evaluatedTotal > 0 
       ? Math.min(100, Math.max(0, Math.round((attendedCount / evaluatedTotal) * 100))) 
       : 100;
@@ -3079,7 +3107,7 @@ class DataStore {
       sumRate += r.attendanceRate;
       prayers.forEach(p => {
         const pAttended = r.prayerStats[p].VAR + r.prayerStats[p].TAKKESIZ + r.prayerStats[p].GEC + (r.prayerStats[p].GEC_TAKKESIZ || 0);
-        const pEval = dates.length - r.prayerStats[p].IZINLI - r.prayerStats[p].GIRILMEDI;
+        const pEval = dates.length - (r.prayerStats[p].IZINLI || 0) - (r.prayerStats[p].OKULDA || 0) - (r.prayerStats[p].GIRILMEDI || 0);
         prayerTotals[p].attended += pAttended;
         prayerTotals[p].total += Math.max(0, pEval);
       });
@@ -3393,20 +3421,51 @@ class DataStore {
     if (c === 'G' || c === 'GEC') return 'GEC';
     if (c === 'T' || c === 'TAKKESIZ') return 'TAKKESIZ';
     if (c === 'I' || c === 'IZINLI') return 'IZINLI';
+    if (c === 'OKULDA' || c === 'OKUL' || c === 'O') return 'OKULDA';
     if (c === 'IYI' || c === 'ORTA' || c === 'KOTU' || c === 'GELDI' || c === 'GELMEDI') return c;
     return 'VAR';
   }
 
+  // Hafta içi Öğle ve İkindi vakitlerinde MEB okulunda olan sınıfların kontrolü (5-A, 5-B, 6-A, 6-B ve 7-A)
+  isStudentAtSchoolSlot(studentOrClass, dateStr, prayerTime) {
+    if (prayerTime !== 'Öğle' && prayerTime !== 'İkindi') return false;
+    const dayName = this.getDayName(dateStr);
+    if (dayName === 'Cumartesi' || dayName === 'Pazar') return false; // Hafta sonu kurstalar
+
+    let c = '';
+    if (typeof studentOrClass === 'object' && studentOrClass) {
+      c = studentOrClass.className || '';
+    } else if (typeof studentOrClass === 'string' && studentOrClass) {
+      const stObj = this.getStudentById ? this.getStudentById(studentOrClass) : null;
+      if (stObj && stObj.className) {
+        c = stObj.className;
+      } else {
+        c = studentOrClass;
+      }
+    }
+    c = (c || '').trim().toUpperCase();
+
+    // 5-A, 5-B, 6-A, 6-B (veya 5. Sınıf, 6. Sınıf) ile 7-A
+    if (c.startsWith('5') || c.startsWith('6')) return true;
+    if (c === '7-A' || c === '7/A' || c === '7 A' || c.startsWith('7-A') || c.startsWith('7/A')) return true;
+
+    return false;
+  }
+
   getStudentStats(studentId) {
+    const student = this.getStudentById(studentId);
     const records = this.getAttendanceForStudent(studentId);
     const totalDays = records.length;
-    const counts = { VAR: 0, YOK: 0, GEC: 0, TAKKESIZ: 0, GEC_TAKKESIZ: 0, IZINLI: 0 };
+    const counts = { VAR: 0, YOK: 0, GEC: 0, TAKKESIZ: 0, GEC_TAKKESIZ: 0, IZINLI: 0, OKULDA: 0 };
     records.forEach(r => {
-      const st = this.normalizeStatusCode(r.status);
+      let st = this.normalizeStatusCode(r.status);
+      if (this.isStudentAtSchoolSlot(student, r.date, r.prayerTime) && st !== 'VAR') {
+        st = 'OKULDA';
+      }
       counts[st] = (counts[st] || 0) + 1;
     });
     const presentCount = (counts.VAR || 0) + (counts.TAKKESIZ || 0) + (counts.GEC || 0) + (counts.GEC_TAKKESIZ || 0);
-    const effectiveTotal = totalDays - (counts.IZINLI || 0);
+    const effectiveTotal = totalDays - (counts.IZINLI || 0) - (counts.OKULDA || 0);
     const attendanceRate = effectiveTotal > 0 ? Math.round((presentCount / effectiveTotal) * 100) : 100;
     const perfs = this.getPerformanceForStudent(studentId);
     let avgScore = 0;
@@ -3465,8 +3524,12 @@ class DataStore {
       const dayName = this.getDayName(rec.date);
 
       if (cat === 'namaz') {
-        // Namazda VAR ve İZİNLİ hariç olanlar (YOK, TAKKESIZ, GEC, GEC_TAKKESIZ)
-        if (st !== 'VAR' && st !== 'IZINLI' && st !== 'E' && st !== 'I') {
+        // Okul slotundaki vakitler asla ceza / kusur sayılmaz!
+        if (this.isStudentAtSchoolSlot(studentId, rec.date, rec.prayerTime)) {
+          return;
+        }
+        // Namazda VAR, İZİNLİ ve OKULDA hariç olanlar (YOK, TAKKESIZ, GEC, GEC_TAKKESIZ)
+        if (st !== 'VAR' && st !== 'IZINLI' && st !== 'OKULDA' && st !== 'E' && st !== 'I') {
           const pLabel = rec.prayerTime || 'Namaz';
           if (st === 'GEC_TAKKESIZ') {
             // Hem geç kaldı (+30 dk) hem takkesiz (+30 dk) -> 2 kusur, +60 dk ceza
@@ -4280,62 +4343,108 @@ class DataStore {
       }
     });
 
-    let namazPoints = 0;
+    let rawEarnedNamazPoints = 0;
     let varCount = 0;
     let gecCount = 0;
     let takkesizCount = 0;
     let gecTakkesizCount = 0;
     let yokCount = 0;
     let izinliCount = 0;
+    let okuldaCount = 0;
     let fullBonusCount = 0;
+    let studentAccountableSlots = 0;
+    let totalPossibleWeekSlots = 0;
 
     dates.forEach(d => {
       let dayAttendedPrayers = 0;
       let dayHasYok = false;
-      let dayPrayersTakenCount = 0;
+      let dayAccountablePrayersCount = 0;
 
       prayers.forEach(p => {
         const wasTaken = takenPrayersMap[d] && takenPrayersMap[d][p];
         if (!wasTaken) return; // Bu vakit yoklaması henüz alınmamış / kılınmamış
 
-        dayPrayersTakenCount++;
+        totalPossibleWeekSlots++;
 
         // Talebenin bu vakit için kaydı var mı?
-        const st = namazGrid[d] ? namazGrid[d][p] : null;
+        let st = namazGrid[d] ? namazGrid[d][p] : null;
+
+        // Öğrenci hafta içi Öğle/İkindi okul sınıfındaysa ve camide bizzat 'VAR' yazılmadıysa -> Otomatik OKULDA
+        if (this.isStudentAtSchoolSlot(student, d, p) && st !== 'VAR') {
+          st = 'OKULDA';
+        }
+
         if (!st) return; // Kaydı olmayan (gelmeyen / pasif) talebeye asla bedava puan verilmez!
 
+        if (st === 'OKULDA') {
+          okuldaCount++;
+          // 3. Model: Okulda olunan vakitler kurstaki sorumlu olunan vakit havuzundan düşülür
+          return;
+        }
+
+        if (st === 'IZINLI') {
+          izinliCount++;
+          return;
+        }
+
+        dayAccountablePrayersCount++;
+        studentAccountableSlots++;
+
         if (st === 'VAR') {
-          namazPoints += 10;
+          rawEarnedNamazPoints += 10;
           varCount++;
           dayAttendedPrayers++;
         } else if (st === 'GEC') {
-          namazPoints += 5;
+          rawEarnedNamazPoints += 5;
           gecCount++;
           dayAttendedPrayers++;
         } else if (st === 'TAKKESIZ') {
-          namazPoints += 5;
+          rawEarnedNamazPoints += 5;
           takkesizCount++;
           dayAttendedPrayers++;
         } else if (st === 'GEC_TAKKESIZ') {
-          namazPoints += 2;
+          rawEarnedNamazPoints += 2;
           gecTakkesizCount++;
           dayAttendedPrayers++;
         } else if (st === 'YOK') {
           yokCount++;
           dayHasYok = true;
-        } else if (st === 'IZINLI') {
-          izinliCount++;
         }
       });
 
-      // Eğer o gün 5 vakit namaz kılınmışsa ve talebe hepsine katılmışsa -> +15 Günlük Tam İbadet Bonusu
-      if (dayPrayersTakenCount === 5 && dayAttendedPrayers === 5 && !dayHasYok) {
+      // Günlük Tam İbadet Bonusu (+15 Puan):
+      // Talebenin o gün kursta sorumlu olduğu vakitlerin hepsine katılmış olması ve hiç 'YOK' devamsızlığı olmaması gerekir.
+      if (dayAccountablePrayersCount > 0 && dayAccountablePrayersCount === dayAttendedPrayers && !dayHasYok) {
         fullBonusCount++;
       }
     });
 
+    // ========================================================
+    // --- 3. MODEL: ORANSAL (YÜZDELİK) NORMALİZASYON MOTORU ---
+    // ========================================================
+    // Talebenin kurstaki sorumlu olduğu vakitlerdeki başarı oranı (%0 - %100) hesaplanır.
+    // Bu başarı oranı, kurs genelindeki tam vakit ölçeğine (örn: 35 vakit = 350 puan) oranlanır.
+    // Böylece öğrenci kursta ne kadar gayret gösterdiyse hak ettiği puanı adilce alır.
+    const maxPossiblePointsForStudent = studentAccountableSlots * 10;
+    const fullScaleMaxPoints = totalPossibleWeekSlots * 10;
+
+    let normalizedNamazPoints = rawEarnedNamazPoints;
+    let isNormalized = false;
+    let successPercent = 100;
+
+    if (maxPossiblePointsForStudent > 0 && fullScaleMaxPoints > 0) {
+      const ratio = rawEarnedNamazPoints / maxPossiblePointsForStudent;
+      successPercent = Math.round(ratio * 100);
+      if (studentAccountableSlots < totalPossibleWeekSlots) {
+        normalizedNamazPoints = Math.round(ratio * fullScaleMaxPoints);
+        isNormalized = true;
+      } else {
+        normalizedNamazPoints = rawEarnedNamazPoints;
+      }
+    }
+
     const fullBonusPoints = fullBonusCount * 15;
-    const totalNamazPoints = namazPoints + fullBonusPoints;
+    const totalNamazPoints = normalizedNamazPoints + fullBonusPoints;
 
     // 2. Yatak Düzeni Puanı
     // Yatak yoklaması yapılan günleri tespit et
@@ -4492,7 +4601,14 @@ class DataStore {
       totalScore,
       namaz: {
         points: totalNamazPoints,
-        basePoints: namazPoints,
+        basePoints: normalizedNamazPoints,
+        rawEarnedPoints: rawEarnedNamazPoints,
+        maxPossiblePoints: maxPossiblePointsForStudent,
+        accountableSlots: studentAccountableSlots,
+        totalPossibleSlots: totalPossibleWeekSlots,
+        okuldaCount,
+        isNormalized,
+        successPercent,
         varCount,
         gecCount,
         takkesizCount,
@@ -4533,10 +4649,11 @@ class DataStore {
     };
   }
 
-  getLeaderboard(period = 'haftalik', targetDate = new Date().toISOString().split('T')[0], classFilter = 'ALL') {
+  getLeaderboard(period = 'haftalik', targetDate = null, classFilter = 'ALL') {
+    const target = targetDate || this.getTodayDate();
     const range = period === 'haftalik'
-      ? this.getWeekRange(targetDate)
-      : this.getMonthRange(targetDate.substring(0, 7));
+      ? this.getWeekRange(target)
+      : this.getMonthRange(target.substring(0, 7));
 
     let students = this.getStudents();
     const passiveMap = this.getPassiveStudentIds();
@@ -4624,7 +4741,7 @@ class DataStore {
 
     return {
       period,
-      targetDate,
+      targetDate: target,
       startDate: range.startDate,
       endDate: range.endDate,
       dates: range.dates,
