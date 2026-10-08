@@ -2038,7 +2038,7 @@ class DataStore {
       const nameB = `${(b.firstName || '').trim()} ${(b.lastName || '').trim()}`.trim();
       return nameA.localeCompare(nameB, 'tr', { sensitivity: 'base' });
     });
-  },
+  }
 
   // --- Öğrenci İşlemleri (Aktif & Pasif & Kalıcı Silinme Korumalı) ---
   getAllStudents() {
