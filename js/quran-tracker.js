@@ -19,6 +19,9 @@ window.QuranTrackerModule = {
   selectedClasses: [], // Çoklu şube seçimi (5-A, 5-B vb.)
   searchQuery: '',
   viewMode: 'cards', // 'cards' | 'table' | 'groups'
+  sortMode: 'rank', // 'rank' (Liderlik) | 'class' (Sınıf & No) | 'name' (İsim A-Z)
+  orderedStudentIds: null, // Sabit liste sıralama hafızası: Yazma ve kaydetme sırasında liste kaymasını %100 önler
+  _forceReorder: false,
   editingStudentId: null,
   tempPage: 1,
   tempHatim: 0,
@@ -59,17 +62,20 @@ window.QuranTrackerModule = {
 
   setGroup(grp) {
     this.selectedGroup = grp;
+    this.orderedStudentIds = null;
     this.renderView();
   },
 
   setLevel(lvl) {
     this.selectedLevel = lvl;
+    this.orderedStudentIds = null;
     this.renderView();
   },
 
   setClass(cls) {
     this.selectedClass = cls;
     this.selectedClasses = [];
+    this.orderedStudentIds = null;
     this.renderView();
   },
 
@@ -83,18 +89,36 @@ window.QuranTrackerModule = {
       this.selectedClasses.push(className.trim());
     }
     this.selectedClass = 'ALL';
+    this.orderedStudentIds = null;
     this.renderView();
   },
 
   clearClasses() {
     this.selectedClasses = [];
     this.selectedClass = 'ALL';
+    this.orderedStudentIds = null;
     this.renderView();
   },
 
   setViewMode(mode) {
     this.viewMode = mode;
     this.renderView();
+  },
+
+  setSortMode(mode) {
+    this.sortMode = mode;
+    this.orderedStudentIds = null;
+    this._forceReorder = true;
+    this.renderView();
+  },
+
+  reorderList() {
+    this.orderedStudentIds = null;
+    this._forceReorder = true;
+    this.renderView();
+    if (window.App && typeof window.App.showToast === 'function') {
+      window.App.showToast('Liste sıralaması güncel sayfalara göre yenilendi.', 'info');
+    }
   },
 
   // Kullanıcı sayfayı değiştirdiğinde OTOMATİK KAYIT YAPMAZ, taslağa (pendingChanges) alır
@@ -193,8 +217,13 @@ window.QuranTrackerModule = {
 
     this.pendingChanges = {};
 
+    // Kullanıcının "yazma kaydetme bitmeden liste sıralaması değismesin" talebi doğrultusunda:
+    // Tüm kayıt işlemi tamamlandığında sıralamayı yeni kaydedilen sayfalara göre güncelleriz:
+    this.orderedStudentIds = null;
+    this._forceReorder = true;
+
     if (window.App && typeof window.App.showToast === 'function') {
-      window.App.showToast(`💾 ${savedCount} talebenin Kur'an sayfası başarıyla kaydedildi!`, 'success');
+      window.App.showToast(`💾 ${savedCount} talebenin Kur'an sayfası kaydedildi ve liste yeni sıralamaya göre güncellendi!`, 'success');
     }
 
     if (completedHatimStudentId) {
@@ -555,6 +584,7 @@ window.QuranTrackerModule = {
       const isPending = !!pending;
 
       const stats = window.Store.calculateQuranStats(effectivePage, effectiveHatim);
+      const savedStats = window.Store.calculateQuranStats(rec.currentPage || 1, rec.hatimCount || 0);
       const curG = (rec && rec.diniGrup) ? rec.diniGrup.trim() : '';
       const hoca = (s.dahiliHoca || '').trim();
       const resolvedG = (curG && curG !== 'Genel' && !curG.startsWith('Seviye')) ? curG : (hoca || 'Genel');
@@ -562,6 +592,7 @@ window.QuranTrackerModule = {
         student: s,
         record: rec,
         stats,
+        savedStats,
         diniGrup: resolvedG,
         isPending,
         effectivePage,
@@ -603,13 +634,42 @@ window.QuranTrackerModule = {
       });
     }
 
-    // Sıralama: En çok okuyan en üstte
-    filtered.sort((a, b) => {
-      if (b.stats.totalLifetimePages !== a.stats.totalLifetimePages) {
-        return b.stats.totalLifetimePages - a.stats.totalLifetimePages;
-      }
-      return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
-    });
+    // Sıralama Yönetimi (Kullanıcı Talebi: Yazma ve kaydetme bitmeden liste sırası ASLA değişmez)
+    // Sıralama daima kaydedilmiş verilere (savedStats) göre belirlenir ve yazma sürecinde sabit tutulur.
+    const shouldRecalculateOrder = !this.orderedStudentIds || this._forceReorder;
+    if (shouldRecalculateOrder) {
+      filtered.sort((a, b) => {
+        if (this.sortMode === 'name') {
+          return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
+        }
+        if (this.sortMode === 'class') {
+          const cA = a.student.className || '';
+          const cB = b.student.className || '';
+          if (cA !== cB) return cA.localeCompare(cB, 'tr', { numeric: true });
+          const noA = parseInt(a.student.studentNo, 10) || 0;
+          const noB = parseInt(b.student.studentNo, 10) || 0;
+          if (noA !== noB) return noA - noB;
+          return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
+        }
+        // Varsayılan: Liderlik Sırası (Kayıtlı sayfaya göre en çok okuyan en üstte)
+        if (b.savedStats.totalLifetimePages !== a.savedStats.totalLifetimePages) {
+          return b.savedStats.totalLifetimePages - a.savedStats.totalLifetimePages;
+        }
+        return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
+      });
+      // Sabit liste sıralama hafızasını kaydet
+      this.orderedStudentIds = filtered.map(item => item.student.id);
+      this._forceReorder = false;
+    } else {
+      // Yazma ve kaydetme sırasında sıralama %100 SABİTTİR. Hiçbir talebe yer değiştirmez!
+      const orderMap = new Map();
+      this.orderedStudentIds.forEach((id, idx) => orderMap.set(id, idx));
+      filtered.sort((a, b) => {
+        const idxA = orderMap.has(a.student.id) ? orderMap.get(a.student.id) : 999999;
+        const idxB = orderMap.has(b.student.id) ? orderMap.get(b.student.id) : 999999;
+        return idxA - idxB;
+      });
+    }
 
     // İstatistikler
     const totalStudentsInView = filtered.length;
@@ -668,9 +728,25 @@ window.QuranTrackerModule = {
                     👥 Dini Ders Grupları
                   </button>
                 </div>
+
+                <!-- SIRALAMA MODU SEÇİCİ -->
+                <div class="inline-flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200 shadow-inner">
+                  <span class="text-[10px] font-black text-slate-500 uppercase px-1.5">Sırala:</span>
+                  <select onchange="window.QuranTrackerModule.setSortMode(this.value)"
+                    class="py-1 px-2.5 rounded-xl text-xs font-black bg-white border border-slate-200 text-slate-800 focus:outline-none cursor-pointer">
+                    <option value="rank" ${this.sortMode === 'rank' ? 'selected' : ''}>🏆 Liderlik (En Çok Okuyan)</option>
+                    <option value="class" ${this.sortMode === 'class' ? 'selected' : ''}>🏫 Sınıf ve No Sırası</option>
+                    <option value="name" ${this.sortMode === 'name' ? 'selected' : ''}>🔤 İsim Sırası (A-Z)</option>
+                  </select>
+                  <button type="button" onclick="window.QuranTrackerModule.reorderList()"
+                    class="p-1 px-2 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1"
+                    title="Listeyi son kayıtlara göre yeniden sırala">
+                    <span>🔄</span> <span class="hidden sm:inline text-[10px]">Sıralamayı Güncelle</span>
+                  </button>
+                </div>
               </div>
               <p class="text-xs text-slate-500">
-                Talebelerimizin kaldığı sayfayı giriniz veya + butonlarını kullanınız. Değişiklikler otomatik kaydedilmez; "Kaydet" butonu ile onaylanarak işlenir.
+                Talebelerimizin kaldığı sayfayı giriniz veya + butonlarını kullanınız. Yazma ve kaydetme işlemi tamamlanana kadar liste sıralaması sabit kalır, talebelerin yeri kaymaz.
               </p>
             </div>
 
@@ -841,7 +917,7 @@ window.QuranTrackerModule = {
               <div class="w-full sm:w-64 relative">
                 <input type="text" placeholder="Talebe adı, hoca, no ara..." value="${this.searchQuery}"
                   class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
-                  oninput="window.QuranTrackerModule.searchQuery = this.value.toLowerCase().trim(); window.QuranTrackerModule.renderView();">
+                  oninput="window.QuranTrackerModule.searchQuery = this.value.toLowerCase().trim(); window.QuranTrackerModule.orderedStudentIds = null; window.QuranTrackerModule.renderView();">
                 <span class="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
               </div>
             </div>
@@ -932,8 +1008,8 @@ window.QuranTrackerModule = {
           const st = item.stats;
           const rec = item.record;
           const rank = idx + 1;
-          const isTop3 = rank <= 3;
-          const medal = rank === 1 ? '🥇' : (rank === 2 ? '🥈' : (rank === 3 ? '🥉' : ''));
+          const isTop3 = (this.sortMode === 'rank') && (rank <= 3);
+          const medal = (this.sortMode === 'rank') ? (rank === 1 ? '🥇' : (rank === 2 ? '🥈' : (rank === 3 ? '🥉' : ''))) : '';
           const isPending = !!item.isPending;
           const savedPage = item.savedPage || 1;
 
@@ -1113,14 +1189,15 @@ window.QuranTrackerModule = {
                 const s = item.student;
                 const st = item.stats;
                 const rank = idx + 1;
-                const isTop3 = rank <= 3;
+                const isTop3 = (this.sortMode === 'rank') && (rank <= 3);
+                const medal = (this.sortMode === 'rank') ? (rank === 1 ? '🥇' : (rank === 2 ? '🥈' : (rank === 3 ? '🥉' : rank))) : rank;
                 const isPending = !!item.isPending;
                 const savedPage = item.savedPage || 1;
 
                 return `
                   <tr class="${isPending ? 'bg-amber-50/80 hover:bg-amber-100/80 border-l-4 border-amber-500' : 'hover:bg-slate-50'} transition cursor-pointer" onclick="window.QuranTrackerModule.openEditModal('${s.id}')">
                     <td class="py-3 px-3 text-center font-bold ${isTop3 ? 'text-amber-600 font-black' : 'text-slate-400'}">
-                      ${rank === 1 ? '🥇' : (rank === 2 ? '🥈' : (rank === 3 ? '🥉' : rank))}
+                      ${medal}
                     </td>
                     <td class="py-3 px-3 font-black text-slate-900">
                       <div>${s.firstName} ${s.lastName}</div>
