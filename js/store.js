@@ -100,7 +100,7 @@ const PERMANENTLY_DELETED_STUDENTS = {
   nos: new Set([515, 516, 601, 606, 607, 608, 609, 701, 704, 705, 716, 803, 804, 812, 817])
 };
 
-// 51 Öğrencinin Eksiksiz Veritabanı (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B)
+// 52 Öğrencinin Eksiksiz Veritabanı (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B)
 const SEED_STUDENTS = [
   // 5-A SINIFI (Yasin Ekinci Grubu - 8 Talebe)
   { id: "std_502", studentNo: "502", firstName: "ARDA YUSUF", lastName: "SAYGI", className: "5-A", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "YASİN EKİNCİ", dahiliHoca: "YASİN EKİNCİ", yatakhane: "Oda 101", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SAYGI2026", password: "123" },
@@ -158,7 +158,7 @@ const SEED_STUDENTS = [
   { id: "std_808", studentNo: "808", firstName: "MUHAMMED KERİM", lastName: "BAYBURT", className: "8-A", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "BAYBURT2026", password: "123" },
   { id: "std_811", studentNo: "811", firstName: "EMİR SALİH", lastName: "DOĞAN", className: "8-A", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "DOGAN2026", password: "123" },
 
-  // 8-B SINIFI (Tunahan Taşkın Grubu - 9 Talebe)
+  // 8-B SINIFI (Tunahan Taşkın Grubu - 10 Talebe)
   { id: "std_801", studentNo: "801", firstName: "MEHMET YAKUP", lastName: "ÇEDİKÇİ", className: "8-B", school: "AYHAN ŞAHENK", seviye: "Seviye 1", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CEDIKCI2026", password: "123" },
   { id: "std_805", studentNo: "805", firstName: "AHMET EMRE", lastName: "AKYOL", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "AKYOL2026", password: "123" },
   { id: "std_816", studentNo: "816", firstName: "YUSUF", lastName: "ULUSOY", className: "8-B", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 404", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ULUSOY2026", password: "123" },
@@ -167,7 +167,8 @@ const SEED_STUDENTS = [
   { id: "std_821", studentNo: "821", firstName: "İSA MERT", lastName: "KARABULUT", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KARABULUT2026", password: "123" },
   { id: "std_807", studentNo: "807", firstName: "SAMET ENES", lastName: "ACAR", className: "8-B", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ACAR2026", password: "123" },
   { id: "std_813", studentNo: "813", firstName: "ALPEREN", lastName: "UYGUN", className: "8-B", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "UYGUN2026", password: "123" },
-  { id: "std_818", studentNo: "818", firstName: "SONER", lastName: "ERCİVAN", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ERCIVAN2026", password: "123" }
+  { id: "std_818", studentNo: "818", firstName: "SONER", lastName: "ERCİVAN", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ERCIVAN2026", password: "123" },
+  { id: "std_830", studentNo: "830", firstName: "MUHAMMED", lastName: "CHOLAK", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CHOLAK2026", password: "123" }
 ];
 
 class DataStore {
@@ -190,6 +191,8 @@ class DataStore {
     this.autoSyncStaffAndClassTeachers();
     // Dini ders grupları ve Dahili Hoca senkronizasyonunu otomatik sağla
     this.autoSyncDahiliHocalarAndQuran();
+    // Muhammed Cholak (No: 830, 8-B Sınıfı, Tunahan Taşkın Grubu) hoca atamasını ve kütük kaydını garantiye al
+    this.autoSyncMuhammedCholak();
     // Pasiflik temizliği: Pasif sicilini yerel hafızada temizle (Buluta gereksiz yükleme yapmaz)
     try {
       localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
@@ -354,8 +357,8 @@ class DataStore {
       const updatedList = filteredList.map(s => {
         if (!s) return s;
         const currentClass = (s.className || '').trim();
-        // Zaten 5-A, 5-B gibi şube formatındaysa koru
-        if (/^[5-8]-[AB]/i.test(currentClass)) return s;
+        // Zaten bir şube veya özel sınıf adı tanımlanmışsa kullanıcının belirlediği sınıfı KORU
+        if (currentClass && !currentClass.includes('. Sınıf')) return s;
 
         let newClass = currentClass;
         const no = parseInt(s.studentNo, 10);
@@ -439,152 +442,9 @@ class DataStore {
   }
 
   // --- 8. Sınıf Kesin Kütük Onarıcısı (8-A: Yavuz Selim Seven [9], 8-B: Tunahan Taşkın [9] - Tam 18 Talebe) ---
-  forceRepair8thGradeClasses(forceCloudPush = true) {
-    // 8. Sınıf kütük onarma kullanıcının talebiyle tamamen kaldırıldı
+  forceRepair8thGradeClasses(forceCloudPush = false) {
+    // Sınıf ve kontenjan kısıtlamaları tamamen kaldırıldı; kullanıcı dilediği talebeyi dilediği şubeye ve hocaya özgürce atayabilir.
     return { success: true, count: 0 };
-    try {
-      // 8-A Sınıfı (Yavuz Selim Seven): 9 Talebe
-      const class8ANumbers = new Set([814, 815, 822, 806, 819, 820, 802, 808, 811]);
-      const class8AIds = new Set(['std_814', 'std_815', 'std_822', 'std_806', 'std_819', 'std_820', 'std_802', 'std_808', 'std_811']);
-
-      // 8-B Sınıfı (Tunahan Taşkın): 9 Talebe
-      const class8BNumbers = new Set([801, 805, 816, 810, 809, 821, 807, 813, 818]);
-      const class8BIds = new Set(['std_801', 'std_805', 'std_816', 'std_810', 'std_809', 'std_821', 'std_807', 'std_813', 'std_818']);
-
-      // Listeden çıkarılan 4 yabancı/fazlalık öğrenci
-      const removed8thGradeIds = new Set(['std_803', 'std_804', 'std_812', 'std_817']);
-      const removed8thGradeNos = new Set([803, 804, 812, 817]);
-
-      // 1. Silinenler Sicili'ne (Tombstone) kaydet
-      const deletedMap = this.getDeletedStudentIds();
-      let deletedMapChanged = false;
-      removed8thGradeIds.forEach(id => {
-        if (!deletedMap[id] || !deletedMap[id].isDeleted) {
-          deletedMap[id] = { isDeleted: true, deletedAt: new Date().toISOString() };
-          deletedMapChanged = true;
-        }
-      });
-      if (deletedMapChanged) {
-        this.saveDeletedStudentIds(deletedMap);
-      }
-
-      // 2. Pasif Sicili: Kullanıcının pasife aldığı talebeleri KORU (asla ezme veya silme)
-      const passiveMap = this.getPassiveStudentIds();
-
-      // 3. Öğrenci Listesini Yükle ve Onar
-      let studentsRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      let students = studentsRaw ? JSON.parse(studentsRaw) : [];
-      if (!Array.isArray(students) || students.length === 0) {
-        students = [...SEED_STUDENTS];
-      }
-
-      const initialCount = students.length;
-      let hasChanges = false;
-      const nowIso = new Date().toISOString();
-
-      // Silinecek 4 kişiyi ve ada göre eşleşen fazlalıkları çıkar
-      students = students.filter(s => {
-        if (!s) return false;
-        const no = parseInt(s.studentNo, 10);
-        const sid = (s.id || '').trim();
-        const fullName = `${s.firstName || ''} ${s.lastName || ''}`.toUpperCase();
-
-        if (removed8thGradeIds.has(sid) || removed8thGradeNos.has(no)) {
-          hasChanges = true;
-          return false;
-        }
-        if (fullName.includes('CHOLAK') || fullName.includes('UZTURK') || fullName.includes('ŞENGÜL') || fullName.includes('HASTÜRK')) {
-          hasChanges = true;
-          return false;
-        }
-        return true;
-      });
-
-      // Kalan 18 talebeyi harfiyen doğru sınıfa ve hocaya ata (pasiflikleri koru)
-      students = students.map(s => {
-        if (!s) return s;
-        const no = parseInt(s.studentNo, 10);
-        const sid = (s.id || '').trim();
-        const fullName = `${s.firstName || ''} ${s.lastName || ''}`.toUpperCase();
-
-        let targetClass = null;
-        let targetTeacher = null;
-
-        if (class8ANumbers.has(no) || class8AIds.has(sid)) {
-          targetClass = '8-A';
-          targetTeacher = 'YAVUZ SELİM SEVEN';
-        } else if (class8BNumbers.has(no) || class8BIds.has(sid)) {
-          targetClass = '8-B';
-          targetTeacher = 'TUNAHAN TAŞKIN';
-        } else if (no >= 800 && no < 900) {
-          if (fullName.includes('RUÇHAN') || fullName.includes('SEMİH') || fullName.includes('POLAT') || fullName.includes('ŞABAN') || fullName.includes('YİĞİT EMİR') || fullName.includes('CİHAN') || fullName.includes('BAYBURT') || (fullName.includes('EMİR SALİH') && fullName.includes('DOĞAN'))) {
-            targetClass = '8-A';
-            targetTeacher = 'YAVUZ SELİM SEVEN';
-          } else if (fullName.includes('ÇEDİKÇİ') || fullName.includes('AKYOL') || fullName.includes('ULUSOY') || fullName.includes('HUSSAIN') || fullName.includes('HUSAİN') || fullName.includes('YAZICI') || fullName.includes('KARABULUT') || fullName.includes('ACAR') || fullName.includes('UYGUN') || fullName.includes('ERCİVAN')) {
-            targetClass = '8-B';
-            targetTeacher = 'TUNAHAN TAŞKIN';
-          }
-        }
-
-        if (targetClass && targetTeacher) {
-          const needsFix = s.className !== targetClass || s.etutHocasi !== targetTeacher;
-          if (needsFix) {
-            hasChanges = true;
-            this.markStudentLocallyEdited(s.id, ['className', 'etutHocasi']);
-            return {
-              ...s,
-              className: targetClass,
-              etutHocasi: targetTeacher,
-              updatedAt: nowIso
-            };
-          }
-        }
-        return s;
-      });
-
-      // Eksik 8. sınıf öğrencisi kalmışsa SEED_STUDENTS'ten ekle
-      const existingIds = new Set(students.map(s => s.id));
-      SEED_STUDENTS.forEach(seed => {
-        const sNo = parseInt(seed.studentNo, 10);
-        if ((class8ANumbers.has(sNo) || class8BNumbers.has(sNo)) && !existingIds.has(seed.id)) {
-          const isPass = this.isStudentPassive(seed.id);
-          students.push({
-            ...seed,
-            isPassive: isPass,
-            status: isPass ? 'passive' : 'active',
-            updatedAt: nowIso
-          });
-          this.markStudentLocallyEdited(seed.id, ['className', 'etutHocasi']);
-          hasChanges = true;
-        }
-      });
-
-      if (hasChanges || students.length !== initialCount || forceCloudPush) {
-        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-        this._lastStudentEditTime = Date.now();
-        this._lastStudentPushTime = Date.now();
-
-        if (this.isCloudEnabled()) {
-          this.syncToCloud('kurs_data/students', students);
-          this.syncToCloud('kurs_data/deleted_student_ids', deletedMap);
-          this.syncToCloud('kurs_data/passive_student_ids', passiveMap);
-
-          const baseUrl = this.getFirebaseUrl();
-          if (baseUrl) {
-            removed8thGradeIds.forEach(delId => {
-              try {
-                fetch(`${baseUrl}/kurs_data/students/${delId}.json`, { method: 'DELETE' }).catch(() => {});
-              } catch (e) {}
-            });
-          }
-        }
-        window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
-      }
-      return { success: true, count: students.length };
-    } catch (err) {
-      console.warn('[forceRepair8thGradeClasses] Hata:', err);
-      return { success: false, error: err.message };
-    }
   }
 
   // 8-A ve 8-B Etüt Hocası ve Personel Rol Güncellemesi (8-A: Yavuz Selim Seven, 8-B: Tunahan Taşkın)
@@ -707,6 +567,105 @@ class DataStore {
       }
     } catch (e) {
       console.warn('[autoSyncDahiliHocalarAndQuran] Hata:', e);
+    }
+  }
+
+  // Muhammed Cholak (No: 830, 8-B Sınıfı, Tunahan Taşkın Grubu) Otomatik Garanti Motoru
+  autoSyncMuhammedCholak() {
+    try {
+      const studentId = 'std_830';
+      const studentNo = '830';
+      const nowIso = new Date().toISOString();
+
+      // 1. Silinenler Sicilinde (Tombstone) varsa kalıcı olarak temizle
+      const deletedMap = this.getDeletedStudentIds();
+      let delChanged = false;
+      if (deletedMap[studentId]) {
+        delete deletedMap[studentId];
+        delChanged = true;
+      }
+      if (delChanged) {
+        this.saveDeletedStudentIds(deletedMap);
+      }
+
+      // 2. Öğrenci listesini (yoklama_students) kontrol et
+      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      let students = raw ? JSON.parse(raw) : null;
+      if (!Array.isArray(students) || students.length === 0) {
+        students = [...SEED_STUDENTS];
+      }
+
+      let existing = students.find(s => s && (
+        s.id === studentId || 
+        (s.studentNo && s.studentNo.toString().trim() === studentNo) ||
+        ((s.firstName || '').trim().toUpperCase() === 'MUHAMMED' && (s.lastName || '').trim().toUpperCase() === 'CHOLAK')
+      ));
+
+      let studentsChanged = false;
+
+      if (!existing) {
+        // Yeni öğrenci olarak 8-B listesine ekle
+        const newStudent = {
+          id: studentId,
+          studentNo: studentNo,
+          firstName: 'MUHAMMED',
+          lastName: 'CHOLAK',
+          className: '8-B',
+          school: 'KAZIM ÖZALP',
+          seviye: 'Seviye 2',
+          etutHocasi: 'TUNAHAN TAŞKIN',
+          dahiliHoca: 'TUNAHAN TAŞKIN',
+          yatakhane: 'Oda 405',
+          fatherName: '',
+          fatherPhone: '',
+          motherName: '',
+          motherPhone: '',
+          familyCode: 'CHOLAK2026',
+          password: '123',
+          isPassive: false,
+          status: 'active',
+          updatedAt: nowIso
+        };
+        students.push(newStudent);
+        studentsChanged = true;
+      } else {
+        // Mevcut kaydı varsa kullanıcının belirlediği sınıf ve hocayı ASLA ezme, sadece eksik alanları tamamla
+        let updated = false;
+        if (!existing.className) { existing.className = '8-B'; updated = true; }
+        if (!existing.etutHocasi) { existing.etutHocasi = 'TUNAHAN TAŞKIN'; updated = true; }
+        if (!existing.dahiliHoca || existing.dahiliHoca === '-' || existing.dahiliHoca === 'Genel') {
+          existing.dahiliHoca = 'TUNAHAN TAŞKIN';
+          updated = true;
+        }
+        if (existing.isPassive === true || existing.status !== 'active') {
+          existing.isPassive = false;
+          existing.status = 'active';
+          updated = true;
+        }
+        if (!existing.familyCode) { existing.familyCode = 'CHOLAK2026'; updated = true; }
+        if (!existing.password) { existing.password = '123'; updated = true; }
+        if (updated) {
+          existing.updatedAt = nowIso;
+          studentsChanged = true;
+        }
+      }
+
+      if (studentsChanged) {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+        this.markStudentLocallyEdited(studentId, ['className', 'etutHocasi', 'dahiliHoca']);
+        try {
+          localStorage.setItem('yoklama_students_backup_v1', JSON.stringify(students));
+          localStorage.setItem('yoklama_students_backup_last', JSON.stringify(students));
+        } catch (e) {}
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/students', students);
+        }
+        try {
+          window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
+        } catch (e) {}
+      }
+    } catch (err) {
+      console.warn('[autoSyncMuhammedCholak] Hata:', err);
     }
   }
 
@@ -1115,18 +1074,6 @@ class DataStore {
             }
           }
 
-          // 8. Sınıf Kesin Dağılım Koruması (Buluttan eski 8-A / 8-B şubeleri gelse bile doğru hoca ve şube korunur)
-          const no8 = parseInt(mergedSt.studentNo, 10);
-          const c8ANos = [814, 815, 822, 806, 819, 820, 802, 808, 811];
-          const c8BNos = [801, 805, 816, 810, 809, 821, 807, 813, 818];
-          if (c8ANos.includes(no8)) {
-            mergedSt.className = '8-A';
-            mergedSt.etutHocasi = 'YAVUZ SELİM SEVEN';
-          } else if (c8BNos.includes(no8)) {
-            mergedSt.className = '8-B';
-            mergedSt.etutHocasi = 'TUNAHAN TAŞKIN';
-          }
-
           return mergedSt;
         }
 
@@ -1141,18 +1088,6 @@ class DataStore {
         if (!curDahiliSingle || curDahiliSingle === 'Genel' || curDahiliSingle.startsWith('Seviye')) {
           const seed = SEED_STUDENTS.find(s => s.id === singleSt.id || s.studentNo === singleSt.studentNo);
           if (seed && seed.dahiliHoca) singleSt.dahiliHoca = seed.dahiliHoca;
-        }
-
-        // 8. Sınıf Kesin Dağılım Koruması (Tekil bulut öğrencisi için)
-        const no8s = parseInt(singleSt.studentNo, 10);
-        const c8ANos = [814, 815, 822, 806, 819, 820, 802, 808, 811];
-        const c8BNos = [801, 805, 816, 810, 809, 821, 807, 813, 818];
-        if (c8ANos.includes(no8s)) {
-          singleSt.className = '8-A';
-          singleSt.etutHocasi = 'YAVUZ SELİM SEVEN';
-        } else if (c8BNos.includes(no8s)) {
-          singleSt.className = '8-B';
-          singleSt.etutHocasi = 'TUNAHAN TAŞKIN';
         }
 
         return singleSt;
@@ -2756,13 +2691,21 @@ class DataStore {
       if (!st) return false;
       const sEtut = (st.etutHocasi || '').trim().toUpperCase();
       const normEtut = this.normalizeSearchKey(sEtut);
+      const sDahili = (st.dahiliHoca || '').trim().toUpperCase();
+      const normDahili = this.normalizeSearchKey(sDahili);
       const sClass = (st.className || '').trim().toUpperCase();
 
-      // 1. İsim eşleşmesi (etutHocasi)
-      if (normEtut && normStaffName && (normEtut === normStaffName || normEtut.includes(normStaffName) || normStaffName.includes(normEtut))) {
+      // 1. İsim eşleşmesi (etutHocasi veya dahiliHoca)
+      if (normStaffName && (normEtut === normStaffName || normEtut.includes(normStaffName) || normStaffName.includes(normEtut))) {
+        return true;
+      }
+      if (normStaffName && (normDahili === normStaffName || normDahili.includes(normStaffName) || normStaffName.includes(normDahili))) {
         return true;
       }
       if (staffName && sEtut && (sEtut === staffName || sEtut.includes(staffName) || staffName.includes(sEtut))) {
+        return true;
+      }
+      if (staffName && sDahili && (sDahili === staffName || sDahili.includes(staffName) || staffName.includes(sDahili))) {
         return true;
       }
 
@@ -2791,12 +2734,20 @@ class DataStore {
 
     const sEtut = (student.etutHocasi || '').trim().toUpperCase();
     const normEtut = this.normalizeSearchKey(sEtut);
+    const sDahili = (student.dahiliHoca || '').trim().toUpperCase();
+    const normDahili = this.normalizeSearchKey(sDahili);
     const sClass = (student.className || '').trim().toUpperCase();
 
-    if (normEtut && normStaffName && (normEtut === normStaffName || normEtut.includes(normStaffName) || normStaffName.includes(normEtut))) {
+    if (normStaffName && (normEtut === normStaffName || normEtut.includes(normStaffName) || normStaffName.includes(normEtut))) {
+      return true;
+    }
+    if (normStaffName && (normDahili === normStaffName || normDahili.includes(normStaffName) || normStaffName.includes(normDahili))) {
       return true;
     }
     if (staffName && sEtut && (sEtut === staffName || sEtut.includes(staffName) || staffName.includes(sEtut))) {
+      return true;
+    }
+    if (staffName && sDahili && (sDahili === staffName || sDahili.includes(staffName) || staffName.includes(sDahili))) {
       return true;
     }
     if (sClass && staffRole && staffRole.includes(sClass)) {
@@ -2936,6 +2887,14 @@ class DataStore {
   }
 
   // --- Namaz Haftalık & Aylık Raporlama & Haftanın Talebesi Dönemi ---
+  getTodayDate() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   getWeekRange(dateStr) {
     let parts;
     if (typeof dateStr === 'string' && dateStr.includes('-')) {
@@ -3045,9 +3004,10 @@ class DataStore {
         }
 
         let st = grid[d] ? grid[d][p] : null;
-        if (!st && this.isStudentAtSchoolSlot(studentObj, d, p)) {
+        if (this.isStudentAtSchoolSlot(studentObj, d, p) && st !== 'VAR') {
           st = 'OKULDA';
-          if (grid[d]) grid[d][p] = 'OKULDA';
+          if (!grid[d]) grid[d] = {};
+          grid[d][p] = 'OKULDA';
         }
         if (!st) st = 'VAR'; // Yoklama yapıldı ve devamsız yazılmadıysa mevcut (VAR)
 
@@ -3423,22 +3383,36 @@ class DataStore {
     const dayName = this.getDayName(dateStr);
     if (dayName === 'Cumartesi' || dayName === 'Pazar') return false; // Hafta sonu kurstalar
 
-    let c = typeof studentOrClass === 'string' ? studentOrClass : (studentOrClass?.className || '');
+    let c = '';
+    if (typeof studentOrClass === 'object' && studentOrClass) {
+      c = studentOrClass.className || '';
+    } else if (typeof studentOrClass === 'string' && studentOrClass) {
+      const stObj = this.getStudentById ? this.getStudentById(studentOrClass) : null;
+      if (stObj && stObj.className) {
+        c = stObj.className;
+      } else {
+        c = studentOrClass;
+      }
+    }
     c = (c || '').trim().toUpperCase();
 
     // 5-A, 5-B, 6-A, 6-B (veya 5. Sınıf, 6. Sınıf) ile 7-A
     if (c.startsWith('5') || c.startsWith('6')) return true;
-    if (c === '7-A' || c === '7/A' || c === '7 A') return true;
+    if (c === '7-A' || c === '7/A' || c === '7 A' || c.startsWith('7-A') || c.startsWith('7/A')) return true;
 
     return false;
   }
 
   getStudentStats(studentId) {
+    const student = this.getStudentById(studentId);
     const records = this.getAttendanceForStudent(studentId);
     const totalDays = records.length;
     const counts = { VAR: 0, YOK: 0, GEC: 0, TAKKESIZ: 0, GEC_TAKKESIZ: 0, IZINLI: 0, OKULDA: 0 };
     records.forEach(r => {
-      const st = this.normalizeStatusCode(r.status);
+      let st = this.normalizeStatusCode(r.status);
+      if (this.isStudentAtSchoolSlot(student, r.date, r.prayerTime) && st !== 'VAR') {
+        st = 'OKULDA';
+      }
       counts[st] = (counts[st] || 0) + 1;
     });
     const presentCount = (counts.VAR || 0) + (counts.TAKKESIZ || 0) + (counts.GEC || 0) + (counts.GEC_TAKKESIZ || 0);
@@ -3501,6 +3475,10 @@ class DataStore {
       const dayName = this.getDayName(rec.date);
 
       if (cat === 'namaz') {
+        // Okul slotundaki vakitler asla ceza / kusur sayılmaz!
+        if (this.isStudentAtSchoolSlot(studentId, rec.date, rec.prayerTime)) {
+          return;
+        }
         // Namazda VAR, İZİNLİ ve OKULDA hariç olanlar (YOK, TAKKESIZ, GEC, GEC_TAKKESIZ)
         if (st !== 'VAR' && st !== 'IZINLI' && st !== 'OKULDA' && st !== 'E' && st !== 'I') {
           const pLabel = rec.prayerTime || 'Namaz';
@@ -4342,8 +4320,8 @@ class DataStore {
         // Talebenin bu vakit için kaydı var mı?
         let st = namazGrid[d] ? namazGrid[d][p] : null;
 
-        // Eğer kayıt girilmemişse ama öğrenci hafta içi Öğle/İkindi okul sınıfındaysa -> Otomatik OKULDA
-        if (!st && this.isStudentAtSchoolSlot(student, d, p)) {
+        // Öğrenci hafta içi Öğle/İkindi okul sınıfındaysa ve camide bizzat 'VAR' yazılmadıysa -> Otomatik OKULDA
+        if (this.isStudentAtSchoolSlot(student, d, p) && st !== 'VAR') {
           st = 'OKULDA';
         }
 
@@ -4622,10 +4600,11 @@ class DataStore {
     };
   }
 
-  getLeaderboard(period = 'haftalik', targetDate = new Date().toISOString().split('T')[0], classFilter = 'ALL') {
+  getLeaderboard(period = 'haftalik', targetDate = null, classFilter = 'ALL') {
+    const target = targetDate || this.getTodayDate();
     const range = period === 'haftalik'
-      ? this.getWeekRange(targetDate)
-      : this.getMonthRange(targetDate.substring(0, 7));
+      ? this.getWeekRange(target)
+      : this.getMonthRange(target.substring(0, 7));
 
     let students = this.getStudents();
     const passiveMap = this.getPassiveStudentIds();
@@ -4713,7 +4692,7 @@ class DataStore {
 
     return {
       period,
-      targetDate,
+      targetDate: target,
       startDate: range.startDate,
       endDate: range.endDate,
       dates: range.dates,

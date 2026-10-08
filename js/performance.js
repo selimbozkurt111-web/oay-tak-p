@@ -112,6 +112,31 @@ window.AkademiModule = {
       { id: '8-B|TUNAHAN TAŞKIN', label: '8-B • Tunahan Taşkın', grade: '8', branch: '8-B', hoca: 'TUNAHAN TAŞKIN' }
     ];
 
+    // Talebelerden dinamik olarak oluşan tüm sınıf ve hoca eşleşmelerini de ekle (Sınırsız)
+    const knownKeys = new Set(list.map(e => e.id));
+    if (window.Store && typeof window.Store.getStudents === 'function') {
+      const allStudents = window.Store.getStudents(false);
+      allStudents.forEach(st => {
+        if (!st || !st.className) return;
+        const branch = st.className.trim();
+        const hoca = (st.etutHocasi || '').trim();
+        if (!hoca) return;
+        const key = `${branch}|${hoca}`;
+        if (!knownKeys.has(key)) {
+          knownKeys.add(key);
+          const gradeMatch = branch.match(/^(\d+)/);
+          const grade = gradeMatch ? gradeMatch[1] : '8';
+          list.push({
+            id: key,
+            label: `${branch} • ${hoca}`,
+            grade: grade,
+            branch: branch,
+            hoca: hoca
+          });
+        }
+      });
+    }
+
     if (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && !window.Store.isCurrentUserAdmin()) {
       const myStudents = window.Store.getStudentsForActiveUser();
       const myClasses = new Set(myStudents.map(s => (s.className || '').trim().toUpperCase()));
