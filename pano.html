@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
   <meta name="description" content="Ömer Avniyel Akademi Canlı TV Bilgi ve Duyuru Panosu">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v10.1 - SINIF VE ŞUBE SIRALI SİSTEM) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v10.2 - 10 SANİYE ULTRA AKICI TV PANOSU) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20261008_v10.1_SINIF_SUBE_SIRALAMA';
+      var CURRENT_BUILD = '20261008_v10.2_AKICI_PANO_10SN';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -73,32 +73,38 @@
       max-height: 100vh;
       overflow: hidden;
     }
-    @keyframes pulse-glow {
-      0%, 100% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.4); }
-      50% { box-shadow: 0 0 45px rgba(245, 158, 11, 0.8); }
-    }
+    /* Donmayı ve GPU kasmasını önleyen hafif altın ışıltısı */
     .gold-glow {
-      animation: pulse-glow 3s infinite ease-in-out;
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.45);
+      will-change: transform;
     }
+    /* Donmayan, GPU hızlandırmalı kayan bant */
     @keyframes marquee {
-      0% { transform: translateX(100%); }
-      100% { transform: translateX(-100%); }
+      0% { transform: translate3d(100%, 0, 0); }
+      100% { transform: translate3d(-100%, 0, 0); }
     }
     .animate-marquee {
       display: inline-block;
       white-space: nowrap;
       animation: marquee 35s linear infinite;
+      will-change: transform;
     }
     .animate-marquee:hover {
       animation-play-state: paused;
     }
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      20%, 60% { transform: translateX(-6px); }
-      40%, 80% { transform: translateX(6px); }
+    /* İlerleme çubuğu pürüzsüz akış */
+    #slide-progress {
+      will-change: width;
+      transition: width 0.1s linear;
     }
-    .animate-shake {
-      animation: shake 0.4s ease-in-out;
+    /* Slayt geçiş yumuşatma */
+    .slide-fade {
+      animation: panoFadeIn 0.25s ease-out;
+      will-change: opacity, transform;
+    }
+    @keyframes panoFadeIn {
+      from { opacity: 0.7; transform: scale(0.995); }
+      to { opacity: 1; transform: scale(1); }
     }
     /* Scrollbar Gizleme Yardımcısı */
     .no-scrollbar::-webkit-scrollbar {
@@ -110,7 +116,7 @@
     }
     /* TV Ekranına Otomatik Sığdırma Kapsayıcısı */
     .tv-slide-wrapper {
-      transition: transform 0.25s ease-out;
+      transition: transform 0.2s ease-out;
       will-change: transform;
     }
   </style>
@@ -232,10 +238,10 @@
         <span>📖</span> <span>Hatim Takibi</span>
       </button>
 
-      <!-- Otomatik Geçiş Geri Sayım Rozeti -->
+      <!-- Otomatik Geçiş Geri Sayım Rozeti (10 Saniye) -->
       <div id="slide-timer-badge" class="ml-1 px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-black font-mono flex items-center gap-1" title="Sonraki slayta kalan süre">
-        <span id="slide-timer-icon" class="animate-spin text-[9px]">⏳</span>
-        <span id="slide-timer-text">15s</span>
+        <span id="slide-timer-icon" class="text-[9px]">⏱️</span>
+        <span id="slide-timer-text">10s</span>
       </div>
     </div>
 
@@ -281,9 +287,9 @@
     </div>
   </header>
 
-  <!-- İlerleme Çubuğu (Progress Bar for next slide) -->
-  <div class="w-full h-1 bg-slate-900 relative flex-shrink-0">
-    <div id="slide-progress" class="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 transition-all duration-300 w-0 shadow-sm shadow-amber-500/50"></div>
+  <!-- İlerleme Çubuğu (Progress Bar for next slide - 10 Saniye Ultra Akıcı) -->
+  <div class="w-full h-1 bg-slate-900 relative flex-shrink-0 overflow-hidden">
+    <div id="slide-progress" class="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300 w-0 shadow-sm shadow-amber-500/30"></div>
   </div>
 
   <!-- 2. ANA SLAYT İÇERİK ALANI (SIFIR TAŞMA & TV UYUMLU) -->
@@ -310,30 +316,63 @@
   <div class="fixed bottom-8 right-3 z-40 opacity-60 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-2.5 py-1 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[10px] font-black shadow-lg flex items-center gap-1 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v10.1)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v10.2)</span>
     </button>
   </div>
 
-  <!-- Hadis Veritabanı, Store, Leaderboard ve Kur'an Hatim Modülleri (v10.1) -->
-  <script src="js/hadisler.js?v=10.1"></script>
-  <script src="js/store.js?v=10.1"></script>
-  <script src="js/leaderboard.js?v=10.1"></script>
-  <script src="js/quran-tracker.js?v=10.1"></script>
+  <!-- Hadis Veritabanı, Store, Leaderboard ve Kur'an Hatim Modülleri (v10.2) -->
+  <script src="js/hadisler.js?v=10.2"></script>
+  <script src="js/store.js?v=10.2"></script>
+  <script src="js/leaderboard.js?v=10.2"></script>
+  <script src="js/quran-tracker.js?v=10.2"></script>
 
   <!-- Pano TV Yönetim Motoru (v7.0 - Kesintisiz Kalp Atışı & Donmayan Sayaç) -->
   <script>
     const PanoApp = {
       currentSlide: 0,
       totalSlides: 8,
-      slideSecondsDuration: 15, // 15 saniye (TV / Kiosk için ideal süre)
-      slideSecondsLeft: 15,     // Kalan saniye sayacı
+      slideSecondsDuration: 10, // Slaytlar arası tam 10 saniye (Kullanıcı talebi)
+      slideSecondsLeft: 10,     // Kalan saniye sayacı
       slideStartTime: Date.now(),
       lastHeartbeatTick: Date.now(),
       pausedAt: null,
-      heartbeatTimer: null,     // 1 saniyelik kesintisiz ana kalp atışı
+      timerLoopInterval: null,  // 100ms ultra akıcı, asla donmayan sayaç döngüsü
       watchdogTimer: null,      // Donmayı önleyen bekçi zamanlayıcı
       isPaused: false,
       syncInterval: null,
+      _cachedLeaderboard: null,
+      _cachedLeaderboardTime: 0,
+      _lastDisplaySec: -1,
+      _refreshDebounce: null,
+
+      // --- Liderlik Verisi Hafıza Önbelleği (Gereksiz CPU tüketimi ve donmaları %100 önler) ---
+      getLeaderboardData() {
+        const now = Date.now();
+        if (this._cachedLeaderboard && (now - this._cachedLeaderboardTime < 25000)) {
+          return this._cachedLeaderboard;
+        }
+        if (window.Store && typeof window.Store.getLeaderboard === 'function') {
+          const data = window.Store.getLeaderboard('haftalik', this.getTodayDate(), 'ALL');
+          const rawRanking = (data && data.ranking) ? data.ranking : [];
+          const ranking = rawRanking.filter(r => {
+            if (!r || !r.student || !r.student.id) return false;
+            if (window.Store && typeof window.Store.isStudentPassive === 'function' && window.Store.isStudentPassive(r.student.id)) return false;
+            if (r.student.isPassive === true || r.student.isPassive === 'true') return false;
+            const st = (r.student.status || '').toString().toLowerCase().trim();
+            if (st === 'passive' || st === 'pasif') return false;
+            return true;
+          });
+          ranking.forEach((item, idx) => { item.rank = idx + 1; });
+          this._cachedLeaderboard = { data, ranking };
+          this._cachedLeaderboardTime = now;
+          return this._cachedLeaderboard;
+        }
+        return { data: {}, ranking: [] };
+      },
+
+      invalidateCache() {
+        this._cachedLeaderboard = null;
+      },
 
       // --- TV Koridor Panosu: Doğrudan ve Kesintisiz Açılış ---
       isAuthorized() {
@@ -395,7 +434,7 @@
       },
 
       lockPano() {
-        if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+        if (this.timerLoopInterval) clearInterval(this.timerLoopInterval);
         if (this.syncInterval) clearInterval(this.syncInterval);
 
         const lockEl = document.getElementById('pano-lock-screen');
@@ -417,11 +456,8 @@
         // Klavye / TV Kumandası kısayolları (TV'de Enter tuşu OK olduğundan pause YAPMAZ!)
         window.addEventListener('keydown', (e) => {
           if (!this.isAuthorized()) return;
-          // Sağ Ok veya PageDown -> Sonraki slayt
           if (e.key === 'ArrowRight' || e.key === 'PageDown') this.nextSlide();
-          // Sol Ok veya PageUp -> Önceki slayt
           if (e.key === 'ArrowLeft' || e.key === 'PageUp') this.prevSlide();
-          // Yalnızca Boşluk tuşu (Space) veya TV Media tuşları duraklatır
           if (e.key === ' ' || e.key === 'MediaPlayPause') {
             e.preventDefault();
             this.togglePause();
@@ -434,23 +470,27 @@
           this.fitSlideToScreen();
         });
 
-        // TV / Ekran uyku modundan çıktığında veya sekme öne geldiğinde kalp atışını anında canlandır
+        // TV / Ekran uyku modundan çıktığında sayaç motorunu anında canlandır
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden && this.isAuthorized()) {
             this.slideStartTime = Date.now();
-            this.startHeartbeat();
+            this.startTimerLoop();
           }
         });
 
-        // Canlı veritabanı senkronizasyonunda ve anlık veri değişimlerinde slaytı anında tazele
+        // Canlı veritabanı senkronizasyonunda akıcı ve gecikmesiz güncelleme (Throttled)
         const refreshCurrent = () => {
           if (this.isAuthorized()) {
-            try { 
-              if (window.Store && typeof window.Store.getDailyDuties === 'function') {
-                this.updateTickerWithDuties(window.Store.getDailyDuties());
-              }
-              this.renderCurrentSlide(); 
-            } catch (e) {}
+            this.invalidateCache();
+            if (this._refreshDebounce) clearTimeout(this._refreshDebounce);
+            this._refreshDebounce = setTimeout(() => {
+              try { 
+                if (window.Store && typeof window.Store.getDailyDuties === 'function') {
+                  this.updateTickerWithDuties(window.Store.getDailyDuties());
+                }
+                this.renderCurrentSlide(); 
+              } catch (e) {}
+            }, 300);
           }
         };
         window.addEventListener('cloud-sync-done', refreshCurrent);
@@ -498,9 +538,10 @@
         this.slideStartTime = Date.now();
         this.slideSecondsLeft = this.slideSecondsDuration;
 
-        // Firebase canlı senkronizasyon (her 30 saniyede bir)
+        // Firebase canlı senkronizasyon (her 45 saniyede bir, sessiz arka plan)
         if (window.Store && window.Store.isCloudEnabled()) {
           window.Store.syncFromCloud().then(() => {
+            this.invalidateCache();
             if (this.isAuthorized()) {
               try { this.renderCurrentSlide(); } catch (e) {}
             }
@@ -510,6 +551,7 @@
             this.syncInterval = setInterval(() => {
               if (!this.isAuthorized()) return;
               window.Store.syncFromCloud().then(() => {
+                this.invalidateCache();
                 const statusEl = document.getElementById('sync-status');
                 if (statusEl) {
                   const now = new Date().toLocaleTimeString('tr-TR');
@@ -519,11 +561,11 @@
                   try { this.renderCurrentSlide(); } catch (e) {}
                 }
               }).catch(() => {});
-            }, 30000);
+            }, 45000);
           }
         }
 
-        // TV Kiosk için her 2 saatte bir temiz tazeleme (Smart TV WebKit bellek şişmesini ve donmasını önler)
+        // TV Kiosk için her 2 saatte bir temiz tazeleme
         if (!this.tvKioskAutoRefreshTimer) {
           this.tvKioskAutoRefreshTimer = setInterval(() => {
             console.log('[TV Kiosk] Periyodik bellek tazeleme...');
@@ -531,20 +573,20 @@
           }, 2 * 60 * 60 * 1000);
         }
 
-        // İlk slaytı aç ve saniye saniye işleyen Kalp Atışı ile Bekçi motorunu başlat
+        // İlk slaytı aç ve kesintisiz 100ms ultra akıcı sayaç motorunu başlat
         this.goToSlide(0);
-        this.startHeartbeat();
+        this.startTimerLoop();
         this.initWatchdog();
       },
 
-      startHeartbeat() {
-        if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+      startTimerLoop() {
+        if (this.timerLoopInterval) clearInterval(this.timerLoopInterval);
         this.slideStartTime = Date.now();
-        this.slideSecondsLeft = this.slideSecondsDuration;
         this.lastHeartbeatTick = Date.now();
+        this._lastDisplaySec = -1;
 
-        // Her saniye çalışan kesintisiz kalp atışı (Smart TV uykuya girip uyansa dahi kaldığı yerden devam eder)
-        this.heartbeatTimer = setInterval(() => {
+        // Her 100ms çalışan donmayan, akıcı sayaç motoru (Smart TV ve Kiosk cihazlarda sıfır takılma)
+        this.timerLoopInterval = setInterval(() => {
           try {
             if (!this.isAuthorized()) return;
             this.lastHeartbeatTick = Date.now();
@@ -565,30 +607,43 @@
               this.pausedAt = null;
             }
 
-            // Duvar saati farkı (Date.now()) ile çalışan asla donmayan sayaç
             const now = Date.now();
-            if (!this.slideStartTime || typeof this.slideStartTime !== 'number') {
-              this.slideStartTime = now;
-            }
-            const elapsed = Math.max(0, Math.floor((now - this.slideStartTime) / 1000));
-            this.slideSecondsLeft = Math.max(0, this.slideSecondsDuration - elapsed);
+            const totalMs = this.slideSecondsDuration * 1000;
+            const elapsedMs = Math.max(0, now - this.slideStartTime);
+            const remainingMs = Math.max(0, totalMs - elapsedMs);
+            const currentSec = Math.max(0, Math.ceil(remainingMs / 1000));
+            this.slideSecondsLeft = currentSec;
 
-            if (this.slideSecondsLeft <= 0 || isNaN(this.slideSecondsLeft)) {
+            // 10 saniye dolduğunda derhal sonraki slayta geç
+            if (elapsedMs >= totalMs) {
               this.slideStartTime = Date.now();
               this.slideSecondsLeft = this.slideSecondsDuration;
               this.nextSlide();
-            } else {
-              this.updateProgressUI(false);
+              return;
             }
-          } catch (heartbeatErr) {
-            console.warn('[Pano Heartbeat Otomatik Kurtarma]:', heartbeatErr);
-            try {
-              this.slideStartTime = Date.now();
-              this.slideSecondsLeft = this.slideSecondsDuration;
-              this.nextSlide();
-            } catch (e) {}
+
+            // İlerleme çubuğu ve saniye sayacını akıcı güncelle
+            const pct = Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100));
+            this.renderProgressBarAndSec(pct, currentSec);
+          } catch (loopErr) {
+            console.warn('[Pano Timer Loop]:', loopErr);
           }
-        }, 1000);
+        }, 100);
+      },
+
+      renderProgressBarAndSec(pct, currentSec) {
+        const progressEl = document.getElementById('slide-progress');
+        if (progressEl) {
+          progressEl.style.width = pct + '%';
+        }
+
+        if (this._lastDisplaySec !== currentSec) {
+          this._lastDisplaySec = currentSec;
+          const timerTextEl = document.getElementById('slide-timer-text');
+          if (timerTextEl) {
+            timerTextEl.textContent = `${currentSec}s`;
+          }
+        }
       },
 
       initWatchdog() {
@@ -597,52 +652,35 @@
           try {
             if (!this.isAuthorized()) return;
             const now = Date.now();
-            // Kalp atışı 4 saniyeden fazla durmuşsa (WebKit interval sleep / throttle) anında uyandır
-            if (this.lastHeartbeatTick && (now - this.lastHeartbeatTick > 4000)) {
-              console.warn('[Pano Watchdog] Kalp atışı uykudan uyandırılıyor...');
-              this.startHeartbeat();
+            // Sayaç 3 saniyeden fazla aksamışsa anında uyandır
+            if (this.lastHeartbeatTick && (now - this.lastHeartbeatTick > 3000)) {
+              console.warn('[Pano Watchdog] Sayaç canlandırılıyor...');
+              this.startTimerLoop();
             }
           } catch (e) {}
-        }, 4000);
+        }, 3000);
       },
 
       updateProgressUI(isPaused = false) {
         try {
-          const progressEl = document.getElementById('slide-progress');
           const badgeEl = document.getElementById('slide-timer-badge');
           const timerTextEl = document.getElementById('slide-timer-text');
           const timerIconEl = document.getElementById('slide-timer-icon');
 
           if (isPaused) {
             if (timerTextEl) timerTextEl.textContent = 'Duraklatıldı';
-            if (timerIconEl) {
-              timerIconEl.textContent = '⏸';
-              timerIconEl.classList.remove('animate-spin');
-            }
+            if (timerIconEl) timerIconEl.textContent = '⏸';
             if (badgeEl) {
-              badgeEl.className = 'ml-2 px-2.5 py-1 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-black font-mono flex items-center gap-1.5';
+              badgeEl.className = 'ml-1 px-2 py-0.5 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[11px] font-black font-mono flex items-center gap-1';
             }
-            return;
-          }
-
-          const duration = (typeof this.slideSecondsDuration === 'number' && this.slideSecondsDuration > 0) ? this.slideSecondsDuration : 15;
-          const left = (typeof this.slideSecondsLeft === 'number' && !isNaN(this.slideSecondsLeft)) ? this.slideSecondsLeft : duration;
-          const elapsed = duration - left;
-          const pct = Math.min(100, Math.max(0, (elapsed / duration) * 100));
-
-          if (progressEl) {
-            progressEl.style.width = pct + '%';
-          }
-
-          if (timerTextEl) {
-            timerTextEl.textContent = `${left}s`;
-          }
-          if (timerIconEl) {
-            timerIconEl.textContent = '⏳';
-            timerIconEl.classList.add('animate-spin');
-          }
-          if (badgeEl) {
-            badgeEl.className = 'ml-2 px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-black font-mono flex items-center gap-1.5';
+          } else {
+            if (timerIconEl) timerIconEl.textContent = '⏱️';
+            if (badgeEl) {
+              badgeEl.className = 'ml-1 px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-black font-mono flex items-center gap-1';
+            }
+            if (timerTextEl) {
+              timerTextEl.textContent = `${this.slideSecondsLeft || this.slideSecondsDuration}s`;
+            }
           }
         } catch (e) {}
       },
@@ -683,19 +721,15 @@
           this.currentSlide = ((index % safeTotal) + safeTotal) % safeTotal;
           this.slideStartTime = Date.now();
           this.slideSecondsLeft = this.slideSecondsDuration;
+          this._lastDisplaySec = -1;
 
           try { this.updateSlideButtons(); } catch (e) {}
+          try { this.renderProgressBarAndSec(0, this.slideSecondsDuration); } catch (e) {}
           try { this.updateProgressUI(this.isPaused); } catch (e) {}
 
-          // Her tam döngüde (1. slayta her dönüşte) bulut verilerini arka planda sessizce tazele
-          if (this.currentSlide === 0 && window.Store && typeof window.Store.syncFromCloud === 'function') {
-            window.Store.syncFromCloud().then(() => {
-              const statusEl = document.getElementById('sync-status');
-              if (statusEl) {
-                const now = new Date();
-                statusEl.textContent = `🟢 Canlı (${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')})`;
-              }
-            }).catch(() => {});
+          // 1. slayta her dönüşte önbelleği sessizce tazele
+          if (this.currentSlide === 0) {
+            this.invalidateCache();
           }
 
           try {
@@ -736,13 +770,13 @@
         if (this.isPaused) {
           if (icon) icon.textContent = '▶';
           if (text) text.textContent = 'Başlat';
-          if (btn) btn.className = 'px-2.5 h-9 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center text-xs font-black gap-1.5 transition shadow-lg cursor-pointer';
+          if (btn) btn.className = 'px-2 h-8 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center text-xs font-black gap-1 transition shadow-lg cursor-pointer';
         } else {
           this.slideStartTime = Date.now();
           this.slideSecondsLeft = this.slideSecondsDuration;
           if (icon) icon.textContent = '⏸';
           if (text) text.textContent = 'Otomatik';
-          if (btn) btn.className = 'px-2.5 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-black gap-1.5 transition cursor-pointer';
+          if (btn) btn.className = 'px-2 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-black gap-1 transition cursor-pointer';
         }
         this.updateProgressUI(this.isPaused);
       },
@@ -774,17 +808,7 @@
         if (!container || !window.Store) return;
 
         try {
-          const data = window.Store.getLeaderboard('haftalik', this.getTodayDate(), 'ALL');
-          const rawRanking = (data && data.ranking) ? data.ranking : [];
-          const ranking = rawRanking.filter(r => {
-            if (!r || !r.student || !r.student.id) return false;
-            if (window.Store && typeof window.Store.isStudentPassive === 'function' && window.Store.isStudentPassive(r.student.id)) return false;
-            if (r.student.isPassive === true || r.student.isPassive === 'true') return false;
-            const st = (r.student.status || '').toString().toLowerCase().trim();
-            if (st === 'passive' || st === 'pasif') return false;
-            return true;
-          });
-          ranking.forEach((item, idx) => { item.rank = idx + 1; });
+          const { data, ranking } = this.getLeaderboardData();
 
           switch (this.currentSlide) {
             case 0:
@@ -831,6 +855,7 @@
           if (!content) return;
 
           content.classList.add('tv-slide-wrapper');
+          content.classList.add('slide-fade');
           content.style.transform = '';
           content.style.transformOrigin = 'center center';
           content.style.width = '100%';
@@ -1055,25 +1080,19 @@
           return a.label.localeCompare(b.label, 'tr');
         });
 
-        const todayStr = this.getTodayDate();
+        const { ranking: allRanking } = this.getLeaderboardData();
 
-        // Her bir sınıf seviyesinin tüm şubeler (A & B) genelindeki liderini ve takipçisini bul
+        // Her bir sınıf seviyesinin tüm şubeler (A & B) genelindeki liderini ve takipçisini anında bul (0ms gecikme)
         const gradeLeaders = sortedGrades.map(g => {
-          const gData = window.Store.getLeaderboard('haftalik', todayStr, `${g.digit}. Sınıf`);
-          const rawRanking = (gData && gData.ranking) ? gData.ranking : [];
-          const ranking = rawRanking.filter(r => {
-            if (!r || !r.student || !r.student.id) return false;
-            if (window.Store && typeof window.Store.isStudentPassive === 'function' && window.Store.isStudentPassive(r.student.id)) return false;
-            if (r.student.isPassive === true || r.student.isPassive === 'true') return false;
-            const st = (r.student.status || '').toString().toLowerCase().trim();
-            if (st === 'passive' || st === 'pasif') return false;
-            return true;
+          const gradeRanking = (allRanking || []).filter(r => {
+            const cls = (r.student && r.student.className) ? r.student.className.trim() : '';
+            return cls.startsWith(g.digit);
           });
           return {
             gradeInfo: g,
-            leader: ranking[0] || null,
-            runnerUp: ranking[1] || null,
-            totalStudents: ranking.length
+            leader: gradeRanking[0] || null,
+            runnerUp: gradeRanking[1] || null,
+            totalStudents: gradeRanking.length
           };
         });
 
