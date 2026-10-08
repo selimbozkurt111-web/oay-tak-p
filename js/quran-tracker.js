@@ -23,10 +23,19 @@ window.QuranTrackerModule = {
   tempPage: 1,
   tempHatim: 0,
   tempNote: '',
+  pendingChanges: {}, // { [studentId]: { page: number, hatim: number } }
 
   init() {
     this.bindEvents();
     this.renderView();
+  },
+
+  hasPendingChanges() {
+    return Object.keys(this.pendingChanges || {}).length > 0;
+  },
+
+  getPendingCount() {
+    return Object.keys(this.pendingChanges || {}).length;
   },
 
   bindEvents() {
@@ -37,6 +46,14 @@ window.QuranTrackerModule = {
       };
       window.addEventListener('quran-tracker-updated', this._boundListener);
       window.addEventListener('cloud-sync-done', this._boundListener);
+
+      window.addEventListener('beforeunload', (e) => {
+        if (this.hasPendingChanges && this.hasPendingChanges()) {
+          e.preventDefault();
+          e.returnValue = 'Kaydedilmemiş Kur\'an takip değişiklikleriniz var!';
+          return e.returnValue;
+        }
+      });
     }
   },
 
@@ -80,39 +97,127 @@ window.QuranTrackerModule = {
     this.renderView();
   },
 
-  // Doğrudan satırdan / karttan sayfa güncelleme
-  handleQuickPageInput(studentId, newPageVal) {
+  // Kullanıcı sayfayı değiştirdiğinde OTOMATİK KAYIT YAPMAZ, taslağa (pendingChanges) alır
+  handlePageInput(studentId, newPageVal) {
     const page = parseInt(newPageVal, 10);
     if (isNaN(page) || page < 0) return;
+    const clampedPage = Math.min(604, Math.max(0, page));
     const rec = window.Store.getQuranRecord(studentId);
-    const res = window.Store.saveQuranRecord(studentId, page, rec.hatimCount);
+
+    if (clampedPage === (rec.currentPage || 1)) {
+      delete this.pendingChanges[studentId];
+    } else {
+      this.pendingChanges[studentId] = {
+        page: clampedPage,
+        hatim: rec.hatimCount || 0
+      };
+    }
+    this.renderView(true);
+  },
+
+  // Geriye dönük uyumluluk için alias
+  handleQuickPageInput(studentId, newPageVal) {
+    this.handlePageInput(studentId, newPageVal);
+  },
+
+  // Butonla sayfa artırma (+1, +5, +10, +20): Otomatik kaydetmez, taslağa ekler
+  addPages(studentId, count) {
+    const rec = window.Store.getQuranRecord(studentId);
+    const curVal = (this.pendingChanges[studentId] && this.pendingChanges[studentId].page !== undefined)
+      ? this.pendingChanges[studentId].page
+      : (rec.currentPage || 1);
+    const newPage = Math.min(604, Math.max(0, curVal + count));
+    this.handlePageInput(studentId, newPage);
+  },
+
+  // Tek bir talebenin bekleyen sayfa değişikliğini kaydetme butonu
+  saveStudent(studentId) {
+    const pending = this.pendingChanges[studentId];
+    if (!pending) return;
+
+    const rec = window.Store.getQuranRecord(studentId);
+    const targetPage = pending.page;
+    const targetHatim = pending.hatim !== undefined ? pending.hatim : (rec.hatimCount || 0);
+
+    const res = window.Store.saveQuranRecord(studentId, targetPage, targetHatim, rec.note, rec.diniGrup);
+    delete this.pendingChanges[studentId];
+
     if (res.success) {
+      const student = window.Store.getStudentById(studentId);
+      const studentName = student ? `${student.firstName} ${student.lastName}` : 'Talebe';
+
       if (res.stats.isHatimComplete) {
         this.openHatimCompleteModal(studentId);
       } else {
         if (window.App && typeof window.App.showToast === 'function') {
-          window.App.showToast(`${res.stats.currentPage}. Sayfa kaydedildi (%${res.stats.percentRead})`, 'info');
+          window.App.showToast(`💾 ${studentName}: ${res.stats.currentPage}. Sayfa kaydedildi (%${res.stats.percentRead})`, 'success');
         }
-        this.renderView();
+        this.renderView(true);
       }
     }
   },
 
-  // Butonla sayfa artırma (+1, +5, +10, +20)
-  addPages(studentId, count) {
-    const rec = window.Store.getQuranRecord(studentId);
-    const newPage = Math.min(604, (rec.currentPage || 0) + count);
-    const res = window.Store.saveQuranRecord(studentId, newPage, rec.hatimCount);
-    if (res.success) {
-      if (res.stats.isHatimComplete) {
-        this.openHatimCompleteModal(studentId);
-      } else {
-        if (window.App && typeof window.App.showToast === 'function') {
-          window.App.showToast(`+${count} sayfa eklendi ➔ Sayfa: ${res.stats.currentPage} (%${res.stats.percentRead})`, 'success');
-        }
-        this.renderView();
+  // Tek bir talebenin bekleyen sayfa değişikliğini iptal etme (Vazgeç)
+  discardStudent(studentId) {
+    if (this.pendingChanges[studentId]) {
+      delete this.pendingChanges[studentId];
+      if (window.App && typeof window.App.showToast === 'function') {
+        window.App.showToast('Değişiklik geri alındı.', 'info');
       }
+      this.renderView(true);
     }
+  },
+
+  // Tüm bekleyen değişiklikleri tek tıkla topluca kaydetme
+  saveAllPending() {
+    const ids = Object.keys(this.pendingChanges || {});
+    if (ids.length === 0) return;
+
+    let savedCount = 0;
+    let completedHatimStudentId = null;
+
+    ids.forEach(studentId => {
+      const pending = this.pendingChanges[studentId];
+      if (!pending) return;
+      const rec = window.Store.getQuranRecord(studentId);
+      const targetPage = pending.page;
+      const targetHatim = pending.hatim !== undefined ? pending.hatim : (rec.hatimCount || 0);
+      const res = window.Store.saveQuranRecord(studentId, targetPage, targetHatim, rec.note, rec.diniGrup);
+      if (res.success) {
+        savedCount++;
+        if (res.stats.isHatimComplete) {
+          completedHatimStudentId = studentId;
+        }
+      }
+    });
+
+    this.pendingChanges = {};
+
+    if (window.App && typeof window.App.showToast === 'function') {
+      window.App.showToast(`💾 ${savedCount} talebenin Kur'an sayfası başarıyla kaydedildi!`, 'success');
+    }
+
+    if (completedHatimStudentId) {
+      this.openHatimCompleteModal(completedHatimStudentId);
+    } else {
+      this.renderView(true);
+    }
+  },
+
+  // Tüm bekleyen değişiklikleri iptal etme
+  discardAllPending() {
+    const count = Object.keys(this.pendingChanges || {}).length;
+    if (count === 0) return;
+
+    if (!confirm(`Kaydedilmemiş ${count} talebe değişikliğinden vazgeçmek istediğinize emin misiniz?`)) {
+      return;
+    }
+
+    this.pendingChanges = {};
+    if (window.App && typeof window.App.showToast === 'function') {
+      window.App.showToast('Tüm sayfa değişiklikleri geri alındı.', 'info');
+    }
+    this.renderView(true);
   },
 
   // Düzenleme Modalı Aç
@@ -440,10 +545,16 @@ window.QuranTrackerModule = {
       return (curG && curG !== 'Genel' && !curG.startsWith('Seviye')) ? curG : (hoca || 'Genel');
     }))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'tr'));
 
-    // Filtreleme
+    // Filtreleme (Taslak / Kaydedilmemiş değişiklikleri anında yansıtır)
+    const pendingChanges = this.pendingChanges || {};
     let filtered = allStudents.map(s => {
       const rec = allRecords[s.id] || { currentPage: 1, hatimCount: 0, diniGrup: s.dahiliHoca || 'Genel' };
-      const stats = window.Store.calculateQuranStats(rec.currentPage, rec.hatimCount);
+      const pending = pendingChanges[s.id];
+      const effectivePage = (pending && pending.page !== undefined) ? pending.page : (rec.currentPage || 1);
+      const effectiveHatim = (pending && pending.hatim !== undefined) ? pending.hatim : (rec.hatimCount || 0);
+      const isPending = !!pending;
+
+      const stats = window.Store.calculateQuranStats(effectivePage, effectiveHatim);
       const curG = (rec && rec.diniGrup) ? rec.diniGrup.trim() : '';
       const hoca = (s.dahiliHoca || '').trim();
       const resolvedG = (curG && curG !== 'Genel' && !curG.startsWith('Seviye')) ? curG : (hoca || 'Genel');
@@ -451,7 +562,10 @@ window.QuranTrackerModule = {
         student: s,
         record: rec,
         stats,
-        diniGrup: resolvedG
+        diniGrup: resolvedG,
+        isPending,
+        effectivePage,
+        savedPage: rec.currentPage || 1
       };
     });
 
@@ -514,6 +628,8 @@ window.QuranTrackerModule = {
       : 0;
 
     const topStudent = filtered[0] || null;
+    const pendingCount = this.getPendingCount();
+    const hasPending = pendingCount > 0;
 
     container.innerHTML = `
       <div class="space-y-5 animate-fade-in max-w-7xl mx-auto">
@@ -554,11 +670,21 @@ window.QuranTrackerModule = {
                 </div>
               </div>
               <p class="text-xs text-slate-500">
-                Talebelerimizin kaldığı sayfayı giriniz; okunan ve kalan sayfalar, yüzdeler ve cüz bilgisi otomatik hesaplanır. En çok okuyanlar TV panosunda sergilenir.
+                Talebelerimizin kaldığı sayfayı giriniz veya + butonlarını kullanınız. Değişiklikler otomatik kaydedilmez; "Kaydet" butonu ile onaylanarak işlenir.
               </p>
             </div>
 
             <div class="flex items-center gap-2">
+              ${hasPending ? `
+                <button type="button" onclick="window.QuranTrackerModule.saveAllPending()"
+                  class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-md animate-pulse cursor-pointer">
+                  <span>💾</span> <span>Değişiklikleri Kaydet (${pendingCount})</span>
+                </button>
+                <button type="button" onclick="window.QuranTrackerModule.discardAllPending()"
+                  class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">
+                  ✕ Vazgeç
+                </button>
+              ` : ''}
               <button type="button" onclick="window.QuranTrackerModule.openRecoveryModal()"
                 class="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 title="Hafızadaki Kur'an verilerini kurtar, yedekle veya toplu düzenle">
@@ -722,8 +848,53 @@ window.QuranTrackerModule = {
           </div>
         </div>
 
+        <!-- 3.5. KAYDEDİLMEMİŞ DEĞİŞİKLİKLER UYARI VE TOPLU KAYDET BARI -->
+        ${hasPending ? `
+          <div class="p-4 sm:p-5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 rounded-3xl shadow-lg border-2 border-amber-300 flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+            <div class="flex items-center gap-3">
+              <span class="text-3xl">⚠️</span>
+              <div>
+                <h3 class="font-black text-sm sm:text-base leading-tight">Kaydedilmemiş Kur'an Sayfası Değişiklikleri Var! (${pendingCount} Talebe)</h3>
+                <p class="text-xs font-bold text-amber-950 mt-0.5">
+                  Girdiğiniz veya + butonlarıyla artırdığınız sayfalar henüz veritabanına işlenmedi. Geçerli olması için lütfen <strong>"Tüm Değişiklikleri Kaydet"</strong> butonuna basınız.
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="window.QuranTrackerModule.discardAllPending()"
+                class="px-3.5 py-2 bg-amber-100/90 hover:bg-white text-slate-900 font-bold text-xs rounded-xl transition cursor-pointer shadow-xs">
+                ✕ Vazgeç
+              </button>
+              <button type="button" onclick="window.QuranTrackerModule.saveAllPending()"
+                class="px-5 py-2.5 bg-slate-950 hover:bg-slate-900 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer active:scale-95">
+                <span>💾</span> <span>Tüm Değişiklikleri Kaydet (${pendingCount})</span>
+              </button>
+            </div>
+          </div>
+        ` : ''}
+
         <!-- 4. GÖRÜNÜM İÇERİĞİ -->
         ${this.renderViewContent(filtered, groupSummaries)}
+
+        <!-- 5. SABİT ALT KAYDETME BARI (Kaydırıldığında Ekranın Altında Kalır) -->
+        ${hasPending ? `
+          <div class="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-slate-950/95 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl border-2 border-amber-400 flex items-center gap-4 animate-fade-in no-print">
+            <div class="flex items-center gap-2 text-xs font-bold text-amber-300">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping inline-block"></span>
+              <span><strong>${pendingCount}</strong> talebede kaydedilmemiş sayfa var!</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="window.QuranTrackerModule.discardAllPending()"
+                class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer">
+                ✕ Vazgeç
+              </button>
+              <button type="button" onclick="window.QuranTrackerModule.saveAllPending()"
+                class="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer active:scale-95">
+                <span>💾</span> <span>Tümünü Kaydet (${pendingCount})</span>
+              </button>
+            </div>
+          </div>
+        ` : ''}
       </div>
     `;
 
@@ -763,21 +934,43 @@ window.QuranTrackerModule = {
           const rank = idx + 1;
           const isTop3 = rank <= 3;
           const medal = rank === 1 ? '🥇' : (rank === 2 ? '🥈' : (rank === 3 ? '🥉' : ''));
+          const isPending = !!item.isPending;
+          const savedPage = item.savedPage || 1;
 
           return `
-            <div class="bg-white rounded-3xl border border-slate-200 hover:border-emerald-300 p-4 sm:p-5 shadow-xs hover:shadow-md transition space-y-3.5 relative overflow-hidden">
+            <div class="bg-white rounded-3xl border ${isPending ? 'border-2 border-amber-400 bg-amber-50/15 ring-2 ring-amber-300/40 shadow-md' : 'border-slate-200 hover:border-emerald-300'} p-4 sm:p-5 shadow-xs hover:shadow-md transition space-y-3.5 relative overflow-hidden">
+              ${isPending ? `
+                <!-- Kaydedilmemiş Değişiklik Şeridi -->
+                <div class="absolute top-0 left-0 right-0 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-black text-[10px] px-3 py-1 flex items-center justify-between shadow-xs z-10">
+                  <span class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-slate-950 animate-ping inline-block"></span>
+                    <span>🟡 DEĞİŞİKLİK YAPILDI (${savedPage} ➔ ${st.currentPage}. sf)</span>
+                  </span>
+                  <div class="flex items-center gap-1">
+                    <button type="button" onclick="window.QuranTrackerModule.discardStudent('${s.id}')"
+                      class="px-2 py-0.5 bg-amber-100 hover:bg-white text-slate-900 rounded font-bold text-[9px] transition cursor-pointer">
+                      ✕ İptal
+                    </button>
+                    <button type="button" onclick="window.QuranTrackerModule.saveStudent('${s.id}')"
+                      class="px-2.5 py-0.5 bg-slate-950 hover:bg-slate-900 text-white rounded font-black text-[9px] shadow transition cursor-pointer">
+                      💾 Kaydet
+                    </button>
+                  </div>
+                </div>
+              ` : ''}
+
               ${isTop3 ? `
-                <div class="absolute top-0 right-0 bg-gradient-to-l from-amber-400 to-amber-200 text-slate-950 font-black text-[10px] px-3 py-1 rounded-bl-2xl shadow-xs flex items-center gap-1">
+                <div class="absolute ${isPending ? 'top-6' : 'top-0'} right-0 bg-gradient-to-l from-amber-400 to-amber-200 text-slate-950 font-black text-[10px] px-3 py-1 rounded-bl-2xl shadow-xs flex items-center gap-1">
                   <span>${medal}</span> <span>${rank}. Sırada</span>
                 </div>
               ` : `
-                <div class="absolute top-2.5 right-3 text-[11px] font-black text-slate-300 font-mono">
+                <div class="absolute ${isPending ? 'top-7' : 'top-2.5'} right-3 text-[11px] font-black text-slate-300 font-mono">
                   #${rank}
                 </div>
               `}
 
               <!-- Talebe Başlık Bilgisi -->
-              <div class="flex items-center gap-3 pr-8">
+              <div class="flex items-center gap-3 pr-8 ${isPending ? 'pt-4' : ''}">
                 <div class="w-11 h-11 rounded-2xl ${isTop3 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-50 text-emerald-800'} font-black text-lg flex items-center justify-center shadow-inner flex-shrink-0">
                   📖
                 </div>
@@ -792,11 +985,17 @@ window.QuranTrackerModule = {
               </div>
 
               <!-- İlerleme Çubuğu ve Otomatik İstatistikler -->
-              <div class="space-y-1.5 p-3 bg-slate-50/80 rounded-2xl border border-slate-100">
+              <div class="space-y-1.5 p-3 bg-slate-50/80 rounded-2xl border ${isPending ? 'border-amber-300 bg-amber-50/50' : 'border-slate-100'}">
                 <div class="flex items-center justify-between text-xs">
-                  <span class="font-black text-slate-800">
-                    Kaldığı Sayfa: <strong class="text-emerald-700 font-mono text-sm">${st.currentPage}</strong> / 604
-                  </span>
+                  <div class="flex items-center gap-1.5">
+                    <span class="font-black text-slate-800">Kaldığı Sayfa:</span>
+                    <input type="number" min="0" max="604" value="${st.currentPage}"
+                      class="w-16 px-1.5 py-0.5 text-center bg-white border-2 ${isPending ? 'border-amber-500 text-amber-950 ring-2 ring-amber-300 font-black' : 'border-slate-300 text-emerald-800 font-black'} rounded-xl text-sm focus:border-emerald-500 focus:outline-none transition shadow-2xs font-mono"
+                      onchange="window.QuranTrackerModule.handlePageInput('${s.id}', this.value)"
+                      onkeydown="if(event.key === 'Enter') { window.QuranTrackerModule.handlePageInput('${s.id}', this.value); window.QuranTrackerModule.saveStudent('${s.id}'); }"
+                      title="Sayfayı yazıp Enter'a basabilir veya Kaydet butonuna tıklayabilirsiniz">
+                    <span class="text-xs text-slate-400 font-mono">/ 604</span>
+                  </div>
                   <span class="font-black text-emerald-700 font-mono">
                     %${st.percentRead} Okundu
                   </span>
@@ -841,10 +1040,24 @@ window.QuranTrackerModule = {
 
                 <!-- Kart Alt Eylem Butonları -->
                 <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                  <button type="button" onclick="window.QuranTrackerModule.openEditModal('${s.id}')"
-                    class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs rounded-xl transition flex items-center gap-1 cursor-pointer">
-                    <span>✍️ Düzenle</span>
-                  </button>
+                  <div class="flex items-center gap-1.5">
+                    <button type="button" onclick="window.QuranTrackerModule.openEditModal('${s.id}')"
+                      class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs rounded-xl transition flex items-center gap-1 cursor-pointer">
+                      <span>✍️ Düzenle</span>
+                    </button>
+                    ${isPending ? `
+                      <button type="button" onclick="window.QuranTrackerModule.saveStudent('${s.id}')"
+                        class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-1 cursor-pointer animate-pulse"
+                        title="Bu talebeyi kaydet">
+                        <span>💾 Kaydet</span>
+                      </button>
+                      <button type="button" onclick="window.QuranTrackerModule.discardStudent('${s.id}')"
+                        class="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+                        title="Vazgeç">
+                        ✕
+                      </button>
+                    ` : ''}
+                  </div>
 
                   <div class="flex items-center gap-1.5">
                     ${st.isHatimComplete ? `
@@ -901,9 +1114,11 @@ window.QuranTrackerModule = {
                 const st = item.stats;
                 const rank = idx + 1;
                 const isTop3 = rank <= 3;
+                const isPending = !!item.isPending;
+                const savedPage = item.savedPage || 1;
 
                 return `
-                  <tr class="hover:bg-slate-50 transition cursor-pointer" onclick="window.QuranTrackerModule.openEditModal('${s.id}')">
+                  <tr class="${isPending ? 'bg-amber-50/80 hover:bg-amber-100/80 border-l-4 border-amber-500' : 'hover:bg-slate-50'} transition cursor-pointer" onclick="window.QuranTrackerModule.openEditModal('${s.id}')">
                     <td class="py-3 px-3 text-center font-bold ${isTop3 ? 'text-amber-600 font-black' : 'text-slate-400'}">
                       ${rank === 1 ? '🥇' : (rank === 2 ? '🥈' : (rank === 3 ? '🥉' : rank))}
                     </td>
@@ -917,10 +1132,30 @@ window.QuranTrackerModule = {
                     <td class="py-3 px-3 text-slate-700 font-semibold">
                       ${item.diniGrup || s.dahiliHoca || '-'}
                     </td>
-                    <td class="py-3 px-3 text-center font-mono font-black text-sm text-slate-900" onclick="event.stopPropagation()">
-                      <input type="number" min="0" max="604" value="${st.currentPage}"
-                        class="w-16 px-1.5 py-1 text-center bg-slate-50 border border-slate-300 rounded-lg text-xs font-black text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none"
-                        onchange="window.QuranTrackerModule.handleQuickPageInput('${s.id}', this.value)">
+                    <td class="py-3 px-3 text-center" onclick="event.stopPropagation()">
+                      <div class="flex items-center justify-center gap-1.5">
+                        <input type="number" min="0" max="604" value="${st.currentPage}"
+                          class="w-16 px-1.5 py-1 text-center bg-white border-2 ${isPending ? 'border-amber-500 bg-amber-50 text-amber-950 font-black ring-2 ring-amber-300' : 'border-slate-300 text-slate-900 font-black'} rounded-lg text-xs focus:bg-white focus:border-emerald-500 focus:outline-none"
+                          onchange="window.QuranTrackerModule.handlePageInput('${s.id}', this.value)"
+                          onkeydown="if(event.key === 'Enter') { window.QuranTrackerModule.handlePageInput('${s.id}', this.value); window.QuranTrackerModule.saveStudent('${s.id}'); }">
+                        ${isPending ? `
+                          <button type="button" onclick="window.QuranTrackerModule.saveStudent('${s.id}')"
+                            class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] rounded-lg shadow-sm transition flex items-center gap-1 cursor-pointer animate-pulse"
+                            title="Bu Talebeyi Kaydet">
+                            <span>💾</span> <span>Kaydet</span>
+                          </button>
+                          <button type="button" onclick="window.QuranTrackerModule.discardStudent('${s.id}')"
+                            class="px-1.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[11px] rounded-lg transition cursor-pointer"
+                            title="Vazgeç">
+                            ✕
+                          </button>
+                        ` : ''}
+                      </div>
+                      ${isPending ? `
+                        <div class="text-[10px] text-amber-800 font-bold mt-0.5 whitespace-nowrap">
+                          🟡 Kaydedilmedi (${savedPage} ➔ ${st.currentPage})
+                        </div>
+                      ` : ''}
                     </td>
                     <td class="py-3 px-3 text-center text-[11px]">
                       <span class="text-emerald-700 font-black">${st.pagesReadInHatim} sf</span> / 
@@ -943,13 +1178,19 @@ window.QuranTrackerModule = {
                     <td class="py-3 px-3 text-center" onclick="event.stopPropagation()">
                       <div class="flex items-center justify-center gap-1">
                         <button type="button" onclick="window.QuranTrackerModule.addPages('${s.id}', 1)"
-                          class="px-1.5 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-700 font-bold rounded-lg text-[10px]" title="+1 Sayfa">+1</button>
+                          class="px-1.5 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-700 font-bold rounded-lg text-[10px] cursor-pointer" title="+1 Sayfa">+1</button>
                         <button type="button" onclick="window.QuranTrackerModule.addPages('${s.id}', 5)"
-                          class="px-1.5 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-700 font-bold rounded-lg text-[10px]" title="+5 Sayfa">+5</button>
+                          class="px-1.5 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-700 font-bold rounded-lg text-[10px] cursor-pointer" title="+5 Sayfa">+5</button>
+                        ${isPending ? `
+                          <button type="button" onclick="window.QuranTrackerModule.saveStudent('${s.id}')"
+                            class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] rounded-lg shadow-xs flex items-center gap-0.5 cursor-pointer" title="Kaydet">
+                            💾
+                          </button>
+                        ` : ''}
                         <button type="button" onclick="window.QuranTrackerModule.openEditModal('${s.id}')"
-                          class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black rounded-lg text-[10px]">✍️</button>
+                          class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black rounded-lg text-[10px] cursor-pointer" title="Düzenle">✍️</button>
                         <button type="button" onclick="window.Store.sendWhatsAppQuranReport('${s.id}')"
-                          class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-lg text-[10px]" title="WhatsApp">📲</button>
+                          class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-lg text-[10px] cursor-pointer" title="WhatsApp">📲</button>
                       </div>
                     </td>
                   </tr>

@@ -670,6 +670,12 @@ window.App = {
       }
       this.discardStudentDrafts(false);
     }
+    if ((this.activeTab === 'kuran_takip' || this.activeTab === 'hatim') && tab !== 'kuran_takip' && tab !== 'hatim' && window.QuranTrackerModule && typeof window.QuranTrackerModule.hasPendingChanges === 'function' && window.QuranTrackerModule.hasPendingChanges()) {
+      if (!confirm('Kaydedilmemiş Kur\'an takip değişiklikleriniz var!\n\nKaydetmeden başka bir ekrana geçerseniz girdiğiniz sayfalar kaybolacaktır. Çıkmak istediğinizden emin misiniz?')) {
+        return;
+      }
+      window.QuranTrackerModule.pendingChanges = {};
+    }
     this.closeDrawer();
     this.activeTab = tab;
     if (tab === 'yoklama' && category && window.AttendanceModule) {
@@ -1895,6 +1901,55 @@ window.App = {
     this.renderStudentsView();
   },
 
+  // --- Öğrenci Veritabanı Yedekten Kurtarma ve JSON Yükleme ---
+  restoreStudentBackupPrompt() {
+    if (!this.canManageStudents()) {
+      this.showToast('Bu işlem için Kurum Yöneticisi yetkisi gereklidir.', 'error');
+      return;
+    }
+    const summary = window.Store ? window.Store.getStudentBackupSummary() : { hasBackup: false };
+    if (!summary.hasBackup) {
+      this.showToast('Sistemde kurtarılacak bir öğrenci yedeği bulunamadı.', 'info');
+      return;
+    }
+    const confirmMsg = `🛡️ ÖĞRENCİ VERİLERİNİ KURTARMA\n\n` +
+      `Bulunan Otomatik Yedek: ${summary.count} Öğrenci (${summary.phoneCount} veli telefonu kayıtlı)\n` +
+      `Yedek Zamanı: ${summary.timestamp}\n\n` +
+      `Bu yedekteki veli telefonları, yatakhane/oda bilgileri ve özel şifreler geri yüklensin ve bulutla eşitlensin mi?`;
+
+    if (confirm(confirmMsg)) {
+      const res = window.Store.restoreStudentsFromBackup();
+      if (res && res.success) {
+        this.showToast('✓ ' + res.message, 'success');
+        this.renderStudentsView();
+      } else {
+        this.showToast('Geri yükleme: ' + (res ? res.message : 'Hata oluştu'), 'error');
+      }
+    }
+  },
+
+  handleStudentsJsonUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target.result;
+        const res = window.Store.importStudentsJSON(content);
+        if (res && res.success) {
+          this.showToast('✓ ' + res.message, 'success');
+          this.renderStudentsView();
+        } else {
+          this.showToast(res ? res.message : 'Yükleme başarısız', 'error');
+        }
+      } catch (err) {
+        this.showToast('JSON dosyası okunamadı: ' + err.message, 'error');
+      }
+      event.target.value = '';
+    };
+    reader.readAsText(file);
+  },
+
   // --- Öğrenci & Şifre Yönetimi Görünümü (Sıralamalı & Excel Modlu) ---
   renderStudentsView() {
     const container = document.getElementById('students-container');
@@ -2018,6 +2073,25 @@ window.App = {
               <span>📥 CSV</span>
             </button>
 
+            ${canEdit ? `
+              <button type="button" onclick="window.App.restoreStudentBackupPrompt()" 
+                class="px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 border border-amber-300 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1 cursor-pointer active:scale-95"
+                title="Otomatik kaydedilmiş yedekten telefon, oda ve şifre verilerini geri yükleyin">
+                <span>🛡️ Yedekten Kurtar</span>
+              </button>
+              <button type="button" onclick="window.Store.exportStudentsJSON()" 
+                class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                title="Tüm öğrenci listesini güvenli JSON yedek dosyası olarak bilgisayarınıza indirin">
+                <span>💾 JSON Yedek</span>
+              </button>
+              <button type="button" onclick="document.getElementById('import-students-json-input').click()" 
+                class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                title="Bilgisayarınızdaki JSON yedek dosyasından öğrencileri yükleyin">
+                <span>📂 JSON Yükle</span>
+              </button>
+              <input type="file" id="import-students-json-input" accept=".json" class="hidden" onchange="window.App.handleStudentsJsonUpload(event)">
+            ` : ''}
+
             ${canEdit && !isEditMode ? `
               <button type="button" onclick="window.App.openBulkImportModal()" 
                 class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer">
@@ -2030,6 +2104,36 @@ window.App = {
             ` : ''}
           </div>
         </div>
+
+        <!-- Otomatik Kurtarma Uyarısı & Tek Tıkla Geri Yükleme Kartı -->
+        ${(() => {
+          if (!canEdit) return '';
+          const summary = window.Store ? window.Store.getStudentBackupSummary() : { hasBackup: false };
+          const currentPhones = allStudentsList.filter(s => s && ((s.fatherPhone && s.fatherPhone.trim()) || (s.parentPhone && s.parentPhone.trim()))).length;
+          if (summary.hasBackup && (summary.phoneCount > currentPhones || (currentPhones === 0 && summary.phoneCount > 0))) {
+            return `
+              <div class="mt-3 p-3 bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-amber-500/15 border-2 border-amber-400 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-sm">
+                <div class="flex items-center gap-2.5 text-xs text-amber-950 font-bold">
+                  <span class="text-2xl">🛡️</span>
+                  <div>
+                    <div class="font-black text-amber-950 text-sm flex items-center gap-2">
+                      <span>Öğrenci Yedeği Bulundu!</span>
+                      <span class="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[11px]">${summary.phoneCount} Telefon Kayıtlı</span>
+                    </div>
+                    <div class="text-amber-900 text-xs font-medium mt-0.5">
+                      Yedekleme Zamanı: <strong>${summary.timestamp}</strong>. Kaybolan telefon, oda ve şifre bilgilerinizi tek tıkla geri getirebilirsiniz.
+                    </div>
+                  </div>
+                </div>
+                <button type="button" onclick="window.App.restoreStudentBackupPrompt()" 
+                  class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95">
+                  <span>⚡</span> <span>Yedekteki Verileri Şimdi Geri Yükle</span>
+                </button>
+              </div>
+            `;
+          }
+          return '';
+        })()}
 
         <!-- Filtreler ve Sıralama Çubuğu -->
         <div class="flex flex-wrap items-center justify-between gap-3 pt-3">
