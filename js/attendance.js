@@ -194,18 +194,26 @@ window.AttendanceModule = {
       : window.Store.getAttendanceByDateAndPrayer(this.currentDate, this.currentPrayer);
 
     existing.forEach(rec => {
-      const normalized = window.Store.normalizeStatusCode ? window.Store.normalizeStatusCode(rec.status) : rec.status;
+      let normalized = window.Store.normalizeStatusCode ? window.Store.normalizeStatusCode(rec.status) : rec.status;
+      if (this.currentCategory === 'namaz' && (this.currentPrayer === 'Öğle' || this.currentPrayer === 'İkindi') && window.Store && typeof window.Store.isStudentAtSchoolSlot === 'function') {
+        if (window.Store.isStudentAtSchoolSlot(rec.studentId, this.currentDate, this.currentPrayer) && normalized !== 'VAR') {
+          normalized = 'OKULDA';
+        }
+      }
       this.draftAttendance[rec.studentId] = {
         status: normalized
       };
     });
 
-    // Hafta içi Öğle veya İkindi vakitlerinde okulda olan sınıfların öğrencilerine (kaydı henüz yoksa) otomatik 'OKULDA' ata
+    // Hafta içi Öğle veya İkindi vakitlerinde okulda olan sınıfların öğrencilerine otomatik 'OKULDA' ata
     if (this.currentCategory === 'namaz' && (this.currentPrayer === 'Öğle' || this.currentPrayer === 'İkindi') && window.Store && typeof window.Store.isStudentAtSchoolSlot === 'function') {
       const allStudents = window.Store.getStudents ? window.Store.getStudents() : [];
       allStudents.forEach(s => {
-        if (!this.draftAttendance[s.id] && window.Store.isStudentAtSchoolSlot(s, this.currentDate, this.currentPrayer)) {
-          this.draftAttendance[s.id] = { status: 'OKULDA' };
+        if (window.Store.isStudentAtSchoolSlot(s, this.currentDate, this.currentPrayer)) {
+          const cur = this.draftAttendance[s.id] ? this.draftAttendance[s.id].status : null;
+          if (!cur || cur !== 'VAR') {
+            this.draftAttendance[s.id] = { status: 'OKULDA' };
+          }
         }
       });
     }
@@ -287,7 +295,10 @@ window.AttendanceModule = {
     const records = allStudents.map(s => {
       const defaultStatus = this.getDefaultStatus(s);
       const draft = this.draftAttendance[s.id];
-      const status = draft ? draft.status : defaultStatus;
+      let status = draft ? draft.status : defaultStatus;
+      if (this.currentCategory === 'namaz' && window.Store && typeof window.Store.isStudentAtSchoolSlot === 'function' && window.Store.isStudentAtSchoolSlot(s, this.currentDate, this.currentPrayer)) {
+        if (status !== 'VAR') status = 'OKULDA';
+      }
       this.draftAttendance[s.id] = { status };
       return {
         studentId: s.id,
@@ -437,6 +448,41 @@ window.AttendanceModule = {
         (s.className && s.className.toLowerCase().includes(this.searchQuery)) ||
         (s.yatakhane && s.yatakhane.toLowerCase().includes(this.searchQuery))
       );
+    }
+
+    // Sınıf ve Şubelerine göre sıralama (5-A ➔ 8-B), şube içinde okul no ve isim sırası
+    if (window.Store && typeof window.Store.sortStudentsByClassAndNo === 'function') {
+      students = window.Store.sortStudentsByClassAndNo(students);
+    } else {
+      const getComparableClass = (cls) => {
+        if (!cls) return 'ZZZ';
+        const clean = cls.toString().trim().toUpperCase().replace('/', '-').replace(/\s+/g, '');
+        const m = clean.match(/^(\d+)([A-ZÇĞİÖŞÜ])$/);
+        if (m) return `${m[1]}-${m[2]}`;
+        return clean;
+      };
+
+      students.sort((a, b) => {
+        if (!a && !b) return 0;
+        if (!a) return 1;
+        if (!b) return -1;
+        const clsA = getComparableClass(a.className);
+        const clsB = getComparableClass(b.className);
+        if (clsA !== clsB) {
+          const cmp = clsA.localeCompare(clsB, 'tr', { numeric: true });
+          if (cmp !== 0) return cmp;
+        }
+        const noA = parseInt(a.studentNo, 10);
+        const noB = parseInt(b.studentNo, 10);
+        const hasNoA = !isNaN(noA) && noA > 0;
+        const hasNoB = !isNaN(noB) && noB > 0;
+        if (hasNoA && hasNoB && noA !== noB) return noA - noB;
+        if (hasNoA && !hasNoB) return -1;
+        if (!hasNoA && hasNoB) return 1;
+        const nameA = `${(a.firstName || '').trim()} ${(a.lastName || '').trim()}`.trim();
+        const nameB = `${(b.firstName || '').trim()} ${(b.lastName || '').trim()}`.trim();
+        return nameA.localeCompare(nameB, 'tr', { sensitivity: 'base' });
+      });
     }
 
     return students;
