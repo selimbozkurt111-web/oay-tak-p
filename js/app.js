@@ -119,6 +119,28 @@ window.App = {
       }
     });
 
+    // Öğrenci listesi buluttan veya yerelden güncellendiğinde ekranı sessizce tazele
+    window.addEventListener('students-updated', () => {
+      this.renderHeader();
+      if (this.currentSession) {
+        if (this.activeTab === 'yoklama' && window.AttendanceModule) {
+          window.AttendanceModule.renderView();
+        } else if (this.activeTab === 'ogrenciler' && !this.studentTableEditMode) {
+          this.renderStudentsView();
+        }
+      }
+    });
+    window.addEventListener('students-cloud-updated', () => {
+      this.renderHeader();
+      if (this.currentSession) {
+        if (this.activeTab === 'yoklama' && window.AttendanceModule) {
+          window.AttendanceModule.renderView();
+        } else if (this.activeTab === 'ogrenciler' && !this.studentTableEditMode) {
+          this.renderStudentsView();
+        }
+      }
+    });
+
     // Başka sekmede/pencerede yapılan kayıtları anında algıla
     window.addEventListener('storage', (e) => {
       if (e.key === 'yoklama_leave_returns_v1' || e.key === 'yoklama_settings' || e.key === 'yoklama_attendance') {
