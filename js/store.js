@@ -186,12 +186,12 @@ class DataStore {
     }
     // Mevcut öğrencilerin şubelerini (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) otomatik güncelle
     this.autoMigrateStudentClasses();
-    // 8-A ve 8-B kütük onarma kullanıcının talebiyle tamamen kaldırıldı
+    // 8-A ve 8-B sınıf onarma kullanıcının talebiyle tamamen kaldırıldı
     // 8-A ve 8-B hoca atamalarını ve personel rollerini eşitle
     this.autoSyncStaffAndClassTeachers();
     // Dini ders grupları ve Dahili Hoca senkronizasyonunu otomatik sağla
     this.autoSyncDahiliHocalarAndQuran();
-    // Muhammed Cholak (No: 830, 8-B Sınıfı, Tunahan Taşkın Grubu) hoca atamasını ve kütük kaydını garantiye al
+    // Muhammed Cholak (No: 830, 8-B Sınıfı, Tunahan Taşkın Grubu) hoca atamasını ve talebe kaydını garantiye al
     this.autoSyncMuhammedCholak();
     // Pasiflik temizliği: Pasif sicilini yerel hafızada temizle (Buluta gereksiz yükleme yapmaz)
     try {
@@ -441,7 +441,7 @@ class DataStore {
     return this.activateAllStudents(false);
   }
 
-  // --- 8. Sınıf Kesin Kütük Onarıcısı (8-A: Yavuz Selim Seven [9], 8-B: Tunahan Taşkın [9] - Tam 18 Talebe) ---
+  // --- 8. Sınıf Kesin Sınıf Düzenleyicisi (8-A: Yavuz Selim Seven [9], 8-B: Tunahan Taşkın [9] - Tam 18 Talebe) ---
   forceRepair8thGradeClasses(forceCloudPush = false) {
     // Sınıf ve kontenjan kısıtlamaları tamamen kaldırıldı; kullanıcı dilediği talebeyi dilediği şubeye ve hocaya özgürce atayabilir.
     return { success: true, count: 0 };
@@ -480,7 +480,7 @@ class DataStore {
         }
       }
 
-      // 2. 8. Sınıf Kütüğünü Onar (8-A [9], 8-B [9])
+      // 2. 8. Sınıf Kayıtlarını Onar (8-A [9], 8-B [9])
       this.forceRepair8thGradeClasses(false);
     } catch (e) {
       console.warn('[autoSyncStaffAndClassTeachers] Hata:', e);
@@ -490,7 +490,7 @@ class DataStore {
   // Dini Ders Grupları ve Kur'an Takip Senkronizasyonu (Dahili Hoca = Dini Ders Grubu)
   autoSyncDahiliHocalarAndQuran() {
     try {
-      // 1. Öğrenci kütüğünü (yoklama_students) kontrol et ve eksik/hatalı dahiliHoca'ları SEED_STUDENTS'ten onar
+      // 1. Öğrenci kayıt listesini (yoklama_students) kontrol et ve eksik/hatalı dahiliHoca'ları SEED_STUDENTS'ten onar
       const seedMap = {};
       SEED_STUDENTS.forEach(seed => {
         if (seed.id) seedMap[seed.id] = seed;
@@ -2061,13 +2061,13 @@ class DataStore {
     const nameA = `${(a.firstName || '').trim()} ${(a.lastName || '').trim()}`.trim();
     const nameB = `${(b.firstName || '').trim()} ${(b.lastName || '').trim()}`.trim();
     return nameA.localeCompare(nameB, 'tr', { sensitivity: 'base' });
-  },
+  }
 
   // --- Talebeleri Sınıf ve Şubelerine Göre Sıralama Motoru (5-A ➔ 8-B, Şube içi Okul No & İsim Sırası) ---
   sortStudentsByClassAndNo(students) {
     if (!Array.isArray(students)) return [];
     return [...students].sort((a, b) => this.compareStudents(a, b));
-  },
+  }
 
   // --- Öğrenci İşlemleri (Aktif & Pasif & Kalıcı Silinme Korumalı) ---
   getAllStudents() {
