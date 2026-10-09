@@ -1639,6 +1639,7 @@ window.TestResultsModule = {
 
     // Talebelerden dinamik olarak olusan tum sinif ve hoca eslesmelerini ekle
     const knownKeys = new Set(list.map(e => e.id));
+    const knownBranches = new Set(list.map(e => e.branch.toUpperCase()));
     if (window.Store && typeof window.Store.getStudents === 'function') {
       const allStudents = window.Store.getStudents(false);
       allStudents.forEach(st => {
@@ -1646,9 +1647,12 @@ window.TestResultsModule = {
         const branch = st.className.trim();
         const hoca = (st.etutHocasi || '').trim();
         if (!hoca) return;
+        // Standart subeler (5-A, 5-B... 8-B) listede zaten tanimlidir; bireysel hoca farki subeyi parcalamaz
+        if (knownBranches.has(branch.toUpperCase())) return;
         const key = `${branch}|${hoca}`;
         if (!knownKeys.has(key)) {
           knownKeys.add(key);
+          knownBranches.add(branch.toUpperCase());
           const gradeMatch = branch.match(/^(\d+)/);
           const grade = gradeMatch ? gradeMatch[1] : '8';
           list.push({
@@ -1843,23 +1847,32 @@ window.TestResultsModule = {
 
         <!-- 2. Şube Butonları (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) - ÇOKLU SEÇİLEBİLİR -->
         <div class="flex flex-wrap items-center gap-1.5">
-          ${etutList.map(e => {
-            const isChecked = (this.selectedClasses || []).some(c => c.toUpperCase() === e.branch.toUpperCase());
-            const shortHoca = e.hoca ? e.hoca.split(' ')[0] : '';
-            return `
-              <button type="button" onclick="window.TestResultsModule.toggleClass('${e.branch}')"
-                class="px-2.5 py-1 rounded-xl text-xs font-black transition border flex items-center gap-1.5 cursor-pointer ${
-                  isChecked 
-                    ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-300/60' 
-                    : 'bg-white text-slate-800 border-slate-200 hover:bg-emerald-50/50 hover:border-slate-300'
-                }"
-                title="${e.label} (Dokunarak çoklu seçebilirsiniz)">
-                <span class="text-[11px]">${isChecked ? '✓' : '+'}</span>
-                <span>${e.branch}</span>
-                <span class="text-[10px] ${isChecked ? 'text-emerald-100' : 'text-slate-400'} font-normal">(${shortHoca})</span>
-              </button>
-            `;
-          }).join('')}
+          ${(() => {
+            const seenBranches = new Set();
+            return etutList.filter(e => {
+              const bKey = (e.branch || '').trim().toUpperCase();
+              if (!bKey || seenBranches.has(bKey)) return false;
+              seenBranches.add(bKey);
+              return true;
+            }).map(e => {
+              const isChecked = (this.selectedClasses || []).some(c => c.toUpperCase() === e.branch.toUpperCase());
+              const officialHoca = this.CLASS_TEACHER_MAP[e.branch] || e.hoca;
+              const shortHoca = officialHoca ? officialHoca.split(' ')[0] : '';
+              return `
+                <button type="button" onclick="window.TestResultsModule.toggleClass('${e.branch}')"
+                  class="px-2.5 py-1 rounded-xl text-xs font-black transition border flex items-center gap-1.5 cursor-pointer ${
+                    isChecked 
+                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-300/60' 
+                      : 'bg-white text-slate-800 border-slate-200 hover:bg-emerald-50/50 hover:border-slate-300'
+                  }"
+                  title="${e.branch} Şubesi - ${officialHoca || ''} (Dokunarak çoklu seçebilirsiniz)">
+                  <span class="text-[11px]">${isChecked ? '✓' : '+'}</span>
+                  <span>${e.branch}</span>
+                  <span class="text-[10px] ${isChecked ? 'text-emerald-100' : 'text-slate-400'} font-normal">(${shortHoca})</span>
+                </button>
+              `;
+            }).join('');
+          })()}
         </div>
       </div>
     `;
