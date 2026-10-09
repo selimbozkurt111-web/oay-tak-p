@@ -2,17 +2,17 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Ömer Avniyel Akademi</title>
   <meta name="description" content="Öğrenci Bilgi ve Takip Portalı">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v5.6) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v10.10 - BULUT SENKRONİZASYON VE ŞUBE EŞİTLEME) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20260930_v5.6_QURAN_DINI_GRUPLAR_SYNC';
+      var CURRENT_BUILD = '20261009_v10.10_AUTO_SYNC_HEALING';
       var savedBuild = localStorage.getItem('oay_app_build_version');
 
       // Kullanıcının dilediğinde manuel de tetikleyebileceği evrensel sıfırlama fonksiyonu
@@ -36,32 +36,27 @@
           console.warn('Cache purge error:', e);
         }
         setTimeout(function() {
-          window.location.href = window.location.pathname + '?reload=' + Date.now();
+          try { window.location.reload(); } catch(e) { window.location.href = window.location.href; }
         }, 250);
       };
 
-      // Cihaz eski sürümde kalmışsa KULLANICIYA HİÇBİR ŞEY SORMADAN VE BUTON BEKLEMEDEN OTOMATİK SIFIRLA!
+      // Eski önbellek varsa arka planda sessizce temizle, ASLA sayfayı döngüye sokup tarayıcıyı kitleme!
       if (savedBuild !== CURRENT_BUILD) {
-        console.log('[Auto-Purge] Eski önbellek tespit edildi, otomatik temizleniyor:', savedBuild, '->', CURRENT_BUILD);
-        localStorage.setItem('oay_app_build_version', CURRENT_BUILD);
-        if ('caches' in window) {
-          caches.keys().then(function(names) {
-            return Promise.all(names.map(function(n) { return caches.delete(n); }));
-          }).then(function() {
+        console.log('[Auto-Purge] Sürüm güncellendi:', savedBuild, '->', CURRENT_BUILD);
+        try { localStorage.setItem('oay_app_build_version', CURRENT_BUILD); } catch(e){}
+        if (window.location.protocol !== 'file:') {
+          try {
+            if ('caches' in window) {
+              caches.keys().then(function(names) {
+                return Promise.all(names.map(function(n) { return caches.delete(n); }));
+              }).catch(function() {});
+            }
             if ('serviceWorker' in navigator) {
               navigator.serviceWorker.getRegistrations().then(function(regs) {
                 return Promise.all(regs.map(function(r) { return r.unregister(); }));
-              }).then(function() {
-                if (savedBuild) {
-                  window.location.href = window.location.pathname + '?v=' + Date.now();
-                }
-              });
-            } else if (savedBuild) {
-              window.location.href = window.location.pathname + '?v=' + Date.now();
+              }).catch(function() {});
             }
-          });
-        } else if (savedBuild) {
-          window.location.href = window.location.pathname + '?v=' + Date.now();
+          } catch(e) {}
         }
       }
     })();
@@ -90,6 +85,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- html2canvas CDN (Veli ile Paylaşım İçin Görüntü Alma Kütüphanesi - Çift CDN Korumalı) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';"></script>
+  <!-- jsQR CDN (Tüm Cihazlar ve Windows Chrome İçin Kesintisiz Evrensel QR Kod Okuyucu - Çift CDN Korumalı) -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js';"></script>
   
   <!-- Özel Stiller ve Yazdırma Kuralları -->
   <link rel="stylesheet" href="css/custom.css">
@@ -150,15 +147,15 @@
     });
   </script>
 </head>
-<body class="bg-slate-100 text-slate-900 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+<body class="bg-slate-100 text-slate-900 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white overflow-x-hidden">
 
   <!-- Üst Başlık & Menü -->
   <header id="header-nav" class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
     <!-- app.js renderHeader() ile doldurulacak -->
   </header>
 
-  <!-- Ana İçerik Alanı -->
-  <main id="main-content" class="flex-1 max-w-7xl w-full mx-auto p-2.5 sm:p-6 lg:p-8">
+  <!-- Ana İçerik Alanı (PC & Laptop Tam Uyumlu Genişlik) -->
+  <main id="main-content" class="flex-1 w-full max-w-[1600px] mx-auto p-2 sm:p-4 lg:p-6">
     <!-- app.js renderMainContent() ile doldurulacak -->
   </main>
 
@@ -317,18 +314,6 @@
           </div>
         </div>
 
-        <!-- Kayıt Durumu: Aktif / Pasif -->
-        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
-          <label class="block text-xs font-bold text-slate-700 mb-1">KAYIT DURUMU (AKTİF / PASİF)</label>
-          <select id="modal-student-status" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 focus:outline-none">
-            <option value="active">🟢 Aktif (Tüm günlük yoklama ve listelerde görünür)</option>
-            <option value="passive">⏸️ Pasif (Geçmiş kayıtlar silinmez, yoklama listelerinden gizlenir)</option>
-          </select>
-          <p class="text-[11px] text-slate-500 mt-1">
-            💡 Pasife alınan talebelerin geçmiş yoklama ve puan verileri korunur, ancak yeni yoklamalara çıkarılmaz.
-          </p>
-        </div>
-
         <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
           <button type="button" onclick="window.App.closeStudentModal()" 
             class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition">
@@ -401,29 +386,30 @@
       class="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-slate-900/95 hover:bg-slate-900 text-amber-300 hover:text-amber-200 border-2 border-amber-400 shadow-2xl text-xs font-black backdrop-blur transition-all active:scale-95 cursor-pointer"
       title="Eski önbelleği temizleyip en yeni sistemi zorla yükler">
       <span class="text-sm">🔄</span>
-      <span>Önbelleği Temizle (v5.5)</span>
+      <span>Önbelleği Temizle (v10.12)</span>
     </button>
   </div>
 
-  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v5.5 Sürüm İmzası) -->
-  <script src="js/hadisler.js?v=5.5"></script>
-  <script src="js/store.js?v=5.5"></script>
-  <script src="js/attendance.js?v=5.5"></script>
-  <script src="js/leave-tracker.js?v=5.5"></script>
-  <script src="js/leave-return.js?v=5.5"></script>
-  <script src="js/quran-tracker.js?v=5.5"></script>
-  <script src="js/performance.js?v=5.5"></script>
-  <script src="js/test-results.js?v=5.5"></script>
-  <script src="js/leaderboard.js?v=5.5"></script>
-  <script src="js/parent-portal.js?v=5.5"></script>
-  <script src="js/student-excel.js?v=5.5"></script>
-  <script src="js/app.js?v=5.5"></script>
+  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v10.12 Sürüm İmzası) -->
+  <script src="js/hadisler.js?v=10.12"></script>
+  <script src="js/store.js?v=10.12"></script>
+  <script src="js/attendance.js?v=10.12"></script>
+  <script src="js/leave-tracker.js?v=10.12"></script>
+  <script src="js/leave-return.js?v=10.12"></script>
+  <script src="js/quran-tracker.js?v=10.12"></script>
+  <script src="js/performance.js?v=10.12"></script>
+  <script src="js/omr-scanner.js?v=10.12"></script>
+  <script src="js/test-results.js?v=10.12"></script>
+  <script src="js/mock-exam.js?v=10.12"></script>
+  <script src="js/leaderboard.js?v=10.12"></script>
+  <script src="js/parent-portal.js?v=10.12"></script>
+  <script src="js/app.js?v=10.12"></script>
 
   <!-- Service Worker Kaydı (Kısayol ve PWA Hızlı Başlatma) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./sw.js?v=5.5').then(function(reg) {
+        navigator.serviceWorker.register('./sw.js?v=10.12').then(function(reg) {
           if (reg) {
             reg.update();
           }

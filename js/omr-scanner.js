@@ -451,7 +451,13 @@
     [1, 26, 19], [1, 26, 16], [1, 26, 13], [1, 26, 9], // L1, M1, Q1, H1
     [1, 44, 34], [1, 44, 28], [1, 44, 22], [1, 44, 16], // L2, M2, Q2, H2
     [1, 70, 55], [1, 70, 44], [2, 35, 17], [2, 35, 13], // L3, M3, Q3, H3
-    [1, 100, 80], [2, 50, 32], [2, 50, 24], [4, 25, 9]   // L4, M4, Q4, H4
+    [1, 100, 80], [2, 50, 32], [2, 50, 24], [4, 25, 9],  // L4, M4, Q4, H4
+    [1, 134, 108], [2, 67, 43], [2, 33, 15, 2, 34, 16], [2, 33, 11, 2, 34, 12], // L5, M5, Q5, H5
+    [2, 86, 68], [4, 43, 27], [4, 43, 19], [4, 43, 15], // L6, M6, Q6, H6
+    [2, 98, 78], [4, 49, 31], [2, 32, 14, 4, 33, 15], [4, 39, 13, 1, 40, 14], // L7, M7, Q7, H7
+    [2, 121, 97], [2, 60, 38, 2, 61, 39], [4, 40, 14, 2, 41, 15], [4, 40, 12, 2, 41, 13], // L8, M8, Q8, H8
+    [2, 146, 116], [3, 58, 36, 2, 59, 37], [4, 36, 12, 4, 37, 13], [4, 36, 10, 4, 37, 11], // L9, M9, Q9, H9
+    [2, 86, 68, 2, 87, 69], [4, 69, 43, 1, 70, 44], [6, 43, 15, 2, 44, 16], [6, 43, 12, 2, 44, 13] // L10, M10, Q10, H10
   ];
   QRRSBlock.getRSBlocks = function(typeNumber, errorCorrectLevel) {
     var rsBlock = QRRSBlock.getRsBlockTable(typeNumber, errorCorrectLevel);
@@ -582,6 +588,22 @@ window.OMRScanner = {
   // ========================================================
   // 3. YAZDIRILABİLİR OPTİK FORM YÖNETİMİ (A4 ÇIKTI)
   // ========================================================
+  updatePrintModeCards: function(val) {
+    const cardLgs = document.getElementById('omr-card-lgs');
+    const cardSingle = document.getElementById('omr-card-single');
+    const singleFields = document.getElementById('omr-single-test-extra-fields');
+    if (!cardLgs || !cardSingle) return;
+    if (val === 'SINGLE_TEST') {
+      cardSingle.className = 'flex items-start gap-2.5 p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/70 cursor-pointer shadow-xs transition';
+      cardLgs.className = 'flex items-start gap-2.5 p-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer transition';
+      if (singleFields) singleFields.style.display = 'block';
+    } else {
+      cardLgs.className = 'flex items-start gap-2.5 p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/70 cursor-pointer shadow-xs transition';
+      cardSingle.className = 'flex items-start gap-2.5 p-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer transition';
+      if (singleFields) singleFields.style.display = 'none';
+    }
+  },
+
   openPrintModal: function() {
     const students = (window.Store && typeof window.Store.getStudents === 'function')
       ? window.Store.getStudents(false)
@@ -589,7 +611,7 @@ window.OMRScanner = {
 
     const activeTestMeta = (window.TestResultsModule && window.TestResultsModule.testMeta)
       ? window.TestResultsModule.testMeta
-      : { title: 'Etüt Tarama Testi', subject: 'Matematik', totalQuestions: 20, date: new Date().toISOString().split('T')[0] };
+      : { title: 'Haftalık Etüt Tarama Testi', subject: 'Matematik', topic: '', totalQuestions: 20, date: new Date().toISOString().split('T')[0] };
 
     const rawClasses = (window.Store && typeof window.Store.getClasses === 'function') ? window.Store.getClasses() : [];
     let availableBranches = [];
@@ -626,7 +648,7 @@ window.OMRScanner = {
             </div>
           </div>
           <button type="button" onclick="document.getElementById('omr-print-modal').remove()"
-            class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-sm">✕</button>
+            class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-sm cursor-pointer">✕</button>
         </div>
 
         <div class="space-y-3 text-xs">
@@ -634,34 +656,70 @@ window.OMRScanner = {
           <div>
             <label class="block font-black text-slate-800 mb-1.5 uppercase tracking-wide">YAZDIRILACAK OPTİK FORM ŞABLONU *</label>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <label class="flex items-start gap-2.5 p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/70 cursor-pointer shadow-xs transition">
-                <input type="radio" name="omr-print-mode" value="LGS_LANDSCAPE" checked class="mt-0.5 text-emerald-600 focus:ring-emerald-500">
+              <label id="omr-card-lgs" class="flex items-start gap-2.5 p-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer transition">
+                <input type="radio" name="omr-print-mode" value="LGS_LANDSCAPE" onchange="window.OMRScanner.updatePrintModeCards(this.value)" class="mt-0.5 text-emerald-600 focus:ring-emerald-500">
                 <div>
                   <div class="font-black text-slate-900 text-xs flex items-center gap-1">
                     <span>🎯</span> <span>6 Dersli Kurumsal LGS</span>
                   </div>
-                  <div class="text-[10px] text-emerald-800 font-bold mt-0.5">A4 Yatay • Yeni Şablon (Örnek Görseliniz)</div>
+                  <div class="text-[10px] text-emerald-800 font-bold mt-0.5">A4 Yatay • Tam Sayfa Kurumsal Şablon</div>
                   <div class="text-[9px] text-slate-500 mt-0.5">Türkçe, İnkılap, Din, İngilizce, Matematik, Fen</div>
                 </div>
               </label>
 
-              <label class="flex items-start gap-2.5 p-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer transition">
-                <input type="radio" name="omr-print-mode" value="SINGLE_TEST" class="mt-0.5 text-emerald-600 focus:ring-emerald-500">
+              <label id="omr-card-single" class="flex items-start gap-2.5 p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/70 cursor-pointer shadow-xs transition">
+                <input type="radio" name="omr-print-mode" value="SINGLE_TEST" checked onchange="window.OMRScanner.updatePrintModeCards(this.value)" class="mt-0.5 text-emerald-600 focus:ring-emerald-500">
                 <div>
                   <div class="font-bold text-slate-800 text-xs flex items-center gap-1">
                     <span>📝</span> <span>Tek Derslik Etüt Testi</span>
                   </div>
-                  <div class="text-[10px] text-slate-600 font-medium mt-0.5">A4 Dikey • 1 Sayfada 2 Adet Form</div>
-                  <div class="text-[9px] text-slate-500 mt-0.5">Sadece ${activeTestMeta.subject || 'Tek Ders'}</div>
+                  <div class="text-[10px] text-slate-600 font-medium mt-0.5">A4 Dikey • 1 Sayfada 2 Adet Form (Ortadan Kesmeli)</div>
+                  <div class="text-[9px] text-emerald-700 font-bold mt-0.5">Serbest Soru Sayısı, Konu ve Kazanım Girişli</div>
                 </div>
               </label>
+            </div>
+          </div>
+
+          <!-- TEK DERSLİK TEST DETAYLARI: DERS, TEST ADI, KONU & KAZANIMLAR -->
+          <div id="omr-single-test-extra-fields" class="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-3">
+            <div class="font-black text-emerald-950 flex items-center justify-between">
+              <span class="flex items-center gap-1.5 text-xs">
+                <span>📝</span> <span>Tek Derslik Test, Konu ve Kazanım Bilgileri</span>
+              </span>
+              <span class="text-[10px] text-emerald-700 font-bold bg-white px-2 py-0.5 rounded-lg border border-emerald-200">Forma Basılacak</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Ders Adı *</label>
+                <input type="text" id="omr-print-subject" value="${activeTestMeta.subject || 'Matematik'}"
+                  placeholder="Örn: Matematik, Fen Bilimleri, Türkçe..."
+                  class="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 text-xs focus:ring-2 focus:ring-emerald-500">
+              </div>
+
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Test Başlığı / Tanımı</label>
+                <input type="text" id="omr-print-title" value="${activeTestMeta.title || 'Haftalık Etüt Tarama Testi'}"
+                  placeholder="Örn: 1. Dönem 1. Tarama Testi"
+                  class="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-800 text-xs focus:ring-2 focus:ring-emerald-500">
+              </div>
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Konu ve Kazanımlar (Serbestçe Elle Giriniz):</span>
+                <span class="text-[10px] text-slate-500 font-normal">İsteğe bağlı, formun üstüne basılır</span>
+              </label>
+              <input type="text" id="omr-print-topic" value="${activeTestMeta.topic || ''}"
+                placeholder="Örn: Çarpanlar ve Katlar / EBOB-EKOK / Üslü İfadeler Kazanımları"
+                class="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-semibold text-slate-800 text-xs focus:ring-2 focus:ring-emerald-500">
             </div>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block font-bold text-slate-700 mb-1">Yazdırılacak Şube:</label>
-              <select id="omr-print-class-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
+              <select id="omr-print-class-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs">
                 <option value="ALL">Tüm Aktif Talebeler (${students.length})</option>
                 ${availableBranches.map(br => {
                   if (!br) return '';
@@ -669,23 +727,42 @@ window.OMRScanner = {
                   const cnt = students.filter(s => (s.className || '').trim().toUpperCase() === cleanBr.toUpperCase()).length;
                   return `<option value="${cleanBr}">${cleanBr} Sınıfı (${cnt} Talebe)</option>`;
                 }).join('')}
-                <option value="BLANK">İsimsiz Boş Form (Genel Kullanım İçin 5 Adet)</option>
+                <option value="BLANK">İsimsiz Boş Form (Genel Kullanım İçin 4 Adet)</option>
               </select>
             </div>
 
             <div>
-              <label class="block font-bold text-slate-700 mb-1">Soru Sayısı & Kitapçık:</label>
-              <div class="grid grid-cols-2 gap-2">
-                <select id="omr-print-q-count" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
-                  <option value="15" ${activeTestMeta.totalQuestions == 15 ? 'selected' : ''}>15 Soru</option>
-                  <option value="20" ${activeTestMeta.totalQuestions == 20 ? 'selected' : ''}>20 Soru (LGS Standart)</option>
-                  <option value="30" ${activeTestMeta.totalQuestions == 30 ? 'selected' : ''}>30 Soru</option>
-                </select>
-                <select id="omr-print-booklet" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
-                  <option value="EMPTY" selected>Boş (Talebe Kodlasın)</option>
-                  <option value="A">A Kitapçığı</option>
-                  <option value="B">B Kitapçığı</option>
-                </select>
+              <label class="block font-bold text-slate-700 mb-1">Soru Sayısı (Serbest Giriş):</label>
+              <div class="flex items-center gap-1.5">
+                <input type="number" id="omr-print-q-count" min="1" value="${activeTestMeta.totalQuestions || 20}"
+                  class="w-20 p-2 bg-slate-50 border border-slate-300 rounded-xl font-black text-slate-900 text-center text-sm focus:bg-white focus:border-emerald-500"
+                  placeholder="20" title="İstediğiniz soru miktarını serbestçe yazabilirsiniz">
+                <div class="flex flex-wrap gap-1 flex-1">
+                  <button type="button" onclick="document.getElementById('omr-print-q-count').value=10" class="px-1.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[10px] cursor-pointer">10</button>
+                  <button type="button" onclick="document.getElementById('omr-print-q-count').value=12" class="px-1.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[10px] cursor-pointer">12</button>
+                  <button type="button" onclick="document.getElementById('omr-print-q-count').value=15" class="px-1.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[10px] cursor-pointer">15</button>
+                  <button type="button" onclick="document.getElementById('omr-print-q-count').value=20" class="px-1.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold rounded-lg text-[10px] cursor-pointer">20</button>
+                  <button type="button" onclick="document.getElementById('omr-print-q-count').value=25" class="px-1.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[10px] cursor-pointer">25</button>
+                  <button type="button" onclick="document.getElementById('omr-print-q-count').value=30" class="px-1.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[10px] cursor-pointer">30</button>
+                  <button type="button" onclick="document.getElementById('omr-print-q-count').value=40" class="px-1.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[10px] cursor-pointer">40</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Kitapçık Türü:</label>
+              <select id="omr-print-booklet" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs">
+                <option value="EMPTY" selected>Boş (Talebe Kodlasın)</option>
+                <option value="A">A Kitapçığı</option>
+                <option value="B">B Kitapçığı</option>
+              </select>
+            </div>
+
+            <div class="flex items-center">
+              <div class="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-200 w-full">
+                ℹ️ <strong>İpucu:</strong> Soru sayısında herhangi bir adet kısıtlaması yoktur; istediğiniz soru miktarını serbestçe yazabilirsiniz. Optik form sütunları otomatik dengelenir.
               </div>
             </div>
           </div>
@@ -706,7 +783,7 @@ window.OMRScanner = {
 
         <div class="pt-2 flex flex-wrap items-center justify-end gap-2.5">
           <button type="button" onclick="document.getElementById('omr-print-modal').remove()"
-            class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+            class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer">
             İptal
           </button>
           <button type="button" onclick="window.OMRScanner.generateAndPrintForms()"
@@ -721,19 +798,35 @@ window.OMRScanner = {
 
   generateAndPrintForms: function() {
     const modeRadio = document.querySelector('input[name="omr-print-mode"]:checked');
-    const printMode = modeRadio ? modeRadio.value : 'LGS_LANDSCAPE';
+    const printMode = modeRadio ? modeRadio.value : 'SINGLE_TEST';
 
     const classSelect = document.getElementById('omr-print-class-select');
-    const qCountSelect = document.getElementById('omr-print-q-count');
+    const qCountInput = document.getElementById('omr-print-q-count');
     const bookletSelect = document.getElementById('omr-print-booklet');
+    const subjectInput = document.getElementById('omr-print-subject');
+    const titleInput = document.getElementById('omr-print-title');
+    const topicInput = document.getElementById('omr-print-topic');
 
     const selectedClass = classSelect ? classSelect.value : 'ALL';
-    const totalQ = parseInt(qCountSelect ? qCountSelect.value : '20', 10) || 20;
-    const defaultBooklet = bookletSelect ? bookletSelect.value : 'A';
+    const totalQ = Math.max(1, parseInt(qCountInput ? qCountInput.value : '20', 10) || 20);
+    const defaultBooklet = bookletSelect ? bookletSelect.value : 'EMPTY';
+    const customSubject = subjectInput ? subjectInput.value.trim() : (window.TestResultsModule?.testMeta?.subject || 'Matematik');
+    const customTitle = titleInput ? titleInput.value.trim() : (window.TestResultsModule?.testMeta?.title || 'Haftalık Etüt Tarama Testi');
+    const customTopic = topicInput ? topicInput.value.trim() : (window.TestResultsModule?.testMeta?.topic || '');
 
-    // Eğer 6 Dersli LGS Optik Formu seçildiyse doğrudan MockExamModule A4 Yatay motorunu çalıştır!
+    // TestResultsModule meta verisini de anında senkronize et
+    if (window.TestResultsModule && window.TestResultsModule.testMeta) {
+      window.TestResultsModule.testMeta.subject = customSubject;
+      window.TestResultsModule.testMeta.title = customTitle;
+      window.TestResultsModule.testMeta.topic = customTopic;
+      window.TestResultsModule.testMeta.totalQuestions = totalQ;
+    }
+
+    // Eğer 6 Dersli LGS Optik Formu seçildiyse doğrudan MockExamModule A4 Yatay motorunu çalıştır
     if (printMode === 'LGS_LANDSCAPE') {
       if (window.MockExamModule && typeof window.MockExamModule.executePrintForms === 'function') {
+        const modal = document.getElementById('omr-print-modal');
+        if (modal) modal.remove();
         window.MockExamModule.executePrintForms(null, {
           selClass: selectedClass,
           selBooklet: defaultBooklet,
@@ -771,40 +864,43 @@ window.OMRScanner = {
       return;
     }
 
-    const testMeta = (window.TestResultsModule && window.TestResultsModule.testMeta)
-      ? window.TestResultsModule.testMeta
-      : { title: 'Haftalık Etüt Tarama Testi', subject: 'Matematik', date: new Date().toISOString().split('T')[0] };
-
-    const institutionName = (window.Store && window.Store.getSettings().institutionName) || 'Ömer Avniyel Akademi';
-
+    const institutionName = (window.Store && window.Store.getSettings && window.Store.getSettings().institutionName) || 'Ömer Avniyel Akademi';
 
     // Form Kartları HTML Üretimi (A4 sayfasında 2'şer adet yerleşecek şekilde)
     let cardsHtml = '';
     targetStudents.forEach((st, idx) => {
       const isBlank = st.id.startsWith('std_blank');
       // QR Kod Veri Yükü (Kompakt ve Hızlı Okunabilir Protokol)
-      // OAY|OPT|{studentId}|{studentNo}|{className}|{booklet}|{questions}|{testSubject}
       const qrPayload = isBlank
-        ? `OAY:BLANK|${defaultBooklet}|${totalQ}|${testMeta.subject}`
-        : `OAY:OPT|${st.id}|${st.studentNo}|${st.className || ''}|${defaultBooklet}|${totalQ}|${testMeta.subject}`;
+        ? `OAY:BLANK|${defaultBooklet}|${totalQ}`
+        : `OAY:OPT|${st.id}|${st.studentNo}|${st.className || ''}|${defaultBooklet}|${totalQ}`;
 
-      const qrSvg = window.MiniQRCode.generateSvg(qrPayload, 110);
+      const qrSvg = window.MiniQRCode.generateSvg(qrPayload, 105);
+      const isBookletA = defaultBooklet === 'A';
+      const isBookletB = defaultBooklet === 'B';
 
       cardsHtml += `
-        <div class="omr-card" style="page-break-inside: avoid; border: 1.5px solid #cbd5e1; padding: 14px; margin-bottom: 14px; border-radius: 8px; font-family: Arial, sans-serif; background: #fff; position: relative;">
+        <div class="omr-card" style="page-break-inside: avoid; border: 1.5px solid #000; padding: 12px 14px; margin-bottom: 12px; border-radius: 8px; font-family: Arial, sans-serif; background: #fff; position: relative; box-sizing: border-box;">
           
           <!-- 4 KÖŞE L REFERANS ÇERÇEVELERİ -->
-          <div style="position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; border-top: 4px solid #000; border-left: 4px solid #000;"></div>
-          <div style="position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-top: 4px solid #000; border-right: 4px solid #000;"></div>
-          <div style="position: absolute; bottom: 6px; left: 6px; width: 22px; height: 22px; border-bottom: 4px solid #000; border-left: 4px solid #000;"></div>
-          <div style="position: absolute; bottom: 6px; right: 6px; width: 22px; height: 22px; border-bottom: 4px solid #000; border-right: 4px solid #000;"></div>
+          <div style="position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; border-top: 4px solid #000; border-left: 4px solid #000;"></div>
+          <div style="position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-top: 4px solid #000; border-right: 4px solid #000;"></div>
+          <div style="position: absolute; bottom: 6px; left: 6px; width: 20px; height: 20px; border-bottom: 4px solid #000; border-left: 4px solid #000;"></div>
+          <div style="position: absolute; bottom: 6px; right: 6px; width: 20px; height: 20px; border-bottom: 4px solid #000; border-right: 4px solid #000;"></div>
 
           <!-- ÜST BAŞLIK VE BİLGİ KUTUSU -->
-          <div style="background: #475569; color: #fff; text-align: center; font-weight: 800; font-size: 11.5px; padding: 4.5px 8px; border-radius: 4px; margin-bottom: 8px;">
-            ${testMeta.subject} • ${testMeta.title} (${totalQ} Soru)
+          <div style="background: #334155; color: #fff; text-align: center; font-weight: 800; font-size: 11.5px; padding: 4.5px 8px; border-radius: 4px; margin-bottom: 6px; letter-spacing: 0.3px;">
+            ${customSubject} • ${customTitle} (${totalQ} Soru)
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 6px; margin-bottom: 8px; border-bottom: 1.5px solid #cbd5e1;">
+          ${customTopic ? `
+            <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2.5px 8px; margin-bottom: 6px; font-size: 9.5px; color: #0f172a; display: flex; align-items: baseline; gap: 5px;">
+              <strong style="color: #047857; white-space: nowrap;">🎯 Konu & Kazanım:</strong>
+              <span style="font-weight: 700; color: #334155;">${customTopic}</span>
+            </div>
+          ` : ''}
+
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 5px; margin-bottom: 6px; border-bottom: 1.5px solid #cbd5e1;">
             <div style="flex: 1; font-size: 10px; padding-right: 8px;">
               <div style="border-bottom: 1px dotted #94a3b8; padding-bottom: 2px; margin-bottom: 3px;">
                 <strong style="color: #1e293b;">Adı Soyadı :</strong> <span style="font-weight: 800; text-transform: uppercase;">${st.firstName} ${st.lastName}</span>
@@ -818,41 +914,42 @@ window.OMRScanner = {
               </div>
 
               <!-- KİTAPÇIK TÜRÜ KUTUSU -->
-              <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 9.5px; font-weight: bold;">
-                <span style="background: #475569; color: #fff; padding: 1.5px 5px; border-radius: 3px; font-size: 8.5px;">Kitapçık Türü</span>
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 9.5px; font-weight: bold;">
+                <span style="background: #475569; color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 8.5px;">Kitapçık Türü</span>
                 <span style="display: inline-flex; align-items: center; gap: 4px;">
-                  <span style="display: inline-block; width: 14px; height: 14px; border: 1.2px solid #000; border-radius: 50%; text-align: center; line-height: 12px; font-size: 8.5px; font-weight: 900; ${defaultBooklet === 'A' ? 'background: #000; color: #fff;' : 'color: #333;'}">A</span>
+                  <span style="display: inline-block; width: 14px; height: 14px; border: 1.2px solid #000; border-radius: 50%; text-align: center; line-height: 12px; font-size: 8.5px; font-weight: 900; ${isBookletA ? 'background: #000; color: #fff;' : 'color: #000;'}">A</span>
                   <span>A</span>
                 </span>
                 <span style="display: inline-flex; align-items: center; gap: 4px;">
-                  <span style="display: inline-block; width: 14px; height: 14px; border: 1.2px solid #000; border-radius: 50%; text-align: center; line-height: 12px; font-size: 8.5px; font-weight: 900; ${defaultBooklet === 'B' ? 'background: #000; color: #fff;' : 'color: #333;'}">B</span>
+                  <span style="display: inline-block; width: 14px; height: 14px; border: 1.2px solid #000; border-radius: 50%; text-align: center; line-height: 12px; font-size: 8.5px; font-weight: 900; ${isBookletB ? 'background: #000; color: #fff;' : 'color: #000;'}">B</span>
                   <span>B</span>
                 </span>
+                ${defaultBooklet === 'EMPTY' ? '<span style="color: #64748b; font-size: 8px; font-weight: normal;">(Talebe kodlar)</span>' : ''}
               </div>
             </div>
 
             <!-- KAREKODU OKUTUN KUTUSU -->
             <div style="border: 1.2px solid #64748b; border-radius: 5px; overflow: hidden; text-align: center; background: #fff; flex-shrink: 0;">
               <div style="background: #475569; color: #fff; font-size: 8px; font-weight: 800; padding: 2px 4px;">Karekodu Okutun</div>
-              <div style="padding: 3px; background: #fff;">
+              <div style="padding: 2.5px; background: #fff; display: flex; align-items: center; justify-content: center;">
                 ${qrSvg}
               </div>
             </div>
           </div>
 
-          <!-- OPTİK CEVAP KABARCIKLARI ALANI (2 SÜTUN) -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-left: 14px; margin-right: 14px;">
+          <!-- OPTİK CEVAP KABARCIKLARI ALANI -->
+          <div style="margin-left: 8px; margin-right: 8px; margin-bottom: 6px;">
             ${window.OMRScanner.renderBubbleColumnsHtml(totalQ)}
           </div>
 
           <!-- ALT BİLGİLENDİRME UYARISI -->
-          <div style="margin-top: 8px; text-align: center; font-size: 8px; color: #666; font-weight: bold; border-top: 1px dashed #ccc; padding-top: 4px;">
+          <div style="margin-top: 6px; text-align: center; font-size: 8px; color: #666; font-weight: bold; border-top: 1px dashed #ccc; padding-top: 3px;">
             Kurşun kalem ile dairenin içini taşırmadan tam doldurunuz. Çift işaretleme ve çizik geçersiz sayılır.
           </div>
         </div>
 
         ${(idx % 2 === 1 && idx < targetStudents.length - 1) ? `
-          <div class="omr-cut-line" style="text-align: center; font-size: 9px; color: #888; border-top: 1px dashed #000; margin: 10px 0; padding-top: 2px; page-break-after: always;">
+          <div class="omr-cut-line" style="text-align: center; font-size: 8.5px; color: #64748b; border-top: 1px dashed #000; margin: 10px 0; padding-top: 2px; page-break-after: always;">
             ✂ — — — — — — — — — — — — — — — — — — — BURADAN KESİNİZ — — — — — — — — — — — — — — — — — — — ✂
           </div>
         ` : ''}
@@ -865,17 +962,20 @@ window.OMRScanner = {
       <html lang="tr">
       <head>
         <meta charset="UTF-8">
-        <title>Optik Cevap Formları - ${testMeta.subject || 'Test'}</title>
+        <title>Optik Cevap Formları - ${customSubject} - ${customTitle}</title>
         <style>
-          @page { size: A4 portrait; margin: 8mm; }
+          @page { size: A4 portrait; margin: 7mm; }
           * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #fff; color: #000; font-size: 11px; }
           @media print {
             .no-print-top-bar { display: none !important; }
+            body { padding-top: 0 !important; background: #fff !important; }
+            .omr-card { box-shadow: none !important; border: 1.5px solid #000 !important; }
           }
           @media screen {
-            body { background: #475569; padding-top: 52px; }
-            .omr-card { box-shadow: 0 4px 15px rgba(0,0,0,0.25); margin: 15px auto; max-width: 210mm; }
+            body { background: #475569; padding-top: 54px; padding-bottom: 40px; }
+            .omr-card { box-shadow: 0 4px 15px rgba(0,0,0,0.25); margin: 12px auto; max-width: 200mm; background: #fff; }
+            .omr-cut-line { max-width: 200mm; margin: 12px auto; color: #cbd5e1; border-color: #94a3b8; }
           }
           .no-print-top-bar {
             position: fixed;
@@ -888,7 +988,7 @@ window.OMRScanner = {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 20px;
+            padding: 0 16px;
             z-index: 999999;
             box-shadow: 0 2px 10px rgba(0,0,0,0.5);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -897,10 +997,10 @@ window.OMRScanner = {
             background: #059669;
             color: #ffffff;
             border: none;
-            padding: 8px 18px;
+            padding: 7px 16px;
             border-radius: 8px;
             font-weight: 700;
-            font-size: 13px;
+            font-size: 12px;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
@@ -912,22 +1012,22 @@ window.OMRScanner = {
             background: #334155;
             color: #ffffff;
             border: none;
-            padding: 7px 14px;
+            padding: 7px 12px;
             border-radius: 8px;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             cursor: pointer;
           }
           .no-print-close:hover { background: #475569; }
-          .omr-card { page-break-inside: avoid; border: 2px solid #000; padding: 12px; margin-bottom: 12px; border-radius: 8px; background: #fff; position: relative; }
-          .omr-cut-line { text-align: center; font-size: 9px; color: #888; border-top: 1px dashed #000; margin: 10px 0; padding-top: 2px; page-break-after: always; }
+          .omr-card { page-break-inside: avoid; border: 1.5px solid #000; padding: 12px 14px; margin-bottom: 12px; border-radius: 8px; background: #fff; position: relative; }
+          .omr-cut-line { text-align: center; font-size: 8.5px; color: #64748b; border-top: 1px dashed #000; margin: 10px 0; padding-top: 2px; page-break-after: always; }
         </style>
       </head>
       <body>
         <div class="no-print-top-bar">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-weight: 800; font-size: 13px;">📝 Optik Cevap Formları - ${testMeta.subject || 'Test'}</span>
-            <span style="font-size: 11px; color: #94a3b8;">(${students.length} Talebe)</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-weight: 800; font-size: 13px;">📝 ${customSubject} • ${customTitle}</span>
+            <span style="font-size: 11px; color: #94a3b8;">(${targetStudents.length} Form • ${totalQ} Soru)</span>
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
             <button class="no-print-btn" onclick="window.print()">🖨️ Sayfayı Yazdır (Ctrl + P)</button>
@@ -937,111 +1037,155 @@ window.OMRScanner = {
         ${cardsHtml}
         <script>
           window.onload = function() {
-            setTimeout(function() { window.print(); }, 400);
+            setTimeout(function() { try { window.print(); } catch(e){} }, 400);
           };
         </script>
       </body>
       </html>
     `;
 
-    // Modalı kapat
+    // Form ayar modalını kapat
     const modal = document.getElementById('omr-print-modal');
     if (modal) modal.remove();
 
     if (window.App && window.App.showToast) {
-      window.App.showToast('🖨️ Optik formlar hazırlanıyor, yazdırma ekranı açılıyor...', 'info');
+      window.App.showToast('🖨️ Optik formlar hazırlandı, önizleme açılıyor...', 'success');
     }
 
-    // Güvenilir Yazdırma Hattı: Önce doğrudan yeni sekme denenir
-    let openedInNewTab = false;
-    try {
-      const win = window.open('', '_blank');
-      if (win) {
-        win.document.open();
-        win.document.write(printHtml);
-        win.document.close();
-        win.focus();
-        setTimeout(() => {
-          try { win.print(); } catch (e) {}
-        }, 500);
-        openedInNewTab = true;
-      }
-    } catch (err) {
-      console.warn('OMR window.open engellendi:', err);
-    }
-
-    // Eğer yeni pencere engellendiyse sayfa içi garanti modal aç
-    if (!openedInNewTab) {
-      this.showPrintFallbackModal(printHtml, testMeta.subject);
-    }
+    // Doğrudan sayfa içi garantili önizleme ve yazdırma penceresini aç
+    this.showPrintPreviewModal(printHtml, `${customSubject} - ${customTitle}`);
   },
 
-  showPrintFallbackModal: function(printHtml, title) {
+  showPrintPreviewModal: function(printHtml, title) {
+    window._currentOmrPrintHtml = printHtml;
     let modal = document.getElementById('omr-print-preview-modal');
     if (!modal) {
       modal = document.createElement('div');
       modal.id = 'omr-print-preview-modal';
-      modal.className = 'fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 overflow-hidden';
+      modal.className = 'fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden';
       document.body.appendChild(modal);
     }
+
     modal.innerHTML = `
-      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full h-[90vh] flex flex-col p-4 sm:p-5 space-y-3 animate-fade-in">
-        <div class="flex items-center justify-between pb-2 border-b border-slate-100 flex-shrink-0">
-          <div class="flex items-center gap-2">
-            <span class="text-xl">🖨️</span>
+      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-5xl w-full h-[94vh] flex flex-col p-3 sm:p-5 space-y-3 animate-fade-in">
+        <div class="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 flex-shrink-0 gap-2">
+          <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 text-xl flex items-center justify-center font-black">
+              🖨️
+            </div>
             <div>
-              <h3 class="font-black text-slate-900 text-sm leading-tight">${title || 'Optik Formlar'} - Önizleme</h3>
-              <p class="text-[11px] text-slate-500 font-medium">Tarayıcınız yeni sekme açılmasını kısıtladıysa buradan doğrudan yazdırabilirsiniz.</p>
+              <h3 class="font-black text-slate-900 text-sm sm:text-base leading-tight">${title || 'Optik Formlar'} - Yazdırma Önizleme</h3>
+              <p class="text-[11px] text-slate-500 font-medium">A4 formatında optik cevap formları hazırlandı. Doğrudan yazdırabilir veya yeni sekmede açabilirsiniz.</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <button type="button" onclick="const f = document.getElementById('omr-preview-iframe'); f.contentWindow.focus(); f.contentWindow.print();"
-              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+            <button type="button" onclick="window.OMRScanner.triggerDirectPrint()"
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95">
               <span>🖨️</span>
-              <span>Şimdi Yazdır</span>
+              <span>Sayfayı Yazdır (Ctrl + P)</span>
+            </button>
+            <button type="button" onclick="window.OMRScanner.openPrintInNewTab()"
+              class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs rounded-xl transition flex items-center gap-1 cursor-pointer"
+              title="Formları tam sayfa ayrı bir sekmede aç">
+              <span>🌐</span>
+              <span class="hidden sm:inline">Yeni Sekmede Aç</span>
             </button>
             <button type="button" onclick="document.getElementById('omr-print-preview-modal').remove()"
-              class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center">✕</button>
+              class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center cursor-pointer">✕</button>
           </div>
         </div>
-        <div class="flex-1 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
-          <iframe id="omr-preview-iframe" class="w-full h-full border-0"></iframe>
+        <div class="flex-1 rounded-2xl overflow-hidden border border-slate-300 bg-slate-100 relative shadow-inner">
+          <iframe id="omr-preview-iframe" class="w-full h-full border-0 bg-white"></iframe>
         </div>
       </div>
     `;
+
     const frame = document.getElementById('omr-preview-iframe');
     if (frame) {
       frame.srcdoc = printHtml;
+      frame.onload = function() {
+        setTimeout(function() {
+          try {
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+          } catch (e) {
+            console.warn('Otomatik yazdırma penceresi tetiklenemedi:', e);
+          }
+        }, 350);
+      };
+    }
+  },
+
+  showPrintFallbackModal: function(printHtml, title) {
+    this.showPrintPreviewModal(printHtml, title);
+  },
+
+  triggerDirectPrint: function() {
+    const frame = document.getElementById('omr-preview-iframe');
+    if (frame && frame.contentWindow) {
+      try {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+        return;
+      } catch (e) {}
+    }
+    window.print();
+  },
+
+  openPrintInNewTab: function() {
+    if (!window._currentOmrPrintHtml) return;
+    try {
+      const blob = new Blob([window._currentOmrPrintHtml], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, '_blank');
+      if (win) {
+        win.focus();
+      }
+    } catch (e) {
+      console.warn('Yeni sekmede açma hatası:', e);
     }
   },
 
   renderBubbleColumnsHtml: function(totalQ) {
-    const half = Math.ceil(totalQ / 2);
+    totalQ = parseInt(totalQ, 10) || 20;
+    if (totalQ < 1) totalQ = 1;
+
+    let numCols = 2;
+    if (totalQ > 28) numCols = 3;
+    if (totalQ > 45) numCols = 4;
+
+    const perCol = Math.ceil(totalQ / numCols);
     const options = ['A', 'B', 'C', 'D'];
 
-    const renderColumn = (start, end) => {
-      let colHtml = '<div style="display: flex; flex-direction: column; gap: 3.5px;">';
-      for (let q = start; q <= end; q++) {
-        colHtml += `
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: 1.5px 4px; background: ${q % 2 === 0 ? '#f9f9f9' : '#ffffff'}; border-radius: 3px; border-bottom: 0.5px solid #eee;">
-            <span style="font-size: 10px; font-weight: 900; width: 18px; text-align: right; color: #111;">${q}.</span>
-            <div style="display: flex; align-items: center; gap: 6px;">
-              ${options.map(opt => `
-                <span style="display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border: 1.5px solid #000; border-radius: 50%; font-size: 10px; font-weight: 900; color: #000;">
-                  ${opt}
-                </span>
-              `).join('')}
+    let colsHtml = '';
+    for (let c = 0; c < numCols; c++) {
+      const start = c * perCol + 1;
+      const end = Math.min(totalQ, (c + 1) * perCol);
+      if (start <= totalQ) {
+        let col = '<div style="display: flex; flex-direction: column; gap: 2.5px;">';
+        for (let q = start; q <= end; q++) {
+          col += `
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 1.5px 4px; background: ${q % 2 === 0 ? '#f8fafc' : '#ffffff'}; border-radius: 3px; border-bottom: 0.5px solid #e2e8f0;">
+              <span style="font-size: 9.5px; font-weight: 900; width: 18px; text-align: right; color: #0f172a;">${q}.</span>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                ${options.map(opt => `
+                  <span style="display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: 1.4px solid #000; border-radius: 50%; font-size: 9px; font-weight: 900; color: #000; font-family: Arial, sans-serif;">
+                    ${opt}
+                  </span>
+                `).join('')}
+              </div>
             </div>
-          </div>
-        `;
+          `;
+        }
+        col += '</div>';
+        colsHtml += col;
       }
-      colHtml += '</div>';
-      return colHtml;
-    };
+    }
 
     return `
-      <div>${renderColumn(1, half)}</div>
-      <div>${renderColumn(half + 1, totalQ)}</div>
+      <div style="display: grid; grid-template-columns: repeat(${numCols}, 1fr); gap: 10px;">
+        ${colsHtml}
+      </div>
     `;
   },
 

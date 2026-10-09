@@ -1967,66 +1967,63 @@ window.MockExamModule = {
       window.App.showToast('🖨️ Optik formlar hazırlanıyor, yazdırma ekranı açılıyor...', 'info');
     }
 
-    // Güvenilir Yazdırma Hattı: Önce doğrudan sekme/pencere açılışı denenir
-    let openedInNewTab = false;
-    try {
-      const win = window.open('', '_blank');
-      if (win) {
-        win.document.open();
-        win.document.write(printHtml);
-        win.document.close();
-        win.focus();
-        setTimeout(() => {
-          try { win.print(); } catch (e) {}
-        }, 500);
-        openedInNewTab = true;
-      }
-    } catch (err) {
-      console.warn('window.open çağrısı engellendi veya hata verdi:', err);
-    }
-
-    // Eğer tarayıcı yeni pencereyi pop-up kısıtlamasıyla engellediyse, sayfa içi garanti modal açılır
-    if (!openedInNewTab) {
-      this.showPrintFallbackModal(printHtml, exam.title);
-    }
+    // Doğrudan sayfa içi garantili önizleme ve yazdırma penceresini aç
+    this.showPrintFallbackModal(printHtml, exam.title);
   },
 
   showPrintFallbackModal(printHtml, title) {
+    window._currentMockPrintHtml = printHtml;
     let modal = document.getElementById('mock-print-preview-modal');
     if (!modal) {
       modal = document.createElement('div');
       modal.id = 'mock-print-preview-modal';
-      modal.className = 'fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 overflow-hidden';
+      modal.className = 'fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden';
       document.body.appendChild(modal);
     }
     modal.innerHTML = `
-      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full h-[90vh] flex flex-col p-4 sm:p-5 space-y-3 animate-fade-in">
-        <div class="flex items-center justify-between pb-2 border-b border-slate-100 flex-shrink-0">
+      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-5xl w-full h-[94vh] flex flex-col p-3 sm:p-5 space-y-3 animate-fade-in">
+        <div class="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 flex-shrink-0 gap-2">
           <div class="flex items-center gap-2">
             <span class="text-xl">🖨️</span>
             <div>
-              <h3 class="font-black text-slate-900 text-sm leading-tight">${title || 'Optik Formlar'} - Önizleme</h3>
-              <p class="text-[11px] text-slate-500 font-medium">Tarayıcınız yeni sekme açılmasını kısıtladıysa buradan doğrudan yazdırabilirsiniz.</p>
+              <h3 class="font-black text-slate-900 text-sm sm:text-base leading-tight">${title || 'Optik Formlar'} - Yazdırma Önizleme</h3>
+              <p class="text-[11px] text-slate-500 font-medium">A4 Yatay LGS Kurumsal Formları. Doğrudan yazdırabilir veya yeni sekmede açabilirsiniz.</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <button type="button" onclick="const f = document.getElementById('mock-preview-iframe'); f.contentWindow.focus(); f.contentWindow.print();"
-              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+            <button type="button" onclick="const f = document.getElementById('mock-preview-iframe'); if (f && f.contentWindow) { f.contentWindow.focus(); f.contentWindow.print(); } else { window.print(); }"
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95">
               <span>🖨️</span>
-              <span>Şimdi Yazdır</span>
+              <span>Sayfayı Yazdır (Ctrl + P)</span>
+            </button>
+            <button type="button" onclick="try { const b = new Blob([window._currentMockPrintHtml], {type:'text/html;charset=utf-8'}); const u = URL.createObjectURL(b); window.open(u, '_blank'); } catch(e){}"
+              class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs rounded-xl transition flex items-center gap-1 cursor-pointer"
+              title="Formları tam sayfa yeni sekmede aç">
+              <span>🌐</span>
+              <span class="hidden sm:inline">Yeni Sekmede Aç</span>
             </button>
             <button type="button" onclick="document.getElementById('mock-print-preview-modal').remove()"
-              class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center">✕</button>
+              class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center cursor-pointer">✕</button>
           </div>
         </div>
-        <div class="flex-1 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
-          <iframe id="mock-preview-iframe" class="w-full h-full border-0"></iframe>
+        <div class="flex-1 rounded-2xl overflow-hidden border border-slate-300 bg-slate-100 relative shadow-inner">
+          <iframe id="mock-preview-iframe" class="w-full h-full border-0 bg-white"></iframe>
         </div>
       </div>
     `;
     const frame = document.getElementById('mock-preview-iframe');
     if (frame) {
       frame.srcdoc = printHtml;
+      frame.onload = function() {
+        setTimeout(function() {
+          try {
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+          } catch (e) {
+            console.warn('Otomatik yazdırma tetiklenemedi:', e);
+          }
+        }, 350);
+      };
     }
   },
 
