@@ -1851,7 +1851,29 @@ window.App = {
           if (patch.firstName !== undefined) merged.firstName = patch.firstName.trim().toUpperCase();
           if (patch.lastName !== undefined) merged.lastName = patch.lastName.trim().toUpperCase();
           if (patch.className !== undefined) merged.className = patch.className.trim();
-          if (patch.etutHocasi !== undefined) merged.etutHocasi = patch.etutHocasi.trim();
+          if (patch.etutHocasi !== undefined) {
+            merged.etutHocasi = patch.etutHocasi.trim();
+          } else if (patch.className !== undefined) {
+            const CLASS_TEACHER_DEFAULTS = {
+              '5-A': 'YASİN EKİNCİ',
+              '5-B': 'AHMED MUBARİZ',
+              '6-A': 'ABDUSSAMED TAV',
+              '6-B': 'ABDUSSAMED TAV',
+              '7-A': 'EMİR TALHA TARIM',
+              '7-B': 'BURAK BODUR',
+              '8-A': 'YAVUZ SELİM SEVEN',
+              '8-B': 'TUNAHAN TAŞKIN'
+            };
+            const newClass = (patch.className || '').trim().toUpperCase();
+            const oldClass = (st.className || '').trim().toUpperCase();
+            if (newClass && CLASS_TEACHER_DEFAULTS[newClass]) {
+              const oldExpected = CLASS_TEACHER_DEFAULTS[oldClass];
+              const curEtut = (st.etutHocasi || '').trim().toUpperCase();
+              if (!curEtut || (oldExpected && curEtut.includes(oldExpected.split(' ')[0]))) {
+                merged.etutHocasi = CLASS_TEACHER_DEFAULTS[newClass];
+              }
+            }
+          }
           if (patch.dahiliHoca !== undefined) merged.dahiliHoca = patch.dahiliHoca.trim();
           if (patch.yatakhane !== undefined) merged.yatakhane = patch.yatakhane.trim();
           if (patch.password !== undefined) merged.password = patch.password.trim() || '123';
