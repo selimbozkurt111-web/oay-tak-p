@@ -164,7 +164,10 @@ window.MockExamModule = {
       list = list.filter(s => allowedSet.has(s.id));
     }
 
-    // Sınıfına ve okul numarasına göre sırala
+    // Sınıfına ve okul numarasına göre sırala (5-A ➔ 8-B)
+    if (window.Store && typeof window.Store.sortStudentsByClassAndNo === 'function') {
+      return window.Store.sortStudentsByClassAndNo(list);
+    }
     return list.sort((a, b) => {
       const cComp = (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true });
       if (cComp !== 0) return cComp;

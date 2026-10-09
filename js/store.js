@@ -1998,9 +1998,11 @@ class DataStore {
     return !!map[studentId];
   }
 
-  // --- Talebeleri Sınıf ve Şubelerine Göre Sıralama Motoru (5-A ➔ 8-B, Şube içi Okul No & İsim Sırası) ---
-  sortStudentsByClassAndNo(students) {
-    if (!Array.isArray(students)) return [];
+  // --- İki Talebeyi Kademeli Olarak Karşılaştırma Motoru (5-A ➔ 8-B, Şube, No & İsim) ---
+  compareStudents(a, b) {
+    if (!a && !b) return 0;
+    if (!a) return 1;
+    if (!b) return -1;
 
     const parseClass = (cls) => {
       if (!cls) return { grade: 999, branch: 'ZZZ', raw: 'ZZZ' };
@@ -2024,48 +2026,48 @@ class DataStore {
       return { grade, branch, raw };
     };
 
-    return [...students].sort((a, b) => {
-      if (!a && !b) return 0;
-      if (!a) return 1;
-      if (!b) return -1;
+    const cA = parseClass(a.className);
+    const cB = parseClass(b.className);
 
-      const cA = parseClass(a.className);
-      const cB = parseClass(b.className);
+    // 1. Sınıf seviyesi (5 < 6 < 7 < 8)
+    if (cA.grade !== cB.grade) {
+      return cA.grade - cB.grade;
+    }
 
-      // 1. Sınıf seviyesi (5 < 6 < 7 < 8)
-      if (cA.grade !== cB.grade) {
-        return cA.grade - cB.grade;
-      }
+    // 2. Şube harfi (A < B < C)
+    if (cA.branch !== cB.branch) {
+      return cA.branch.localeCompare(cB.branch, 'tr', { sensitivity: 'base' });
+    }
 
-      // 2. Şube harfi (A < B < C)
-      if (cA.branch !== cB.branch) {
-        return cA.branch.localeCompare(cB.branch, 'tr', { sensitivity: 'base' });
-      }
+    // 3. Ham sınıf metni farkı (varsa)
+    if (cA.raw !== cB.raw) {
+      const cmpRaw = cA.raw.localeCompare(cB.raw, 'tr', { numeric: true });
+      if (cmpRaw !== 0) return cmpRaw;
+    }
 
-      // 3. Ham sınıf metni farkı (varsa)
-      if (cA.raw !== cB.raw) {
-        const cmpRaw = cA.raw.localeCompare(cB.raw, 'tr', { numeric: true });
-        if (cmpRaw !== 0) return cmpRaw;
-      }
+    // 4. Okul Numarası (küçükten büyüğe)
+    const noA = parseInt(a.studentNo, 10);
+    const noB = parseInt(b.studentNo, 10);
+    const hasNoA = !isNaN(noA) && noA > 0;
+    const hasNoB = !isNaN(noB) && noB > 0;
 
-      // 4. Okul Numarası (küçükten büyüğe)
-      const noA = parseInt(a.studentNo, 10);
-      const noB = parseInt(b.studentNo, 10);
-      const hasNoA = !isNaN(noA) && noA > 0;
-      const hasNoB = !isNaN(noB) && noB > 0;
+    if (hasNoA && hasNoB && noA !== noB) {
+      return noA - noB;
+    }
+    if (hasNoA && !hasNoB) return -1;
+    if (!hasNoA && hasNoB) return 1;
 
-      if (hasNoA && hasNoB && noA !== noB) {
-        return noA - noB;
-      }
-      if (hasNoA && !hasNoB) return -1;
-      if (!hasNoA && hasNoB) return 1;
+    // 5. İsim Soyisim (Alfabetik Türkçe)
+    const nameA = `${(a.firstName || '').trim()} ${(a.lastName || '').trim()}`.trim();
+    const nameB = `${(b.firstName || '').trim()} ${(b.lastName || '').trim()}`.trim();
+    return nameA.localeCompare(nameB, 'tr', { sensitivity: 'base' });
+  },
 
-      // 5. İsim Soyisim (Alfabetik Türkçe)
-      const nameA = `${(a.firstName || '').trim()} ${(a.lastName || '').trim()}`.trim();
-      const nameB = `${(b.firstName || '').trim()} ${(b.lastName || '').trim()}`.trim();
-      return nameA.localeCompare(nameB, 'tr', { sensitivity: 'base' });
-    });
-  }
+  // --- Talebeleri Sınıf ve Şubelerine Göre Sıralama Motoru (5-A ➔ 8-B, Şube içi Okul No & İsim Sırası) ---
+  sortStudentsByClassAndNo(students) {
+    if (!Array.isArray(students)) return [];
+    return [...students].sort((a, b) => this.compareStudents(a, b));
+  },
 
   // --- Öğrenci İşlemleri (Aktif & Pasif & Kalıcı Silinme Korumalı) ---
   getAllStudents() {

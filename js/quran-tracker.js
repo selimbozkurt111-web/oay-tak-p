@@ -1005,6 +1005,9 @@ window.QuranTrackerModule = {
           return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
         }
         if (this.sortMode === 'class') {
+          if (window.Store && typeof window.Store.compareStudents === 'function') {
+            return window.Store.compareStudents(a.student, b.student);
+          }
           const cA = a.student.className || '';
           const cB = b.student.className || '';
           if (cA !== cB) return cA.localeCompare(cB, 'tr', { numeric: true });
@@ -1560,7 +1563,8 @@ window.QuranTrackerModule = {
                 </tr>
               ` : filtered.map((item, idx) => {
                 const s = item.student;
-                const st = item.stats;
+                const stats = item.stats;
+                const st = stats;
                 const rank = idx + 1;
                 const isTop3 = (this.sortMode === 'rank') && (rank <= 3);
                 const medal = (this.sortMode === 'rank') ? (rank === 1 ? '🥇' : (rank === 2 ? '🥈' : (rank === 3 ? '🥉' : rank))) : rank;
