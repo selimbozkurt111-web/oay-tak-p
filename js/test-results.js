@@ -202,15 +202,19 @@ window.TestResultsModule = {
         return (a.firstName || '').localeCompare(b.firstName || '', 'tr');
       });
     } else {
-      // SABİT LİSTE SIRASI: Sınıf -> Okul No -> İsim (Hoca sırala demediği sürece asla yer değiştirmez)
-      students.sort((a, b) => {
-        const clsComp = (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true });
-        if (clsComp !== 0) return clsComp;
-        const noA = parseInt(a.studentNo, 10) || 0;
-        const noB = parseInt(b.studentNo, 10) || 0;
-        if (noA !== 0 && noB !== 0 && noA !== noB) return noA - noB;
-        return (a.firstName || '').localeCompare(b.firstName || '', 'tr');
-      });
+      // SABİT LİSTE SIRASI: Sınıf -> Şube -> Okul No -> İsim (5-A ➔ 8-B)
+      if (window.Store && typeof window.Store.sortStudentsByClassAndNo === 'function') {
+        students = window.Store.sortStudentsByClassAndNo(students);
+      } else {
+        students.sort((a, b) => {
+          const clsComp = (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true });
+          if (clsComp !== 0) return clsComp;
+          const noA = parseInt(a.studentNo, 10) || 0;
+          const noB = parseInt(b.studentNo, 10) || 0;
+          if (noA !== 0 && noB !== 0 && noA !== noB) return noA - noB;
+          return (a.firstName || '').localeCompare(b.firstName || '', 'tr');
+        });
+      }
     }
 
     return students;
@@ -280,7 +284,7 @@ window.TestResultsModule = {
       scoreEl.className = `inline-block px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-xs border shadow-2xs transition-all ${this.getScoreBadgeClass(updated.score)}`;
     }
 
-    // Input değerini sadece odaklanılmamış kutuda ve sınır aşımı varsa düzelt (yazarken imleci ASLA bozma)
+    // Input değerini sadece odaklanılmamış kutuda ve adet aşımı varsa düzelt (yazarken imleci ASLA bozma)
     const activeEl = document.activeElement;
     const cInput = document.getElementById(`input-c-${studentId}`);
     if (cInput && cInput !== activeEl && cInput.value !== '' && parseInt(cInput.value, 10) !== updated.correct) {
