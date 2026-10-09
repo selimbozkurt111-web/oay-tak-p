@@ -195,6 +195,8 @@ class DataStore {
     this.autoSyncMuhammedCholak();
     // Bilal Chuluk (No: 703, 7-B Sınıfı, Burak Bodur Grubu) hoca atamasını ve talebe kaydını garantiye al
     this.autoSyncBilalChuluk();
+    // 7. Sınıf Hoca ve Şube Uyumlaştırmasını Garantiye Al (7-A: Emir Talha Tarım, 7-B: Burak Bodur)
+    this.autoSync7thGradeClassTeachers();
     // Eğitmen ve personel cihazlarında eski yerel öğrenci düzenleme kalkanını sıfırla (Bulut senkronizasyonunun engelsiz akması için)
     if (!this.isCurrentUserAdmin()) {
       try {
@@ -765,6 +767,37 @@ class DataStore {
       }
     } catch (err) {
       console.warn('[autoSyncBilalChuluk] Hata:', err);
+    }
+  }
+
+  // 7. Sınıf Hoca ve Şube Uyumlaştırması (7-A: Emir Talha Tarım, 7-B: Burak Bodur)
+  autoSync7thGradeClassTeachers() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      let students = raw ? JSON.parse(raw) : null;
+      if (!Array.isArray(students) || students.length === 0) return;
+      let changed = false;
+      students = students.map(s => {
+        if (!s) return s;
+        const cls = (s.className || '').trim().toUpperCase();
+        const etut = (s.etutHocasi || '').trim().toUpperCase();
+        if (cls === '7-B' && (etut.includes('EMİR TALHA') || etut.includes('EMIR TALHA') || !etut)) {
+          changed = true;
+          return { ...s, etutHocasi: 'BURAK BODUR' };
+        }
+        return s;
+      });
+      if (changed) {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/students', students);
+        }
+        try {
+          window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.warn('[autoSync7thGradeClassTeachers] Hata:', e);
     }
   }
 
@@ -2555,6 +2588,29 @@ class DataStore {
         familyCode: ((updatedData.familyCode !== undefined ? updatedData.familyCode : students[index].familyCode) || '').trim().toUpperCase(),
         updatedAt: new Date().toISOString()
       };
+
+      // Sınıf değiştirildiğinde etüt hocasını standart şube hocası ile otomatik uyumlaştır
+      if (updatedData.className !== undefined && updatedData.etutHocasi === undefined) {
+        const CLASS_TEACHER_DEFAULTS = {
+          '5-A': 'YASİN EKİNCİ',
+          '5-B': 'AHMED MUBARİZ',
+          '6-A': 'ABDUSSAMED TAV',
+          '6-B': 'ABDUSSAMED TAV',
+          '7-A': 'EMİR TALHA TARIM',
+          '7-B': 'BURAK BODUR',
+          '8-A': 'YAVUZ SELİM SEVEN',
+          '8-B': 'TUNAHAN TAŞKIN'
+        };
+        const newClass = (updatedData.className || '').trim().toUpperCase();
+        const oldClass = (students[index].className || '').trim().toUpperCase();
+        if (newClass && CLASS_TEACHER_DEFAULTS[newClass]) {
+          const oldExpected = CLASS_TEACHER_DEFAULTS[oldClass];
+          const curEtut = (students[index].etutHocasi || '').trim().toUpperCase();
+          if (!curEtut || (oldExpected && curEtut.includes(oldExpected.split(' ')[0]))) {
+            students[index].etutHocasi = CLASS_TEACHER_DEFAULTS[newClass];
+          }
+        }
+      }
       delete students[index].aktif;
       delete students[index].active;
       this.saveStudents(students);
