@@ -454,23 +454,33 @@ window.AttendanceModule = {
     if (window.Store && typeof window.Store.sortStudentsByClassAndNo === 'function') {
       students = window.Store.sortStudentsByClassAndNo(students);
     } else {
-      const getComparableClass = (cls) => {
-        if (!cls) return 'ZZZ';
-        const clean = cls.toString().trim().toUpperCase().replace('/', '-').replace(/\s+/g, '');
-        const m = clean.match(/^(\d+)([A-ZÇĞİÖŞÜ])$/);
-        if (m) return `${m[1]}-${m[2]}`;
-        return clean;
+      const parseClass = (cls) => {
+        if (!cls) return { grade: 999, branch: 'ZZZ', raw: 'ZZZ' };
+        const raw = cls.toString().trim().toUpperCase();
+        const numMatch = raw.match(/\b(\d+)\b/) || raw.match(/(\d+)/);
+        const grade = numMatch ? parseInt(numMatch[1], 10) : 999;
+        let branch = '';
+        const branchMatch = raw.match(/(?:SINIF|\d)[\s\.\-\/]*([A-ZÇĞİÖŞÜ])\b/) ||
+                            raw.match(/[\-\/\s]([A-ZÇĞİÖŞÜ])\b/) ||
+                            raw.match(/^(\d+)([A-ZÇĞİÖŞÜ])$/);
+        if (branchMatch) {
+          const candidate = (branchMatch[2] || branchMatch[1] || '').trim();
+          if (candidate && candidate !== 'S') branch = candidate;
+        }
+        return { grade, branch, raw };
       };
 
       students.sort((a, b) => {
         if (!a && !b) return 0;
         if (!a) return 1;
         if (!b) return -1;
-        const clsA = getComparableClass(a.className);
-        const clsB = getComparableClass(b.className);
-        if (clsA !== clsB) {
-          const cmp = clsA.localeCompare(clsB, 'tr', { numeric: true });
-          if (cmp !== 0) return cmp;
+        const cA = parseClass(a.className);
+        const cB = parseClass(b.className);
+        if (cA.grade !== cB.grade) return cA.grade - cB.grade;
+        if (cA.branch !== cB.branch) return cA.branch.localeCompare(cB.branch, 'tr', { sensitivity: 'base' });
+        if (cA.raw !== cB.raw) {
+          const cmpRaw = cA.raw.localeCompare(cB.raw, 'tr', { numeric: true });
+          if (cmpRaw !== 0) return cmpRaw;
         }
         const noA = parseInt(a.studentNo, 10);
         const noB = parseInt(b.studentNo, 10);

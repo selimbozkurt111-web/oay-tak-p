@@ -2002,12 +2002,26 @@ class DataStore {
   sortStudentsByClassAndNo(students) {
     if (!Array.isArray(students)) return [];
 
-    const getComparableClass = (cls) => {
-      if (!cls) return 'ZZZ';
-      const clean = cls.toString().trim().toUpperCase().replace('/', '-').replace(/\s+/g, '');
-      const m = clean.match(/^(\d+)([A-ZÇĞİÖŞÜ])$/);
-      if (m) return `${m[1]}-${m[2]}`;
-      return clean;
+    const parseClass = (cls) => {
+      if (!cls) return { grade: 999, branch: 'ZZZ', raw: 'ZZZ' };
+      const raw = cls.toString().trim().toUpperCase();
+
+      // 1. Sınıf Seviyesini (5, 6, 7, 8...) bul
+      const numMatch = raw.match(/\b(\d+)\b/) || raw.match(/(\d+)/);
+      const grade = numMatch ? parseInt(numMatch[1], 10) : 999;
+
+      // 2. Şube Harfini (A, B, C...) bul
+      let branch = '';
+      const branchMatch = raw.match(/(?:SINIF|\d)[\s\.\-\/]*([A-ZÇĞİÖŞÜ])\b/) ||
+                          raw.match(/[\-\/\s]([A-ZÇĞİÖŞÜ])\b/) ||
+                          raw.match(/^(\d+)([A-ZÇĞİÖŞÜ])$/);
+      if (branchMatch) {
+        const candidate = (branchMatch[2] || branchMatch[1] || '').trim();
+        if (candidate && candidate !== 'S') {
+          branch = candidate;
+        }
+      }
+      return { grade, branch, raw };
     };
 
     return [...students].sort((a, b) => {
@@ -2015,14 +2029,26 @@ class DataStore {
       if (!a) return 1;
       if (!b) return -1;
 
-      const clsA = getComparableClass(a.className);
-      const clsB = getComparableClass(b.className);
+      const cA = parseClass(a.className);
+      const cB = parseClass(b.className);
 
-      if (clsA !== clsB) {
-        const cmp = clsA.localeCompare(clsB, 'tr', { numeric: true });
-        if (cmp !== 0) return cmp;
+      // 1. Sınıf seviyesi (5 < 6 < 7 < 8)
+      if (cA.grade !== cB.grade) {
+        return cA.grade - cB.grade;
       }
 
+      // 2. Şube harfi (A < B < C)
+      if (cA.branch !== cB.branch) {
+        return cA.branch.localeCompare(cB.branch, 'tr', { sensitivity: 'base' });
+      }
+
+      // 3. Ham sınıf metni farkı (varsa)
+      if (cA.raw !== cB.raw) {
+        const cmpRaw = cA.raw.localeCompare(cB.raw, 'tr', { numeric: true });
+        if (cmpRaw !== 0) return cmpRaw;
+      }
+
+      // 4. Okul Numarası (küçükten büyüğe)
       const noA = parseInt(a.studentNo, 10);
       const noB = parseInt(b.studentNo, 10);
       const hasNoA = !isNaN(noA) && noA > 0;
@@ -2034,6 +2060,7 @@ class DataStore {
       if (hasNoA && !hasNoB) return -1;
       if (!hasNoA && hasNoB) return 1;
 
+      // 5. İsim Soyisim (Alfabetik Türkçe)
       const nameA = `${(a.firstName || '').trim()} ${(a.lastName || '').trim()}`.trim();
       const nameB = `${(b.firstName || '').trim()} ${(b.lastName || '').trim()}`.trim();
       return nameA.localeCompare(nameB, 'tr', { sensitivity: 'base' });
@@ -5267,7 +5294,7 @@ class DataStore {
         });
       }
 
-      // Geçmişi en fazla 30 kayıtla sınırla
+      // Geçmişi en fazla 30 kayıt tutacak şekilde tut
       if (history.length > 30) history.length = 30;
 
       const updatedRecord = {

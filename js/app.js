@@ -64,13 +64,19 @@ window.App = {
           return; // Klavyenin kapanmasını ve ekranın başa zıplamasını %100 engeller
         }
 
-        // 2. Takviye Notları, Test Neticeleri, Canlı Excel, Öğrenci Toplu Düzenleme ve Ayarlar kendi durumunu yönetir;
+        // 2. Takviye Notları, Test Neticeleri, Canlı Excel, Kur'an Takip, Öğrenci Toplu Düzenleme ve Ayarlar kendi durumunu yönetir;
         // Arka plan senkronizasyonu bu ekranların DOM'unu ve odağını ASLA ezmemelidir!
         if (
           this.activeTab === 'performans' || 
           this.activeTab === 'akademi' || 
           this.activeTab === 'test_results' || 
+          this.activeTab === 'testler' || 
+          this.activeTab === 'test_sonuclari' || 
+          this.activeTab === 'denemeler' || 
+          this.activeTab === 'deneme_sinavlari' || 
           this.activeTab === 'ogrenciler_excel' || 
+          this.activeTab === 'kuran_takip' || 
+          this.activeTab === 'hatim' || 
           (this.activeTab === 'ogrenciler' && (this.studentTableEditMode || (typeof this.hasUnsavedStudentChanges === 'function' && this.hasUnsavedStudentChanges()))) ||
           this.activeTab === 'ayarlar'
         ) {
@@ -86,11 +92,17 @@ window.App = {
           window.LeaveTrackerModule.renderView();
         } else if (this.activeTab === 'yoklama' && window.AttendanceModule) {
           window.AttendanceModule.renderView();
+        } else if (this.activeTab === 'leaderboard' && window.LeaderboardModule) {
+          window.LeaderboardModule.renderView();
         } else if (this.activeTab === 'gorevler') {
           this.draftDutyYemekciler = null;
           this.draftDutyMuezzin = null;
           this.draftDutyNote = null;
           this.renderDailyDutiesView();
+        } else if (this.activeTab === 'ogrenciler') {
+          this.renderStudentsView();
+        } else if (this.activeTab === 'personel') {
+          this.renderStaffView();
         } else {
           this.renderMainContent();
         }
@@ -2044,7 +2056,7 @@ window.App = {
             <p class="text-xs text-slate-500 mt-0.5">
               ${isEditMode 
                 ? 'Hücrelere doğrudan tıklayarak düzenleyebilirsiniz. "Değişiklikleri Kaydet" butonuna basana kadar hiçbir şey kaydedilmez.' 
-                : (canEdit ? 'Talebe kütüğünü, sınıfları, hocaları ve veli şifrelerini yönetin. Sütun başlıklarına tıklayarak sıralayabilirsiniz.' : 'Eğitmenler listeyi inceleyebilir; düzenleme yetkisi Ana Yöneticidedir.')}
+                : (canEdit ? 'Talebe kayıtlarını, sınıfları, hocaları ve veli şifrelerini yönetin. Sütun başlıklarına tıklayarak sıralayabilirsiniz.' : 'Eğitmenler listeyi inceleyebilir; düzenleme yetkisi Ana Yöneticidedir.')}
             </p>
           </div>
 

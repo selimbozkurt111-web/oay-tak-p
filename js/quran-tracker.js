@@ -202,7 +202,11 @@ window.QuranTrackerModule = {
 
   // DOM içerisindeki ilgili kart veya satırı kesintisiz güncelleme motoru
   updateStudentRowOrCardUI(studentId, isPending, pageNum, savedPage, displayVal) {
-    const stats = window.Store.calculateQuranStats(pageNum, 0);
+    const rec = window.Store.getQuranRecord(studentId);
+    const savedHatim = (this.pendingChanges[studentId] && this.pendingChanges[studentId].hatim !== undefined)
+      ? this.pendingChanges[studentId].hatim
+      : (rec.hatimCount || 0);
+    const stats = window.Store.calculateQuranStats(pageNum, savedHatim);
 
     // 1. KART GÖRÜNÜMÜ GÜNCELLEMESİ
     const cardEl = document.getElementById(`quran-card-${studentId}`);
@@ -1435,6 +1439,7 @@ window.QuranTrackerModule = {
                     <input type="number" id="quran-page-input-${s.id}" min="0" max="604" value="${displayPage}"
                       class="w-16 px-1.5 py-0.5 text-center bg-white border-2 ${isPending ? 'border-amber-500 text-amber-950 ring-2 ring-amber-300 font-black' : 'border-slate-300 text-emerald-800 font-black'} rounded-xl text-sm focus:border-emerald-500 focus:outline-none transition shadow-2xs font-mono"
                       oninput="window.QuranTrackerModule.onPageInput(this, '${s.id}')"
+                      onchange="window.QuranTrackerModule.onPageInput(this, '${s.id}')"
                       onblur="window.QuranTrackerModule.onPageBlur(this, '${s.id}')"
                       onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.QuranTrackerModule.onPageInput(this, '${s.id}'); window.QuranTrackerModule.saveStudent('${s.id}'); }"
                       title="Sayfayı silip değiştirebilir, Enter'a basabilir veya Kaydet butonuna tıklayabilirsiniz">
@@ -1583,6 +1588,7 @@ window.QuranTrackerModule = {
                         <input type="number" id="quran-page-input-${s.id}" min="0" max="604" value="${displayPage}"
                           class="w-16 px-1.5 py-1 text-center bg-white border-2 ${isPending ? 'border-amber-500 bg-amber-50 text-amber-950 font-black ring-2 ring-amber-300' : 'border-slate-300 text-slate-900 font-black'} rounded-lg text-xs focus:bg-white focus:border-emerald-500 focus:outline-none font-mono"
                           oninput="window.QuranTrackerModule.onPageInput(this, '${s.id}')"
+                          onchange="window.QuranTrackerModule.onPageInput(this, '${s.id}')"
                           onblur="window.QuranTrackerModule.onPageBlur(this, '${s.id}')"
                           onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.QuranTrackerModule.onPageInput(this, '${s.id}'); window.QuranTrackerModule.saveStudent('${s.id}'); }"
                           title="Sayfayı silip değiştirebilir, Enter'a basabilir veya Kaydet butonuna tıklayabilirsiniz">
