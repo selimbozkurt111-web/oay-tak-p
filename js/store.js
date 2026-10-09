@@ -130,13 +130,13 @@ const SEED_STUDENTS = [
   // 6-B SINIFI (Oda 202 Grubu - 1 Talebe)
   { id: "std_610", studentNo: "610", firstName: "MAHMUT BERK", lastName: "KARACADAĞ", className: "6-B", school: "-", seviye: "Seviye 1", etutHocasi: "ABDUSSAMED TAV", dahiliHoca: "ABDUSSAMED TAV", yatakhane: "Oda 202", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KARACADAG2026", password: "123" },
 
-  // 7-A SINIFI (Emir Talha Tarım Grubu - 4 Talebe)
+  // 7-A SINIFI (Emir Talha Tarım Grubu - 3 Talebe)
   { id: "std_702", studentNo: "702", firstName: "EMİRHAN ENES", lastName: "ÖZTÜRK", className: "7-A", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 301", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZTURK2026", password: "123" },
-  { id: "std_703", studentNo: "703", firstName: "BİLAL", lastName: "CHULUK", className: "7-A", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 301", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CHULUK2026", password: "123" },
   { id: "std_706", studentNo: "706", firstName: "AYAZ", lastName: "TUTAR", className: "7-A", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 302", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "TUTAR2026", password: "123" },
   { id: "std_707", studentNo: "707", firstName: "EMİRHAN", lastName: "KULUS", className: "7-A", school: "AYHAN ŞAHENK", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 302", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KULUS2026", password: "123" },
 
-  // 7-B SINIFI (Burak Bodur Grubu - 9 Talebe)
+  // 7-B SINIFI (Burak Bodur Grubu - 10 Talebe)
+  { id: "std_703", studentNo: "703", firstName: "BİLAL", lastName: "CHULUK", className: "7-B", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 301", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CHULUK2026", password: "123" },
   { id: "std_708", studentNo: "708", firstName: "YUSUF KEMAL", lastName: "GENÇOĞLU", className: "7-B", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 302", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "GENCOGLU2026", password: "123" },
   { id: "std_709", studentNo: "709", firstName: "YUSUF", lastName: "GENÇOĞLU", className: "7-B", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 302", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "GENCOGLU2026", password: "123" },
   { id: "std_710", studentNo: "710", firstName: "EFE EMİN", lastName: "SÜRÜCÜ", className: "7-B", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 303", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SURUCU2026", password: "123" },
@@ -193,6 +193,14 @@ class DataStore {
     this.autoSyncDahiliHocalarAndQuran();
     // Muhammed Cholak (No: 830, 8-B Sınıfı, Tunahan Taşkın Grubu) hoca atamasını ve talebe kaydını garantiye al
     this.autoSyncMuhammedCholak();
+    // Bilal Chuluk (No: 703, 7-B Sınıfı, Burak Bodur Grubu) hoca atamasını ve talebe kaydını garantiye al
+    this.autoSyncBilalChuluk();
+    // Eğitmen ve personel cihazlarında eski yerel öğrenci düzenleme kalkanını sıfırla (Bulut senkronizasyonunun engelsiz akması için)
+    if (!this.isCurrentUserAdmin()) {
+      try {
+        localStorage.removeItem(STORAGE_KEYS.LOCAL_STUDENT_EDITS);
+      } catch (e) {}
+    }
     // Pasiflik temizliği: Pasif sicilini yerel hafızada temizle (Buluta gereksiz yükleme yapmaz)
     try {
       localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
@@ -369,7 +377,7 @@ class DataStore {
         } else if (currentClass.includes('6') || (no >= 600 && no < 700)) {
           newClass = ((s.school && s.school.includes('ABDULHAK')) || (s.yatakhane && s.yatakhane.includes('201')) || (no >= 601 && no <= 605)) ? '6-A' : '6-B';
         } else if (currentClass.includes('7') || (no >= 700 && no < 800)) {
-          newClass = (hoca.includes('EMİR TALHA') || (no >= 701 && no <= 707)) ? '7-A' : '7-B';
+          newClass = (hoca.includes('EMİR TALHA') || [702, 706, 707].includes(no)) ? '7-A' : '7-B';
         } else if (currentClass.includes('8') || (no >= 800 && no < 900)) {
           const is8A = [814, 815, 822, 806, 819, 820, 802, 808, 811].includes(no) || hoca.includes('YAVUZ');
           newClass = is8A ? '8-A' : '8-B';
@@ -666,6 +674,97 @@ class DataStore {
       }
     } catch (err) {
       console.warn('[autoSyncMuhammedCholak] Hata:', err);
+    }
+  }
+
+  // Bilal Chuluk (No: 703, 7-B Sınıfı, Burak Bodur Grubu) Otomatik Garanti Motoru
+  autoSyncBilalChuluk() {
+    try {
+      const studentId = 'std_703';
+      const studentNo = '703';
+      const nowIso = new Date().toISOString();
+
+      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      let students = raw ? JSON.parse(raw) : null;
+      if (!Array.isArray(students) || students.length === 0) {
+        students = [...SEED_STUDENTS];
+      }
+
+      let existing = students.find(s => s && (
+        s.id === studentId || 
+        (s.studentNo && s.studentNo.toString().trim() === studentNo) ||
+        ((s.firstName || '').trim().toUpperCase() === 'BİLAL' && (s.lastName || '').trim().toUpperCase() === 'CHULUK')
+      ));
+
+      let studentsChanged = false;
+
+      if (!existing) {
+        const newStudent = {
+          id: studentId,
+          studentNo: studentNo,
+          firstName: 'BİLAL',
+          lastName: 'CHULUK',
+          className: '7-B',
+          school: 'ABDULHAK HAMİT',
+          seviye: 'Seviye 2',
+          etutHocasi: 'BURAK BODUR',
+          dahiliHoca: 'BURAK BODUR',
+          yatakhane: 'Oda 301',
+          fatherName: '',
+          fatherPhone: '',
+          motherName: '',
+          motherPhone: '',
+          familyCode: 'CHULUK2026',
+          password: '123',
+          isPassive: false,
+          status: 'active',
+          updatedAt: nowIso
+        };
+        students.push(newStudent);
+        studentsChanged = true;
+      } else {
+        let updated = false;
+        // Eğer öğrenci hala eski şubede (7-A) kalmışsa 7-B şubesine ve Burak Bodur grubuna aktar
+        if (existing.className === '7-A' || !existing.className) {
+          existing.className = '7-B';
+          updated = true;
+        }
+        if (!existing.etutHocasi || existing.etutHocasi.includes('EMİR TALHA')) {
+          existing.etutHocasi = 'BURAK BODUR';
+          updated = true;
+        }
+        if (!existing.dahiliHoca || existing.dahiliHoca === '-' || existing.dahiliHoca === 'Genel' || existing.dahiliHoca.includes('EMİR TALHA')) {
+          existing.dahiliHoca = 'BURAK BODUR';
+          updated = true;
+        }
+        if (existing.isPassive === true || existing.status !== 'active') {
+          existing.isPassive = false;
+          existing.status = 'active';
+          updated = true;
+        }
+        if (!existing.familyCode) { existing.familyCode = 'CHULUK2026'; updated = true; }
+        if (!existing.password) { existing.password = '123'; updated = true; }
+        if (updated) {
+          existing.updatedAt = nowIso;
+          studentsChanged = true;
+        }
+      }
+
+      if (studentsChanged) {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+        try {
+          localStorage.setItem('yoklama_students_backup_v1', JSON.stringify(students));
+          localStorage.setItem('yoklama_students_backup_last', JSON.stringify(students));
+        } catch (e) {}
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/students', students);
+        }
+        try {
+          window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
+        } catch (e) {}
+      }
+    } catch (err) {
+      console.warn('[autoSyncBilalChuluk] Hata:', err);
     }
   }
 
@@ -1016,11 +1115,17 @@ class DataStore {
           const localTs = localSt.updatedAt ? new Date(localSt.updatedAt).getTime() : 0;
           const cloudTs = cloudSt.updatedAt ? new Date(cloudSt.updatedAt).getTime() : 0;
           
-          let preferLocal = true;
-          if (isLocallyEdited) {
-            preferLocal = true;
-          } else if (!isNaN(localTs) && !isNaN(cloudTs)) {
-            preferLocal = localTs >= cloudTs;
+          // Akıllı Senkronizasyon Kuralı:
+          // 1. Eğitmen ve personel cihazlarında DAİMA buluttan gelen en güncel yönetici verisi esastır.
+          // 2. Yönetici cihazında ise yalnızca yerel düzenleme zaman damgası buluttan daha YENİ ise yerel tercih edilir.
+          // 3. Buluttan yeni bir sınıf, şube veya hoca güncellemesi geldiyse (cloudTs >= localTs) bulut kesinlikle kazanır.
+          let preferLocal = false;
+          if (this.isCurrentUserAdmin()) {
+            if (isLocallyEdited && !isNaN(localTs) && !isNaN(cloudTs) && localTs > cloudTs) {
+              preferLocal = true;
+            } else if (!isNaN(localTs) && !isNaN(cloudTs) && localTs > cloudTs) {
+              preferLocal = true;
+            }
           }
 
           let mergedSt = {
@@ -1031,6 +1136,14 @@ class DataStore {
           };
           delete mergedSt.aktif;
           delete mergedSt.active;
+
+          // Buluttan gelen sınıf, etüt hocası ve dahili hoca güncellemelerini KORU:
+          if (!preferLocal) {
+            if (cloudSt.className) mergedSt.className = cloudSt.className;
+            if (cloudSt.etutHocasi) mergedSt.etutHocasi = cloudSt.etutHocasi;
+            if (cloudSt.dahiliHoca) mergedSt.dahiliHoca = cloudSt.dahiliHoca;
+            if (cloudSt.yatakhane) mergedSt.yatakhane = cloudSt.yatakhane;
+          }
 
           // ASLA BOŞ VERİYLE GERÇEK VERİYİ EZME (Non-Destructive Field Protection):
           // Yerelde dolu olan telefon, veli şifresi, oda, veli adı gibi özel alanlar buluttan gelen boşlukla asla silinemez!
@@ -1112,6 +1225,9 @@ class DataStore {
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(finalCleanList));
       localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
       localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
+      try {
+        window.dispatchEvent(new CustomEvent('students-updated', { detail: finalCleanList }));
+      } catch (e) {}
     }
 
     // 5. Hoca listesi
@@ -1466,6 +1582,7 @@ class DataStore {
               if (studentsArr && studentsArr.length > 0) {
                 this.applyFullCloudSync({ students: studentsArr });
                 window.dispatchEvent(new CustomEvent('students-cloud-updated', { detail: studentsArr }));
+                window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: { students: studentsArr } }));
               }
             }
           } else if (path.startsWith('attendance')) {
@@ -1983,6 +2100,7 @@ class DataStore {
 
   markStudentLocallyEdited(studentId, fields = []) {
     if (!studentId) return;
+    if (!this.isCurrentUserAdmin()) return; // Eğitmen cihazları asla yerel kalkan oluşturamaz
     const map = this.getLocallyEditedStudents();
     map[studentId] = {
       updatedAt: new Date().toISOString(),
@@ -1994,6 +2112,7 @@ class DataStore {
 
   isStudentLocallyEdited(studentId) {
     if (!studentId) return false;
+    if (!this.isCurrentUserAdmin()) return false; // Eğitmen cihazları yerel kalkan taşımaz, daima bulutu esas alır
     const map = this.getLocallyEditedStudents();
     return !!map[studentId];
   }
@@ -2144,8 +2263,9 @@ class DataStore {
       s.status = 'active';
       delete s.aktif;
       delete s.active;
-      // Her kaydedilen öğrenciyi yerel düzenleme kalkanına kaydet (Bulutun ezmesini önler)
-      this.markStudentLocallyEdited(s.id, ['ALL']);
+      if (this.isCurrentUserAdmin()) {
+        this.markStudentLocallyEdited(s.id, ['ALL']);
+      }
     });
 
     localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
