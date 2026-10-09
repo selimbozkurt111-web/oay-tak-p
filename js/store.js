@@ -1280,7 +1280,22 @@ class DataStore {
       const mergedCleared = { ...localCleared };
       Object.keys(cloudData.penaltiesCleared).forEach(wKey => {
         if (!mergedCleared[wKey]) mergedCleared[wKey] = {};
-        Object.assign(mergedCleared[wKey], cloudData.penaltiesCleared[wKey]);
+        const cloudWeek = cloudData.penaltiesCleared[wKey];
+        if (cloudWeek && typeof cloudWeek === 'object') {
+          Object.keys(cloudWeek).forEach(stKey => {
+            const cloudRec = cloudWeek[stKey];
+            const localRec = mergedCleared[wKey][stKey];
+            if (!localRec) {
+              mergedCleared[wKey][stKey] = cloudRec;
+            } else {
+              const cTime = new Date((cloudRec && (cloudRec.updatedAt || cloudRec.cancelledAt || cloudRec.clearedAt)) || 0).getTime();
+              const lTime = new Date((localRec && (localRec.updatedAt || localRec.cancelledAt || localRec.clearedAt)) || 0).getTime();
+              if (cTime >= lTime) {
+                mergedCleared[wKey][stKey] = cloudRec;
+              }
+            }
+          });
+        }
       });
       localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(mergedCleared));
       window.dispatchEvent(new CustomEvent('penalty-cleared-updated', { detail: mergedCleared }));
@@ -4106,55 +4121,72 @@ class DataStore {
   getPenaltyClearedInfo(weekKey, studentIdOrObj) {
     if (!studentIdOrObj) return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
     const stId = (typeof studentIdOrObj === 'object' && studentIdOrObj) ? (studentIdOrObj.id || studentIdOrObj.studentNo) : studentIdOrObj;
-    const stNo = (typeof studentIdOrObj === 'object' && studentIdOrObj) ? (studentIdOrObj.studentNo || null) : null;
+    const stObj = (typeof studentIdOrObj === 'object' && studentIdOrObj) ? studentIdOrObj : (this.getStudentById ? this.getStudentById(stId) : null);
+    const stNo = stObj ? (stObj.studentNo || null) : null;
     const all = this.getAllClearedPenalties();
     if (!all || typeof all !== 'object') return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
 
     // 1. Verilen weekKey altında doğrudan kontrol
     if (weekKey && all[weekKey] && typeof all[weekKey] === 'object') {
       const entry = all[weekKey][stId] ?? (stNo ? all[weekKey][stNo] : null);
-      if (entry === true) {
-        return { cleared: true, waivedMinutes: 99999, isFullyCleared: true, isPartiallyCleared: false, note: 'Telafisini tamamladı' };
-      }
-      if (entry && typeof entry === 'object') {
-        const waived = Number(entry.waivedMinutes) || 0;
-        const cleared = entry.cleared === true;
-        if (cleared) {
-          return { cleared: true, waivedMinutes: waived || 99999, isFullyCleared: true, isPartiallyCleared: false, note: entry.note || '', clearedAt: entry.clearedAt };
-        }
-        if (waived > 0) {
-          return { cleared: false, waivedMinutes: waived, isFullyCleared: false, isPartiallyCleared: true, note: entry.note || '', clearedAt: entry.clearedAt };
-        }
-      }
-      if (entry === false) return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
-    }
-
-    // 2. Hafta anahtarı toleransı (Pazar vs Pazartesi başlangıcı veya son 8 gün içindeki affetmeler)
-    const targetDate = weekKey ? weekKey.replace('week_', '') : null;
-    const targetTime = targetDate ? new Date(targetDate).getTime() : Date.now();
-
-    for (const [wKey, weekEntries] of Object.entries(all)) {
-      if (!weekEntries || typeof weekEntries !== 'object') continue;
-      const entry = weekEntries[stId] ?? (stNo ? weekEntries[stNo] : null);
-      if (!entry) continue;
-
-      const wDate = wKey.replace('week_', '');
-      const wTime = new Date(wDate).getTime();
-      const isDateClose = !isNaN(wTime) && Math.abs(targetTime - wTime) <= 8 * 24 * 60 * 60 * 1000;
-      const isRecent = entry.clearedAt && !isNaN(new Date(entry.clearedAt).getTime()) && (Date.now() - new Date(entry.clearedAt).getTime()) <= 7 * 24 * 60 * 60 * 1000;
-
-      if (isDateClose || isRecent) {
+      if (entry !== undefined && entry !== null) {
         if (entry === true) {
           return { cleared: true, waivedMinutes: 99999, isFullyCleared: true, isPartiallyCleared: false, note: 'Telafisini tamamladı' };
         }
+        if (entry === false) {
+          return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
+        }
         if (typeof entry === 'object') {
+          // İptal edilmiş mi kontrolü (Tombstone koruması)
+          if (entry.isCancelled === true || (entry.cleared === false && (Number(entry.waivedMinutes) || 0) <= 0)) {
+            return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
+          }
           const waived = Number(entry.waivedMinutes) || 0;
-          const cleared = entry.cleared === true;
+          const cleared = (entry.cleared === true || entry.isFullyCleared === true);
           if (cleared) {
             return { cleared: true, waivedMinutes: waived || 99999, isFullyCleared: true, isPartiallyCleared: false, note: entry.note || '', clearedAt: entry.clearedAt };
           }
           if (waived > 0) {
             return { cleared: false, waivedMinutes: waived, isFullyCleared: false, isPartiallyCleared: true, note: entry.note || '', clearedAt: entry.clearedAt };
+          }
+        }
+        return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
+      }
+    }
+
+    // 2. Hafta anahtarı toleransı: Sadece bu haftaya çok yakın (±3 gün) olan anahtarlara bak
+    const targetDate = weekKey ? weekKey.replace('week_', '') : null;
+    const targetTime = targetDate ? new Date(targetDate).getTime() : NaN;
+
+    if (!isNaN(targetTime)) {
+      for (const [wKey, weekEntries] of Object.entries(all)) {
+        if (wKey === weekKey || !weekEntries || typeof weekEntries !== 'object') continue;
+        const entry = weekEntries[stId] ?? (stNo ? weekEntries[stNo] : null);
+        if (entry === undefined || entry === null) continue;
+
+        const wDate = wKey.replace('week_', '');
+        const wTime = new Date(wDate).getTime();
+        const isDateClose = !isNaN(wTime) && Math.abs(targetTime - wTime) <= 3 * 24 * 60 * 60 * 1000;
+
+        if (isDateClose) {
+          if (entry === true) {
+            return { cleared: true, waivedMinutes: 99999, isFullyCleared: true, isPartiallyCleared: false, note: 'Telafisini tamamladı' };
+          }
+          if (entry === false) {
+            return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
+          }
+          if (typeof entry === 'object') {
+            if (entry.isCancelled === true || (entry.cleared === false && (Number(entry.waivedMinutes) || 0) <= 0)) {
+              return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
+            }
+            const waived = Number(entry.waivedMinutes) || 0;
+            const cleared = (entry.cleared === true || entry.isFullyCleared === true);
+            if (cleared) {
+              return { cleared: true, waivedMinutes: waived || 99999, isFullyCleared: true, isPartiallyCleared: false, note: entry.note || '', clearedAt: entry.clearedAt };
+            }
+            if (waived > 0) {
+              return { cleared: false, waivedMinutes: waived, isFullyCleared: false, isPartiallyCleared: true, note: entry.note || '', clearedAt: entry.clearedAt };
+            }
           }
         }
       }
@@ -4168,55 +4200,181 @@ class DataStore {
     return info.isFullyCleared;
   }
 
-  setPartialPenaltyWaiver(weekKey, studentId, waivedMinutes, note = '') {
+  setFullPenaltyWaiver(weekKey, studentIdOrObj, note = 'Tam Af') {
     try {
+      if (!studentIdOrObj) return null;
+      const stId = (typeof studentIdOrObj === 'object') ? (studentIdOrObj.id || studentIdOrObj.studentNo) : studentIdOrObj;
+      const stObj = this.getStudentById ? this.getStudentById(stId) : null;
+      const stNo = stObj ? stObj.studentNo : null;
+
       const all = this.getAllClearedPenalties();
       if (!all[weekKey]) all[weekKey] = {};
-      const mins = Math.max(0, parseInt(waivedMinutes, 10) || 0);
 
-      // Öğrencinin ham ceza dakikasını al
-      const weekDates = this.getWeekRange(weekKey.replace('week_', '')).dates;
-      const rep = this.getLeaveReportForStudent(studentId, weekDates);
-      const rawPenalty = rep.rawPenaltyMinutes || rep.penaltyMinutes || 0;
-
-      const isFull = (mins >= rawPenalty && rawPenalty > 0);
-
-      all[weekKey][studentId] = {
-        cleared: isFull,
-        waivedMinutes: mins,
-        clearedAt: new Date().toISOString(),
-        note: note || (isFull ? 'Telafisinin tamamı affedildi' : `${mins} dk kısmi af uygulandı`)
+      const nowIso = new Date().toISOString();
+      const waiverRecord = {
+        cleared: true,
+        isFullyCleared: true,
+        isPartiallyCleared: false,
+        waivedMinutes: 99999,
+        clearedAt: nowIso,
+        updatedAt: nowIso,
+        note: note || 'Tam af uygulandı',
+        isCancelled: false
       };
+
+      all[weekKey][stId] = waiverRecord;
+      if (stNo && stNo !== stId) {
+        delete all[weekKey][stNo];
+      }
+
+      // Eşdeğer hafta anahtarlarını (±3 gün) senkronize et
+      const targetDate = weekKey.replace('week_', '');
+      const targetTime = new Date(targetDate).getTime();
+      if (!isNaN(targetTime)) {
+        Object.keys(all).forEach(wk => {
+          if (wk === weekKey) return;
+          const wTime = new Date(wk.replace('week_', '')).getTime();
+          if (!isNaN(wTime) && Math.abs(targetTime - wTime) <= 3 * 24 * 60 * 60 * 1000) {
+            all[wk][stId] = waiverRecord;
+            if (stNo && stNo !== stId) delete all[wk][stNo];
+          }
+        });
+      }
 
       localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(all));
       if (this.isCloudEnabled()) {
         this.syncToCloud('kurs_data/penaltiesCleared', all);
       }
       window.dispatchEvent(new CustomEvent('penalty-cleared-updated', { 
-        detail: { weekKey, studentId, cleared: isFull, waivedMinutes: mins } 
+        detail: { weekKey, studentId: stId, cleared: true, waivedMinutes: 99999 } 
       }));
-      return all[weekKey][studentId];
+      return waiverRecord;
+    } catch (e) {
+      console.error('setFullPenaltyWaiver error:', e);
+      return null;
+    }
+  }
+
+  setPartialPenaltyWaiver(weekKey, studentIdOrObj, waivedMinutes, note = '') {
+    try {
+      if (!studentIdOrObj) return null;
+      const stId = (typeof studentIdOrObj === 'object') ? (studentIdOrObj.id || studentIdOrObj.studentNo) : studentIdOrObj;
+      const stObj = this.getStudentById ? this.getStudentById(stId) : null;
+      const stNo = stObj ? stObj.studentNo : null;
+
+      const isNoteFull = typeof note === 'string' && (note.toLowerCase().includes('tam af') || note.toLowerCase().includes('tüm telafi'));
+      const isParamFull = waivedMinutes === 'ALL' || waivedMinutes === 'full';
+
+      // Öğrencinin ham ceza dakikasını al
+      const weekDates = this.getWeekRange(weekKey.replace('week_', '')).dates;
+      const rep = this.getLeaveReportForStudent(stId, weekDates);
+      const rawPenalty = rep.rawPenaltyMinutes || rep.penaltyMinutes || 0;
+
+      const mins = Math.max(0, parseInt(waivedMinutes, 10) || 0);
+      const isFull = isParamFull || isNoteFull || (rawPenalty > 0 && mins >= rawPenalty) || (rawPenalty === 0 && mins > 0);
+
+      if (isFull) {
+        return this.setFullPenaltyWaiver(weekKey, stId, note || 'Tam Af');
+      }
+
+      const all = this.getAllClearedPenalties();
+      if (!all[weekKey]) all[weekKey] = {};
+
+      const nowIso = new Date().toISOString();
+      const waiverRecord = {
+        cleared: false,
+        isFullyCleared: false,
+        isPartiallyCleared: true,
+        waivedMinutes: mins,
+        clearedAt: nowIso,
+        updatedAt: nowIso,
+        note: note || `${mins} dk kısmi af uygulandı`,
+        isCancelled: false
+      };
+
+      all[weekKey][stId] = waiverRecord;
+      if (stNo && stNo !== stId) {
+        delete all[weekKey][stNo];
+      }
+
+      // Eşdeğer hafta anahtarlarını da senkronize et (±3 gün)
+      const targetDate = weekKey.replace('week_', '');
+      const targetTime = new Date(targetDate).getTime();
+      if (!isNaN(targetTime)) {
+        Object.keys(all).forEach(wk => {
+          if (wk === weekKey) return;
+          const wTime = new Date(wk.replace('week_', '')).getTime();
+          if (!isNaN(wTime) && Math.abs(targetTime - wTime) <= 3 * 24 * 60 * 60 * 1000) {
+            all[wk][stId] = waiverRecord;
+            if (stNo && stNo !== stId) delete all[wk][stNo];
+          }
+        });
+      }
+
+      localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(all));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/penaltiesCleared', all);
+      }
+      window.dispatchEvent(new CustomEvent('penalty-cleared-updated', { 
+        detail: { weekKey, studentId: stId, cleared: false, waivedMinutes: mins } 
+      }));
+      return waiverRecord;
     } catch (e) {
       console.error('setPartialPenaltyWaiver error:', e);
       return null;
     }
   }
 
-  cancelPenaltyWaiver(weekKey, studentId) {
+  cancelPenaltyWaiver(weekKey, studentIdOrObj) {
     try {
+      if (!studentIdOrObj) return false;
+      const stId = (typeof studentIdOrObj === 'object') ? (studentIdOrObj.id || studentIdOrObj.studentNo) : studentIdOrObj;
+      const stObj = this.getStudentById ? this.getStudentById(stId) : null;
+      const stNo = stObj ? stObj.studentNo : null;
+
       const all = this.getAllClearedPenalties();
-      if (all[weekKey] && all[weekKey][studentId]) {
-        delete all[weekKey][studentId];
-        localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(all));
-        if (this.isCloudEnabled()) {
-          this.syncToCloud('kurs_data/penaltiesCleared', all);
-        }
-        window.dispatchEvent(new CustomEvent('penalty-cleared-updated', { 
-          detail: { weekKey, studentId, cleared: false, waivedMinutes: 0 } 
-        }));
-        return true;
+      const nowIso = new Date().toISOString();
+
+      // İptal kaydı (Tombstone): Bulut veya diğer cihazların eski affı geri getirmesini %100 engeller!
+      const cancelRecord = {
+        cleared: false,
+        isFullyCleared: false,
+        isPartiallyCleared: false,
+        waivedMinutes: 0,
+        isCancelled: true,
+        cancelledAt: nowIso,
+        updatedAt: nowIso,
+        note: 'Af iptal edildi (Asıl telafi geçerli)'
+      };
+
+      if (!all[weekKey]) all[weekKey] = {};
+      all[weekKey][stId] = cancelRecord;
+      if (stNo && stNo !== stId) {
+        all[weekKey][stNo] = cancelRecord;
       }
-      return false;
+
+      // Hafta penceresindeki (±6 gün) diğer olası hafta anahtarlarında da iptal kaydını uygula
+      const targetDate = weekKey.replace('week_', '');
+      const targetTime = new Date(targetDate).getTime();
+      if (!isNaN(targetTime)) {
+        Object.keys(all).forEach(wk => {
+          if (wk === weekKey) return;
+          const wTime = new Date(wk.replace('week_', '')).getTime();
+          if (!isNaN(wTime) && Math.abs(targetTime - wTime) <= 6 * 24 * 60 * 60 * 1000) {
+            all[wk][stId] = cancelRecord;
+            if (stNo && stNo !== stId) all[wk][stNo] = cancelRecord;
+          }
+        });
+      }
+
+      localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(all));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/penaltiesCleared', all);
+      }
+      window.dispatchEvent(new CustomEvent('penalty-cleared-updated', { 
+        detail: { weekKey, studentId: stId, cleared: false, waivedMinutes: 0 } 
+      }));
+      return true;
     } catch (e) {
       console.error('cancelPenaltyWaiver error:', e);
       return false;
@@ -4229,20 +4387,17 @@ class DataStore {
     return all[weekKey] || {};
   }
 
-  togglePenaltyCleared(weekKey, studentId, note = '') {
+  togglePenaltyCleared(weekKey, studentIdOrObj, note = '') {
     try {
-      const info = this.getPenaltyClearedInfo(weekKey, studentId);
+      const info = this.getPenaltyClearedInfo(weekKey, studentIdOrObj);
       
-      // Eğer zaten tam veya kısmi af varsa, affı kaldır (sıfırla)
+      // Eğer zaten tam veya kısmi af varsa, affı iptal et
       if (info.isFullyCleared || info.isPartiallyCleared) {
-        this.cancelPenaltyWaiver(weekKey, studentId);
+        this.cancelPenaltyWaiver(weekKey, studentIdOrObj);
         return false;
       } else {
         // Yoksa doğrudan tam af uygula
-        const weekDates = this.getWeekRange(weekKey.replace('week_', '')).dates;
-        const rep = this.getLeaveReportForStudent(studentId, weekDates);
-        const rawMins = rep.rawPenaltyMinutes || rep.penaltyMinutes || 30;
-        this.setPartialPenaltyWaiver(weekKey, studentId, rawMins, note || 'Telafisini tamamladı (Tam Af)');
+        this.setFullPenaltyWaiver(weekKey, studentIdOrObj, note || 'Tam Af');
         return true;
       }
     } catch (e) {
@@ -4251,15 +4406,12 @@ class DataStore {
     }
   }
 
-  setPenaltyCleared(weekKey, studentId, isCleared = true, note = '') {
+  setPenaltyCleared(weekKey, studentIdOrObj, isCleared = true, note = '') {
     try {
       if (!isCleared) {
-        return this.cancelPenaltyWaiver(weekKey, studentId);
+        return this.cancelPenaltyWaiver(weekKey, studentIdOrObj);
       }
-      const weekDates = this.getWeekRange(weekKey.replace('week_', '')).dates;
-      const rep = this.getLeaveReportForStudent(studentId, weekDates);
-      const rawMins = rep.rawPenaltyMinutes || rep.penaltyMinutes || 30;
-      return !!this.setPartialPenaltyWaiver(weekKey, studentId, rawMins, note || 'Telafisini tamamladı');
+      return !!this.setFullPenaltyWaiver(weekKey, studentIdOrObj, note || 'Telafisini tamamladı (Tam Af)');
     } catch (e) {
       console.error('setPenaltyCleared error:', e);
       return false;

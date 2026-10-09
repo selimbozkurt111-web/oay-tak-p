@@ -18,6 +18,13 @@ window.LeaveTrackerModule = {
   partialWaiverStudentId: null,
 
   init() {
+    if (!this._hasPenaltyClearedListener) {
+      this._hasPenaltyClearedListener = true;
+      window.addEventListener('penalty-cleared-updated', () => {
+        const container = document.getElementById('leave-tracker-container');
+        if (container) this.renderView();
+      });
+    }
     this.renderView();
   },
 
@@ -131,9 +138,26 @@ window.LeaveTrackerModule = {
     this.renderView();
   },
 
+  applyFullWaiver(studentId, note = 'Tam Af') {
+    const weekInfo = this.getWeekInfo();
+    const weekKey = `week_${weekInfo.startDate}`;
+    window.Store.setFullPenaltyWaiver(weekKey, studentId, note);
+    this.closePartialWaiverModal();
+    this.renderView();
+    if (window.App && window.App.showToast) {
+      const st = window.Store.getStudentById(studentId);
+      const name = st ? `${st.firstName} ${st.lastName}` : 'Talebe';
+      window.App.showToast(`✓ ${name} için tam telafi affı uygulandı ve TV panosundan düşürüldü.`, 'success');
+    }
+  },
+
   applyPartialWaiver(studentId, minutes, note = '') {
     const weekInfo = this.getWeekInfo();
     const weekKey = `week_${weekInfo.startDate}`;
+    const isFull = (minutes === 'ALL' || (typeof note === 'string' && note.toLowerCase().includes('tam af')));
+    if (isFull) {
+      return this.applyFullWaiver(studentId, note || 'Tam Af');
+    }
     const mins = Math.max(0, parseInt(minutes, 10) || 0);
     window.Store.setPartialPenaltyWaiver(weekKey, studentId, mins, note);
     this.closePartialWaiverModal();
@@ -749,7 +773,7 @@ window.LeaveTrackerModule = {
                                   title="Affı düzenle">
                                   ✂️ Düzenle
                                 </button>
-                                <button type="button" onclick="window.LeaveTrackerModule.applyPartialWaiver('${s.id}', ${rep.rawPenaltyMinutes}, 'Tam Af')"
+                                <button type="button" onclick="window.LeaveTrackerModule.applyFullWaiver('${s.id}', 'Tam Af')"
                                   class="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition shadow-2xs cursor-pointer"
                                   title="Kalan telafinin tamamını affet">
                                   ✓ Tam Af
@@ -765,7 +789,7 @@ window.LeaveTrackerModule = {
                           ` : `
                             <div class="inline-flex flex-col items-center gap-1">
                               <div class="flex items-center gap-1">
-                                <button type="button" onclick="window.LeaveTrackerModule.applyPartialWaiver('${s.id}', ${rep.rawPenaltyMinutes}, 'Tam Af')"
+                                <button type="button" onclick="window.LeaveTrackerModule.applyFullWaiver('${s.id}', 'Tam Af')"
                                   class="px-2 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] transition shadow-2xs flex items-center gap-1 cursor-pointer"
                                   title="Talebenin tüm telafisini affet ve TV'den düşür">
                                   <span>✓</span> <span>Tam Af</span>
@@ -918,14 +942,19 @@ window.LeaveTrackerModule = {
           <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
             <div class="flex flex-wrap items-center gap-2">
               ${rep.rawPenaltyMinutes > 0 ? `
-                <button type="button" onclick="window.LeaveTrackerModule.applyPartialWaiver('${student.id}', ${rep.rawPenaltyMinutes}, 'Tam Af'); window.LeaveTrackerModule.renderView();"
-                  class="px-3 py-2 rounded-xl font-black text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer ${
-                    rep.isFullyCleared
-                      ? 'bg-slate-200 text-slate-700 hover:bg-rose-100 hover:text-rose-700'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                  }">
-                  <span>${rep.isFullyCleared ? '✓ Tam Af Uygulandı' : '✓ Tam Af Uygula'}</span>
-                </button>
+                ${rep.isFullyCleared ? `
+                  <button type="button" onclick="window.LeaveTrackerModule.cancelPenaltyWaiver('${student.id}'); window.LeaveTrackerModule.renderView();"
+                    class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700 border border-slate-200 font-black text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer">
+                    <span>🔄</span>
+                    <span>Affı İptal Et (Sıfırla)</span>
+                  </button>
+                ` : `
+                  <button type="button" onclick="window.LeaveTrackerModule.applyFullWaiver('${student.id}', 'Tam Af'); window.LeaveTrackerModule.renderView();"
+                    class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer">
+                    <span>✓</span>
+                    <span>Tam Af Uygula</span>
+                  </button>
+                `}
                 <button type="button" onclick="window.LeaveTrackerModule.openPartialWaiverModal('${student.id}')"
                   class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer">
                   <span>✂️</span>
@@ -1033,7 +1062,7 @@ window.LeaveTrackerModule = {
               `}
 
               <!-- Tam Af Butonu -->
-              <button type="button" onclick="window.LeaveTrackerModule.applyPartialWaiver('${student.id}', ${rawPenalty}, 'Tüm telafisi affedildi')"
+              <button type="button" onclick="window.LeaveTrackerModule.applyFullWaiver('${student.id}', 'Tüm telafisi affedildi')"
                 class="px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer">
                 <span>✓</span> <span>Tam Af (${rawPenalty} Dk)</span>
               </button>
