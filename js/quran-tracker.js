@@ -597,6 +597,32 @@ window.QuranTrackerModule = {
     this.renderView(true);
   },
 
+  // Tüm talebeleri 1. sayfaya ve 0 hatme kalıcı olarak sıfırlama
+  resetAllStudents() {
+    const isConfirmed = confirm(
+      "⚠️ DİKKAT: KUR'AN-I KERİM HATİM VE TİLAVET LİSTESİNİ SIFIRLAMA\n\n" +
+      "Tüm talebelerin okunan sayfaları 1'e, hatim sayıları 0'a sıfırlanacaktır.\n" +
+      "Bu sıfırlama işlemi bulut veritabanı ve bağlı tüm cihazlar için kalıcı olarak geçerli olacaktır.\n\n" +
+      "Tüm listeyi sıfırlamak istediğinize emin misiniz?"
+    );
+    if (!isConfirmed) return;
+
+    this.pendingChanges = {};
+    const res = window.Store.resetAllQuranTracker(true);
+    if (res && res.success) {
+      this.orderedStudentIds = null;
+      this._forceReorder = true;
+      this.renderView();
+      if (window.App && typeof window.App.showToast === 'function') {
+        window.App.showToast(`✨ Tüm talebelerin Kur'an takibi sıfırlandı ve buluta işlendi (${res.count} talebe)!`, 'success');
+      }
+    } else {
+      if (window.App && typeof window.App.showToast === 'function') {
+        window.App.showToast('Sıfırlama sırasında hata oluştu: ' + (res?.error || 'Bilinmiyor'), 'error');
+      }
+    }
+  },
+
   // Düzenleme Modalı Aç
   openEditModal(studentId) {
     const rec = window.Store.getQuranRecord(studentId);
@@ -1132,6 +1158,11 @@ window.QuranTrackerModule = {
                 class="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 title="Hafızadaki Kur'an verilerini kurtar, yedekle veya toplu düzenle">
                 <span>🛡️</span> <span>Verileri Kurtar & Yedekle</span>
+              </button>
+              <button type="button" onclick="window.QuranTrackerModule.resetAllStudents()"
+                class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                title="Tüm talebelerin okunan sayfalarını 1'e, hatimlerini 0'a sıfırlar (Bulut dahil)">
+                <span>🔄</span> <span>Tümünü Sıfırla</span>
               </button>
               <a href="pano.html" target="_blank"
                 class="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-2xs">
@@ -1820,6 +1851,18 @@ window.QuranTrackerModule = {
             </div>
           </div>
 
+          <!-- 3.5. TÜM LİSTEYİ SIFIRLAMA KARTI -->
+          <div class="p-4 bg-rose-50 rounded-2xl border border-rose-200 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div class="font-black text-xs uppercase text-rose-950">Tüm Talebelerin Sayfalarını Sıfırla</div>
+              <p class="text-[11px] text-rose-800 mt-0.5">Dönem başı veya yeni hatim başlangıcı için tüm talebeleri 1. sayfaya ve 0 hatme çeker.</p>
+            </div>
+            <button type="button" onclick="window.QuranTrackerModule.resetAllStudents(); window.QuranTrackerModule.closeRecoveryModal();"
+              class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-xl transition flex items-center gap-1.5 cursor-pointer shrink-0">
+              <span>🔄</span> <span>Tümünü Sıfırla</span>
+            </button>
+          </div>
+
           <!-- 4. HIZLI TOPLU SAYFA DÜZENLEME TABLOSU -->
           <div class="space-y-2 pt-2 border-t border-slate-100">
             <div class="flex items-center justify-between">
@@ -1976,13 +2019,15 @@ window.QuranTrackerModule = {
         const hatim = Math.max(0, parseInt(hatimVal, 10) || 0);
         const cur = allRecords[s.id] || {};
         if (cur.currentPage !== page || cur.hatimCount !== hatim) {
+          const isWiped = page <= 1 && hatim === 0;
           allRecords[s.id] = {
             ...cur,
             studentId: s.id,
             currentPage: page,
             hatimCount: hatim,
             diniGrup: cur.diniGrup || s.dahiliHoca || 'Genel',
-            updatedAt: nowIso
+            updatedAt: nowIso,
+            history: isWiped ? [] : (cur.history || [])
           };
           updatedCount++;
         }
