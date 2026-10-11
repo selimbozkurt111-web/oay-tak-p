@@ -21,10 +21,13 @@ window.LeaveReturnModule = {
   searchQuery: '',
   activeExcuseStudentId: null,
   monthlyModalStudentId: null,
+  _hasRenderedOnce: false,
+  _lastActionTime: 0,
 
   init() {
+    this._hasRenderedOnce = false;
     this.refreshSettings();
-    this.renderView();
+    this.renderView(false);
   },
 
   refreshSettings() {
@@ -74,7 +77,7 @@ window.LeaveReturnModule = {
     if (window.Store) {
       window.Store.saveSettings({ leaveReturnDate: dateStr });
     }
-    this.renderView();
+    this.renderView(true);
   },
 
   setToday() {
@@ -92,13 +95,13 @@ window.LeaveReturnModule = {
   // --- Aylık Görünüm ve Navigasyon Metodları ---
   setViewMode(mode) {
     this.viewMode = mode;
-    this.renderView();
+    this.renderView(true);
   },
 
   setMonth(monthStr) {
     if (!monthStr) return;
     this.currentMonth = monthStr;
-    this.renderView();
+    this.renderView(true);
   },
 
   prevMonth() {
@@ -129,17 +132,18 @@ window.LeaveReturnModule = {
 
   setMonthlyStatusFilter(filter) {
     this.monthlyStatusFilter = filter;
-    this.renderView();
+    this.renderView(true);
   },
 
   openStudentMonthlyModal(studentId) {
     this.monthlyModalStudentId = studentId;
-    this.renderView();
+    this.renderStudentMonthlyDetailModal();
   },
 
   closeStudentMonthlyModal() {
     this.monthlyModalStudentId = null;
-    this.renderView();
+    const modalContainer = document.getElementById('leave-return-monthly-student-modal');
+    if (modalContainer) modalContainer.innerHTML = '';
   },
 
   getMonthNameTurkish(yearMonthStr) {
@@ -184,7 +188,7 @@ window.LeaveReturnModule = {
       });
     }
     this.recalculateCurrentDayReturns();
-    this.renderView();
+    this.renderView(true);
     if (window.App && window.App.showToast) {
       window.App.showToast(`Pazar akşamı dönüş saati ${timeStr} olarak güncellendi ve tüm cihazlara eşitlendi.`, 'info');
     }
@@ -198,7 +202,7 @@ window.LeaveReturnModule = {
       window.Store.saveSettings({ expectedMondayTime: timeStr });
     }
     this.recalculateCurrentDayReturns();
-    this.renderView();
+    this.renderView(true);
     if (window.App && window.App.showToast) {
       window.App.showToast(`Pazartesi sabahı dönüş saati ${timeStr} olarak güncellendi ve tüm cihazlara eşitlendi.`, 'info');
     }
@@ -232,17 +236,17 @@ window.LeaveReturnModule = {
     } else {
       this.selectedClasses.push(className);
     }
-    this.renderView();
+    this.renderView(true);
   },
 
   toggleAllClasses() {
     this.selectedClasses = [];
-    this.renderView();
+    this.renderView(true);
   },
 
   setStatusFilter(status) {
     this.statusFilter = status;
-    this.renderView();
+    this.renderView(true);
   },
 
   setSearchQuery(q) {
@@ -379,7 +383,8 @@ window.LeaveReturnModule = {
       ...calc
     });
 
-    this.renderView();
+    this._lastActionTime = Date.now();
+    this.renderView(true);
     if (window.App && window.App.showToast) {
       const name = student ? `${student.firstName} ${student.lastName}` : 'Öğrenci';
       if (calc.status === 'GEC') {
@@ -432,8 +437,9 @@ window.LeaveReturnModule = {
       penaltyLabel: 'Telafi Yok (İzinli)'
     });
 
+    this._lastActionTime = Date.now();
     this.closeExcuseModal();
-    this.renderView();
+    this.renderView(true);
 
     if (window.App && window.App.showToast) {
       const name = student ? `${student.firstName} ${student.lastName}` : 'Öğrenci';
@@ -443,7 +449,8 @@ window.LeaveReturnModule = {
 
   clearRecord(studentId) {
     window.Store.deleteLeaveReturn(this.currentDate, studentId);
-    this.renderView();
+    this._lastActionTime = Date.now();
+    this.renderView(true);
     if (window.App && window.App.showToast) {
       window.App.showToast('Giriş/İzin kaydı silindi (Henüz Gelmedi durumuna alındı).', 'info');
     }
@@ -545,14 +552,19 @@ window.LeaveReturnModule = {
     return students;
   },
 
-  renderView() {
+  renderView(preserveScroll = true) {
     this.refreshSettings();
     const container = document.getElementById('leave-return-container');
     if (!container) return;
 
+    const scrollY = preserveScroll ? (window.scrollY || document.documentElement.scrollTop || 0) : 0;
+    if (preserveScroll && container.offsetHeight > 0) {
+      container.style.minHeight = `${container.offsetHeight}px`;
+    }
+
     // Aylık Rapor Görünümü
     if (this.viewMode === 'monthly') {
-      this.renderMonthlyView(container);
+      this.renderMonthlyView(container, preserveScroll, scrollY);
       return;
     }
 
@@ -604,7 +616,7 @@ window.LeaveReturnModule = {
     });
 
     container.innerHTML = `
-      <div class="space-y-4 animate-fade-in max-w-7xl mx-auto">
+      <div class="space-y-4 ${this._hasRenderedOnce ? '' : 'animate-fade-in'} max-w-7xl mx-auto">
         <!-- 1. ÜST BAŞLIK & KONTROL PANELİ -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
@@ -855,6 +867,19 @@ window.LeaveReturnModule = {
     `;
 
     this.renderStudentRows();
+    this._hasRenderedOnce = true;
+
+    if (preserveScroll && scrollY > 0) {
+      window.scrollTo({ top: scrollY, behavior: 'instant' });
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: scrollY, behavior: 'instant' });
+        setTimeout(() => {
+          if (container) container.style.minHeight = '';
+        }, 80);
+      });
+    } else if (container) {
+      container.style.minHeight = '';
+    }
   },
 
   renderStudentRows() {
@@ -1197,16 +1222,9 @@ window.LeaveReturnModule = {
   },
 
   // --- 2. AYLIK İZİN DÖNÜŞÜ KONTROL VE RAPORLAMA GÖRÜNÜMÜ ---
-  renderMonthlyView(container) {
-    this.refreshSettings();
+  getFilteredMonthlyReports() {
     const allStudents = window.Store.getStudents();
-    const classes = window.Store.getClasses();
-    const monthName = this.getMonthNameTurkish(this.currentMonth);
-
-    // Store'dan aylık verileri çek
     const batch = window.Store.getMonthlyLeaveReturnBatch(allStudents, this.currentMonth);
-
-    // Filtreleme
     let reports = batch.reports;
 
     // Sınıf Filtresi
@@ -1246,7 +1264,115 @@ window.LeaveReturnModule = {
       return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
     });
 
-    // İstatistikler
+    return reports;
+  },
+
+  setMonthlySearchQuery(q) {
+    this.searchQuery = (q || '').toLowerCase().trim();
+    this.renderMonthlyTableRows();
+  },
+
+  renderMonthlyTableRows() {
+    const tbody = document.getElementById('leave-return-monthly-tbody');
+    if (!tbody) return;
+
+    const reports = this.getFilteredMonthlyReports();
+
+    if (reports.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="11" class="py-12 text-center text-slate-400 font-semibold">
+            Seçilen filtre ve kriterlere uygun talep/kayıt bulunamadı.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = reports.map((item, idx) => {
+      const s = item.student;
+      const r = item.report;
+      const hasPenalty = r.totalPenaltyMinutes > 0;
+      const rowClass = hasPenalty ? 'bg-rose-50/40 hover:bg-rose-50' : 'hover:bg-slate-50/80';
+
+      return `
+        <tr class="${rowClass} transition cursor-pointer" onclick="window.LeaveReturnModule.openStudentMonthlyModal('${s.id}')">
+          <td class="py-3 px-3 text-center font-bold text-slate-400">${idx + 1}</td>
+          <td class="py-3 px-3 font-black text-slate-900 text-sm">
+            <div class="flex items-center gap-1.5">
+              <span>${s.firstName} ${s.lastName}</span>
+              ${hasPenalty ? `<span class="px-1.5 py-0.2 rounded bg-rose-600 text-white font-black text-[9px] uppercase">TELAFİLİ</span>` : ''}
+            </div>
+            <div class="text-[10px] text-slate-400 font-mono">No: ${s.studentNo || s.id}</div>
+          </td>
+          <td class="py-3 px-3 text-center">
+            <span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold text-[10px]">${s.className}</span>
+          </td>
+          <td class="py-3 px-3 text-slate-600">
+            ${s.yatakhane ? `<span class="inline-flex items-center gap-0.5 text-indigo-900 font-bold bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100 text-[10px]">🛏️ ${s.yatakhane}</span>` : ''}
+            ${(s.etutHocasi || s.dahiliHoca) ? `<div class="text-[10px] text-slate-400 mt-0.5">👨‍🏫 ${s.etutHocasi || s.dahiliHoca}</div>` : ''}
+          </td>
+          <td class="py-3 px-3 text-center font-bold">${r.totalReturns} Hafta</td>
+          <td class="py-3 px-3 text-center font-bold text-emerald-700">
+            ${r.onTimeCount > 0 ? `🟢 ${r.onTimeCount}` : '-'}
+          </td>
+          <td class="py-3 px-3 text-center font-black ${r.lateCount > 0 ? 'text-rose-700' : 'text-slate-400'}">
+            ${r.lateCount > 0 ? `⚠️ ${r.lateCount} Kez` : '0'}
+          </td>
+          <td class="py-3 px-3 text-center font-bold ${r.totalLateMinutes > 0 ? 'text-amber-800' : 'text-slate-400'}">
+            ${r.totalLateMinutes > 0 ? `${r.totalLateMinutes} dk` : '-'}
+          </td>
+          <td class="py-3 px-3 text-center">
+            ${hasPenalty ? `
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-rose-600 text-white font-mono font-black text-xs shadow-2xs">
+                <span>+${r.totalPenaltyMinutes} dk</span>
+                <span class="text-[10px] font-normal opacity-90">(${r.totalPenaltyFormatted})</span>
+              </span>
+            ` : `
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[11px]">
+                <span>✓</span> <span>0 dk (Telafi Yok)</span>
+              </span>
+            `}
+          </td>
+          <td class="py-3 px-3 text-center font-bold text-teal-800">
+            ${r.excusedCount > 0 ? `🏷️ ${r.excusedCount}` : '-'}
+          </td>
+          <td class="py-3 px-3 text-center">
+            <button type="button" onclick="event.stopPropagation(); window.LeaveReturnModule.openStudentMonthlyModal('${s.id}')"
+              class="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition border border-indigo-200 cursor-pointer shadow-2xs">
+              <span>İncele ↗</span>
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  renderMonthlyView(container, preserveScroll = true, scrollY = 0) {
+    this.refreshSettings();
+    const allStudents = window.Store.getStudents();
+    const classes = window.Store.getClasses();
+    const monthName = this.getMonthNameTurkish(this.currentMonth);
+
+    // Store'dan aylık verileri çek
+    const batch = window.Store.getMonthlyLeaveReturnBatch(allStudents, this.currentMonth);
+    let reports = batch.reports;
+
+    // Sınıf Filtresi
+    if (this.selectedClasses && this.selectedClasses.length > 0) {
+      reports = reports.filter(r => this.selectedClasses.includes(r.student.className));
+    }
+
+    // Durum Filtresi (Tümü, Sadece Geç Kalanlar, Sadece İzinliler, Vaktinde Dönenler)
+    if (this.monthlyStatusFilter === 'GEC') {
+      reports = reports.filter(r => r.report.lateCount > 0);
+    } else if (this.monthlyStatusFilter === 'IZINLI') {
+      reports = reports.filter(r => r.report.excusedCount > 0);
+    } else if (this.monthlyStatusFilter === 'VAKTINDE') {
+      reports = reports.filter(r => r.report.lateCount === 0 && r.report.totalReturns > 0);
+    }
+
+    // İstatistikler (Sınıf ve Durum filtresine göre)
     const totalStudentsInView = reports.length;
     let lateStudentsCount = 0;
     let penaltyMinutesInView = 0;
@@ -1265,7 +1391,7 @@ window.LeaveReturnModule = {
     const totalPenaltyFormatted = window.Store.formatPenaltyDuration(penaltyMinutesInView);
 
     container.innerHTML = `
-      <div class="space-y-4 animate-fade-in max-w-7xl mx-auto">
+      <div class="space-y-4 ${this._hasRenderedOnce ? '' : 'animate-fade-in'} max-w-7xl mx-auto">
         <!-- 1. ÜST KONTROL PANELİ & AY SEÇİCİ -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 sm:p-6 space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
@@ -1459,11 +1585,11 @@ window.LeaveReturnModule = {
                 </button>
               </div>
 
-              <!-- Arama Kutusu -->
+              <!-- Arama Kutusu (Canlı Arama: Input ve sayfa ASLA zıplamaz) -->
               <div class="w-full sm:w-64 relative">
                 <input type="text" placeholder="Talebe adı, oda, no ara..." value="${this.searchQuery}"
                   class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-                  oninput="window.LeaveReturnModule.searchQuery = this.value.toLowerCase().trim(); window.LeaveReturnModule.renderView();">
+                  oninput="window.LeaveReturnModule.setMonthlySearchQuery(this.value)">
                 <span class="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
               </div>
             </div>
@@ -1489,70 +1615,8 @@ window.LeaveReturnModule = {
                   <th class="py-3 px-3 text-center">Haftalık Döküm</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-100 font-medium text-slate-800">
-                ${reports.length === 0 ? `
-                  <tr>
-                    <td colspan="11" class="py-12 text-center text-slate-400 font-semibold">
-                      Seçilen filtre ve kriterlere uygun talep/kayıt bulunamadı.
-                    </td>
-                  </tr>
-                ` : reports.map((item, idx) => {
-                  const s = item.student;
-                  const r = item.report;
-                  const hasPenalty = r.totalPenaltyMinutes > 0;
-                  const rowClass = hasPenalty ? 'bg-rose-50/40 hover:bg-rose-50' : 'hover:bg-slate-50/80';
-
-                  return `
-                    <tr class="${rowClass} transition cursor-pointer" onclick="window.LeaveReturnModule.openStudentMonthlyModal('${s.id}')">
-                      <td class="py-3 px-3 text-center font-bold text-slate-400">${idx + 1}</td>
-                      <td class="py-3 px-3 font-black text-slate-900 text-sm">
-                        <div class="flex items-center gap-1.5">
-                          <span>${s.firstName} ${s.lastName}</span>
-                          ${hasPenalty ? `<span class="px-1.5 py-0.2 rounded bg-rose-600 text-white font-black text-[9px] uppercase">TELAFİLİ</span>` : ''}
-                        </div>
-                        <div class="text-[10px] text-slate-400 font-mono">No: ${s.studentNo || s.id}</div>
-                      </td>
-                      <td class="py-3 px-3 text-center">
-                        <span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold text-[10px]">${s.className}</span>
-                      </td>
-                      <td class="py-3 px-3 text-slate-600">
-                        ${s.yatakhane ? `<span class="inline-flex items-center gap-0.5 text-indigo-900 font-bold bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100 text-[10px]">🛏️ ${s.yatakhane}</span>` : ''}
-                        ${(s.etutHocasi || s.dahiliHoca) ? `<div class="text-[10px] text-slate-400 mt-0.5">👨‍🏫 ${s.etutHocasi || s.dahiliHoca}</div>` : ''}
-                      </td>
-                      <td class="py-3 px-3 text-center font-bold">${r.totalReturns} Hafta</td>
-                      <td class="py-3 px-3 text-center font-bold text-emerald-700">
-                        ${r.onTimeCount > 0 ? `🟢 ${r.onTimeCount}` : '-'}
-                      </td>
-                      <td class="py-3 px-3 text-center font-black ${r.lateCount > 0 ? 'text-rose-700' : 'text-slate-400'}">
-                        ${r.lateCount > 0 ? `⚠️ ${r.lateCount} Kez` : '0'}
-                      </td>
-                      <td class="py-3 px-3 text-center font-bold ${r.totalLateMinutes > 0 ? 'text-amber-800' : 'text-slate-400'}">
-                        ${r.totalLateMinutes > 0 ? `${r.totalLateMinutes} dk` : '-'}
-                      </td>
-                      <td class="py-3 px-3 text-center">
-                        ${hasPenalty ? `
-                          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-rose-600 text-white font-mono font-black text-xs shadow-2xs">
-                            <span>+${r.totalPenaltyMinutes} dk</span>
-                            <span class="text-[10px] font-normal opacity-90">(${r.totalPenaltyFormatted})</span>
-                          </span>
-                        ` : `
-                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[11px]">
-                            <span>✓</span> <span>0 dk (Telafi Yok)</span>
-                          </span>
-                        `}
-                      </td>
-                      <td class="py-3 px-3 text-center font-bold text-teal-800">
-                        ${r.excusedCount > 0 ? `🏷️ ${r.excusedCount}` : '-'}
-                      </td>
-                      <td class="py-3 px-3 text-center">
-                        <button type="button" onclick="event.stopPropagation(); window.LeaveReturnModule.openStudentMonthlyModal('${s.id}')"
-                          class="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition border border-indigo-200 cursor-pointer shadow-2xs">
-                          <span>İncele ↗</span>
-                        </button>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
+              <tbody id="leave-return-monthly-tbody" class="divide-y divide-slate-100 font-medium text-slate-800">
+                <!-- renderMonthlyTableRows() ile doldurulacak -->
               </tbody>
             </table>
           </div>
@@ -1563,9 +1627,24 @@ window.LeaveReturnModule = {
       </div>
     `;
 
+    this.renderMonthlyTableRows();
+    this._hasRenderedOnce = true;
+
     // Eğer talebe modalı açıksa render et
     if (this.monthlyModalStudentId) {
       this.renderStudentMonthlyDetailModal();
+    }
+
+    if (preserveScroll && scrollY > 0) {
+      window.scrollTo({ top: scrollY, behavior: 'instant' });
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: scrollY, behavior: 'instant' });
+        setTimeout(() => {
+          if (container) container.style.minHeight = '';
+        }, 80);
+      });
+    } else if (container) {
+      container.style.minHeight = '';
     }
   },
 

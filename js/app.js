@@ -84,10 +84,18 @@ window.App = {
         }
 
         if (this.activeTab === 'izin_donusu' && window.LeaveReturnModule) {
-          if (typeof window.LeaveReturnModule.refreshSettings === 'function') {
-            window.LeaveReturnModule.refreshSettings();
+          const lrm = window.LeaveReturnModule;
+          // Modal açıksa veya kullanıcı bir giriş alanındaysa arayüzü zıplatma
+          if (lrm.activeExcuseStudentId || lrm.monthlyModalStudentId) return;
+          const activeEl = document.activeElement;
+          if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) return;
+          // Son 3 saniye içinde yerel işlem yapıldıysa tekrar tetikleme
+          if (lrm._lastActionTime && (Date.now() - lrm._lastActionTime < 3000)) return;
+
+          if (typeof lrm.refreshSettings === 'function') {
+            lrm.refreshSettings();
           }
-          window.LeaveReturnModule.renderView();
+          lrm.renderView(true);
         } else if (this.activeTab === 'izin_cikis' && window.LeaveTrackerModule) {
           window.LeaveTrackerModule.renderView();
         } else if (this.activeTab === 'yoklama' && window.AttendanceModule) {
@@ -1055,7 +1063,7 @@ window.App = {
               <span class="text-xl">👥</span>
               <div>
                 <div class="text-xs font-black">${session.canEditStudents ? 'Öğrenci & Şifre Yönetimi' : 'Öğrenci Listesi'}</div>
-                <div class="text-[10px] text-slate-400 font-medium">Tüm sınıf kütüğü ve veli şifreleri</div>
+                <div class="text-[10px] text-slate-400 font-medium">Tüm sınıf listesi ve veli şifreleri</div>
               </div>
             </div>
             <span class="text-slate-300">→</span>
