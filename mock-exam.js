@@ -1,5 +1,5 @@
 /**
- * mock-exam.js - Ömer Avniyel Akademi Kurumsal Deneme Sınavları, Hedef Kitle (Şube/Talebe) Seçimi & QR Kodlu Çok Dersli LGS Optik Okuma Sistemi (v7.7)
+ * mock-exam.js - Ömer Avniyel Akademi Kurumsal Deneme Sınavları, Hedef Kitle (Şube/Talebe) Seçimi & QR Kodlu Çok Dersli LGS Optik Okuma Sistemi (v9.2)
  * - 1. Hedef Kitle Belirleme: Hangi sınıflara/talebeler yapılacağı (8-A, 8-B, Seviye 8 LGS, 7-A, 7-B vb.) net ve esnek seçim
  * - 2. Soru Sayısı, Dersler, Ders Katsayıları (Puan Ağırlıkları) ve Soru Başına MEB Kazanım Girişi
  * - 3. 🖨️ Çok Dersli LGS Optik Form Yazdırma: Her talebeye özel QR Kodlu A4 optik cevap formu (Tüm dersler tek formda)
@@ -57,11 +57,11 @@ window.MockExamModule = {
       targetClasses: ['7-A', '7-B'],
       subjects: [
         { id: 'sub_turkce', name: 'Türkçe', questionCount: 15, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
-        { id: 'sub_matematik', name: 'Matematik', questionCount: 15, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
-        { id: 'sub_fen', name: 'Fen Bilimleri', questionCount: 15, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
         { id: 'sub_sosyal', name: 'Sosyal Bilgiler', questionCount: 10, coefficient: 2.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
         { id: 'sub_din', name: 'Din Kültürü', questionCount: 10, coefficient: 2.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
-        { id: 'sub_ingilizce', name: 'İngilizce', questionCount: 10, coefficient: 2.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} }
+        { id: 'sub_ingilizce', name: 'İngilizce', questionCount: 10, coefficient: 2.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
+        { id: 'sub_matematik', name: 'Matematik', questionCount: 15, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} },
+        { id: 'sub_fen', name: 'Fen Bilimleri', questionCount: 15, coefficient: 4.00, wrongPenalty: 3, kazanimlar: {}, answerKeyA: {}, answerKeyB: {} }
       ]
     }
   },
@@ -164,7 +164,10 @@ window.MockExamModule = {
       list = list.filter(s => allowedSet.has(s.id));
     }
 
-    // Sınıfına ve okul numarasına göre sırala
+    // Sınıfına ve okul numarasına göre sırala (5-A ➔ 8-B)
+    if (window.Store && typeof window.Store.sortStudentsByClassAndNo === 'function') {
+      return window.Store.sortStudentsByClassAndNo(list);
+    }
     return list.sort((a, b) => {
       const cComp = (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true });
       if (cComp !== 0) return cComp;
@@ -415,7 +418,7 @@ window.MockExamModule = {
 
         <!-- Dersler ve Katsayılar Özeti -->
         <div class="grid grid-cols-2 gap-1.5 text-[11px]">
-          ${subjects.slice(0, 6).map(s => `
+          ${this.getOrderedLgsSubjects(subjects).slice(0, 6).map(s => `
             <div class="p-1.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
               <span class="font-bold text-slate-700 truncate">${s.name}:</span>
               <span class="text-[10px] text-slate-500 font-mono">${s.questionCount}S (x${s.coefficient})</span>
@@ -1068,6 +1071,9 @@ window.MockExamModule = {
       return;
     }
 
+    // Ders sıralamasını daima LGS standardına sabitle: Türkçe, İnkılap Tarihi, Din Kültürü, İngilizce, Matematik, Fen Bilimleri
+    d.subjects = this.getOrderedLgsSubjects(d.subjects);
+
     const saved = window.Store.saveMockExam(d);
     this.selectedExamId = saved.id;
 
@@ -1109,10 +1115,19 @@ window.MockExamModule = {
       ? window.Store.getStudents(false)
       : [];
     const participatingStudents = this.getParticipatingStudents(exam);
-    const existingClasses = (window.Store && typeof window.Store.getClasses === 'function') ? window.Store.getClasses() : [];
-    const availableBranches = existingClasses.length > 0 
-      ? existingClasses.map(c => c.name || c.id) 
-      : [...new Set(allStudents.map(s => s.className).filter(Boolean))].sort();
+    const rawClasses = (window.Store && typeof window.Store.getClasses === 'function') ? window.Store.getClasses() : [];
+    let availableBranches = [];
+    if (Array.isArray(rawClasses) && rawClasses.length > 0) {
+      availableBranches = rawClasses.map(c => {
+        if (!c) return '';
+        if (typeof c === 'object') return (c.name || c.id || '').toString();
+        return c.toString();
+      }).filter(Boolean);
+    }
+    if (availableBranches.length === 0) {
+      availableBranches = [...new Set(allStudents.map(s => s && s.className).filter(Boolean))];
+    }
+    availableBranches = [...new Set(availableBranches)].sort((a, b) => a.localeCompare(b, 'tr', { numeric: true }));
 
     let modal = document.getElementById('mock-print-modal');
     if (!modal) {
@@ -1173,8 +1188,10 @@ window.MockExamModule = {
               <select id="mock-print-class-select" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800">
                 <option value="ALL">Tüm Sınav Katılımcıları (${participatingStudents.length} Talebe)</option>
                 ${availableBranches.map(br => {
-                  const cnt = participatingStudents.filter(s => (s.className || '').trim().toUpperCase() === br.trim().toUpperCase()).length;
-                  return `<option value="${br}">${br} Sınıfı (${cnt} Talebe)</option>`;
+                  if (!br) return '';
+                  const cleanBr = br.toString().trim();
+                  const cnt = participatingStudents.filter(s => (s.className || '').trim().toUpperCase() === cleanBr.toUpperCase()).length;
+                  return `<option value="${cleanBr}">${cleanBr} Sınıfı (${cnt} Talebe)</option>`;
                 }).join('')}
                 <option value="BLANK">İsimsiz Boş Form (Yedek - 4 Adet)</option>
               </select>
@@ -1221,6 +1238,67 @@ window.MockExamModule = {
         </div>
       </div>
     `;
+  },
+
+  normalizeText(str) {
+    if (!str) return '';
+    return str
+      .toString()
+      .replace(/İ/g, 'i')
+      .replace(/I/g, 'i')
+      .replace(/ı/g, 'i')
+      .replace(/i̇/g, 'i')
+      .replace(/ç/g, 'c')
+      .replace(/Ç/g, 'c')
+      .replace(/ğ/g, 'g')
+      .replace(/Ğ/g, 'g')
+      .replace(/ö/g, 'o')
+      .replace(/Ö/g, 'o')
+      .replace(/ş/g, 's')
+      .replace(/Ş/g, 's')
+      .replace(/ü/g, 'u')
+      .replace(/Ü/g, 'u')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  },
+
+  getShortSubjectName(name) {
+    if (!name) return '';
+    const n = this.normalizeText(name);
+    if (n.includes('turkce') || n === 'tr') return 'Türkçe';
+    if (n.includes('inkilap') || n.includes('tarih') || n.includes('sosyal')) return 'İnkılap Tarihi';
+    if (n.includes('din') || n.includes('dkab')) return 'Din Kültürü';
+    if (n.includes('ing') || n.includes('yabanci') || n.includes('dil') || n.includes('eng')) return 'İngilizce';
+    if (n.includes('mat')) return 'Matematik';
+    if (n.includes('fen') || n.includes('fzk')) return 'Fen Bilimleri';
+    const raw = name.trim();
+    return raw.length > 15 ? raw.substring(0, 15) : raw;
+  },
+
+  getOrderedLgsSubjects(subjects) {
+    if (!Array.isArray(subjects) || subjects.length === 0) {
+      return [
+        { name: 'Türkçe', questionCount: 20 },
+        { name: 'İnkılap Tarihi', questionCount: 10 },
+        { name: 'Din Kültürü', questionCount: 10 },
+        { name: 'İngilizce', questionCount: 10 },
+        { name: 'Matematik', questionCount: 20 },
+        { name: 'Fen Bilimleri', questionCount: 20 }
+      ];
+    }
+    const getRank = (name) => {
+      const n = this.normalizeText(name);
+      if (n.includes('turkce') || n === 'tr') return 1;
+      if (n.includes('inkilap') || n.includes('tarih') || n.includes('sosyal')) return 2;
+      if (n.includes('din') || n.includes('dkab')) return 3;
+      if (n.includes('ing') || n.includes('yabanci') || n.includes('dil') || n.includes('eng')) return 4;
+      if (n.includes('mat')) return 5;
+      if (n.includes('fen') || n.includes('fzk')) return 6;
+      return 100;
+    };
+    return [...subjects].sort((a, b) => getRank(a.name) - getRank(b.name));
   },
 
   executePrintForms(examId, customOptions = null) {
@@ -1280,12 +1358,12 @@ window.MockExamModule = {
     const instName = settings.institutionName || 'TABAKÇILAR B BLOK';
     const orderedSubjects = this.getOrderedLgsSubjects(subjects);
 
-    // Sözel ve Sayısal küme ayrımı (Standart 5+ dersli sınavlarda ilk 4 ders Sözel, kalanlar Sayısal)
-    let sozelSubjects = orderedSubjects;
-    let sayisalSubjects = [];
+    // Sözel ve Sayısal soru sayıları hesabı (Tüm dersler kesintisiz yan yana)
+    let sozelQCount = 50;
+    let sayisalQCount = 40;
     if (orderedSubjects.length >= 5) {
-      sozelSubjects = orderedSubjects.slice(0, 4);
-      sayisalSubjects = orderedSubjects.slice(4);
+      sozelQCount = orderedSubjects.slice(0, 4).reduce((sum, s) => sum + (parseInt(s.questionCount, 10) || 0), 0);
+      sayisalQCount = orderedSubjects.slice(4).reduce((sum, s) => sum + (parseInt(s.questionCount, 10) || 0), 0);
     }
 
     let printHtml = `
@@ -1314,14 +1392,23 @@ window.MockExamModule = {
             -webkit-font-smoothing: antialiased;
           }
           @media print {
+            @page {
+              size: A4 landscape;
+              margin: 0;
+            }
             .no-print-top-bar {
               display: none !important;
+            }
+            .sheet {
+              box-shadow: none !important;
+              margin: 0 !important;
             }
           }
           @media screen {
             body {
               background: #475569;
               padding-top: 52px;
+              overflow-x: auto;
             }
             .sheet {
               box-shadow: 0 4px 25px rgba(0, 0, 0, 0.4);
@@ -1376,6 +1463,7 @@ window.MockExamModule = {
           }
           .sheet {
             width: 297mm;
+            min-width: 297mm;
             height: 210mm;
             max-height: 210mm;
             page-break-after: always;
@@ -1392,47 +1480,50 @@ window.MockExamModule = {
           /* 4 KÖŞE KALIN L HİZALAMA ÇERÇEVELERİ (GÖRSELE BİREBİR KÖŞEBENTLER) */
           .corner-bracket {
             position: absolute;
-            width: 56px;
-            height: 56px;
+            width: 65px;
+            height: 65px;
+            box-sizing: border-box;
+            pointer-events: none;
           }
           .corner-bracket.tl {
-            top: 5mm;
-            left: 7mm;
-            border-top: 10px solid #000;
-            border-left: 10px solid #000;
+            top: 6mm;
+            left: 8mm;
+            border-top: 12px solid #000;
+            border-left: 12px solid #000;
           }
           .corner-bracket.tr {
-            top: 5mm;
-            right: 7mm;
-            border-top: 10px solid #000;
-            border-right: 10px solid #000;
+            top: 6mm;
+            right: 8mm;
+            border-top: 12px solid #000;
+            border-right: 12px solid #000;
           }
           .corner-bracket.bl {
-            bottom: 5mm;
-            left: 7mm;
-            border-bottom: 10px solid #000;
-            border-left: 10px solid #000;
+            bottom: 6mm;
+            left: 8mm;
+            border-bottom: 12px solid #000;
+            border-left: 12px solid #000;
           }
           .corner-bracket.br {
-            bottom: 5mm;
-            right: 7mm;
-            border-bottom: 10px solid #000;
-            border-right: 10px solid #000;
+            bottom: 6mm;
+            right: 8mm;
+            border-bottom: 12px solid #000;
+            border-right: 12px solid #000;
           }
 
           /* İÇ FORM ALANI (KÖŞEBENTLERİN İÇİNDE) */
           .form-inner {
-            margin: 0 3mm;
+            margin: 1.5mm 5mm 0 5mm;
             display: flex;
             flex-direction: column;
             height: 100%;
-            justify-content: space-between;
+            justify-content: flex-start;
+            box-sizing: border-box;
           }
 
           /* ÜST BAŞLIK VE ÖĞRENCİ BİLGİ KARTI */
           .exam-header-card {
-            background: #ffffff;
-            border: 1.2px solid #cbd5e1;
+            background: #f8fafc;
+            border: 1px solid #718096;
             border-radius: 6px;
             overflow: hidden;
             margin-bottom: 8px;
@@ -1442,26 +1533,26 @@ window.MockExamModule = {
             background: #4c4c4c;
             color: #ffffff;
             font-weight: 700;
-            font-size: 13.5px;
+            font-size: 13px;
             text-align: center;
-            padding: 4.5px 12px;
-            letter-spacing: 0.3px;
+            padding: 4px 12px;
+            letter-spacing: 0.2px;
             line-height: 1.25;
           }
           .exam-info-body {
-            padding: 6px 14px 4px 14px;
-            background: #ffffff;
+            padding: 5px 14px 4px 14px;
+            background: #f8fafc;
           }
           .info-line {
             display: flex;
-            align-items: flex-end;
-            margin-bottom: 3.5px;
-            height: 18px;
+            align-items: baseline;
+            margin-bottom: 3px;
+            height: 16px;
           }
           .info-lbl {
             font-weight: 600;
             color: #1e293b;
-            font-size: 11.5px;
+            font-size: 11px;
             white-space: nowrap;
             margin-right: 6px;
           }
@@ -1469,57 +1560,63 @@ window.MockExamModule = {
             font-weight: 800;
             color: #000000;
             text-transform: uppercase;
-            font-size: 11.5px;
+            font-size: 11px;
             white-space: nowrap;
             margin-right: 6px;
           }
           .info-dots {
             flex: 1;
             border-bottom: 1px dotted #94a3b8;
-            margin-bottom: 3.5px;
+            margin-bottom: 3px;
+            min-width: 20px;
           }
           .tracking-code-line {
             text-align: right;
-            font-size: 9.5px;
-            font-weight: 700;
+            font-size: 9px;
+            font-weight: 600;
+            font-family: monospace, sans-serif;
             color: #334155;
             margin-top: 1px;
             padding-right: 2px;
           }
 
-          /* ANA FORM IZGARA ALANI */
+          /* ANA FORM IZGARA ALANI: KAREKOD + 6 DERS SÜTUNU KESİNTİSİZ YAN YANA */
           .exam-grid-layout {
-            display: flex;
-            align-items: stretch;
-            gap: 14px;
-            flex: 1;
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: flex-start !important;
+            width: 100% !important;
+            flex: 1 !important;
           }
 
           /* SOL SÜTUN (KAREKOD + KİTAPÇIK TÜRÜ) */
           .left-side-panel {
-            width: 124px;
-            flex-shrink: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            gap: 10px;
+            width: 98px !important;
+            flex-shrink: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: flex-start !important;
+            gap: 10px !important;
+            margin-right: 14px !important;
           }
           .side-card {
-            border: 1px solid #718096;
-            border-radius: 5px;
-            overflow: hidden;
-            background: #ffffff;
+            width: 100%;
           }
-          .side-card-title {
+          .side-card-pill {
             background: #4c4c4c;
             color: #ffffff;
             font-weight: 700;
-            font-size: 11px;
+            font-size: 10px;
             text-align: center;
-            padding: 3.5px 0;
+            padding: 3px 0;
+            border-radius: 4px 4px 0 0;
             letter-spacing: 0.2px;
           }
           .side-card-body {
+            border: 1px solid #718096;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
             padding: 4px;
             display: flex;
             flex-direction: column;
@@ -1537,8 +1634,8 @@ window.MockExamModule = {
           .booklet-labels-row {
             display: flex;
             justify-content: space-around;
-            padding: 2.5px 0;
-            font-size: 11.5px;
+            padding: 2px 0;
+            font-size: 11px;
             font-weight: 700;
             color: #334155;
             border-bottom: 1px solid #cbd5e1;
@@ -1546,109 +1643,135 @@ window.MockExamModule = {
           .booklet-bubbles-row {
             display: flex;
             justify-content: space-around;
-            padding: 3.5px 0;
+            padding: 3px 0;
           }
 
-          /* DERSLER BÖLÜMÜ (SÖZEL VE SAYISAL KÜMELER) */
+          /* 6 DERS SÜTUNU ALANI */
           .subjects-wrapper {
-            display: flex;
-            align-items: stretch;
-            flex: 1;
-            justify-content: space-between;
-          }
-          .sozel-cluster {
-            display: flex;
-            align-items: stretch;
-            gap: 8px;
-            flex: 4;
-          }
-          .sayisal-cluster {
-            display: flex;
-            align-items: stretch;
-            gap: 8px;
-            flex: 2;
-            margin-left: 20px;
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: flex-start !important;
+            flex: 1 !important;
+            min-width: 0 !important;
+            gap: 6px !important;
           }
 
-          .subject-column {
+          /* TEKİL DERS SÜTUNU: SOL ZAMANLAMA/SAYI + SAĞ KART */
+          .subject-col-wrapper {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: flex-start !important;
+            flex: 1 1 0% !important;
+            min-width: 0 !important;
+          }
+          .subject-col-wrapper.sayisal-start {
+            margin-left: 14px !important;
+          }
+
+          /* SOL SAYI VE ZAMANLAMA ŞERİDİ */
+          .col-gutter {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            width: 24px;
+            flex-shrink: 0;
+            margin-right: 3px;
+          }
+          .gutter-spacer {
+            height: 40px; /* 22px col-pill + 18px col-options-header */
+          }
+          .gutter-row {
+            height: 7.0mm;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 3px;
+          }
+          .timing-box {
+            width: 8px;
+            height: 8px;
+            background: #000000;
+            border-radius: 1px;
+            display: inline-block;
+          }
+          .timing-empty {
+            width: 8px;
+            height: 8px;
+            display: inline-block;
+          }
+          .q-num {
+            width: 13px;
+            text-align: right;
+            font-weight: 700;
+            font-size: 10px;
+            font-family: Arial, sans-serif;
+            color: #334155;
+          }
+
+          /* SAĞ TEST KART ALANI */
+          .col-card {
             flex: 1;
             min-width: 0;
             display: flex;
             flex-direction: column;
           }
-          .sub-title-pill {
+          .col-pill {
+            height: 22px;
+            line-height: 22px;
             background: #4c4c4c;
             color: #ffffff;
             font-weight: 700;
-            font-size: 11px;
+            font-size: 10.5px;
             text-align: center;
-            padding: 3.5px 2px;
-            border-radius: 4px;
+            border-radius: 4px 4px 0 0;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            padding: 0 4px;
           }
-          .sub-options-header {
+          .col-box {
+            border: 1.2px solid #718096;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+            background: #ffffff;
+            overflow: hidden;
+          }
+          .col-options-header {
+            height: 18px;
+            border-bottom: 1.2px solid #cbd5e1;
             display: flex;
             align-items: center;
-            justify-content: flex-end;
-            gap: 3.5px;
-            padding: 3px 0;
-            font-weight: 700;
-            font-size: 10.5px;
-            color: #334155;
+            justify-content: space-around;
+            padding: 0 4px;
+            font-weight: 800;
+            font-size: 11px;
+            color: #475569;
           }
-          .opt-header-cell {
-            width: 15.5px;
-            text-align: center;
-          }
-
-          /* SORU SATIRLARI */
-          .question-row {
+          .col-row {
+            height: 7.0mm;
             display: flex;
             align-items: center;
-            height: 6.8mm;
-            margin-bottom: 0.5px;
-          }
-          .timing-anchor {
-            width: 7.5px;
-            height: 7.5px;
-            margin-right: 2.5px;
-            flex-shrink: 0;
-          }
-          .timing-anchor.black-box {
-            background: #000000;
-            border-radius: 1px;
-          }
-          .q-index {
-            width: 15px;
-            text-align: right;
-            font-weight: 700;
-            font-size: 10.5px;
-            font-family: Arial, sans-serif;
-            color: #334155;
-            margin-right: 3.5px;
-            flex-shrink: 0;
-          }
-          .bubbles-cell {
-            display: flex;
-            gap: 3.5px;
+            justify-content: space-around;
+            padding: 0 4px;
           }
           .bubble {
-            width: 15.5px;
-            height: 15.5px;
+            width: 17px;
+            height: 17px;
             border-radius: 50%;
-            border: 1.2px solid #b0b0b0;
+            border: 1.4px solid #64748b;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 8.5px;
-            font-weight: 700;
-            color: #888888;
+            font-size: 10px;
+            font-weight: 800;
+            color: #64748b;
             font-family: Arial, Helvetica, sans-serif;
             box-sizing: border-box;
-            user-select: none;
             background: #ffffff;
+            user-select: none;
+            transition: all 0.1s;
           }
           .bubble.filled {
             background: #000000 !important;
@@ -1662,36 +1785,47 @@ window.MockExamModule = {
 
     const formList = isBlank ? [{ isBlank: true, booklet: 'A' }, { isBlank: true, booklet: 'B' }] : students;
 
-    const renderSubjectColumn = (sub) => {
+    const renderSubjectColumn = (sub, isSayisalStart = false) => {
       const qCount = parseInt(sub.questionCount, 10) || 10;
       const displayName = this.getShortSubjectName(sub.name);
-      let rowsHtml = '';
+
+      let gutterHtml = '';
+      let bubbleRowsHtml = '';
       for (let q = 1; q <= qCount; q++) {
-        const isTiming = (q === 1 || q === 10 || q === 19);
-        rowsHtml += `
-          <div class="question-row">
-            <span class="timing-anchor ${isTiming ? 'black-box' : ''}"></span>
-            <span class="q-index">${q}</span>
-            <div class="bubbles-cell">
-              <span class="bubble">A</span>
-              <span class="bubble">B</span>
-              <span class="bubble">C</span>
-              <span class="bubble">D</span>
-            </div>
+        const isTiming = (q === 1 || q === 10 || (qCount >= 19 && q === 19));
+        gutterHtml += `
+          <div class="gutter-row">
+            <span class="${isTiming ? 'timing-box' : 'timing-empty'}"></span>
+            <span class="q-num">${q}</span>
+          </div>
+        `;
+        bubbleRowsHtml += `
+          <div class="col-row">
+            <span class="bubble">A</span>
+            <span class="bubble">B</span>
+            <span class="bubble">C</span>
+            <span class="bubble">D</span>
           </div>
         `;
       }
+
       return `
-        <div class="subject-column">
-          <div class="sub-title-pill" title="${sub.name}">${displayName}</div>
-          <div class="sub-options-header">
-            <span class="opt-header-cell">A</span>
-            <span class="opt-header-cell">B</span>
-            <span class="opt-header-cell">C</span>
-            <span class="opt-header-cell">D</span>
+        <div class="subject-col-wrapper ${isSayisalStart ? 'sayisal-start' : ''}">
+          <div class="col-gutter">
+            <div class="gutter-spacer"></div>
+            ${gutterHtml}
           </div>
-          <div>
-            ${rowsHtml}
+          <div class="col-card">
+            <div class="col-pill" title="${sub.name}">${displayName}</div>
+            <div class="col-box">
+              <div class="col-options-header">
+                <span>A</span>
+                <span>B</span>
+                <span>C</span>
+                <span>D</span>
+              </div>
+              ${bubbleRowsHtml}
+            </div>
           </div>
         </div>
       `;
@@ -1737,9 +1871,9 @@ window.MockExamModule = {
       const qrPayload = `OAY_MOCK:${exam.id}:${stId}:${stNo}:${stClass}:${qrBooklet}`;
       let qrSvg = '';
       if (window.MiniQRCode && typeof window.MiniQRCode.generateSvg === 'function') {
-        qrSvg = window.MiniQRCode.generateSvg(qrPayload, 104);
+        qrSvg = window.MiniQRCode.generateSvg(qrPayload, 92);
       } else {
-        qrSvg = `<div style="width:104px;height:104px;border:2px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:monospace;text-align:center;">QR<br>${stNo}-${qrBooklet}</div>`;
+        qrSvg = `<div style="width:92px;height:92px;border:2px solid #000;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:monospace;text-align:center;">QR<br>${stNo}-${qrBooklet}</div>`;
       }
 
       printHtml += `
@@ -1781,14 +1915,14 @@ window.MockExamModule = {
               <!-- SOL SÜTUN -->
               <div class="left-side-panel">
                 <div class="side-card">
-                  <div class="side-card-title">Karekodu Okutun</div>
+                  <div class="side-card-pill">Karekodu Okutun</div>
                   <div class="side-card-body">
                     ${qrSvg}
                   </div>
                 </div>
 
                 <div class="side-card">
-                  <div class="side-card-title">Kitapçık Türü</div>
+                  <div class="side-card-pill">Kitapçık Türü</div>
                   <div class="side-card-body">
                     <div class="booklet-box">
                       <div class="booklet-labels-row">
@@ -1804,19 +1938,12 @@ window.MockExamModule = {
                 </div>
               </div>
 
-              <!-- DERSLER GRUPLARI -->
+              <!-- DERSLER ALANI: 6 DERS KESİNTİSİZ YAN YANA -->
               <div class="subjects-wrapper">
-                <!-- SÖZEL DERSLER -->
-                <div class="sozel-cluster">
-                  ${sozelSubjects.map(sub => renderSubjectColumn(sub)).join('')}
-                </div>
-
-                <!-- SAYISAL DERSLER -->
-                ${sayisalSubjects.length > 0 ? `
-                  <div class="sayisal-cluster">
-                    ${sayisalSubjects.map(sub => renderSubjectColumn(sub)).join('')}
-                  </div>
-                ` : ''}
+                ${orderedSubjects.map((sub, sIdx) => {
+                  const isSayisalStart = (sIdx === 4 || (sIdx > 0 && this.normalizeText(sub.name).includes('mat') && !this.normalizeText(orderedSubjects[sIdx - 1].name).includes('mat')));
+                  return renderSubjectColumn(sub, isSayisalStart);
+                }).join('')}
               </div>
             </div>
           </div>
@@ -1840,66 +1967,63 @@ window.MockExamModule = {
       window.App.showToast('🖨️ Optik formlar hazırlanıyor, yazdırma ekranı açılıyor...', 'info');
     }
 
-    // Güvenilir Yazdırma Hattı: Önce doğrudan sekme/pencere açılışı denenir
-    let openedInNewTab = false;
-    try {
-      const win = window.open('', '_blank');
-      if (win) {
-        win.document.open();
-        win.document.write(printHtml);
-        win.document.close();
-        win.focus();
-        setTimeout(() => {
-          try { win.print(); } catch (e) {}
-        }, 500);
-        openedInNewTab = true;
-      }
-    } catch (err) {
-      console.warn('window.open çağrısı engellendi veya hata verdi:', err);
-    }
-
-    // Eğer tarayıcı yeni pencereyi pop-up kısıtlamasıyla engellediyse, sayfa içi garanti modal açılır
-    if (!openedInNewTab) {
-      this.showPrintFallbackModal(printHtml, exam.title);
-    }
+    // Doğrudan sayfa içi garantili önizleme ve yazdırma penceresini aç
+    this.showPrintFallbackModal(printHtml, exam.title);
   },
 
   showPrintFallbackModal(printHtml, title) {
+    window._currentMockPrintHtml = printHtml;
     let modal = document.getElementById('mock-print-preview-modal');
     if (!modal) {
       modal = document.createElement('div');
       modal.id = 'mock-print-preview-modal';
-      modal.className = 'fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 overflow-hidden';
+      modal.className = 'fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden';
       document.body.appendChild(modal);
     }
     modal.innerHTML = `
-      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full h-[90vh] flex flex-col p-4 sm:p-5 space-y-3 animate-fade-in">
-        <div class="flex items-center justify-between pb-2 border-b border-slate-100 flex-shrink-0">
+      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-5xl w-full h-[94vh] flex flex-col p-3 sm:p-5 space-y-3 animate-fade-in">
+        <div class="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100 flex-shrink-0 gap-2">
           <div class="flex items-center gap-2">
             <span class="text-xl">🖨️</span>
             <div>
-              <h3 class="font-black text-slate-900 text-sm leading-tight">${title || 'Optik Formlar'} - Önizleme</h3>
-              <p class="text-[11px] text-slate-500 font-medium">Tarayıcınız yeni sekme açılmasını kısıtladıysa buradan doğrudan yazdırabilirsiniz.</p>
+              <h3 class="font-black text-slate-900 text-sm sm:text-base leading-tight">${title || 'Optik Formlar'} - Yazdırma Önizleme</h3>
+              <p class="text-[11px] text-slate-500 font-medium">A4 Yatay LGS Kurumsal Formları. Doğrudan yazdırabilir veya yeni sekmede açabilirsiniz.</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <button type="button" onclick="const f = document.getElementById('mock-preview-iframe'); f.contentWindow.focus(); f.contentWindow.print();"
-              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow transition flex items-center gap-1.5 cursor-pointer">
+            <button type="button" onclick="const f = document.getElementById('mock-preview-iframe'); if (f && f.contentWindow) { f.contentWindow.focus(); f.contentWindow.print(); } else { window.print(); }"
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95">
               <span>🖨️</span>
-              <span>Şimdi Yazdır</span>
+              <span>Sayfayı Yazdır (Ctrl + P)</span>
+            </button>
+            <button type="button" onclick="try { const b = new Blob([window._currentMockPrintHtml], {type:'text/html;charset=utf-8'}); const u = URL.createObjectURL(b); window.open(u, '_blank'); } catch(e){}"
+              class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs rounded-xl transition flex items-center gap-1 cursor-pointer"
+              title="Formları tam sayfa yeni sekmede aç">
+              <span>🌐</span>
+              <span class="hidden sm:inline">Yeni Sekmede Aç</span>
             </button>
             <button type="button" onclick="document.getElementById('mock-print-preview-modal').remove()"
-              class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center">✕</button>
+              class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center cursor-pointer">✕</button>
           </div>
         </div>
-        <div class="flex-1 rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
-          <iframe id="mock-preview-iframe" class="w-full h-full border-0"></iframe>
+        <div class="flex-1 rounded-2xl overflow-hidden border border-slate-300 bg-slate-100 relative shadow-inner">
+          <iframe id="mock-preview-iframe" class="w-full h-full border-0 bg-white"></iframe>
         </div>
       </div>
     `;
     const frame = document.getElementById('mock-preview-iframe');
     if (frame) {
       frame.srcdoc = printHtml;
+      frame.onload = function() {
+        setTimeout(function() {
+          try {
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+          } catch (e) {
+            console.warn('Otomatik yazdırma tetiklenemedi:', e);
+          }
+        }, 350);
+      };
     }
   },
 
@@ -1946,7 +2070,7 @@ window.MockExamModule = {
     const modal = document.getElementById('mock-key-modal');
     if (!modal) return;
 
-    const subjects = exam.subjects || [];
+    const subjects = this.getOrderedLgsSubjects(exam.subjects || []);
     const curSub = subjects[this._activeKeySubjectIdx] || subjects[0];
     const booklet = this._activeKeyBooklet || 'A';
     const keyMap = booklet === 'A' ? (curSub.answerKeyA || {}) : (curSub.answerKeyB || {});
@@ -2868,8 +2992,8 @@ window.MockExamModule = {
           </div>
 
           <div class="flex items-center gap-2">
-            <input type="text" placeholder="İsim veya No ile ara..." value="${this.escapeHtml(this.searchQuery)}"
-              oninput="window.MockExamModule.searchQuery = this.value; window.MockExamModule.render();"
+            <input type="text" id="mock-exam-search-input" placeholder="İsim veya No ile ara..." value="${this.escapeHtml(this.searchQuery)}"
+              oninput="window.MockExamModule.handleSearchInput(this.value)"
               class="p-1.5 px-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs w-48 focus:bg-white focus:outline-none">
           </div>
         </div>
@@ -2894,7 +3018,7 @@ window.MockExamModule = {
 
           <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
             <div class="font-black text-slate-800 text-xs sm:text-sm">
-              🏆 LGS 500 Puan Sıralaması ve Ders Netleri (${studentResults.length} Talebe)
+              🏆 LGS 500 Puan Sıralaması ve Ders Netleri (<span id="mock-exam-count-badge">${studentResults.length} Talebe</span>)
             </div>
             <div class="text-[11px] text-slate-500 no-print">
               Not girmek için <strong>"✏️ Not Gir"</strong> veya kamerayla <strong>"📷 Optik Oku"</strong> butonunu kullanabilirsiniz.
@@ -2917,57 +3041,8 @@ window.MockExamModule = {
                   <th class="py-2 pr-3 text-right no-print">İşlem</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-100">
-                ${studentResults.map((item, idx) => {
-                  const st = item.student;
-                  const isEval = item.hasScore;
-                  let medal = '';
-                  if (isEval) {
-                    if (idx === 0) medal = '🥇';
-                    else if (idx === 1) medal = '🥈';
-                    else if (idx === 2) medal = '🥉';
-                    else medal = `#${idx + 1}`;
-                  } else {
-                    medal = '-';
-                  }
-
-                  return `
-                    <tr class="hover:bg-slate-50/80 transition-colors h-10">
-                      <td class="text-center font-mono font-black text-xs ${idx < 3 && isEval ? 'text-amber-600 font-black' : 'text-slate-400'}">
-                        ${medal}
-                      </td>
-                      <td class="py-2 px-2">
-                        <div class="font-black text-slate-900">${st.firstName} ${st.lastName}</div>
-                        <div class="text-[10px] text-slate-400 font-bold">${st.className || ''} • No: ${st.studentNo}</div>
-                      </td>
-                      <td class="text-center font-mono font-black text-xs text-purple-900 bg-purple-50/40">
-                        ${isEval ? item.totalScore.toFixed(2) : '<span class="text-slate-300">-</span>'}
-                      </td>
-                      <td class="text-center font-mono font-black text-xs text-blue-900 bg-blue-50/40">
-                        ${isEval ? item.totalNet.toFixed(2) : '<span class="text-slate-300">-</span>'}
-                      </td>
-                      ${subjects.map(s => {
-                        const sd = item.subScores[s.id];
-                        return `
-                          <td class="text-center font-mono text-[11px] px-1">
-                            ${sd ? `<span class="font-bold text-slate-800">${sd.net.toFixed(1)}</span>` : '<span class="text-slate-300">-</span>'}
-                          </td>
-                        `;
-                      }).join('')}
-                      <td class="py-2 pr-3 text-right no-print">
-                        <button type="button" onclick="window.MockExamModule.openStudentScoreInputModal('${exam.id}', '${st.id}')"
-                          class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] rounded-lg border border-indigo-200 transition cursor-pointer">
-                          ✏️ Not Gir
-                        </button>
-                        <button type="button" onclick="window.MockExamModule.shareStudentWhatsAppCarnet('${exam.id}', '${st.id}')"
-                          title="Veliye WhatsApp Deneme Karnesi Gönder"
-                          class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] rounded-lg border border-emerald-200 transition ml-1 cursor-pointer">
-                          📱
-                        </button>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
+              <tbody id="mock-exam-results-tbody" class="divide-y divide-slate-100">
+                ${this.renderResultsTableRowsHtml(studentResults, subjects, exam)}
               </tbody>
               <tfoot>
                 <tr class="bg-slate-100/90 text-slate-800 font-black border-t-2 border-slate-300 h-10 text-[11px]">
@@ -3007,6 +3082,144 @@ window.MockExamModule = {
 
       </div>
     `;
+  },
+
+  handleSearchInput(q) {
+    this.searchQuery = q || '';
+    const tbody = document.getElementById('mock-exam-results-tbody');
+    if (tbody) {
+      const exam = window.Store.getMockExamById(this.selectedExamId);
+      if (exam) {
+        let students = this.getParticipatingStudents(exam);
+        if (this.selectedClassFilter !== 'ALL') {
+          students = students.filter(s => (s.className || '').trim().toUpperCase() === this.selectedClassFilter.toUpperCase());
+        }
+        if (this.searchQuery) {
+          const qLow = this.searchQuery.toLowerCase();
+          students = students.filter(s =>
+            (s.firstName && s.firstName.toLowerCase().includes(qLow)) ||
+            (s.lastName && s.lastName.toLowerCase().includes(qLow)) ||
+            (s.studentNo && s.studentNo.toString().includes(qLow))
+          );
+        }
+        const examScores = exam.scores || {};
+        const subjects = exam.subjects || [];
+        const studentResults = students.map(st => {
+          const sc = examScores[st.id] || { subjects: {}, totalScore: 0, totalNet: 0 };
+          const subScores = sc.subjects || {};
+          let totalNet = 0;
+          let totalWeightedNet = 0;
+          let maxWeightedNet = 0;
+          subjects.forEach(sub => {
+            const subData = subScores[sub.id] || { correct: 0, wrong: 0, empty: sub.questionCount, net: 0 };
+            const coeff = parseFloat(sub.coefficient) || 1;
+            const qCount = parseInt(sub.questionCount, 10) || 0;
+            totalNet += (subData.net || 0);
+            totalWeightedNet += ((subData.net || 0) * coeff);
+            maxWeightedNet += (qCount * coeff);
+          });
+          let calculatedScore = sc.totalScore || 0;
+          if (!calculatedScore) {
+            if (exam.formulaType === 'LGS_500' && maxWeightedNet > 0) {
+              calculatedScore = 100 + (Math.max(0, totalWeightedNet) / maxWeightedNet) * 400;
+            } else {
+              calculatedScore = totalWeightedNet;
+            }
+            calculatedScore = Math.max(0, Math.min(500, Math.round(calculatedScore * 100) / 100));
+          }
+          return {
+            student: st,
+            subScores,
+            totalNet: Math.round(totalNet * 100) / 100,
+            totalScore: calculatedScore,
+            hasScore: Object.keys(subScores).length > 0 && Object.values(subScores).some(s => (s.correct > 0 || s.wrong > 0))
+          };
+        });
+
+        if (this.sortBy === 'name') {
+          studentResults.sort((a, b) => (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr'));
+        } else {
+          studentResults.sort((a, b) => {
+            if (a.hasScore && !b.hasScore) return -1;
+            if (!a.hasScore && b.hasScore) return 1;
+            if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+            if (b.totalNet !== a.totalNet) return b.totalNet - a.totalNet;
+            return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
+          });
+        }
+
+        tbody.innerHTML = this.renderResultsTableRowsHtml(studentResults, subjects, exam);
+        const countBadge = document.getElementById('mock-exam-count-badge');
+        if (countBadge) {
+          countBadge.textContent = `${studentResults.length} Talebe`;
+        }
+        return;
+      }
+    }
+    this.render();
+  },
+
+  renderResultsTableRowsHtml(studentResults, subjects, exam) {
+    if (!studentResults || studentResults.length === 0) {
+      return `
+        <tr>
+          <td colspan="${5 + (subjects ? subjects.length : 0)}" class="py-8 text-center text-slate-400 font-bold text-xs">
+            Filtreye uygun öğrenci bulunamadı.
+          </td>
+        </tr>
+      `;
+    }
+
+    return studentResults.map((item, idx) => {
+      const st = item.student;
+      const isEval = item.hasScore;
+      let medal = '';
+      if (isEval) {
+        if (idx === 0) medal = '🥇';
+        else if (idx === 1) medal = '🥈';
+        else if (idx === 2) medal = '🥉';
+        else medal = `#${idx + 1}`;
+      } else {
+        medal = '-';
+      }
+
+      return `
+        <tr class="hover:bg-slate-50/80 transition-colors h-10">
+          <td class="text-center font-mono font-black text-xs ${idx < 3 && isEval ? 'text-amber-600 font-black' : 'text-slate-400'}">
+            ${medal}
+          </td>
+          <td class="py-2 px-2">
+            <div class="font-black text-slate-900">${st.firstName} ${st.lastName}</div>
+            <div class="text-[10px] text-slate-400 font-bold">${st.className || ''} • No: ${st.studentNo}</div>
+          </td>
+          <td class="text-center font-mono font-black text-xs text-purple-900 bg-purple-50/40">
+            ${isEval ? item.totalScore.toFixed(2) : '<span class="text-slate-300">-</span>'}
+          </td>
+          <td class="text-center font-mono font-black text-xs text-blue-900 bg-blue-50/40">
+            ${isEval ? item.totalNet.toFixed(2) : '<span class="text-slate-300">-</span>'}
+          </td>
+          ${subjects.map(s => {
+            const sd = item.subScores[s.id];
+            return `
+              <td class="text-center font-mono text-[11px] px-1">
+                ${sd ? `<span class="font-bold text-slate-800">${sd.net.toFixed(1)}</span>` : '<span class="text-slate-300">-</span>'}
+              </td>
+            `;
+          }).join('')}
+          <td class="py-2 pr-3 text-right no-print">
+            <button type="button" onclick="window.MockExamModule.openStudentScoreInputModal('${exam.id}', '${st.id}')"
+              class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] rounded-lg border border-indigo-200 transition cursor-pointer">
+              ✏️ Not Gir
+            </button>
+            <button type="button" onclick="window.MockExamModule.shareStudentWhatsAppCarnet('${exam.id}', '${st.id}')"
+              title="Veliye WhatsApp Deneme Karnesi Gönder"
+              class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] rounded-lg border border-emerald-200 transition ml-1 cursor-pointer">
+              📱
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
   },
 
   downloadResultsImage(examId) {

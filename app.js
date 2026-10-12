@@ -2612,9 +2612,9 @@ window.App = {
             </div>
 
             <div class="flex items-center gap-1.5">
-              <input type="text" placeholder="İsim, No, Hoca veya Oda ara..." 
+              <input type="text" id="students-search-input" placeholder="İsim, No, Hoca veya Oda ara..." 
                 value="${this.studentSearchQuery}"
-                oninput="window.App.studentSearchQuery = this.value.toLowerCase().trim(); window.App.renderStudentsView();"
+                oninput="window.App.handleStudentSearchInput(this.value)"
                 class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-700 focus:outline-none w-44 sm:w-56">
             </div>
 
@@ -2639,7 +2639,7 @@ window.App = {
           </div>
 
           <div class="flex items-center gap-2">
-            <span class="text-xs font-bold text-slate-500">Listelenen: ${filteredStudents.length + newDraftsList.length} Talebe</span>
+            <span class="text-xs font-bold text-slate-500">Listelenen: <span id="students-count-badge">${filteredStudents.length + newDraftsList.length}</span> Talebe</span>
           </div>
         </div>
       </div>
@@ -2759,333 +2759,8 @@ window.App = {
                 ${canEdit ? `<th class="py-2.5 px-2 text-right ${isEditMode ? 'w-12' : 'w-20'}">İşlem</th>` : ''}
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 text-xs">
-              ${(filteredStudents.length === 0 && newDraftsList.length === 0) ? `
-                <tr><td colspan="${canEdit ? (isEditMode ? 11 : 9) : (isEditMode ? 10 : 8)}" class="py-12 text-center text-slate-400">Öğrenci bulunamadı.</td></tr>
-              ` : `
-                ${filteredStudents.map(s => {
-                  const eff = this.getEffectiveStudentData(s);
-                  const isDeleted = this.studentDeletedDrafts && this.studentDeletedDrafts.has(s.id);
-                  const hasDraft = this.studentDrafts && !!this.studentDrafts[s.id];
-
-                  if (isEditMode) {
-                    return `
-                      <tr id="student-row-${s.id}" class="transition ${isDeleted ? 'bg-rose-50/70 opacity-60 line-through' : (hasDraft ? 'bg-amber-50/50' : 'hover:bg-slate-50/50')}">
-                        <!-- No -->
-                        <td class="py-1.5 px-1 text-center">
-                          <input type="number" 
-                            data-st-id="${s.id}" data-st-field="studentNo" 
-                            value="${eff.studentNo || ''}"
-                            oninput="window.App.handleStudentCellChange('${s.id}', 'studentNo', this.value)"
-                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'studentNo')"
-                            class="w-12 px-1 py-1 text-center font-bold text-xs bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].studentNo !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
-                            ${isDeleted ? 'disabled' : ''}>
-                        </td>
-
-                        <!-- Adı -->
-                        <td class="py-1.5 px-1.5">
-                          <input type="text" 
-                            data-st-id="${s.id}" data-st-field="firstName" 
-                            value="${eff.firstName || ''}"
-                            oninput="window.App.handleStudentCellChange('${s.id}', 'firstName', this.value)"
-                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'firstName')"
-                            class="w-full px-1.5 py-1 font-bold text-xs text-slate-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].firstName !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
-                            ${isDeleted ? 'disabled' : ''}>
-                        </td>
-
-                        <!-- Soyadı -->
-                        <td class="py-1.5 px-1.5">
-                          <input type="text" 
-                            data-st-id="${s.id}" data-st-field="lastName" 
-                            value="${eff.lastName || ''}"
-                            oninput="window.App.handleStudentCellChange('${s.id}', 'lastName', this.value)"
-                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'lastName')"
-                            class="w-full px-1.5 py-1 font-bold text-xs text-slate-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].lastName !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
-                            ${isDeleted ? 'disabled' : ''}>
-                        </td>
-
-                        <!-- Sınıfı -->
-                        <td class="py-1.5 px-1">
-                          <select 
-                            data-st-id="${s.id}" data-st-field="className" 
-                            onchange="window.App.handleStudentCellChange('${s.id}', 'className', this.value)"
-                            class="w-full px-1 py-1 font-bold text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:outline-none cursor-pointer ${hasDraft && this.studentDrafts[s.id].className !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
-                            ${isDeleted ? 'disabled' : ''}>
-                            ${['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'].map(c => `
-                              <option value="${c}" ${eff.className === c ? 'selected' : ''}>${c}</option>
-                            `).join('')}
-                          </select>
-                        </td>
-
-                        <!-- Etüt Hocası -->
-                        <td class="py-1.5 px-1.5">
-                          <input type="text" list="etut-hocasi-list"
-                            data-st-id="${s.id}" data-st-field="etutHocasi" 
-                            value="${eff.etutHocasi || ''}"
-                            placeholder="Etüt..."
-                            oninput="window.App.handleStudentCellChange('${s.id}', 'etutHocasi', this.value)"
-                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'etutHocasi')"
-                            class="w-full px-1.5 py-1 text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].etutHocasi !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
-                            ${isDeleted ? 'disabled' : ''}>
-                        </td>
-
-                        <!-- Dahili Hocası -->
-                        <td class="py-1.5 px-1.5">
-                          <input type="text" list="dahili-hoca-list"
-                            data-st-id="${s.id}" data-st-field="dahiliHoca" 
-                            value="${eff.dahiliHoca || ''}"
-                            placeholder="Dahili..."
-                            oninput="window.App.handleStudentCellChange('${s.id}', 'dahiliHoca', this.value)"
-                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'dahiliHoca')"
-                            class="w-full px-1.5 py-1 text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].dahiliHoca !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
-                            ${isDeleted ? 'disabled' : ''}>
-                        </td>
-
-                        <!-- Yatakhane -->
-                        <td class="py-1.5 px-1.5">
-                          <input type="text" list="yatakhane-list"
-                            data-st-id="${s.id}" data-st-field="yatakhane" 
-                            value="${eff.yatakhane || ''}"
-                            placeholder="Oda..."
-                            oninput="window.App.handleStudentCellChange('${s.id}', 'yatakhane', this.value)"
-                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'yatakhane')"
-                            class="w-full px-1.5 py-1 text-xs font-medium text-indigo-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].yatakhane !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
-                            ${isDeleted ? 'disabled' : ''}>
-                        </td>
-
-                        <!-- Veli Şifresi -->
-                        <td class="py-1.5 px-1.5">
-                          <input type="text" 
-                            data-st-id="${s.id}" data-st-field="password" 
-                            value="${eff.password || '123'}"
-                            oninput="window.App.handleStudentCellChange('${s.id}', 'password', this.value)"
-                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'password')"
-                            class="w-full px-1.5 py-1 text-xs font-mono font-bold text-center text-amber-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].password !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
-                            ${isDeleted ? 'disabled' : ''}>
-                        </td>
-
-                        <!-- Aile Kodu -->
-                        <td class="py-1.5 px-1.5">
-                          <input type="text" 
-                            data-st-id="${s.id}" data-st-field="familyCode" 
-                            value="${eff.familyCode || ''}"
-                            oninput="window.App.handleStudentCellChange('${s.id}', 'familyCode', this.value)"
-                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'familyCode')"
-                            class="w-full px-1.5 py-1 text-xs font-mono font-bold uppercase text-center text-slate-700 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].familyCode !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
-                            ${isDeleted ? 'disabled' : ''}>
-                        </td>
-
-                        <!-- Veli Telefon -->
-                        <td class="py-1.5 px-1.5">
-                          <input type="tel" 
-                            data-st-id="${s.id}" data-st-field="parentPhone" 
-                            value="${eff.parentPhone || eff.fatherPhone || ''}"
-                            placeholder="05xx..."
-                            oninput="window.App.handleStudentCellChange('${s.id}', 'parentPhone', this.value)"
-                            onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'parentPhone')"
-                            class="w-full px-1.5 py-1 text-xs font-mono text-center text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].parentPhone !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
-                            ${isDeleted ? 'disabled' : ''}>
-                        </td>
-
-                        <!-- İşlem -->
-                        <td class="py-1.5 px-1 text-center whitespace-nowrap">
-                          ${isDeleted ? `
-                            <button type="button" onclick="window.App.markStudentDraftForDeletion('${s.id}')"
-                              class="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded text-[11px] transition cursor-pointer"
-                              title="Silmeyi Geri Al">
-                              ↩️
-                            </button>
-                          ` : `
-                            <button type="button" onclick="window.App.markStudentDraftForDeletion('${s.id}')"
-                              class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition text-xs cursor-pointer"
-                              title="Silmek İçin İşaretle">
-                              🗑️
-                            </button>
-                          `}
-                        </td>
-                      </tr>
-                    `;
-                  } else {
-                    // --- NORMAL GÖRÜNÜM MODU ---
-                    return `
-                      <tr class="table-row-hover transition ${hasDraft ? 'bg-amber-50/40' : ''}">
-                        <td class="py-2.5 px-2 text-center font-bold text-slate-700">
-                          ${eff.studentNo}
-                        </td>
-                        <td class="py-2.5 px-3">
-                          <div class="font-bold text-slate-900 flex items-center gap-1.5">
-                            <span>${eff.firstName} ${eff.lastName}</span>
-                            ${hasDraft ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 font-black uppercase">Taslak</span>' : ''}
-                          </div>
-                        </td>
-                        <td class="py-2.5 px-1.5 text-center text-xs font-bold text-slate-800">${eff.className}</td>
-                        <td class="py-2.5 px-2.5 text-xs">
-                          <div class="font-semibold text-slate-800 truncate" title="Etüt Hocası: ${eff.etutHocasi || '-'}">📚 ${eff.etutHocasi || '-'}</div>
-                          <div class="text-[11px] text-slate-500 truncate" title="Dahili Hoca: ${eff.dahiliHoca || '-'}">🏠 ${eff.dahiliHoca || '-'}</div>
-                        </td>
-                        <td class="py-2.5 px-2 text-center text-xs font-bold text-indigo-800">${eff.yatakhane || '-'}</td>
-                        <td class="py-2.5 px-2 text-center">
-                          ${eff.password && eff.password.trim() !== '123' ? `
-                            <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-900 font-mono font-black text-xs border border-amber-300">
-                              <span title="Şifre güncellendi">🔑</span>
-                              <span>${eff.password}</span>
-                            </div>
-                          ` : `
-                            <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-bold text-xs border border-slate-200" title="Varsayılan Şifre: 123">
-                              ${eff.password || '123'}
-                            </span>
-                          `}
-                        </td>
-                        <td class="py-2.5 px-2 text-center">
-                          <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-slate-600">
-                            ${eff.familyCode || '-'}
-                          </span>
-                        </td>
-                        <td class="py-2.5 px-2 text-center text-xs font-mono text-slate-600">
-                          ${eff.parentPhone || eff.fatherPhone || '-'}
-                        </td>
-                        ${canEdit ? `
-                          <td class="py-2.5 px-2 text-right">
-                            <div class="flex items-center justify-end gap-1">
-                              <button onclick="window.App.openStudentModal('${s.id}')"
-                                class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded text-xs transition flex items-center gap-1 cursor-pointer" title="Düzenle / Şifre Değiştir">
-                                <span>✏️</span>
-                              </button>
-                              <button onclick="window.App.deleteStudent('${s.id}')"
-                                class="p-1 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded transition text-xs cursor-pointer" title="Kalıcı Olarak Sil">🗑️</button>
-                            </div>
-                          </td>
-                        ` : ''}
-                      </tr>
-                    `;
-                  }
-                }).join('')}
-
-                ${isEditMode && newDraftsList.map(item => `
-                  <!-- Yeni Eklenen Taslak Satırı -->
-                  <tr class="bg-emerald-50/70 border-2 border-emerald-300 transition">
-                    <!-- No -->
-                    <td class="py-1.5 px-1 text-center">
-                      <div class="flex flex-col items-center gap-0.5">
-                        <span class="text-[8px] px-1 bg-emerald-600 text-white font-black rounded uppercase">Yeni</span>
-                        <input type="number" 
-                          data-new-index="${item.tempIndex}" data-st-field="studentNo" 
-                          value="${item.studentNo || ''}"
-                          oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'studentNo', this.value)"
-                          onkeydown="window.App.handleExcelKeyDown(event, null, 'studentNo', true, ${item.tempIndex})"
-                          class="w-12 px-1 py-1 text-center font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
-                      </div>
-                    </td>
-
-                    <!-- Adı -->
-                    <td class="py-1.5 px-1.5">
-                      <input type="text" 
-                        data-new-index="${item.tempIndex}" data-st-field="firstName" 
-                        value="${item.firstName || ''}"
-                        placeholder="Adı *"
-                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'firstName', this.value)"
-                        onkeydown="window.App.handleExcelKeyDown(event, null, 'firstName', true, ${item.tempIndex})"
-                        class="w-full px-1.5 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
-                    </td>
-
-                    <!-- Soyadı -->
-                    <td class="py-1.5 px-1.5">
-                      <input type="text" 
-                        data-new-index="${item.tempIndex}" data-st-field="lastName" 
-                        value="${item.lastName || ''}"
-                        placeholder="Soyadı *"
-                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'lastName', this.value)"
-                        onkeydown="window.App.handleExcelKeyDown(event, null, 'lastName', true, ${item.tempIndex})"
-                        class="w-full px-1.5 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
-                    </td>
-
-                    <!-- Sınıfı -->
-                    <td class="py-1.5 px-1">
-                      <select 
-                        data-new-index="${item.tempIndex}" data-st-field="className" 
-                        onchange="window.App.handleNewStudentCellChange(${item.tempIndex}, 'className', this.value)"
-                        class="w-full px-1 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer">
-                        ${['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'].map(c => `
-                          <option value="${c}" ${item.className === c ? 'selected' : ''}>${c}</option>
-                        `).join('')}
-                      </select>
-                    </td>
-
-                    <!-- Etüt Hocası -->
-                    <td class="py-1.5 px-1.5">
-                      <input type="text" list="etut-hocasi-list"
-                        data-new-index="${item.tempIndex}" data-st-field="etutHocasi" 
-                        value="${item.etutHocasi || ''}"
-                        placeholder="Etüt..."
-                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'etutHocasi', this.value)"
-                        onkeydown="window.App.handleExcelKeyDown(event, null, 'etutHocasi', true, ${item.tempIndex})"
-                        class="w-full px-1.5 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
-                    </td>
-
-                    <!-- Dahili Hocası -->
-                    <td class="py-1.5 px-1.5">
-                      <input type="text" list="dahili-hoca-list"
-                        data-new-index="${item.tempIndex}" data-st-field="dahiliHoca" 
-                        value="${item.dahiliHoca || ''}"
-                        placeholder="Dahili..."
-                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'dahiliHoca', this.value)"
-                        onkeydown="window.App.handleExcelKeyDown(event, null, 'dahiliHoca', true, ${item.tempIndex})"
-                        class="w-full px-1.5 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
-                    </td>
-
-                    <!-- Yatakhane -->
-                    <td class="py-1.5 px-1.5">
-                      <input type="text" list="yatakhane-list"
-                        data-new-index="${item.tempIndex}" data-st-field="yatakhane" 
-                        value="${item.yatakhane || ''}"
-                        placeholder="Oda..."
-                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'yatakhane', this.value)"
-                        onkeydown="window.App.handleExcelKeyDown(event, null, 'yatakhane', true, ${item.tempIndex})"
-                        class="w-full px-1.5 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
-                    </td>
-
-                    <!-- Veli Şifresi -->
-                    <td class="py-1.5 px-1.5">
-                      <input type="text" 
-                        data-new-index="${item.tempIndex}" data-st-field="password" 
-                        value="${item.password || '123'}"
-                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'password', this.value)"
-                        onkeydown="window.App.handleExcelKeyDown(event, null, 'password', true, ${item.tempIndex})"
-                        class="w-full px-1.5 py-1 text-xs font-mono font-bold text-center bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
-                    </td>
-
-                    <!-- Aile Kodu -->
-                    <td class="py-1.5 px-1.5">
-                      <input type="text" 
-                        data-new-index="${item.tempIndex}" data-st-field="familyCode" 
-                        value="${item.familyCode || 'AILE2026'}"
-                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'familyCode', this.value)"
-                        onkeydown="window.App.handleExcelKeyDown(event, null, 'familyCode', true, ${item.tempIndex})"
-                        class="w-full px-1.5 py-1 text-xs font-mono font-bold uppercase text-center bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
-                    </td>
-
-                    <!-- Veli Telefon -->
-                    <td class="py-1.5 px-1.5">
-                      <input type="tel" 
-                        data-new-index="${item.tempIndex}" data-st-field="parentPhone" 
-                        value="${item.parentPhone || ''}"
-                        placeholder="05xx..."
-                        oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'parentPhone', this.value)"
-                        onkeydown="window.App.handleExcelKeyDown(event, null, 'parentPhone', true, ${item.tempIndex})"
-                        class="w-full px-1.5 py-1 text-xs font-mono text-center bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
-                    </td>
-
-                    <!-- İşlem -->
-                    <td class="py-1.5 px-1 text-center">
-                      <button type="button" onclick="window.App.removeNewStudentRowDraft(${item.tempIndex})"
-                        class="px-2 py-0.5 bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold rounded text-[11px] transition cursor-pointer"
-                        title="Yeni Satırı Kaldır">
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                `).join('') || ''}
-              `}
+            <tbody id="students-table-body" class="divide-y divide-slate-100 text-xs">
+              ${this.renderStudentsTableRowsHtml(filteredStudents, newDraftsList, isEditMode, canEdit)}
             </tbody>
           </table>
         </div>
@@ -3135,6 +2810,398 @@ window.App = {
         </div>
       </div>
     `;
+  },
+
+  // --- Talebe Arama Sırasında Sayfa Zıplamasını ve Klavye Kapanmasını Önleyici Canlı Filtreleme ---
+  handleStudentSearchInput(query) {
+    this.studentSearchQuery = (query || '').toLowerCase().trim();
+    const tbody = document.getElementById('students-table-body');
+    if (!tbody) {
+      this.renderStudentsView();
+      return;
+    }
+    const canEdit = this.canManageStudents();
+    const isEditMode = this.studentTableEditMode && canEdit;
+    let allStudentsList = window.Store.getAllStudents ? window.Store.getAllStudents() : window.Store.getStudents(true);
+
+    let filteredStudents = [...allStudentsList];
+    if (this.studentFilterClass !== 'ALL') {
+      filteredStudents = filteredStudents.filter(s => {
+        const eff = this.getEffectiveStudentData(s);
+        return eff.className === this.studentFilterClass;
+      });
+    }
+    if (this.studentSearchQuery) {
+      const q = this.studentSearchQuery.toLowerCase();
+      filteredStudents = filteredStudents.filter(s => {
+        const eff = this.getEffectiveStudentData(s);
+        return (
+          (eff.firstName && eff.firstName.toLowerCase().includes(q)) ||
+          (eff.lastName && eff.lastName.toLowerCase().includes(q)) ||
+          (eff.studentNo && eff.studentNo.toString().includes(q)) ||
+          (eff.familyCode && eff.familyCode.toLowerCase().includes(q)) ||
+          (eff.etutHocasi && eff.etutHocasi.toLowerCase().includes(q)) ||
+          (eff.dahiliHoca && eff.dahiliHoca.toLowerCase().includes(q)) ||
+          (eff.yatakhane && eff.yatakhane.toLowerCase().includes(q)) ||
+          (eff.password && eff.password.toLowerCase().includes(q))
+        );
+      });
+    }
+    filteredStudents = this.sortStudentsList(filteredStudents);
+
+    let newDraftsList = (this.studentNewDrafts || []).map((d, idx) => ({ ...d, tempIndex: idx }));
+    if (this.studentFilterClass !== 'ALL') {
+      newDraftsList = newDraftsList.filter(d => d.className === this.studentFilterClass);
+    }
+    if (this.studentSearchQuery) {
+      const q = this.studentSearchQuery.toLowerCase();
+      newDraftsList = newDraftsList.filter(d =>
+        (d.firstName && d.firstName.toLowerCase().includes(q)) ||
+        (d.lastName && d.lastName.toLowerCase().includes(q)) ||
+        (d.studentNo && d.studentNo.toString().includes(q))
+      );
+    }
+
+    tbody.innerHTML = this.renderStudentsTableRowsHtml(filteredStudents, newDraftsList, isEditMode, canEdit);
+    const badge = document.getElementById('students-count-badge');
+    if (badge) {
+      badge.textContent = filteredStudents.length + newDraftsList.length;
+    }
+  },
+
+  // --- Öğrenci Tablosu Satır HTML Üretici ---
+  renderStudentsTableRowsHtml(filteredStudents, newDraftsList, isEditMode, canEdit) {
+    if (filteredStudents.length === 0 && (!newDraftsList || newDraftsList.length === 0)) {
+      return `<tr><td colspan="${canEdit ? (isEditMode ? 11 : 9) : (isEditMode ? 10 : 8)}" class="py-12 text-center text-slate-400">Öğrenci bulunamadı.</td></tr>`;
+    }
+
+    let html = filteredStudents.map(s => {
+      const eff = this.getEffectiveStudentData(s);
+      const isDeleted = this.studentDeletedDrafts && this.studentDeletedDrafts.has(s.id);
+      const hasDraft = this.studentDrafts && !!this.studentDrafts[s.id];
+
+      if (isEditMode) {
+        return `
+          <tr id="student-row-${s.id}" class="transition ${isDeleted ? 'bg-rose-50/70 opacity-60 line-through' : (hasDraft ? 'bg-amber-50/50' : 'hover:bg-slate-50/50')}">
+            <!-- No -->
+            <td class="py-1.5 px-1 text-center">
+              <input type="number" 
+                data-st-id="${s.id}" data-st-field="studentNo" 
+                value="${eff.studentNo || ''}"
+                oninput="window.App.handleStudentCellChange('${s.id}', 'studentNo', this.value)"
+                onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'studentNo')"
+                class="w-12 px-1 py-1 text-center font-bold text-xs bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].studentNo !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+                ${isDeleted ? 'disabled' : ''}>
+            </td>
+
+            <!-- Adı -->
+            <td class="py-1.5 px-1.5">
+              <input type="text" 
+                data-st-id="${s.id}" data-st-field="firstName" 
+                value="${eff.firstName || ''}"
+                oninput="window.App.handleStudentCellChange('${s.id}', 'firstName', this.value)"
+                onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'firstName')"
+                class="w-full px-1.5 py-1 font-bold text-xs text-slate-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].firstName !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                ${isDeleted ? 'disabled' : ''}>
+            </td>
+
+            <!-- Soyadı -->
+            <td class="py-1.5 px-1.5">
+              <input type="text" 
+                data-st-id="${s.id}" data-st-field="lastName" 
+                value="${eff.lastName || ''}"
+                oninput="window.App.handleStudentCellChange('${s.id}', 'lastName', this.value)"
+                onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'lastName')"
+                class="w-full px-1.5 py-1 font-bold text-xs text-slate-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].lastName !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                ${isDeleted ? 'disabled' : ''}>
+            </td>
+
+            <!-- Sınıfı -->
+            <td class="py-1.5 px-1">
+              <select 
+                data-st-id="${s.id}" data-st-field="className" 
+                onchange="window.App.handleStudentCellChange('${s.id}', 'className', this.value)"
+                class="w-full px-1 py-1 font-bold text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:outline-none cursor-pointer ${hasDraft && this.studentDrafts[s.id].className !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                ${isDeleted ? 'disabled' : ''}>
+                ${['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'].map(c => `
+                  <option value="${c}" ${eff.className === c ? 'selected' : ''}>${c}</option>
+                `).join('')}
+              </select>
+            </td>
+
+            <!-- Etüt Hocası -->
+            <td class="py-1.5 px-1.5">
+              <input type="text" list="etut-hocasi-list"
+                data-st-id="${s.id}" data-st-field="etutHocasi" 
+                value="${eff.etutHocasi || ''}"
+                placeholder="Etüt..."
+                oninput="window.App.handleStudentCellChange('${s.id}', 'etutHocasi', this.value)"
+                onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'etutHocasi')"
+                class="w-full px-1.5 py-1 text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].etutHocasi !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+                ${isDeleted ? 'disabled' : ''}>
+            </td>
+
+            <!-- Dahili Hocası -->
+            <td class="py-1.5 px-1.5">
+              <input type="text" list="dahili-hoca-list"
+                data-st-id="${s.id}" data-st-field="dahiliHoca" 
+                value="${eff.dahiliHoca || ''}"
+                placeholder="Dahili..."
+                oninput="window.App.handleStudentCellChange('${s.id}', 'dahiliHoca', this.value)"
+                onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'dahiliHoca')"
+                class="w-full px-1.5 py-1 text-xs text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].dahiliHoca !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+                ${isDeleted ? 'disabled' : ''}>
+            </td>
+
+            <!-- Yatakhane -->
+            <td class="py-1.5 px-1.5">
+              <input type="text" list="yatakhane-list"
+                data-st-id="${s.id}" data-st-field="yatakhane" 
+                value="${eff.yatakhane || ''}"
+                placeholder="Oda..."
+                oninput="window.App.handleStudentCellChange('${s.id}', 'yatakhane', this.value)"
+                onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'yatakhane')"
+                class="w-full px-1.5 py-1 text-xs font-medium text-indigo-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].yatakhane !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+                ${isDeleted ? 'disabled' : ''}>
+            </td>
+
+            <!-- Veli Şifresi -->
+            <td class="py-1.5 px-1.5">
+              <input type="text" 
+                data-st-id="${s.id}" data-st-field="password" 
+                value="${eff.password || '123'}"
+                oninput="window.App.handleStudentCellChange('${s.id}', 'password', this.value)"
+                onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'password')"
+                class="w-full px-1.5 py-1 text-xs font-mono font-bold text-center text-amber-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].password !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                ${isDeleted ? 'disabled' : ''}>
+            </td>
+
+            <!-- Aile Kodu -->
+            <td class="py-1.5 px-1.5">
+              <input type="text" 
+                data-st-id="${s.id}" data-st-field="familyCode" 
+                value="${eff.familyCode || ''}"
+                oninput="window.App.handleStudentCellChange('${s.id}', 'familyCode', this.value)"
+                onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'familyCode')"
+                class="w-full px-1.5 py-1 text-xs font-mono font-bold uppercase text-center text-slate-700 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].familyCode !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                ${isDeleted ? 'disabled' : ''}>
+            </td>
+
+            <!-- Veli Telefon -->
+            <td class="py-1.5 px-1.5">
+              <input type="tel" 
+                data-st-id="${s.id}" data-st-field="parentPhone" 
+                value="${eff.parentPhone || eff.fatherPhone || ''}"
+                placeholder="05xx..."
+                oninput="window.App.handleStudentCellChange('${s.id}', 'parentPhone', this.value)"
+                onkeydown="window.App.handleExcelKeyDown(event, '${s.id}', 'parentPhone')"
+                class="w-full px-1.5 py-1 text-xs font-mono text-center text-slate-800 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].parentPhone !== undefined ? 'bg-amber-100/60 border-amber-400' : ''}"
+                ${isDeleted ? 'disabled' : ''}>
+            </td>
+
+            <!-- İşlem -->
+            <td class="py-1.5 px-1 text-center whitespace-nowrap">
+              ${isDeleted ? `
+                <button type="button" onclick="window.App.markStudentDraftForDeletion('${s.id}')"
+                  class="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded text-[11px] transition cursor-pointer"
+                  title="Silmeyi Geri Al">
+                  ↩️
+                </button>
+              ` : `
+                <button type="button" onclick="window.App.markStudentDraftForDeletion('${s.id}')"
+                  class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition text-xs cursor-pointer"
+                  title="Silmek İçin İşaretle">
+                  🗑️
+                </button>
+              `}
+            </td>
+          </tr>
+        `;
+      } else {
+        // --- NORMAL GÖRÜNÜM MODU ---
+        return `
+          <tr class="table-row-hover transition ${hasDraft ? 'bg-amber-50/40' : ''}">
+            <td class="py-2.5 px-2 text-center font-bold text-slate-700">
+              ${eff.studentNo}
+            </td>
+            <td class="py-2.5 px-3">
+              <div class="font-bold text-slate-900 flex items-center gap-1.5">
+                <span>${eff.firstName} ${eff.lastName}</span>
+                ${hasDraft ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 font-black uppercase">Taslak</span>' : ''}
+              </div>
+            </td>
+            <td class="py-2.5 px-1.5 text-center text-xs font-bold text-slate-800">${eff.className}</td>
+            <td class="py-2.5 px-2.5 text-xs">
+              <div class="font-semibold text-slate-800 truncate" title="Etüt Hocası: ${eff.etutHocasi || '-'}">📚 ${eff.etutHocasi || '-'}</div>
+              <div class="text-[11px] text-slate-500 truncate" title="Dahili Hoca: ${eff.dahiliHoca || '-'}">🏠 ${eff.dahiliHoca || '-'}</div>
+            </td>
+            <td class="py-2.5 px-2 text-center text-xs font-bold text-indigo-800">${eff.yatakhane || '-'}</td>
+            <td class="py-2.5 px-2 text-center">
+              ${eff.password && eff.password.trim() !== '123' ? `
+                <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-900 font-mono font-black text-xs border border-amber-300">
+                  <span title="Şifre güncellendi">🔑</span>
+                  <span>${eff.password}</span>
+                </div>
+              ` : `
+                <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-bold text-xs border border-slate-200" title="Varsayılan Şifre: 123">
+                  ${eff.password || '123'}
+                </span>
+              `}
+            </td>
+            <td class="py-2.5 px-2 text-center">
+              <span class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-slate-600">
+                ${eff.familyCode || '-'}
+              </span>
+            </td>
+            <td class="py-2.5 px-2 text-center text-xs font-mono text-slate-600">
+              ${eff.parentPhone || eff.fatherPhone || '-'}
+            </td>
+            ${canEdit ? `
+              <td class="py-2.5 px-2 text-right">
+                <div class="flex items-center justify-end gap-1">
+                  <button onclick="window.App.openStudentModal('${s.id}')"
+                    class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded text-xs transition flex items-center gap-1 cursor-pointer" title="Düzenle / Şifre Değiştir">
+                    <span>✏️</span>
+                  </button>
+                  <button onclick="window.App.deleteStudent('${s.id}')"
+                    class="p-1 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded transition text-xs cursor-pointer" title="Kalıcı Olarak Sil">🗑️</button>
+                </div>
+              </td>
+            ` : ''}
+          </tr>
+        `;
+      }
+    }).join('');
+
+    if (isEditMode && newDraftsList && newDraftsList.length > 0) {
+      html += newDraftsList.map(item => `
+        <!-- Yeni Eklenen Taslak Satırı -->
+        <tr class="bg-emerald-50/70 border-2 border-emerald-300 transition">
+          <!-- No -->
+          <td class="py-1.5 px-1 text-center">
+            <div class="flex flex-col items-center gap-0.5">
+              <span class="text-[8px] px-1 bg-emerald-600 text-white font-black rounded uppercase">Yeni</span>
+              <input type="number" 
+                data-new-index="${item.tempIndex}" data-st-field="studentNo" 
+                value="${item.studentNo || ''}"
+                oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'studentNo', this.value)"
+                onkeydown="window.App.handleExcelKeyDown(event, null, 'studentNo', true, ${item.tempIndex})"
+                class="w-12 px-1 py-1 text-center font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+            </div>
+          </td>
+
+          <!-- Adı -->
+          <td class="py-1.5 px-1.5">
+            <input type="text" 
+              data-new-index="${item.tempIndex}" data-st-field="firstName" 
+              value="${item.firstName || ''}"
+              placeholder="Adı *"
+              oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'firstName', this.value)"
+              onkeydown="window.App.handleExcelKeyDown(event, null, 'firstName', true, ${item.tempIndex})"
+              class="w-full px-1.5 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+          </td>
+
+          <!-- Soyadı -->
+          <td class="py-1.5 px-1.5">
+            <input type="text" 
+              data-new-index="${item.tempIndex}" data-st-field="lastName" 
+              value="${item.lastName || ''}"
+              placeholder="Soyadı *"
+              oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'lastName', this.value)"
+              onkeydown="window.App.handleExcelKeyDown(event, null, 'lastName', true, ${item.tempIndex})"
+              class="w-full px-1.5 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+          </td>
+
+          <!-- Sınıfı -->
+          <td class="py-1.5 px-1">
+            <select 
+              data-new-index="${item.tempIndex}" data-st-field="className" 
+              onchange="window.App.handleNewStudentCellChange(${item.tempIndex}, 'className', this.value)"
+              class="w-full px-1 py-1 font-bold text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer">
+              ${['5-A', '5-B', '6-A', '6-B', '7-A', '7-B', '8-A', '8-B'].map(c => `
+                <option value="${c}" ${item.className === c ? 'selected' : ''}>${c}</option>
+              `).join('')}
+            </select>
+          </td>
+
+          <!-- Etüt Hocası -->
+          <td class="py-1.5 px-1.5">
+            <input type="text" list="etut-hocasi-list"
+              data-new-index="${item.tempIndex}" data-st-field="etutHocasi" 
+              value="${item.etutHocasi || ''}"
+              placeholder="Etüt..."
+              oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'etutHocasi', this.value)"
+              onkeydown="window.App.handleExcelKeyDown(event, null, 'etutHocasi', true, ${item.tempIndex})"
+              class="w-full px-1.5 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+          </td>
+
+          <!-- Dahili Hocası -->
+          <td class="py-1.5 px-1.5">
+            <input type="text" list="dahili-hoca-list"
+              data-new-index="${item.tempIndex}" data-st-field="dahiliHoca" 
+              value="${item.dahiliHoca || ''}"
+              placeholder="Dahili..."
+              oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'dahiliHoca', this.value)"
+              onkeydown="window.App.handleExcelKeyDown(event, null, 'dahiliHoca', true, ${item.tempIndex})"
+              class="w-full px-1.5 py-1 text-xs bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+          </td>
+
+          <!-- Yatakhane -->
+          <td class="py-1.5 px-1.5">
+            <input type="text" list="yatakhane-list"
+              data-new-index="${item.tempIndex}" data-st-field="yatakhane" 
+              value="${item.yatakhane || ''}"
+              placeholder="Oda..."
+              oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'yatakhane', this.value)"
+              onkeydown="window.App.handleExcelKeyDown(event, null, 'yatakhane', true, ${item.tempIndex})"
+              class="w-full px-1.5 py-1 text-xs font-medium text-indigo-900 bg-white border border-slate-300 rounded focus:border-amber-500 focus:bg-amber-50/20 focus:outline-none transition ${hasDraft && this.studentDrafts[s.id].yatakhane !== undefined ? 'bg-amber-100/60 border-amber-400 font-bold' : ''}"
+              ${isDeleted ? 'disabled' : ''}>
+          </td>
+
+          <!-- Veli Şifresi -->
+          <td class="py-1.5 px-1.5">
+            <input type="text" 
+              data-new-index="${item.tempIndex}" data-st-field="password" 
+              value="${item.password || '123'}"
+              oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'password', this.value)"
+              onkeydown="window.App.handleExcelKeyDown(event, null, 'password', true, ${item.tempIndex})"
+              class="w-full px-1.5 py-1 text-xs font-mono font-bold text-center bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+          </td>
+
+          <!-- Aile Kodu -->
+          <td class="py-1.5 px-1.5">
+            <input type="text" 
+              data-new-index="${item.tempIndex}" data-st-field="familyCode" 
+              value="${item.familyCode || 'AILE2026'}"
+              oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'familyCode', this.value)"
+              onkeydown="window.App.handleExcelKeyDown(event, null, 'familyCode', true, ${item.tempIndex})"
+              class="w-full px-1.5 py-1 text-xs font-mono font-bold uppercase text-center bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+          </td>
+
+          <!-- Veli Telefon -->
+          <td class="py-1.5 px-1.5">
+            <input type="tel" 
+              data-new-index="${item.tempIndex}" data-st-field="parentPhone" 
+              value="${item.parentPhone || ''}"
+              placeholder="05xx..."
+              oninput="window.App.handleNewStudentCellChange(${item.tempIndex}, 'parentPhone', this.value)"
+              onkeydown="window.App.handleExcelKeyDown(event, null, 'parentPhone', true, ${item.tempIndex})"
+              class="w-full px-1.5 py-1 text-xs font-mono text-center bg-white border border-emerald-400 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+          </td>
+
+          <!-- İşlem -->
+          <td class="py-1.5 px-1 text-center">
+            <button type="button" onclick="window.App.removeNewStudentRowDraft(${item.tempIndex})"
+              class="px-2 py-0.5 bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold rounded text-[11px] transition cursor-pointer"
+              title="Yeni Satırı Kaldır">
+              ✕
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    return html;
   },
 
   // --- Excel (CSV) Formatında İndirme (Türkçe Karakter ve Excel Uyumlu) ---

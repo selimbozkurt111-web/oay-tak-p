@@ -165,6 +165,18 @@ window.AttendanceModule = {
   setSearchQuery(query) {
     this.searchQuery = query.toLowerCase().trim();
     if (this.currentCategory === 'namaz_rapor') {
+      const tbody = document.getElementById('namaz-rapor-table-body');
+      if (tbody) {
+        const students = this.getFilteredStudents();
+        const range = this.getReportRange();
+        const prayers = ['Sabah', 'Öğle', 'İkindi', 'Akşam', 'Yatsı'];
+        tbody.innerHTML = this.renderNamazRaporTableRowsHtml(students, range, prayers);
+        const countLabel = document.getElementById('namaz-rapor-count-label');
+        if (countLabel) {
+          countLabel.textContent = `${students.length} Talebe`;
+        }
+        return;
+      }
       this.renderView();
     } else {
       this.renderStudentRows();
@@ -342,7 +354,7 @@ window.AttendanceModule = {
     window.Store.saveAttendanceBatch(records, activeUser);
     this.renderView();
 
-    const statusLabel = defaultStatus === 'VAR' ? 'Var' : (defaultStatus === 'IYI' ? 'İyi' : 'Geldi');
+    const statusLabel = this.currentCategory === 'namaz' ? 'Var' : (this.currentCategory === 'yatak' ? 'İyi' : 'Geldi');
     if (window.App && typeof window.App.showToast === 'function') {
       window.App.showToast(`✅ Tüm talebeler "${statusLabel}" olarak kaydedildi! (${records.length} Talebe • Alan: ${activeUser})`, 'success');
     }
@@ -448,6 +460,51 @@ window.AttendanceModule = {
         (s.className && s.className.toLowerCase().includes(this.searchQuery)) ||
         (s.yatakhane && s.yatakhane.toLowerCase().includes(this.searchQuery))
       );
+    }
+
+    // Sınıf ve Şubelerine göre sıralama (5-A ➔ 8-B), şube içinde okul no ve isim sırası
+    if (window.Store && typeof window.Store.sortStudentsByClassAndNo === 'function') {
+      students = window.Store.sortStudentsByClassAndNo(students);
+    } else {
+      const parseClass = (cls) => {
+        if (!cls) return { grade: 999, branch: 'ZZZ', raw: 'ZZZ' };
+        const raw = cls.toString().trim().toUpperCase();
+        const numMatch = raw.match(/\b(\d+)\b/) || raw.match(/(\d+)/);
+        const grade = numMatch ? parseInt(numMatch[1], 10) : 999;
+        let branch = '';
+        const branchMatch = raw.match(/(?:SINIF|\d)[\s\.\-\/]*([A-ZÇĞİÖŞÜ])\b/) ||
+                            raw.match(/[\-\/\s]([A-ZÇĞİÖŞÜ])\b/) ||
+                            raw.match(/^(\d+)([A-ZÇĞİÖŞÜ])$/);
+        if (branchMatch) {
+          const candidate = (branchMatch[2] || branchMatch[1] || '').trim();
+          if (candidate && candidate !== 'S') branch = candidate;
+        }
+        return { grade, branch, raw };
+      };
+
+      students.sort((a, b) => {
+        if (!a && !b) return 0;
+        if (!a) return 1;
+        if (!b) return -1;
+        const cA = parseClass(a.className);
+        const cB = parseClass(b.className);
+        if (cA.grade !== cB.grade) return cA.grade - cB.grade;
+        if (cA.branch !== cB.branch) return cA.branch.localeCompare(cB.branch, 'tr', { sensitivity: 'base' });
+        if (cA.raw !== cB.raw) {
+          const cmpRaw = cA.raw.localeCompare(cB.raw, 'tr', { numeric: true });
+          if (cmpRaw !== 0) return cmpRaw;
+        }
+        const noA = parseInt(a.studentNo, 10);
+        const noB = parseInt(b.studentNo, 10);
+        const hasNoA = !isNaN(noA) && noA > 0;
+        const hasNoB = !isNaN(noB) && noB > 0;
+        if (hasNoA && hasNoB && noA !== noB) return noA - noB;
+        if (hasNoA && !hasNoB) return -1;
+        if (!hasNoA && hasNoB) return 1;
+        const nameA = `${(a.firstName || '').trim()} ${(a.lastName || '').trim()}`.trim();
+        const nameB = `${(b.firstName || '').trim()} ${(b.lastName || '').trim()}`.trim();
+        return nameA.localeCompare(nameB, 'tr', { sensitivity: 'base' });
+      });
     }
 
     return students;
@@ -636,7 +693,8 @@ window.AttendanceModule = {
             </div>
 
             <div class="w-full sm:w-56 relative">
-              <input type="text" placeholder="Talebe ara..." 
+              <input type="text" id="namaz-rapor-search-input" placeholder="Talebe ara..." 
+                value="${this.searchQuery || ''}"
                 class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
                 oninput="window.AttendanceModule.setSearchQuery(this.value)">
               <span class="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
@@ -710,7 +768,7 @@ window.AttendanceModule = {
           <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div class="font-black text-xs sm:text-sm text-slate-800 flex items-center gap-2">
               <span>📋</span>
-              <span>Tüm Talebelerin Namaz Devam Çizelgesi (${students.length} Talebe)</span>
+              <span>Tüm Talebelerin Namaz Devam Çizelgesi (<span id="namaz-rapor-count-label">${students.length} Talebe</span>)</span>
             </div>
             <div class="text-xs text-slate-500 font-medium hidden sm:block">
               Detaylı gün gün durum için talebenin yanındaki <strong>"👁️ Detay"</strong> butonuna tıklayınız.
@@ -741,81 +799,8 @@ window.AttendanceModule = {
                 </tr>
               </thead>
 
-              <tbody class="divide-y divide-slate-100 text-xs">
-                ${students.length === 0 ? `
-                  <tr>
-                    <td colspan="9" class="p-10 text-center text-slate-400">
-                      Seçilen kriterlere uygun talebe bulunamadı.
-                    </td>
-                  </tr>
-                ` : students.map((st, idx) => {
-                  const rep = window.Store.getPrayerReportForStudent(st.id, range.dates);
-                  const rateColor = this.getRateColor(rep.attendanceRate);
-
-                  return `
-                    <tr class="hover:bg-slate-50/80 transition">
-                      <!-- Talebe -->
-                      <td class="p-3 sm:p-3.5 sticky left-0 bg-white hover:bg-slate-50 z-10 shadow-r">
-                        <div class="flex items-center gap-2.5">
-                          <span class="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 font-black text-[10px] flex items-center justify-center shrink-0">
-                            ${idx + 1}
-                          </span>
-                          <div class="truncate">
-                            <div class="font-black text-slate-900 text-xs sm:text-sm truncate">
-                              ${st.firstName} ${st.lastName}
-                            </div>
-                            <div class="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
-                              <span class="font-bold text-slate-500">${st.className || '-'}</span>
-                              <span>•</span>
-                              <span class="font-mono">No: ${st.studentNo}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      <!-- 5 Vakit Sayıları (Katılım / Toplam) -->
-                      ${prayers.map(p => {
-                        const pData = rep.prayerStats[p];
-                        const attended = pData.VAR + pData.TAKKESIZ + pData.GEC;
-                        const totalDay = range.dates.length - pData.IZINLI;
-                        const pRate = totalDay > 0 ? Math.round((attended / totalDay) * 100) : 100;
-                        const col = pRate >= 90 ? 'text-emerald-700' : (pRate >= 75 ? 'text-amber-700' : 'text-rose-700');
-
-                        return `
-                          <td class="p-2.5 text-center border-l border-slate-100">
-                            <div class="font-black ${col}">${attended} / ${totalDay}</div>
-                            <div class="text-[10px] text-slate-400 font-bold">%${pRate}</div>
-                          </td>
-                        `;
-                      }).join('')}
-
-                      <!-- Durum Dağılımı -->
-                      <td class="p-2.5 text-center border-l border-slate-100">
-                        <div class="flex items-center justify-center gap-1 text-[11px]">
-                          <span class="text-emerald-700 font-black" title="Var">${rep.overallCounts.VAR}V</span>
-                          <span class="text-purple-700 font-black" title="Takkesiz">${rep.overallCounts.TAKKESIZ}T</span>
-                          <span class="text-amber-600 font-black" title="Geç">${rep.overallCounts.GEC}G</span>
-                          <span class="text-rose-600 font-black" title="Yok">${rep.overallCounts.YOK}Y</span>
-                        </div>
-                      </td>
-
-                      <!-- Devam Yüzdesi -->
-                      <td class="p-2.5 text-center border-l border-slate-100 bg-slate-50/50">
-                        <span class="px-2.5 py-1 rounded-xl font-black text-xs border ${rateColor} shadow-2xs">
-                          %${rep.attendanceRate}
-                        </span>
-                      </td>
-
-                      <!-- Günlük Detay Butonu -->
-                      <td class="p-2.5 text-center border-l border-slate-100">
-                        <button type="button" onclick="window.AttendanceModule.openStudentDetailModal('${st.id}')"
-                          class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] rounded-xl transition shadow-2xs">
-                          👁️ Detay
-                        </button>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
+              <tbody id="namaz-rapor-table-body" class="divide-y divide-slate-100 text-xs">
+                ${this.renderNamazRaporTableRowsHtml(students, range, prayers)}
               </tbody>
             </table>
           </div>
@@ -825,6 +810,87 @@ window.AttendanceModule = {
       <!-- 5. ÖĞRENCİ GÜNLÜK 5 VAKİT DETAY MODALI -->
       ${this.renderStudentDetailModal(range)}
     `;
+  },
+
+  renderNamazRaporTableRowsHtml(students, range, prayers) {
+    if (!students || students.length === 0) {
+      return `
+        <tr>
+          <td colspan="9" class="p-10 text-center text-slate-400">
+            Seçilen kriterlere uygun talebe bulunamadı.
+          </td>
+        </tr>
+      `;
+    }
+
+    return students.map((st, idx) => {
+      const rep = window.Store.getPrayerReportForStudent(st.id, range.dates);
+      const rateColor = this.getRateColor(rep.attendanceRate);
+
+      return `
+        <tr class="hover:bg-slate-50/80 transition">
+          <!-- Talebe -->
+          <td class="p-3 sm:p-3.5 sticky left-0 bg-white hover:bg-slate-50 z-10 shadow-r">
+            <div class="flex items-center gap-2.5">
+              <span class="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 font-black text-[10px] flex items-center justify-center shrink-0">
+                ${idx + 1}
+              </span>
+              <div class="truncate">
+                <div class="font-black text-slate-900 text-xs sm:text-sm truncate">
+                  ${st.firstName} ${st.lastName}
+                </div>
+                <div class="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
+                  <span class="font-bold text-slate-500">${st.className || '-'}</span>
+                  <span>•</span>
+                  <span class="font-mono">No: ${st.studentNo}</span>
+                </div>
+              </div>
+            </div>
+          </td>
+
+          <!-- 5 Vakit Sayıları (Katılım / Toplam) -->
+          ${prayers.map(p => {
+            const pData = rep.prayerStats[p];
+            const attended = pData.VAR + pData.TAKKESIZ + pData.GEC;
+            const totalDay = range.dates.length - pData.IZINLI;
+            const pRate = totalDay > 0 ? Math.round((attended / totalDay) * 100) : 100;
+            const col = pRate >= 90 ? 'text-emerald-700' : (pRate >= 75 ? 'text-amber-700' : 'text-rose-700');
+
+            return `
+              <td class="p-2.5 text-center border-l border-slate-100">
+                <div class="font-black ${col}">${attended} / ${totalDay}</div>
+                <div class="text-[10px] text-slate-400 font-bold">%${pRate}</div>
+              </td>
+            `;
+          }).join('')}
+
+          <!-- Durum Dağılımı -->
+          <td class="p-2.5 text-center border-l border-slate-100">
+            <div class="flex items-center justify-center gap-1 text-[11px]">
+              <span class="text-emerald-700 font-black" title="Var">${rep.overallCounts.VAR}V</span>
+              <span class="text-purple-700 font-black" title="Takkesiz">${rep.overallCounts.TAKKESIZ}T</span>
+              <span class="text-amber-600 font-black" title="Geç">${rep.overallCounts.GEC}G</span>
+              <span class="text-rose-600 font-black" title="Yok">${rep.overallCounts.YOK}Y</span>
+            </div>
+          </td>
+
+          <!-- Devam Yüzdesi -->
+          <td class="p-2.5 text-center border-l border-slate-100 bg-slate-50/50">
+            <span class="px-2.5 py-1 rounded-xl font-black text-xs border ${rateColor} shadow-2xs">
+              %${rep.attendanceRate}
+            </span>
+          </td>
+
+          <!-- Günlük Detay Butonu -->
+          <td class="p-2.5 text-center border-l border-slate-100">
+            <button type="button" onclick="window.AttendanceModule.openStudentDetailModal('${st.id}')"
+              class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] rounded-xl transition shadow-2xs">
+              👁️ Detay
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
   },
 
   // Modal: Seçilen Öğrencinin Gün Gün 5 Vakit Namaz Durumu
