@@ -191,11 +191,11 @@ class DataStore {
     this.autoSyncStaffAndClassTeachers();
     // Dini ders grupları ve Dahili Hoca senkronizasyonunu otomatik sağla
     this.autoSyncDahiliHocalarAndQuran();
-    // Muhammed Cholak (No: 830, 8-B Sınıfı, Tunahan Taşkın Grubu) hoca atamasını ve talebe kaydını garantiye al
+    // Muhammed Cholak hoca ve şube ataması panel kontrolünde korunur
     this.autoSyncMuhammedCholak();
-    // Bilal Chuluk (No: 703, 7-B Sınıfı, Burak Bodur Grubu) hoca atamasını ve talebe kaydını garantiye al
+    // Bilal Chuluk hoca ve şube ataması panel kontrolünde korunur
     this.autoSyncBilalChuluk();
-    // 7. Sınıf Hoca ve Şube Uyumlaştırmasını Garantiye Al (7-A: Emir Talha Tarım, 7-B: Burak Bodur)
+    // 7. Sınıf hoca ve şube atamaları panel kontrolünde korunur
     this.autoSync7thGradeClassTeachers();
     // Eğitmen ve personel cihazlarında eski yerel öğrenci düzenleme kalkanını sıfırla (Bulut senkronizasyonunun engelsiz akması için)
     if (!this.isCurrentUserAdmin()) {
@@ -580,225 +580,19 @@ class DataStore {
     }
   }
 
-  // Muhammed Cholak (No: 830, 8-B Sınıfı, Tunahan Taşkın Grubu) Otomatik Garanti Motoru
+  // Muhammed Cholak hoca ataması ve kayıt yönetimi (Kalıcı mimari: Panel üzerinden serbestçe yönetilir)
   autoSyncMuhammedCholak() {
-    try {
-      const studentId = 'std_830';
-      const studentNo = '830';
-      const nowIso = new Date().toISOString();
-
-      // 1. Silinenler Sicilinde (Tombstone) varsa kalıcı olarak temizle
-      const deletedMap = this.getDeletedStudentIds();
-      let delChanged = false;
-      if (deletedMap[studentId]) {
-        delete deletedMap[studentId];
-        delChanged = true;
-      }
-      if (delChanged) {
-        this.saveDeletedStudentIds(deletedMap);
-      }
-
-      // 2. Öğrenci listesini (yoklama_students) kontrol et
-      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      let students = raw ? JSON.parse(raw) : null;
-      if (!Array.isArray(students) || students.length === 0) {
-        students = [...SEED_STUDENTS];
-      }
-
-      let existing = students.find(s => s && (
-        s.id === studentId || 
-        (s.studentNo && s.studentNo.toString().trim() === studentNo) ||
-        ((s.firstName || '').trim().toUpperCase() === 'MUHAMMED' && (s.lastName || '').trim().toUpperCase() === 'CHOLAK')
-      ));
-
-      let studentsChanged = false;
-
-      if (!existing) {
-        // Yeni öğrenci olarak 8-B listesine ekle
-        const newStudent = {
-          id: studentId,
-          studentNo: studentNo,
-          firstName: 'MUHAMMED',
-          lastName: 'CHOLAK',
-          className: '8-B',
-          school: 'KAZIM ÖZALP',
-          seviye: 'Seviye 2',
-          etutHocasi: 'TUNAHAN TAŞKIN',
-          dahiliHoca: 'TUNAHAN TAŞKIN',
-          yatakhane: 'Oda 405',
-          fatherName: '',
-          fatherPhone: '',
-          motherName: '',
-          motherPhone: '',
-          familyCode: 'CHOLAK2026',
-          password: '123',
-          isPassive: false,
-          status: 'active',
-          updatedAt: nowIso
-        };
-        students.push(newStudent);
-        studentsChanged = true;
-      } else {
-        // Mevcut kaydı varsa kullanıcının belirlediği sınıf ve hocayı ASLA ezme, sadece eksik alanları tamamla
-        let updated = false;
-        if (!existing.className) { existing.className = '8-B'; updated = true; }
-        if (!existing.etutHocasi) { existing.etutHocasi = 'TUNAHAN TAŞKIN'; updated = true; }
-        if (!existing.dahiliHoca || existing.dahiliHoca === '-' || existing.dahiliHoca === 'Genel') {
-          existing.dahiliHoca = 'TUNAHAN TAŞKIN';
-          updated = true;
-        }
-        if (existing.isPassive === true || existing.status !== 'active') {
-          existing.isPassive = false;
-          existing.status = 'active';
-          updated = true;
-        }
-        if (!existing.familyCode) { existing.familyCode = 'CHOLAK2026'; updated = true; }
-        if (!existing.password) { existing.password = '123'; updated = true; }
-        if (updated) {
-          existing.updatedAt = nowIso;
-          studentsChanged = true;
-        }
-      }
-
-      if (studentsChanged) {
-        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-        this.markStudentLocallyEdited(studentId, ['className', 'etutHocasi', 'dahiliHoca']);
-        try {
-          localStorage.setItem('yoklama_students_backup_v1', JSON.stringify(students));
-          localStorage.setItem('yoklama_students_backup_last', JSON.stringify(students));
-        } catch (e) {}
-        if (this.isCloudEnabled()) {
-          this.syncToCloud('kurs_data/students', students);
-        }
-        try {
-          window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
-        } catch (e) {}
-      }
-    } catch (err) {
-      console.warn('[autoSyncMuhammedCholak] Hata:', err);
-    }
+    return { success: true };
   }
 
-  // Bilal Chuluk (No: 703, 7-B Sınıfı, Burak Bodur Grubu) Otomatik Garanti Motoru
+  // Bilal Chuluk hoca ataması ve kayıt yönetimi (Kalıcı mimari: Panel üzerinden serbestçe yönetilir)
   autoSyncBilalChuluk() {
-    try {
-      const studentId = 'std_703';
-      const studentNo = '703';
-      const nowIso = new Date().toISOString();
-
-      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      let students = raw ? JSON.parse(raw) : null;
-      if (!Array.isArray(students) || students.length === 0) {
-        students = [...SEED_STUDENTS];
-      }
-
-      let existing = students.find(s => s && (
-        s.id === studentId || 
-        (s.studentNo && s.studentNo.toString().trim() === studentNo) ||
-        ((s.firstName || '').trim().toUpperCase() === 'BİLAL' && (s.lastName || '').trim().toUpperCase() === 'CHULUK')
-      ));
-
-      let studentsChanged = false;
-
-      if (!existing) {
-        const newStudent = {
-          id: studentId,
-          studentNo: studentNo,
-          firstName: 'BİLAL',
-          lastName: 'CHULUK',
-          className: '7-B',
-          school: 'ABDULHAK HAMİT',
-          seviye: 'Seviye 2',
-          etutHocasi: 'BURAK BODUR',
-          dahiliHoca: 'BURAK BODUR',
-          yatakhane: 'Oda 301',
-          fatherName: '',
-          fatherPhone: '',
-          motherName: '',
-          motherPhone: '',
-          familyCode: 'CHULUK2026',
-          password: '123',
-          isPassive: false,
-          status: 'active',
-          updatedAt: nowIso
-        };
-        students.push(newStudent);
-        studentsChanged = true;
-      } else {
-        let updated = false;
-        // Eğer öğrenci hala eski şubede (7-A) kalmışsa 7-B şubesine ve Burak Bodur grubuna aktar
-        if (existing.className === '7-A' || !existing.className) {
-          existing.className = '7-B';
-          updated = true;
-        }
-        if (!existing.etutHocasi || existing.etutHocasi.includes('EMİR TALHA')) {
-          existing.etutHocasi = 'BURAK BODUR';
-          updated = true;
-        }
-        if (!existing.dahiliHoca || existing.dahiliHoca === '-' || existing.dahiliHoca === 'Genel' || existing.dahiliHoca.includes('EMİR TALHA')) {
-          existing.dahiliHoca = 'BURAK BODUR';
-          updated = true;
-        }
-        if (existing.isPassive === true || existing.status !== 'active') {
-          existing.isPassive = false;
-          existing.status = 'active';
-          updated = true;
-        }
-        if (!existing.familyCode) { existing.familyCode = 'CHULUK2026'; updated = true; }
-        if (!existing.password) { existing.password = '123'; updated = true; }
-        if (updated) {
-          existing.updatedAt = nowIso;
-          studentsChanged = true;
-        }
-      }
-
-      if (studentsChanged) {
-        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-        try {
-          localStorage.setItem('yoklama_students_backup_v1', JSON.stringify(students));
-          localStorage.setItem('yoklama_students_backup_last', JSON.stringify(students));
-        } catch (e) {}
-        if (this.isCloudEnabled()) {
-          this.syncToCloud('kurs_data/students', students);
-        }
-        try {
-          window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
-        } catch (e) {}
-      }
-    } catch (err) {
-      console.warn('[autoSyncBilalChuluk] Hata:', err);
-    }
+    return { success: true };
   }
 
-  // 7. Sınıf Hoca ve Şube Uyumlaştırması (7-A: Emir Talha Tarım, 7-B: Burak Bodur)
+  // 7. Sınıf hoca ve şube dağılımı (Kalıcı mimari: Panel üzerinden serbestçe yönetilir)
   autoSync7thGradeClassTeachers() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      let students = raw ? JSON.parse(raw) : null;
-      if (!Array.isArray(students) || students.length === 0) return;
-      let changed = false;
-      students = students.map(s => {
-        if (!s) return s;
-        const cls = (s.className || '').trim().toUpperCase();
-        const etut = (s.etutHocasi || '').trim().toUpperCase();
-        if (cls === '7-B' && (etut.includes('EMİR TALHA') || etut.includes('EMIR TALHA') || !etut)) {
-          changed = true;
-          return { ...s, etutHocasi: 'BURAK BODUR' };
-        }
-        return s;
-      });
-      if (changed) {
-        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-        if (this.isCloudEnabled()) {
-          this.syncToCloud('kurs_data/students', students);
-        }
-        try {
-          window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
-        } catch (e) {}
-      }
-    } catch (e) {
-      console.warn('[autoSync7thGradeClassTeachers] Hata:', e);
-    }
+    return { success: true };
   }
 
   resetToDefaults() {
@@ -2647,7 +2441,22 @@ class DataStore {
           const quranRaw = localStorage.getItem(STORAGE_KEYS.QURAN_TRACKER);
           if (quranRaw) {
             const quranAll = JSON.parse(quranRaw);
-            if (quranAll[id] && quranAll[id].diniGrup !== cleanHoca) {
+            if (!quranAll[id]) {
+              quranAll[id] = {
+                studentId: id,
+                currentPage: 1,
+                hatimCount: 0,
+                diniGrup: cleanHoca,
+                note: '',
+                updatedAt: new Date().toISOString(),
+                history: []
+              };
+              localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(quranAll));
+              if (this.isCloudEnabled()) {
+                this.syncToCloud(`kurs_data/quranTracker/${id}`, quranAll[id]);
+              }
+              window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: quranAll }));
+            } else if (quranAll[id].diniGrup !== cleanHoca) {
               quranAll[id].diniGrup = cleanHoca;
               quranAll[id].updatedAt = new Date().toISOString();
               localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(quranAll));
