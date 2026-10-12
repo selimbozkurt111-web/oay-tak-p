@@ -64,13 +64,19 @@ window.App = {
           return; // Klavyenin kapanmasını ve ekranın başa zıplamasını %100 engeller
         }
 
-        // 2. Takviye Notları, Test Neticeleri, Canlı Excel, Öğrenci Toplu Düzenleme ve Ayarlar kendi durumunu yönetir;
+        // 2. Takviye Notları, Test Neticeleri, Canlı Excel, Kur'an Takip, Öğrenci Toplu Düzenleme ve Ayarlar kendi durumunu yönetir;
         // Arka plan senkronizasyonu bu ekranların DOM'unu ve odağını ASLA ezmemelidir!
         if (
           this.activeTab === 'performans' || 
           this.activeTab === 'akademi' || 
           this.activeTab === 'test_results' || 
+          this.activeTab === 'testler' || 
+          this.activeTab === 'test_sonuclari' || 
+          this.activeTab === 'denemeler' || 
+          this.activeTab === 'deneme_sinavlari' || 
           this.activeTab === 'ogrenciler_excel' || 
+          this.activeTab === 'kuran_takip' || 
+          this.activeTab === 'hatim' || 
           (this.activeTab === 'ogrenciler' && (this.studentTableEditMode || (typeof this.hasUnsavedStudentChanges === 'function' && this.hasUnsavedStudentChanges()))) ||
           this.activeTab === 'ayarlar'
         ) {
@@ -78,19 +84,33 @@ window.App = {
         }
 
         if (this.activeTab === 'izin_donusu' && window.LeaveReturnModule) {
-          if (typeof window.LeaveReturnModule.refreshSettings === 'function') {
-            window.LeaveReturnModule.refreshSettings();
+          const lrm = window.LeaveReturnModule;
+          // Modal açıksa veya kullanıcı bir giriş alanındaysa arayüzü zıplatma
+          if (lrm.activeExcuseStudentId || lrm.monthlyModalStudentId) return;
+          const activeEl = document.activeElement;
+          if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) return;
+          // Son 3 saniye içinde yerel işlem yapıldıysa tekrar tetikleme
+          if (lrm._lastActionTime && (Date.now() - lrm._lastActionTime < 3000)) return;
+
+          if (typeof lrm.refreshSettings === 'function') {
+            lrm.refreshSettings();
           }
-          window.LeaveReturnModule.renderView();
+          lrm.renderView(true);
         } else if (this.activeTab === 'izin_cikis' && window.LeaveTrackerModule) {
           window.LeaveTrackerModule.renderView();
         } else if (this.activeTab === 'yoklama' && window.AttendanceModule) {
           window.AttendanceModule.renderView();
+        } else if (this.activeTab === 'leaderboard' && window.LeaderboardModule) {
+          window.LeaderboardModule.renderView();
         } else if (this.activeTab === 'gorevler') {
           this.draftDutyYemekciler = null;
           this.draftDutyMuezzin = null;
           this.draftDutyNote = null;
           this.renderDailyDutiesView();
+        } else if (this.activeTab === 'ogrenciler') {
+          this.renderStudentsView();
+        } else if (this.activeTab === 'personel') {
+          this.renderStaffView();
         } else {
           this.renderMainContent();
         }
@@ -104,6 +124,28 @@ window.App = {
         this.draftDutyMuezzin = null;
         this.draftDutyNote = null;
         this.renderDailyDutiesView();
+      }
+    });
+
+    // Öğrenci listesi buluttan veya yerelden güncellendiğinde ekranı sessizce tazele
+    window.addEventListener('students-updated', () => {
+      this.renderHeader();
+      if (this.currentSession) {
+        if (this.activeTab === 'yoklama' && window.AttendanceModule) {
+          window.AttendanceModule.renderView();
+        } else if (this.activeTab === 'ogrenciler' && !this.studentTableEditMode) {
+          this.renderStudentsView();
+        }
+      }
+    });
+    window.addEventListener('students-cloud-updated', () => {
+      this.renderHeader();
+      if (this.currentSession) {
+        if (this.activeTab === 'yoklama' && window.AttendanceModule) {
+          window.AttendanceModule.renderView();
+        } else if (this.activeTab === 'ogrenciler' && !this.studentTableEditMode) {
+          this.renderStudentsView();
+        }
       }
     });
 
@@ -670,6 +712,12 @@ window.App = {
       }
       this.discardStudentDrafts(false);
     }
+    if ((this.activeTab === 'kuran_takip' || this.activeTab === 'hatim') && tab !== 'kuran_takip' && tab !== 'hatim' && window.QuranTrackerModule && typeof window.QuranTrackerModule.hasPendingChanges === 'function' && window.QuranTrackerModule.hasPendingChanges()) {
+      if (!confirm('Kaydedilmemiş Kur\'an takip değişiklikleriniz var!\n\nKaydetmeden başka bir ekrana geçerseniz girdiğiniz sayfalar kaybolacaktır. Çıkmak istediğinizden emin misiniz?')) {
+        return;
+      }
+      window.QuranTrackerModule.pendingChanges = {};
+    }
     this.closeDrawer();
     this.activeTab = tab;
     if (tab === 'yoklama' && category && window.AttendanceModule) {
@@ -941,6 +989,22 @@ window.App = {
             <span class="text-amber-600 font-bold">→</span>
           </button>
 
+          <!-- Eksi Kusur Puanı Girişi -->
+          <button type="button" onclick="window.App.closeDrawer(); window.App.openDemeritModal();"
+            class="w-full p-3 rounded-2xl text-left transition-all flex items-center justify-between text-slate-700 hover:bg-rose-50/80 font-bold border border-rose-200/80 bg-rose-50/40">
+            <div class="flex items-center gap-3">
+              <span class="text-xl">⚠️</span>
+              <div>
+                <div class="text-xs font-black text-rose-950 flex items-center gap-1.5">
+                  <span>Eksi Kusur Puanı Girişi</span>
+                  <span class="text-[9px] bg-rose-600 text-white px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Ceza / İntizam</span>
+                </div>
+                <div class="text-[10px] text-slate-500 font-medium">İntizamsızlık, gecikme ve kusur puanı düşüşü</div>
+              </div>
+            </div>
+            <span class="text-rose-600 font-bold text-xs">Ekle +</span>
+          </button>
+
 
           <!-- Canlı TV / Koridor Panosu (Sadece Kurum Yöneticisine Özel) -->
           ${(session && (session.role === 'superadmin' || session.canManageStaff)) ? `
@@ -1015,7 +1079,7 @@ window.App = {
               <span class="text-xl">👥</span>
               <div>
                 <div class="text-xs font-black">${session.canEditStudents ? 'Öğrenci & Şifre Yönetimi' : 'Öğrenci Listesi'}</div>
-                <div class="text-[10px] text-slate-400 font-medium">Tüm sınıf kütüğü ve veli şifreleri</div>
+                <div class="text-[10px] text-slate-400 font-medium">Tüm sınıf listesi ve veli şifreleri</div>
               </div>
             </div>
             <span class="text-slate-300">→</span>
@@ -1114,6 +1178,390 @@ window.App = {
         </button>
       </div>
     `;
+  },
+
+  // --- Eksi Kusur / Ceza Puanı Girişi Modalı (Sol Kayar Menü & Liderlik Kısayolu) ---
+  openDemeritModal(studentId = null) {
+    this.closeDrawer();
+    let container = document.getElementById('demerit-modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'demerit-modal-container';
+      document.body.appendChild(container);
+    }
+    container.innerHTML = this.renderDemeritModalHtml(studentId);
+
+    if (studentId) {
+      setTimeout(() => {
+        const select = document.getElementById('demerit-student-select');
+        if (select) {
+          select.value = studentId;
+          const opt = select.querySelector(`option[value="${studentId}"]`);
+          if (opt) {
+            const optClass = opt.getAttribute('data-class');
+            const classFilter = document.getElementById('demerit-class-filter');
+            if (classFilter && optClass) {
+              classFilter.value = optClass;
+              this.filterDemeritStudents();
+              select.value = studentId;
+            }
+          }
+        }
+      }, 50);
+    }
+  },
+
+  closeDemeritModal() {
+    const container = document.getElementById('demerit-modal-container');
+    if (container) {
+      container.innerHTML = '';
+    }
+  },
+
+  renderDemeritModalHtml(preselectedStudentId = null) {
+    const allStudents = (window.Store && typeof window.Store.getStudents === 'function') ? window.Store.getStudents() : [];
+    const activeStudents = allStudents.filter(s => {
+      if (!s || !s.id) return false;
+      if (window.Store.isStudentPassive && window.Store.isStudentPassive(s.id)) return false;
+      if (window.Store.isStudentDeleted && window.Store.isStudentDeleted(s.id)) return false;
+      return true;
+    });
+
+    activeStudents.sort((a, b) => {
+      const cComp = (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true });
+      if (cComp !== 0) return cComp;
+      return (a.firstName || '').localeCompare(b.firstName || '', 'tr');
+    });
+
+    const classes = (window.Store && typeof window.Store.getClasses === 'function') ? window.Store.getClasses() : [];
+    const today = new Date().toISOString().split('T')[0];
+    const hocaName = this.currentSession?.name || this.currentSession?.user?.fullName || 'Nöbetçi Hoca';
+    
+    const allBonus = (window.Store && typeof window.Store.getAllBonusPoints === 'function') ? window.Store.getAllBonusPoints() : [];
+    const recentDemerits = allBonus.filter(b => Number(b.points) < 0).slice(-6).reverse();
+    const preStudent = preselectedStudentId ? activeStudents.find(s => s.id === preselectedStudentId) : null;
+
+    return `
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/65 backdrop-blur-xs p-3 sm:p-4 animate-fade-in no-print overflow-y-auto">
+        <div class="bg-white rounded-3xl shadow-2xl border border-rose-200 max-w-lg w-full p-4 sm:p-6 space-y-4 my-auto relative max-h-[95vh] flex flex-col">
+          
+          <!-- Modal Başlık -->
+          <div class="flex items-center justify-between pb-3 border-b border-rose-100 flex-shrink-0">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-2xl bg-rose-100 border border-rose-200 text-rose-700 text-xl font-black flex items-center justify-center shadow-xs flex-shrink-0">
+                ⚠️
+              </div>
+              <div>
+                <h3 class="font-black text-base text-slate-900 flex items-center gap-2">
+                  <span>Eksi Kusur Puanı Girişi</span>
+                  <span class="text-[9px] bg-rose-600 text-white px-2 py-0.5 rounded-full font-black uppercase tracking-wider">İntizam</span>
+                </h3>
+                <p class="text-xs text-slate-500 font-medium">Talebeye nizam veya kural ihlali sebebiyle eksi puan düş</p>
+              </div>
+            </div>
+            <button type="button" onclick="window.App.closeDemeritModal()" 
+              class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 font-black transition flex items-center justify-center cursor-pointer">
+              ✕
+            </button>
+          </div>
+
+          <!-- Kaydırılabilir İçerik -->
+          <div class="overflow-y-auto space-y-4 flex-1 pr-1">
+            <form id="demerit-form" onsubmit="window.App.saveDemeritSubmit(event)" class="space-y-4">
+              
+              <!-- 1. Talebe Seçimi -->
+              <div>
+                <label class="block text-xs font-black text-slate-800 mb-1.5 uppercase flex items-center justify-between">
+                  <span>TALEBE SEÇİMİ *</span>
+                  <span class="text-[10px] text-slate-400 font-normal">Toplam ${activeStudents.length} Talebe</span>
+                </label>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                  <!-- Sınıf Filtresi -->
+                  <select id="demerit-class-filter" onchange="window.App.filterDemeritStudents()" 
+                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:border-rose-400 cursor-pointer">
+                    <option value="ALL">Tüm Sınıflar</option>
+                    ${classes.map(c => `<option value="${c}" ${preStudent && preStudent.className === c ? 'selected' : ''}>${c}</option>`).join('')}
+                  </select>
+                  
+                  <!-- Hızlı Arama -->
+                  <input type="text" id="demerit-search-input" placeholder="Talebe ara..." oninput="window.App.filterDemeritStudents()"
+                    class="sm:col-span-2 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:outline-none focus:border-rose-400">
+                </div>
+
+                <!-- Talebe Dropdown Listesi -->
+                <select id="demerit-student-select" required
+                  class="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-rose-500 cursor-pointer shadow-2xs">
+                  <option value="">-- Lütfen Bir Talebe Seçiniz --</option>
+                  ${activeStudents.map(s => `
+                    <option value="${s.id}" data-class="${s.className || ''}" data-name="${(s.firstName + ' ' + s.lastName).toLowerCase()}" data-no="${s.studentNo || ''}" ${preselectedStudentId === s.id ? 'selected' : ''}>
+                      ${s.studentNo ? s.studentNo + ' - ' : ''}${s.firstName} ${s.lastName} (${s.className || 'Sınıfsız'})
+                    </option>
+                  `).join('')}
+                </select>
+              </div>
+
+              <!-- 2. Tarih ve Yetkili Hoca -->
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-black text-slate-700 mb-1 uppercase">TARİH *</label>
+                  <input type="date" id="demerit-date-input" value="${today}" max="${today}" required
+                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-rose-400">
+                </div>
+                <div>
+                  <label class="block text-xs font-black text-slate-700 mb-1 uppercase">EĞİTMEN *</label>
+                  <input type="text" id="demerit-hoca-input" value="${hocaName}" required placeholder="Hoca Adı"
+                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-rose-400">
+                </div>
+              </div>
+
+              <!-- 3. Düşülecek Eksi Kusur Puanı Miktarı -->
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="block text-xs font-black text-rose-950 uppercase">DÜŞÜLECEK KUSUR PUANI *</label>
+                  <span class="text-[11px] font-black text-rose-600 font-mono" id="demerit-pts-badge">-10 Puan</span>
+                </div>
+
+                <!-- Hızlı Seçim Butonları -->
+                <div class="grid grid-cols-5 gap-1.5 mb-2">
+                  <button type="button" onclick="window.App.setDemeritPoints(-5)"
+                    class="demerit-preset-btn py-2 px-1 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-[11px] font-black text-rose-800 transition text-center cursor-pointer">
+                    -5
+                  </button>
+                  <button type="button" onclick="window.App.setDemeritPoints(-10)"
+                    class="demerit-preset-btn py-2 px-1 rounded-xl border-2 border-rose-500 bg-rose-100 text-[11px] font-black text-rose-900 transition text-center cursor-pointer shadow-xs">
+                    -10
+                  </button>
+                  <button type="button" onclick="window.App.setDemeritPoints(-15)"
+                    class="demerit-preset-btn py-2 px-1 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-[11px] font-black text-rose-800 transition text-center cursor-pointer">
+                    -15
+                  </button>
+                  <button type="button" onclick="window.App.setDemeritPoints(-20)"
+                    class="demerit-preset-btn py-2 px-1 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-[11px] font-black text-rose-800 transition text-center cursor-pointer">
+                    -20
+                  </button>
+                  <button type="button" onclick="window.App.setDemeritPoints(-30)"
+                    class="demerit-preset-btn py-2 px-1 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-[11px] font-black text-rose-800 transition text-center cursor-pointer">
+                    -30
+                  </button>
+                </div>
+
+                <!-- Manuel Sayısal Giriş -->
+                <div class="relative">
+                  <input type="number" id="demerit-pts-input" value="-10" max="-1" min="-100" required
+                    oninput="window.App.handleDemeritPointsInput(this.value)"
+                    class="w-full px-3.5 py-2.5 bg-rose-50/30 border border-rose-300 rounded-xl text-sm font-black text-rose-700 font-mono focus:bg-white focus:outline-none focus:border-rose-500">
+                  <span class="absolute right-3 top-2.5 text-xs text-rose-400 font-bold">Puan Düşülecek</span>
+                </div>
+              </div>
+
+              <!-- 4. Kusur Sebebi / Açıklama -->
+              <div>
+                <label class="block text-xs font-black text-slate-800 mb-1.5 uppercase">KUSUR SEBEBİ / İHLAL *</label>
+
+                <!-- Hazır Sebep Çipleri -->
+                <div class="grid grid-cols-2 gap-1.5 mb-2">
+                  <button type="button" onclick="window.App.setDemeritReason('Oda / Yatak İntizamsızlığı')"
+                    class="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 text-[11px] font-bold text-slate-700 text-left transition cursor-pointer">
+                    🛏️ Oda / Yatak İntizamsızlığı
+                  </button>
+                  <button type="button" onclick="window.App.setDemeritReason('Etüt / Derse Geç Kalma')"
+                    class="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 text-[11px] font-bold text-slate-700 text-left transition cursor-pointer">
+                    ⏰ Etüt / Derse Geç Kalma
+                  </button>
+                  <button type="button" onclick="window.App.setDemeritReason('Nizamsız Davranış / Gürültü')"
+                    class="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 text-[11px] font-bold text-slate-700 text-left transition cursor-pointer">
+                    📢 Nizamsız Davranış / Gürültü
+                  </button>
+                  <button type="button" onclick="window.App.setDemeritReason('Ödev / Görev İhmali')"
+                    class="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 text-[11px] font-bold text-slate-700 text-left transition cursor-pointer">
+                    📚 Ödev / Görev İhmali
+                  </button>
+                  <button type="button" onclick="window.App.setDemeritReason('Mescit / Cemaate Geç Kalma')"
+                    class="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 text-[11px] font-bold text-slate-700 text-left transition cursor-pointer">
+                    🕌 Mescit / Cemaate Geç Kalma
+                  </button>
+                  <button type="button" onclick="window.App.setDemeritReason('İzinsiz Cihaz / Telefon')"
+                    class="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50 text-[11px] font-bold text-slate-700 text-left transition cursor-pointer">
+                    📱 İzinsiz Cihaz / Telefon
+                  </button>
+                </div>
+
+                <input type="text" id="demerit-reason-input" value="Oda / Yatak İntizamsızlığı" required placeholder="Kusur sebebi veya detay..."
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-rose-500">
+              </div>
+
+              <!-- İşlem Butonları -->
+              <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onclick="window.App.closeDemeritModal()"
+                  class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer">
+                  Vazgeç
+                </button>
+                <button type="submit" 
+                  class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95">
+                  <span>⚠️</span>
+                  <span>Eksi Kusur Puanını Kaydet</span>
+                </button>
+              </div>
+
+            </form>
+
+            <!-- 5. Son İşlenen Kusur Kayıtları Bölümü -->
+            <div class="pt-3 border-t border-slate-100">
+              <div class="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center justify-between">
+                <span>📋 SON İŞLENEN KUSUR KAYITLARI</span>
+                <span class="text-[10px] text-slate-400 font-normal">Son ${recentDemerits.length} Kayıt</span>
+              </div>
+              ${recentDemerits.length === 0 ? `
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 text-center text-slate-400 text-xs">
+                  Henüz işlenmiş bir kusur puanı kaydı bulunmuyor.
+                </div>
+              ` : `
+                <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  ${recentDemerits.map(d => {
+                    const st = activeStudents.find(s => s.id === d.studentId) || (window.Store && typeof window.Store.getStudentById === 'function' ? window.Store.getStudentById(d.studentId) : null);
+                    const stName = st ? `${st.firstName} ${st.lastName} (${st.className || ''})` : 'Talebe';
+                    return `
+                      <div class="p-2 bg-rose-50/30 rounded-xl border border-rose-100 flex items-center justify-between text-xs">
+                        <div class="truncate mr-2">
+                          <div class="font-bold text-slate-900 truncate">${stName}</div>
+                          <div class="text-[10px] text-slate-500 truncate">${d.reason} • <span class="font-medium text-slate-400">${d.date} (${d.hocaName})</span></div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                          <span class="px-2 py-0.5 rounded-lg bg-rose-100 text-rose-900 border border-rose-200 font-black text-xs font-mono">
+                            ${d.points} Puan
+                          </span>
+                          <button type="button" onclick="window.App.deleteDemeritRecord('${d.id}')"
+                            class="w-6 h-6 rounded-lg bg-white hover:bg-rose-100 text-rose-600 font-black text-xs flex items-center justify-center transition border border-rose-200 cursor-pointer"
+                            title="Bu kusur kaydını sil">
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              `}
+            </div>
+
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  filterDemeritStudents() {
+    const classFilter = document.getElementById('demerit-class-filter')?.value || 'ALL';
+    const searchVal = (document.getElementById('demerit-search-input')?.value || '').toLowerCase().trim();
+    const select = document.getElementById('demerit-student-select');
+    if (!select) return;
+
+    for (let i = 0; i < select.options.length; i++) {
+      const opt = select.options[i];
+      if (!opt.value) continue;
+      const optClass = opt.getAttribute('data-class') || '';
+      const optName = opt.getAttribute('data-name') || '';
+      const optNo = opt.getAttribute('data-no') || '';
+
+      const matchClass = (classFilter === 'ALL' || optClass === classFilter);
+      const matchSearch = (!searchVal || optName.includes(searchVal) || optNo.includes(searchVal));
+
+      if (matchClass && matchSearch) {
+        opt.hidden = false;
+        opt.disabled = false;
+      } else {
+        opt.hidden = true;
+        opt.disabled = true;
+        if (select.value === opt.value) {
+          select.value = '';
+        }
+      }
+    }
+  },
+
+  setDemeritPoints(pts) {
+    const input = document.getElementById('demerit-pts-input');
+    const badge = document.getElementById('demerit-pts-badge');
+    const num = -Math.abs(Number(pts) || 10);
+    if (input) input.value = num;
+    if (badge) badge.textContent = `${num} Puan`;
+
+    document.querySelectorAll('.demerit-preset-btn').forEach(btn => {
+      const btnPts = parseInt(btn.textContent.trim(), 10);
+      if (btnPts === num) {
+        btn.classList.add('border-2', 'border-rose-500', 'bg-rose-100', 'text-rose-900', 'shadow-xs');
+        btn.classList.remove('border-rose-200', 'bg-rose-50/50', 'text-rose-800');
+      } else {
+        btn.classList.remove('border-2', 'border-rose-500', 'bg-rose-100', 'text-rose-900', 'shadow-xs');
+        btn.classList.add('border-rose-200', 'bg-rose-50/50', 'text-rose-800');
+      }
+    });
+  },
+
+  handleDemeritPointsInput(val) {
+    const badge = document.getElementById('demerit-pts-badge');
+    let num = parseInt(val, 10);
+    if (isNaN(num)) num = -10;
+    if (num > 0) num = -num;
+    if (badge) badge.textContent = `${num} Puan`;
+  },
+
+  setDemeritReason(reason) {
+    const input = document.getElementById('demerit-reason-input');
+    if (input) {
+      input.value = reason;
+      input.focus();
+    }
+  },
+
+  saveDemeritSubmit(event) {
+    if (event) event.preventDefault();
+    const select = document.getElementById('demerit-student-select');
+    if (!select || !select.value) {
+      this.showToast('Lütfen listeden bir talebe seçiniz.', 'warning');
+      return;
+    }
+    const studentId = select.value;
+    let pts = parseInt(document.getElementById('demerit-pts-input').value, 10);
+    if (isNaN(pts) || pts === 0) pts = -10;
+    if (pts > 0) pts = -Math.abs(pts);
+
+    const reason = (document.getElementById('demerit-reason-input')?.value || '').trim() || 'Kusur & İntizamsızlık';
+    const hoca = (document.getElementById('demerit-hoca-input')?.value || '').trim() || (this.currentSession?.name || 'Eğitmen');
+    const date = document.getElementById('demerit-date-input')?.value || new Date().toISOString().split('T')[0];
+
+    const student = window.Store.getStudentById(studentId);
+    if (!student) {
+      this.showToast('Talebe kaydı bulunamadı.', 'warning');
+      return;
+    }
+
+    const saved = window.Store.addBonusPoint(studentId, pts, reason, hoca, date);
+    if (saved) {
+      this.showToast(`⚠️ ${student.firstName} ${student.lastName} için ${pts} kusur puanı başarıyla işlendi!`, 'warning');
+      this.closeDemeritModal();
+
+      if (this.activeTab === 'leaderboard' && window.LeaderboardModule && typeof window.LeaderboardModule.renderView === 'function') {
+        window.LeaderboardModule.renderView();
+      }
+    } else {
+      this.showToast('Kusur puanı kaydedilirken bir hata oluştu.', 'error');
+    }
+  },
+
+  deleteDemeritRecord(id) {
+    if (!confirm('Bu kusur puanı kaydını silmek istediğinize emin misiniz?')) return;
+    const ok = window.Store.deleteBonusPoint(id);
+    if (ok) {
+      this.showToast('Kusur puanı kaydı silindi.', 'info');
+      const select = document.getElementById('demerit-student-select');
+      const currentSelected = select ? select.value : null;
+      this.openDemeritModal(currentSelected);
+
+      if (this.activeTab === 'leaderboard' && window.LeaderboardModule && typeof window.LeaderboardModule.renderView === 'function') {
+        window.LeaderboardModule.renderView();
+      }
+    }
   },
 
   renderMainContent() {
@@ -1811,7 +2259,29 @@ window.App = {
           if (patch.firstName !== undefined) merged.firstName = patch.firstName.trim().toUpperCase();
           if (patch.lastName !== undefined) merged.lastName = patch.lastName.trim().toUpperCase();
           if (patch.className !== undefined) merged.className = patch.className.trim();
-          if (patch.etutHocasi !== undefined) merged.etutHocasi = patch.etutHocasi.trim();
+          if (patch.etutHocasi !== undefined) {
+            merged.etutHocasi = patch.etutHocasi.trim();
+          } else if (patch.className !== undefined) {
+            const CLASS_TEACHER_DEFAULTS = {
+              '5-A': 'YASİN EKİNCİ',
+              '5-B': 'AHMED MUBARİZ',
+              '6-A': 'ABDUSSAMED TAV',
+              '6-B': 'ABDUSSAMED TAV',
+              '7-A': 'EMİR TALHA TARIM',
+              '7-B': 'BURAK BODUR',
+              '8-A': 'YAVUZ SELİM SEVEN',
+              '8-B': 'TUNAHAN TAŞKIN'
+            };
+            const newClass = (patch.className || '').trim().toUpperCase();
+            const oldClass = (st.className || '').trim().toUpperCase();
+            if (newClass && CLASS_TEACHER_DEFAULTS[newClass]) {
+              const oldExpected = CLASS_TEACHER_DEFAULTS[oldClass];
+              const curEtut = (st.etutHocasi || '').trim().toUpperCase();
+              if (!curEtut || (oldExpected && curEtut.includes(oldExpected.split(' ')[0]))) {
+                merged.etutHocasi = CLASS_TEACHER_DEFAULTS[newClass];
+              }
+            }
+          }
           if (patch.dahiliHoca !== undefined) merged.dahiliHoca = patch.dahiliHoca.trim();
           if (patch.yatakhane !== undefined) merged.yatakhane = patch.yatakhane.trim();
           if (patch.password !== undefined) merged.password = patch.password.trim() || '123';
@@ -2038,7 +2508,7 @@ window.App = {
             <p class="text-xs text-slate-500 mt-0.5">
               ${isEditMode 
                 ? 'Hücrelere doğrudan tıklayarak düzenleyebilirsiniz. "Değişiklikleri Kaydet" butonuna basana kadar hiçbir şey kaydedilmez.' 
-                : (canEdit ? 'Talebe kütüğünü, sınıfları, hocaları ve veli şifrelerini yönetin. Sütun başlıklarına tıklayarak sıralayabilirsiniz.' : 'Eğitmenler listeyi inceleyebilir; düzenleme yetkisi Ana Yöneticidedir.')}
+                : (canEdit ? 'Talebe kayıtlarını, sınıfları, hocaları ve veli şifrelerini yönetin. Sütun başlıklarına tıklayarak sıralayabilirsiniz.' : 'Eğitmenler listeyi inceleyebilir; düzenleme yetkisi Ana Yöneticidedir.')}
             </p>
           </div>
 

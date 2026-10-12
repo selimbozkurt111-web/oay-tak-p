@@ -100,7 +100,7 @@ const PERMANENTLY_DELETED_STUDENTS = {
   nos: new Set([515, 516, 601, 606, 607, 608, 609, 701, 704, 705, 716, 803, 804, 812, 817])
 };
 
-// 51 Öğrencinin Eksiksiz Veritabanı (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B)
+// 52 Öğrencinin Eksiksiz Veritabanı (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B)
 const SEED_STUDENTS = [
   // 5-A SINIFI (Yasin Ekinci Grubu - 8 Talebe)
   { id: "std_502", studentNo: "502", firstName: "ARDA YUSUF", lastName: "SAYGI", className: "5-A", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "YASİN EKİNCİ", dahiliHoca: "YASİN EKİNCİ", yatakhane: "Oda 101", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SAYGI2026", password: "123" },
@@ -130,13 +130,13 @@ const SEED_STUDENTS = [
   // 6-B SINIFI (Oda 202 Grubu - 1 Talebe)
   { id: "std_610", studentNo: "610", firstName: "MAHMUT BERK", lastName: "KARACADAĞ", className: "6-B", school: "-", seviye: "Seviye 1", etutHocasi: "ABDUSSAMED TAV", dahiliHoca: "ABDUSSAMED TAV", yatakhane: "Oda 202", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KARACADAG2026", password: "123" },
 
-  // 7-A SINIFI (Emir Talha Tarım Grubu - 4 Talebe)
+  // 7-A SINIFI (Emir Talha Tarım Grubu - 3 Talebe)
   { id: "std_702", studentNo: "702", firstName: "EMİRHAN ENES", lastName: "ÖZTÜRK", className: "7-A", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 301", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "OZTURK2026", password: "123" },
-  { id: "std_703", studentNo: "703", firstName: "BİLAL", lastName: "CHULUK", className: "7-A", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 301", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CHULUK2026", password: "123" },
   { id: "std_706", studentNo: "706", firstName: "AYAZ", lastName: "TUTAR", className: "7-A", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 302", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "TUTAR2026", password: "123" },
   { id: "std_707", studentNo: "707", firstName: "EMİRHAN", lastName: "KULUS", className: "7-A", school: "AYHAN ŞAHENK", seviye: "Seviye 2", etutHocasi: "EMİR TALHA TARIM", dahiliHoca: "EMİR TALHA TARIM", yatakhane: "Oda 302", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KULUS2026", password: "123" },
 
-  // 7-B SINIFI (Burak Bodur Grubu - 9 Talebe)
+  // 7-B SINIFI (Burak Bodur Grubu - 10 Talebe)
+  { id: "std_703", studentNo: "703", firstName: "BİLAL", lastName: "CHULUK", className: "7-B", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 301", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CHULUK2026", password: "123" },
   { id: "std_708", studentNo: "708", firstName: "YUSUF KEMAL", lastName: "GENÇOĞLU", className: "7-B", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 302", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "GENCOGLU2026", password: "123" },
   { id: "std_709", studentNo: "709", firstName: "YUSUF", lastName: "GENÇOĞLU", className: "7-B", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 302", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "GENCOGLU2026", password: "123" },
   { id: "std_710", studentNo: "710", firstName: "EFE EMİN", lastName: "SÜRÜCÜ", className: "7-B", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "BURAK BODUR", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 303", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "SURUCU2026", password: "123" },
@@ -158,7 +158,7 @@ const SEED_STUDENTS = [
   { id: "std_808", studentNo: "808", firstName: "MUHAMMED KERİM", lastName: "BAYBURT", className: "8-A", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "BAYBURT2026", password: "123" },
   { id: "std_811", studentNo: "811", firstName: "EMİR SALİH", lastName: "DOĞAN", className: "8-A", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "YAVUZ SELİM SEVEN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "DOGAN2026", password: "123" },
 
-  // 8-B SINIFI (Tunahan Taşkın Grubu - 9 Talebe)
+  // 8-B SINIFI (Tunahan Taşkın Grubu - 10 Talebe)
   { id: "std_801", studentNo: "801", firstName: "MEHMET YAKUP", lastName: "ÇEDİKÇİ", className: "8-B", school: "AYHAN ŞAHENK", seviye: "Seviye 1", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CEDIKCI2026", password: "123" },
   { id: "std_805", studentNo: "805", firstName: "AHMET EMRE", lastName: "AKYOL", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "BURAK BODUR", yatakhane: "Oda 401", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "AKYOL2026", password: "123" },
   { id: "std_816", studentNo: "816", firstName: "YUSUF", lastName: "ULUSOY", className: "8-B", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 404", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ULUSOY2026", password: "123" },
@@ -167,7 +167,8 @@ const SEED_STUDENTS = [
   { id: "std_821", studentNo: "821", firstName: "İSA MERT", lastName: "KARABULUT", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "KARABULUT2026", password: "123" },
   { id: "std_807", studentNo: "807", firstName: "SAMET ENES", lastName: "ACAR", className: "8-B", school: "ABDULHAK HAMİT", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "SELİM BOZKURT", yatakhane: "Oda 402", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ACAR2026", password: "123" },
   { id: "std_813", studentNo: "813", firstName: "ALPEREN", lastName: "UYGUN", className: "8-B", school: "ABDULHAK HAMİT", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 403", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "UYGUN2026", password: "123" },
-  { id: "std_818", studentNo: "818", firstName: "SONER", lastName: "ERCİVAN", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ERCIVAN2026", password: "123" }
+  { id: "std_818", studentNo: "818", firstName: "SONER", lastName: "ERCİVAN", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 3", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "ERCIVAN2026", password: "123" },
+  { id: "std_830", studentNo: "830", firstName: "MUHAMMED", lastName: "CHOLAK", className: "8-B", school: "KAZIM ÖZALP", seviye: "Seviye 2", etutHocasi: "TUNAHAN TAŞKIN", dahiliHoca: "TUNAHAN TAŞKIN", yatakhane: "Oda 405", fatherName: "", fatherPhone: "", motherName: "", motherPhone: "", familyCode: "CHOLAK2026", password: "123" }
 ];
 
 class DataStore {
@@ -185,11 +186,23 @@ class DataStore {
     }
     // Mevcut öğrencilerin şubelerini (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) otomatik güncelle
     this.autoMigrateStudentClasses();
-    // 8-A ve 8-B kütük onarma kullanıcının talebiyle tamamen kaldırıldı
+    // 8-A ve 8-B sınıf onarma kullanıcının talebiyle tamamen kaldırıldı
     // 8-A ve 8-B hoca atamalarını ve personel rollerini eşitle
     this.autoSyncStaffAndClassTeachers();
     // Dini ders grupları ve Dahili Hoca senkronizasyonunu otomatik sağla
     this.autoSyncDahiliHocalarAndQuran();
+    // Muhammed Cholak (No: 830, 8-B Sınıfı, Tunahan Taşkın Grubu) hoca atamasını ve talebe kaydını garantiye al
+    this.autoSyncMuhammedCholak();
+    // Bilal Chuluk (No: 703, 7-B Sınıfı, Burak Bodur Grubu) hoca atamasını ve talebe kaydını garantiye al
+    this.autoSyncBilalChuluk();
+    // 7. Sınıf Hoca ve Şube Uyumlaştırmasını Garantiye Al (7-A: Emir Talha Tarım, 7-B: Burak Bodur)
+    this.autoSync7thGradeClassTeachers();
+    // Eğitmen ve personel cihazlarında eski yerel öğrenci düzenleme kalkanını sıfırla (Bulut senkronizasyonunun engelsiz akması için)
+    if (!this.isCurrentUserAdmin()) {
+      try {
+        localStorage.removeItem(STORAGE_KEYS.LOCAL_STUDENT_EDITS);
+      } catch (e) {}
+    }
     // Pasiflik temizliği: Pasif sicilini yerel hafızada temizle (Buluta gereksiz yükleme yapmaz)
     try {
       localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
@@ -354,8 +367,8 @@ class DataStore {
       const updatedList = filteredList.map(s => {
         if (!s) return s;
         const currentClass = (s.className || '').trim();
-        // Zaten 5-A, 5-B gibi şube formatındaysa koru
-        if (/^[5-8]-[AB]/i.test(currentClass)) return s;
+        // Zaten bir şube veya özel sınıf adı tanımlanmışsa kullanıcının belirlediği sınıfı KORU
+        if (currentClass && !currentClass.includes('. Sınıf')) return s;
 
         let newClass = currentClass;
         const no = parseInt(s.studentNo, 10);
@@ -366,7 +379,7 @@ class DataStore {
         } else if (currentClass.includes('6') || (no >= 600 && no < 700)) {
           newClass = ((s.school && s.school.includes('ABDULHAK')) || (s.yatakhane && s.yatakhane.includes('201')) || (no >= 601 && no <= 605)) ? '6-A' : '6-B';
         } else if (currentClass.includes('7') || (no >= 700 && no < 800)) {
-          newClass = (hoca.includes('EMİR TALHA') || (no >= 701 && no <= 707)) ? '7-A' : '7-B';
+          newClass = (hoca.includes('EMİR TALHA') || [702, 706, 707].includes(no)) ? '7-A' : '7-B';
         } else if (currentClass.includes('8') || (no >= 800 && no < 900)) {
           const is8A = [814, 815, 822, 806, 819, 820, 802, 808, 811].includes(no) || hoca.includes('YAVUZ');
           newClass = is8A ? '8-A' : '8-B';
@@ -438,153 +451,10 @@ class DataStore {
     return this.activateAllStudents(false);
   }
 
-  // --- 8. Sınıf Kesin Kütük Onarıcısı (8-A: Yavuz Selim Seven [9], 8-B: Tunahan Taşkın [9] - Tam 18 Talebe) ---
-  forceRepair8thGradeClasses(forceCloudPush = true) {
-    // 8. Sınıf kütük onarma kullanıcının talebiyle tamamen kaldırıldı
+  // --- 8. Sınıf Kesin Sınıf Düzenleyicisi (8-A: Yavuz Selim Seven [9], 8-B: Tunahan Taşkın [9] - Tam 18 Talebe) ---
+  forceRepair8thGradeClasses(forceCloudPush = false) {
+    // Sınıf ve kontenjan kısıtlamaları tamamen kaldırıldı; kullanıcı dilediği talebeyi dilediği şubeye ve hocaya özgürce atayabilir.
     return { success: true, count: 0 };
-    try {
-      // 8-A Sınıfı (Yavuz Selim Seven): 9 Talebe
-      const class8ANumbers = new Set([814, 815, 822, 806, 819, 820, 802, 808, 811]);
-      const class8AIds = new Set(['std_814', 'std_815', 'std_822', 'std_806', 'std_819', 'std_820', 'std_802', 'std_808', 'std_811']);
-
-      // 8-B Sınıfı (Tunahan Taşkın): 9 Talebe
-      const class8BNumbers = new Set([801, 805, 816, 810, 809, 821, 807, 813, 818]);
-      const class8BIds = new Set(['std_801', 'std_805', 'std_816', 'std_810', 'std_809', 'std_821', 'std_807', 'std_813', 'std_818']);
-
-      // Listeden çıkarılan 4 yabancı/fazlalık öğrenci
-      const removed8thGradeIds = new Set(['std_803', 'std_804', 'std_812', 'std_817']);
-      const removed8thGradeNos = new Set([803, 804, 812, 817]);
-
-      // 1. Silinenler Sicili'ne (Tombstone) kaydet
-      const deletedMap = this.getDeletedStudentIds();
-      let deletedMapChanged = false;
-      removed8thGradeIds.forEach(id => {
-        if (!deletedMap[id] || !deletedMap[id].isDeleted) {
-          deletedMap[id] = { isDeleted: true, deletedAt: new Date().toISOString() };
-          deletedMapChanged = true;
-        }
-      });
-      if (deletedMapChanged) {
-        this.saveDeletedStudentIds(deletedMap);
-      }
-
-      // 2. Pasif Sicili: Kullanıcının pasife aldığı talebeleri KORU (asla ezme veya silme)
-      const passiveMap = this.getPassiveStudentIds();
-
-      // 3. Öğrenci Listesini Yükle ve Onar
-      let studentsRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      let students = studentsRaw ? JSON.parse(studentsRaw) : [];
-      if (!Array.isArray(students) || students.length === 0) {
-        students = [...SEED_STUDENTS];
-      }
-
-      const initialCount = students.length;
-      let hasChanges = false;
-      const nowIso = new Date().toISOString();
-
-      // Silinecek 4 kişiyi ve ada göre eşleşen fazlalıkları çıkar
-      students = students.filter(s => {
-        if (!s) return false;
-        const no = parseInt(s.studentNo, 10);
-        const sid = (s.id || '').trim();
-        const fullName = `${s.firstName || ''} ${s.lastName || ''}`.toUpperCase();
-
-        if (removed8thGradeIds.has(sid) || removed8thGradeNos.has(no)) {
-          hasChanges = true;
-          return false;
-        }
-        if (fullName.includes('CHOLAK') || fullName.includes('UZTURK') || fullName.includes('ŞENGÜL') || fullName.includes('HASTÜRK')) {
-          hasChanges = true;
-          return false;
-        }
-        return true;
-      });
-
-      // Kalan 18 talebeyi harfiyen doğru sınıfa ve hocaya ata (pasiflikleri koru)
-      students = students.map(s => {
-        if (!s) return s;
-        const no = parseInt(s.studentNo, 10);
-        const sid = (s.id || '').trim();
-        const fullName = `${s.firstName || ''} ${s.lastName || ''}`.toUpperCase();
-
-        let targetClass = null;
-        let targetTeacher = null;
-
-        if (class8ANumbers.has(no) || class8AIds.has(sid)) {
-          targetClass = '8-A';
-          targetTeacher = 'YAVUZ SELİM SEVEN';
-        } else if (class8BNumbers.has(no) || class8BIds.has(sid)) {
-          targetClass = '8-B';
-          targetTeacher = 'TUNAHAN TAŞKIN';
-        } else if (no >= 800 && no < 900) {
-          if (fullName.includes('RUÇHAN') || fullName.includes('SEMİH') || fullName.includes('POLAT') || fullName.includes('ŞABAN') || fullName.includes('YİĞİT EMİR') || fullName.includes('CİHAN') || fullName.includes('BAYBURT') || (fullName.includes('EMİR SALİH') && fullName.includes('DOĞAN'))) {
-            targetClass = '8-A';
-            targetTeacher = 'YAVUZ SELİM SEVEN';
-          } else if (fullName.includes('ÇEDİKÇİ') || fullName.includes('AKYOL') || fullName.includes('ULUSOY') || fullName.includes('HUSSAIN') || fullName.includes('HUSAİN') || fullName.includes('YAZICI') || fullName.includes('KARABULUT') || fullName.includes('ACAR') || fullName.includes('UYGUN') || fullName.includes('ERCİVAN')) {
-            targetClass = '8-B';
-            targetTeacher = 'TUNAHAN TAŞKIN';
-          }
-        }
-
-        if (targetClass && targetTeacher) {
-          const needsFix = s.className !== targetClass || s.etutHocasi !== targetTeacher;
-          if (needsFix) {
-            hasChanges = true;
-            this.markStudentLocallyEdited(s.id, ['className', 'etutHocasi']);
-            return {
-              ...s,
-              className: targetClass,
-              etutHocasi: targetTeacher,
-              updatedAt: nowIso
-            };
-          }
-        }
-        return s;
-      });
-
-      // Eksik 8. sınıf öğrencisi kalmışsa SEED_STUDENTS'ten ekle
-      const existingIds = new Set(students.map(s => s.id));
-      SEED_STUDENTS.forEach(seed => {
-        const sNo = parseInt(seed.studentNo, 10);
-        if ((class8ANumbers.has(sNo) || class8BNumbers.has(sNo)) && !existingIds.has(seed.id)) {
-          const isPass = this.isStudentPassive(seed.id);
-          students.push({
-            ...seed,
-            isPassive: isPass,
-            status: isPass ? 'passive' : 'active',
-            updatedAt: nowIso
-          });
-          this.markStudentLocallyEdited(seed.id, ['className', 'etutHocasi']);
-          hasChanges = true;
-        }
-      });
-
-      if (hasChanges || students.length !== initialCount || forceCloudPush) {
-        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-        this._lastStudentEditTime = Date.now();
-        this._lastStudentPushTime = Date.now();
-
-        if (this.isCloudEnabled()) {
-          this.syncToCloud('kurs_data/students', students);
-          this.syncToCloud('kurs_data/deleted_student_ids', deletedMap);
-          this.syncToCloud('kurs_data/passive_student_ids', passiveMap);
-
-          const baseUrl = this.getFirebaseUrl();
-          if (baseUrl) {
-            removed8thGradeIds.forEach(delId => {
-              try {
-                fetch(`${baseUrl}/kurs_data/students/${delId}.json`, { method: 'DELETE' }).catch(() => {});
-              } catch (e) {}
-            });
-          }
-        }
-        window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
-      }
-      return { success: true, count: students.length };
-    } catch (err) {
-      console.warn('[forceRepair8thGradeClasses] Hata:', err);
-      return { success: false, error: err.message };
-    }
   }
 
   // 8-A ve 8-B Etüt Hocası ve Personel Rol Güncellemesi (8-A: Yavuz Selim Seven, 8-B: Tunahan Taşkın)
@@ -620,7 +490,7 @@ class DataStore {
         }
       }
 
-      // 2. 8. Sınıf Kütüğünü Onar (8-A [9], 8-B [9])
+      // 2. 8. Sınıf Kayıtlarını Onar (8-A [9], 8-B [9])
       this.forceRepair8thGradeClasses(false);
     } catch (e) {
       console.warn('[autoSyncStaffAndClassTeachers] Hata:', e);
@@ -630,7 +500,7 @@ class DataStore {
   // Dini Ders Grupları ve Kur'an Takip Senkronizasyonu (Dahili Hoca = Dini Ders Grubu)
   autoSyncDahiliHocalarAndQuran() {
     try {
-      // 1. Öğrenci kütüğünü (yoklama_students) kontrol et ve eksik/hatalı dahiliHoca'ları SEED_STUDENTS'ten onar
+      // 1. Öğrenci kayıt listesini (yoklama_students) kontrol et ve eksik/hatalı dahiliHoca'ları SEED_STUDENTS'ten onar
       const seedMap = {};
       SEED_STUDENTS.forEach(seed => {
         if (seed.id) seedMap[seed.id] = seed;
@@ -707,6 +577,227 @@ class DataStore {
       }
     } catch (e) {
       console.warn('[autoSyncDahiliHocalarAndQuran] Hata:', e);
+    }
+  }
+
+  // Muhammed Cholak (No: 830, 8-B Sınıfı, Tunahan Taşkın Grubu) Otomatik Garanti Motoru
+  autoSyncMuhammedCholak() {
+    try {
+      const studentId = 'std_830';
+      const studentNo = '830';
+      const nowIso = new Date().toISOString();
+
+      // 1. Silinenler Sicilinde (Tombstone) varsa kalıcı olarak temizle
+      const deletedMap = this.getDeletedStudentIds();
+      let delChanged = false;
+      if (deletedMap[studentId]) {
+        delete deletedMap[studentId];
+        delChanged = true;
+      }
+      if (delChanged) {
+        this.saveDeletedStudentIds(deletedMap);
+      }
+
+      // 2. Öğrenci listesini (yoklama_students) kontrol et
+      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      let students = raw ? JSON.parse(raw) : null;
+      if (!Array.isArray(students) || students.length === 0) {
+        students = [...SEED_STUDENTS];
+      }
+
+      let existing = students.find(s => s && (
+        s.id === studentId || 
+        (s.studentNo && s.studentNo.toString().trim() === studentNo) ||
+        ((s.firstName || '').trim().toUpperCase() === 'MUHAMMED' && (s.lastName || '').trim().toUpperCase() === 'CHOLAK')
+      ));
+
+      let studentsChanged = false;
+
+      if (!existing) {
+        // Yeni öğrenci olarak 8-B listesine ekle
+        const newStudent = {
+          id: studentId,
+          studentNo: studentNo,
+          firstName: 'MUHAMMED',
+          lastName: 'CHOLAK',
+          className: '8-B',
+          school: 'KAZIM ÖZALP',
+          seviye: 'Seviye 2',
+          etutHocasi: 'TUNAHAN TAŞKIN',
+          dahiliHoca: 'TUNAHAN TAŞKIN',
+          yatakhane: 'Oda 405',
+          fatherName: '',
+          fatherPhone: '',
+          motherName: '',
+          motherPhone: '',
+          familyCode: 'CHOLAK2026',
+          password: '123',
+          isPassive: false,
+          status: 'active',
+          updatedAt: nowIso
+        };
+        students.push(newStudent);
+        studentsChanged = true;
+      } else {
+        // Mevcut kaydı varsa kullanıcının belirlediği sınıf ve hocayı ASLA ezme, sadece eksik alanları tamamla
+        let updated = false;
+        if (!existing.className) { existing.className = '8-B'; updated = true; }
+        if (!existing.etutHocasi) { existing.etutHocasi = 'TUNAHAN TAŞKIN'; updated = true; }
+        if (!existing.dahiliHoca || existing.dahiliHoca === '-' || existing.dahiliHoca === 'Genel') {
+          existing.dahiliHoca = 'TUNAHAN TAŞKIN';
+          updated = true;
+        }
+        if (existing.isPassive === true || existing.status !== 'active') {
+          existing.isPassive = false;
+          existing.status = 'active';
+          updated = true;
+        }
+        if (!existing.familyCode) { existing.familyCode = 'CHOLAK2026'; updated = true; }
+        if (!existing.password) { existing.password = '123'; updated = true; }
+        if (updated) {
+          existing.updatedAt = nowIso;
+          studentsChanged = true;
+        }
+      }
+
+      if (studentsChanged) {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+        this.markStudentLocallyEdited(studentId, ['className', 'etutHocasi', 'dahiliHoca']);
+        try {
+          localStorage.setItem('yoklama_students_backup_v1', JSON.stringify(students));
+          localStorage.setItem('yoklama_students_backup_last', JSON.stringify(students));
+        } catch (e) {}
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/students', students);
+        }
+        try {
+          window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
+        } catch (e) {}
+      }
+    } catch (err) {
+      console.warn('[autoSyncMuhammedCholak] Hata:', err);
+    }
+  }
+
+  // Bilal Chuluk (No: 703, 7-B Sınıfı, Burak Bodur Grubu) Otomatik Garanti Motoru
+  autoSyncBilalChuluk() {
+    try {
+      const studentId = 'std_703';
+      const studentNo = '703';
+      const nowIso = new Date().toISOString();
+
+      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      let students = raw ? JSON.parse(raw) : null;
+      if (!Array.isArray(students) || students.length === 0) {
+        students = [...SEED_STUDENTS];
+      }
+
+      let existing = students.find(s => s && (
+        s.id === studentId || 
+        (s.studentNo && s.studentNo.toString().trim() === studentNo) ||
+        ((s.firstName || '').trim().toUpperCase() === 'BİLAL' && (s.lastName || '').trim().toUpperCase() === 'CHULUK')
+      ));
+
+      let studentsChanged = false;
+
+      if (!existing) {
+        const newStudent = {
+          id: studentId,
+          studentNo: studentNo,
+          firstName: 'BİLAL',
+          lastName: 'CHULUK',
+          className: '7-B',
+          school: 'ABDULHAK HAMİT',
+          seviye: 'Seviye 2',
+          etutHocasi: 'BURAK BODUR',
+          dahiliHoca: 'BURAK BODUR',
+          yatakhane: 'Oda 301',
+          fatherName: '',
+          fatherPhone: '',
+          motherName: '',
+          motherPhone: '',
+          familyCode: 'CHULUK2026',
+          password: '123',
+          isPassive: false,
+          status: 'active',
+          updatedAt: nowIso
+        };
+        students.push(newStudent);
+        studentsChanged = true;
+      } else {
+        let updated = false;
+        // Eğer öğrenci hala eski şubede (7-A) kalmışsa 7-B şubesine ve Burak Bodur grubuna aktar
+        if (existing.className === '7-A' || !existing.className) {
+          existing.className = '7-B';
+          updated = true;
+        }
+        if (!existing.etutHocasi || existing.etutHocasi.includes('EMİR TALHA')) {
+          existing.etutHocasi = 'BURAK BODUR';
+          updated = true;
+        }
+        if (!existing.dahiliHoca || existing.dahiliHoca === '-' || existing.dahiliHoca === 'Genel' || existing.dahiliHoca.includes('EMİR TALHA')) {
+          existing.dahiliHoca = 'BURAK BODUR';
+          updated = true;
+        }
+        if (existing.isPassive === true || existing.status !== 'active') {
+          existing.isPassive = false;
+          existing.status = 'active';
+          updated = true;
+        }
+        if (!existing.familyCode) { existing.familyCode = 'CHULUK2026'; updated = true; }
+        if (!existing.password) { existing.password = '123'; updated = true; }
+        if (updated) {
+          existing.updatedAt = nowIso;
+          studentsChanged = true;
+        }
+      }
+
+      if (studentsChanged) {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+        try {
+          localStorage.setItem('yoklama_students_backup_v1', JSON.stringify(students));
+          localStorage.setItem('yoklama_students_backup_last', JSON.stringify(students));
+        } catch (e) {}
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/students', students);
+        }
+        try {
+          window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
+        } catch (e) {}
+      }
+    } catch (err) {
+      console.warn('[autoSyncBilalChuluk] Hata:', err);
+    }
+  }
+
+  // 7. Sınıf Hoca ve Şube Uyumlaştırması (7-A: Emir Talha Tarım, 7-B: Burak Bodur)
+  autoSync7thGradeClassTeachers() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      let students = raw ? JSON.parse(raw) : null;
+      if (!Array.isArray(students) || students.length === 0) return;
+      let changed = false;
+      students = students.map(s => {
+        if (!s) return s;
+        const cls = (s.className || '').trim().toUpperCase();
+        const etut = (s.etutHocasi || '').trim().toUpperCase();
+        if (cls === '7-B' && (etut.includes('EMİR TALHA') || etut.includes('EMIR TALHA') || !etut)) {
+          changed = true;
+          return { ...s, etutHocasi: 'BURAK BODUR' };
+        }
+        return s;
+      });
+      if (changed) {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/students', students);
+        }
+        try {
+          window.dispatchEvent(new CustomEvent('students-updated', { detail: students }));
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.warn('[autoSync7thGradeClassTeachers] Hata:', e);
     }
   }
 
@@ -1057,11 +1148,17 @@ class DataStore {
           const localTs = localSt.updatedAt ? new Date(localSt.updatedAt).getTime() : 0;
           const cloudTs = cloudSt.updatedAt ? new Date(cloudSt.updatedAt).getTime() : 0;
           
-          let preferLocal = true;
-          if (isLocallyEdited) {
-            preferLocal = true;
-          } else if (!isNaN(localTs) && !isNaN(cloudTs)) {
-            preferLocal = localTs >= cloudTs;
+          // Akıllı Senkronizasyon Kuralı:
+          // 1. Eğitmen ve personel cihazlarında DAİMA buluttan gelen en güncel yönetici verisi esastır.
+          // 2. Yönetici cihazında ise yalnızca yerel düzenleme zaman damgası buluttan daha YENİ ise yerel tercih edilir.
+          // 3. Buluttan yeni bir sınıf, şube veya hoca güncellemesi geldiyse (cloudTs >= localTs) bulut kesinlikle kazanır.
+          let preferLocal = false;
+          if (this.isCurrentUserAdmin()) {
+            if (isLocallyEdited && !isNaN(localTs) && !isNaN(cloudTs) && localTs > cloudTs) {
+              preferLocal = true;
+            } else if (!isNaN(localTs) && !isNaN(cloudTs) && localTs > cloudTs) {
+              preferLocal = true;
+            }
           }
 
           let mergedSt = {
@@ -1072,6 +1169,14 @@ class DataStore {
           };
           delete mergedSt.aktif;
           delete mergedSt.active;
+
+          // Buluttan gelen sınıf, etüt hocası ve dahili hoca güncellemelerini KORU:
+          if (!preferLocal) {
+            if (cloudSt.className) mergedSt.className = cloudSt.className;
+            if (cloudSt.etutHocasi) mergedSt.etutHocasi = cloudSt.etutHocasi;
+            if (cloudSt.dahiliHoca) mergedSt.dahiliHoca = cloudSt.dahiliHoca;
+            if (cloudSt.yatakhane) mergedSt.yatakhane = cloudSt.yatakhane;
+          }
 
           // ASLA BOŞ VERİYLE GERÇEK VERİYİ EZME (Non-Destructive Field Protection):
           // Yerelde dolu olan telefon, veli şifresi, oda, veli adı gibi özel alanlar buluttan gelen boşlukla asla silinemez!
@@ -1115,18 +1220,6 @@ class DataStore {
             }
           }
 
-          // 8. Sınıf Kesin Dağılım Koruması (Buluttan eski 8-A / 8-B şubeleri gelse bile doğru hoca ve şube korunur)
-          const no8 = parseInt(mergedSt.studentNo, 10);
-          const c8ANos = [814, 815, 822, 806, 819, 820, 802, 808, 811];
-          const c8BNos = [801, 805, 816, 810, 809, 821, 807, 813, 818];
-          if (c8ANos.includes(no8)) {
-            mergedSt.className = '8-A';
-            mergedSt.etutHocasi = 'YAVUZ SELİM SEVEN';
-          } else if (c8BNos.includes(no8)) {
-            mergedSt.className = '8-B';
-            mergedSt.etutHocasi = 'TUNAHAN TAŞKIN';
-          }
-
           return mergedSt;
         }
 
@@ -1141,18 +1234,6 @@ class DataStore {
         if (!curDahiliSingle || curDahiliSingle === 'Genel' || curDahiliSingle.startsWith('Seviye')) {
           const seed = SEED_STUDENTS.find(s => s.id === singleSt.id || s.studentNo === singleSt.studentNo);
           if (seed && seed.dahiliHoca) singleSt.dahiliHoca = seed.dahiliHoca;
-        }
-
-        // 8. Sınıf Kesin Dağılım Koruması (Tekil bulut öğrencisi için)
-        const no8s = parseInt(singleSt.studentNo, 10);
-        const c8ANos = [814, 815, 822, 806, 819, 820, 802, 808, 811];
-        const c8BNos = [801, 805, 816, 810, 809, 821, 807, 813, 818];
-        if (c8ANos.includes(no8s)) {
-          singleSt.className = '8-A';
-          singleSt.etutHocasi = 'YAVUZ SELİM SEVEN';
-        } else if (c8BNos.includes(no8s)) {
-          singleSt.className = '8-B';
-          singleSt.etutHocasi = 'TUNAHAN TAŞKIN';
         }
 
         return singleSt;
@@ -1177,6 +1258,9 @@ class DataStore {
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(finalCleanList));
       localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
       localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
+      try {
+        window.dispatchEvent(new CustomEvent('students-updated', { detail: finalCleanList }));
+      } catch (e) {}
     }
 
     // 5. Hoca listesi
@@ -1196,7 +1280,22 @@ class DataStore {
       const mergedCleared = { ...localCleared };
       Object.keys(cloudData.penaltiesCleared).forEach(wKey => {
         if (!mergedCleared[wKey]) mergedCleared[wKey] = {};
-        Object.assign(mergedCleared[wKey], cloudData.penaltiesCleared[wKey]);
+        const cloudWeek = cloudData.penaltiesCleared[wKey];
+        if (cloudWeek && typeof cloudWeek === 'object') {
+          Object.keys(cloudWeek).forEach(stKey => {
+            const cloudRec = cloudWeek[stKey];
+            const localRec = mergedCleared[wKey][stKey];
+            if (!localRec) {
+              mergedCleared[wKey][stKey] = cloudRec;
+            } else {
+              const cTime = new Date((cloudRec && (cloudRec.updatedAt || cloudRec.cancelledAt || cloudRec.clearedAt)) || 0).getTime();
+              const lTime = new Date((localRec && (localRec.updatedAt || localRec.cancelledAt || localRec.clearedAt)) || 0).getTime();
+              if (cTime >= lTime) {
+                mergedCleared[wKey][stKey] = cloudRec;
+              }
+            }
+          });
+        }
       });
       localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(mergedCleared));
       window.dispatchEvent(new CustomEvent('penalty-cleared-updated', { detail: mergedCleared }));
@@ -1392,35 +1491,35 @@ class DataStore {
         const localRec = mergedQuran[stId];
         if (!cloudRec) return;
 
-        const cloudIsReal = (Number(cloudRec.currentPage) > 1) || (Number(cloudRec.hatimCount) > 0) || (Array.isArray(cloudRec.history) && cloudRec.history.length > 0);
-        const localIsReal = localRec && ((Number(localRec.currentPage) > 1) || (Number(localRec.hatimCount) > 0) || (Array.isArray(localRec.history) && localRec.history.length > 0));
+        const cloudTime = cloudRec.updatedAt ? new Date(cloudRec.updatedAt).getTime() : 0;
+        const localTime = localRec && localRec.updatedAt ? new Date(localRec.updatedAt).getTime() : 0;
+        const lastResetTime = localStorage.getItem('yoklama_quran_last_reset_time');
+        const resetTimestamp = lastResetTime ? new Date(lastResetTime).getTime() : 0;
 
-        if (cloudIsReal && !localIsReal) {
-          // Bulutta gerçek veri var, yerelde yok/1 -> Buluttaki gerçek veriyi al
-          mergedQuran[stId] = { ...cloudRec };
-        } else if (localIsReal && !cloudIsReal) {
-          // Yerelde gerçek okuma verisi var, bulutta sadece boş 1 var -> YEREL KORUNUR! Bulutun 1'i yereli ASLA EZEMEZ!
+        // Sıfırlama Kalkanı: Yerel kayıt sıfırlama anından sonraysa ve bulut eski kalmışsa bulut verisi alınmaz
+        if (resetTimestamp > 0 && cloudTime < resetTimestamp && localTime >= resetTimestamp) {
           localHasHigherData = true;
-        } else if (localIsReal && cloudIsReal) {
-          // Her ikisinde de veri varsa: Daha ilerideki sayfayı veya en yeni kaydı al
-          const cPage = Number(cloudRec.currentPage) || 0;
-          const lPage = Number(localRec.currentPage) || 0;
-          const cHatim = Number(cloudRec.hatimCount) || 0;
-          const lHatim = Number(localRec.hatimCount) || 0;
-          const cTotal = cHatim * 604 + cPage;
-          const lTotal = lHatim * 604 + lPage;
-
-          if (cTotal > lTotal) {
+        } else if (cloudTime > localTime) {
+          mergedQuran[stId] = { ...cloudRec };
+        } else if (localTime > cloudTime) {
+          localHasHigherData = true;
+        } else {
+          // Zaman damgaları eşit veya tanımlı değilse
+          if (!localRec) {
             mergedQuran[stId] = { ...cloudRec };
-          } else if (lTotal > cTotal) {
-            localHasHigherData = true;
           } else {
-            if (cloudRec.updatedAt && (!localRec.updatedAt || new Date(cloudRec.updatedAt) >= new Date(localRec.updatedAt))) {
+            const cPage = Number(cloudRec.currentPage) || 0;
+            const lPage = Number(localRec.currentPage) || 0;
+            const cHatim = Number(cloudRec.hatimCount) || 0;
+            const lHatim = Number(localRec.hatimCount) || 0;
+            const cTotal = cHatim * 604 + cPage;
+            const lTotal = lHatim * 604 + lPage;
+            if (cTotal > lTotal) {
               mergedQuran[stId] = { ...cloudRec };
+            } else if (lTotal > cTotal) {
+              localHasHigherData = true;
             }
           }
-        } else {
-          if (!localRec) mergedQuran[stId] = { ...cloudRec };
         }
 
         // Buluttan gelen kayıtta diniGrup bozuksa veya 'Seviye'/'Genel' ise öğrencinin dahiliHoca'sı ile düzelt
@@ -1531,6 +1630,7 @@ class DataStore {
               if (studentsArr && studentsArr.length > 0) {
                 this.applyFullCloudSync({ students: studentsArr });
                 window.dispatchEvent(new CustomEvent('students-cloud-updated', { detail: studentsArr }));
+                window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: { students: studentsArr } }));
               }
             }
           } else if (path.startsWith('attendance')) {
@@ -1617,6 +1717,9 @@ class DataStore {
       const all = this.getAllQuranRecords();
       let hasChange = false;
 
+      const lastResetTime = localStorage.getItem('yoklama_quran_last_reset_time');
+      const resetTimestamp = lastResetTime ? new Date(lastResetTime).getTime() : 0;
+
       if (parts.length === 2) {
         const studentId = parts[1];
         if (data === null) {
@@ -1624,10 +1727,12 @@ class DataStore {
           hasChange = true;
         } else {
           const existing = all[studentId];
-          const incomingIsReal = (Number(data.currentPage) > 1) || (Number(data.hatimCount) > 0) || (Array.isArray(data.history) && data.history.length > 0);
-          const existingIsReal = existing && ((Number(existing.currentPage) > 1) || (Number(existing.hatimCount) > 0) || (Array.isArray(existing.history) && existing.history.length > 0));
+          const incTime = data && data.updatedAt ? new Date(data.updatedAt).getTime() : 0;
+          const extTime = existing && existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
 
-          if (incomingIsReal || !existingIsReal) {
+          if (resetTimestamp > 0 && incTime < resetTimestamp && extTime >= resetTimestamp) {
+            // Gelen veri son sıfırlama anından daha eski ise reddet
+          } else if (!existing || incTime >= extTime) {
             all[studentId] = data;
             hasChange = true;
           }
@@ -1638,10 +1743,15 @@ class DataStore {
           const ext = all[stId];
           if (!inc) return;
 
-          const incIsReal = (Number(inc.currentPage) > 1) || (Number(inc.hatimCount) > 0) || (Array.isArray(inc.history) && inc.history.length > 0);
-          const extIsReal = ext && ((Number(ext.currentPage) > 1) || (Number(ext.hatimCount) > 0) || (Array.isArray(ext.history) && ext.history.length > 0));
+          const incTime = inc.updatedAt ? new Date(inc.updatedAt).getTime() : 0;
+          const extTime = ext && ext.updatedAt ? new Date(ext.updatedAt).getTime() : 0;
 
-          if (incIsReal || !extIsReal) {
+          if (resetTimestamp > 0 && incTime < resetTimestamp && extTime >= resetTimestamp) {
+            // Son sıfırlamadan önceki eski veriler kabul edilmez
+            return;
+          }
+
+          if (!ext || incTime >= extTime) {
             all[stId] = inc;
             hasChange = true;
           }
@@ -2048,6 +2158,7 @@ class DataStore {
 
   markStudentLocallyEdited(studentId, fields = []) {
     if (!studentId) return;
+    if (!this.isCurrentUserAdmin()) return; // Eğitmen cihazları asla yerel kalkan oluşturamaz
     const map = this.getLocallyEditedStudents();
     map[studentId] = {
       updatedAt: new Date().toISOString(),
@@ -2059,8 +2170,80 @@ class DataStore {
 
   isStudentLocallyEdited(studentId) {
     if (!studentId) return false;
+    if (!this.isCurrentUserAdmin()) return false; // Eğitmen cihazları yerel kalkan taşımaz, daima bulutu esas alır
     const map = this.getLocallyEditedStudents();
     return !!map[studentId];
+  }
+
+  // --- İki Talebeyi Kademeli Olarak Karşılaştırma Motoru (5-A ➔ 8-B, Şube, No & İsim) ---
+  compareStudents(a, b) {
+    if (!a && !b) return 0;
+    if (!a) return 1;
+    if (!b) return -1;
+
+    const parseClass = (cls) => {
+      if (!cls) return { grade: 999, branch: 'ZZZ', raw: 'ZZZ' };
+      const raw = cls.toString().trim().toUpperCase();
+
+      // 1. Sınıf Seviyesini (5, 6, 7, 8...) bul
+      const numMatch = raw.match(/\b(\d+)\b/) || raw.match(/(\d+)/);
+      const grade = numMatch ? parseInt(numMatch[1], 10) : 999;
+
+      // 2. Şube Harfini (A, B, C...) bul
+      let branch = '';
+      const branchMatch = raw.match(/(?:SINIF|\d)[\s\.\-\/]*([A-ZÇĞİÖŞÜ])\b/) ||
+                          raw.match(/[\-\/\s]([A-ZÇĞİÖŞÜ])\b/) ||
+                          raw.match(/^(\d+)([A-ZÇĞİÖŞÜ])$/);
+      if (branchMatch) {
+        const candidate = (branchMatch[2] || branchMatch[1] || '').trim();
+        if (candidate && candidate !== 'S') {
+          branch = candidate;
+        }
+      }
+      return { grade, branch, raw };
+    };
+
+    const cA = parseClass(a.className);
+    const cB = parseClass(b.className);
+
+    // 1. Sınıf seviyesi (5 < 6 < 7 < 8)
+    if (cA.grade !== cB.grade) {
+      return cA.grade - cB.grade;
+    }
+
+    // 2. Şube harfi (A < B < C)
+    if (cA.branch !== cB.branch) {
+      return cA.branch.localeCompare(cB.branch, 'tr', { sensitivity: 'base' });
+    }
+
+    // 3. Ham sınıf metni farkı (varsa)
+    if (cA.raw !== cB.raw) {
+      const cmpRaw = cA.raw.localeCompare(cB.raw, 'tr', { numeric: true });
+      if (cmpRaw !== 0) return cmpRaw;
+    }
+
+    // 4. Okul Numarası (küçükten büyüğe)
+    const noA = parseInt(a.studentNo, 10);
+    const noB = parseInt(b.studentNo, 10);
+    const hasNoA = !isNaN(noA) && noA > 0;
+    const hasNoB = !isNaN(noB) && noB > 0;
+
+    if (hasNoA && hasNoB && noA !== noB) {
+      return noA - noB;
+    }
+    if (hasNoA && !hasNoB) return -1;
+    if (!hasNoA && hasNoB) return 1;
+
+    // 5. İsim Soyisim (Alfabetik Türkçe)
+    const nameA = `${(a.firstName || '').trim()} ${(a.lastName || '').trim()}`.trim();
+    const nameB = `${(b.firstName || '').trim()} ${(b.lastName || '').trim()}`.trim();
+    return nameA.localeCompare(nameB, 'tr', { sensitivity: 'base' });
+  }
+
+  // --- Talebeleri Sınıf ve Şubelerine Göre Sıralama Motoru (5-A ➔ 8-B, Şube içi Okul No & İsim Sırası) ---
+  sortStudentsByClassAndNo(students) {
+    if (!Array.isArray(students)) return [];
+    return [...students].sort((a, b) => this.compareStudents(a, b));
   }
 
   // --- Öğrenci İşlemleri (Aktif & Pasif & Kalıcı Silinme Korumalı) ---
@@ -2092,10 +2275,10 @@ class DataStore {
         delete s.active;
       });
 
-      return list;
+      return this.sortStudentsByClassAndNo(list);
     } catch {
       const deletedMap = this.getDeletedStudentIds();
-      return SEED_STUDENTS.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+      return this.sortStudentsByClassAndNo(SEED_STUDENTS.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted)));
     }
   }
 
@@ -2127,8 +2310,8 @@ class DataStore {
     if (!Array.isArray(students)) return;
     const deletedMap = this.getDeletedStudentIds();
 
-    // Silinmiş sicilinde olan öğrencileri ASLA tekrar kaydetme!
-    const sanitizedStudents = students.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+    // Silinmiş sicilinde olan öğrencileri ASLA tekrar kaydetme ve sınıf/şube sırasıyla diz
+    const sanitizedStudents = this.sortStudentsByClassAndNo(students.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted)));
     const nowIso = new Date().toISOString();
 
     sanitizedStudents.forEach(s => {
@@ -2138,8 +2321,9 @@ class DataStore {
       s.status = 'active';
       delete s.aktif;
       delete s.active;
-      // Her kaydedilen öğrenciyi yerel düzenleme kalkanına kaydet (Bulutun ezmesini önler)
-      this.markStudentLocallyEdited(s.id, ['ALL']);
+      if (this.isCurrentUserAdmin()) {
+        this.markStudentLocallyEdited(s.id, ['ALL']);
+      }
     });
 
     localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
@@ -2429,6 +2613,29 @@ class DataStore {
         familyCode: ((updatedData.familyCode !== undefined ? updatedData.familyCode : students[index].familyCode) || '').trim().toUpperCase(),
         updatedAt: new Date().toISOString()
       };
+
+      // Sınıf değiştirildiğinde etüt hocasını standart şube hocası ile otomatik uyumlaştır
+      if (updatedData.className !== undefined && updatedData.etutHocasi === undefined) {
+        const CLASS_TEACHER_DEFAULTS = {
+          '5-A': 'YASİN EKİNCİ',
+          '5-B': 'AHMED MUBARİZ',
+          '6-A': 'ABDUSSAMED TAV',
+          '6-B': 'ABDUSSAMED TAV',
+          '7-A': 'EMİR TALHA TARIM',
+          '7-B': 'BURAK BODUR',
+          '8-A': 'YAVUZ SELİM SEVEN',
+          '8-B': 'TUNAHAN TAŞKIN'
+        };
+        const newClass = (updatedData.className || '').trim().toUpperCase();
+        const oldClass = (students[index].className || '').trim().toUpperCase();
+        if (newClass && CLASS_TEACHER_DEFAULTS[newClass]) {
+          const oldExpected = CLASS_TEACHER_DEFAULTS[oldClass];
+          const curEtut = (students[index].etutHocasi || '').trim().toUpperCase();
+          if (!curEtut || (oldExpected && curEtut.includes(oldExpected.split(' ')[0]))) {
+            students[index].etutHocasi = CLASS_TEACHER_DEFAULTS[newClass];
+          }
+        }
+      }
       delete students[index].aktif;
       delete students[index].active;
       this.saveStudents(students);
@@ -2756,13 +2963,21 @@ class DataStore {
       if (!st) return false;
       const sEtut = (st.etutHocasi || '').trim().toUpperCase();
       const normEtut = this.normalizeSearchKey(sEtut);
+      const sDahili = (st.dahiliHoca || '').trim().toUpperCase();
+      const normDahili = this.normalizeSearchKey(sDahili);
       const sClass = (st.className || '').trim().toUpperCase();
 
-      // 1. İsim eşleşmesi (etutHocasi)
-      if (normEtut && normStaffName && (normEtut === normStaffName || normEtut.includes(normStaffName) || normStaffName.includes(normEtut))) {
+      // 1. İsim eşleşmesi (etutHocasi veya dahiliHoca)
+      if (normStaffName && (normEtut === normStaffName || normEtut.includes(normStaffName) || normStaffName.includes(normEtut))) {
+        return true;
+      }
+      if (normStaffName && (normDahili === normStaffName || normDahili.includes(normStaffName) || normStaffName.includes(normDahili))) {
         return true;
       }
       if (staffName && sEtut && (sEtut === staffName || sEtut.includes(staffName) || staffName.includes(sEtut))) {
+        return true;
+      }
+      if (staffName && sDahili && (sDahili === staffName || sDahili.includes(staffName) || staffName.includes(sDahili))) {
         return true;
       }
 
@@ -2791,12 +3006,20 @@ class DataStore {
 
     const sEtut = (student.etutHocasi || '').trim().toUpperCase();
     const normEtut = this.normalizeSearchKey(sEtut);
+    const sDahili = (student.dahiliHoca || '').trim().toUpperCase();
+    const normDahili = this.normalizeSearchKey(sDahili);
     const sClass = (student.className || '').trim().toUpperCase();
 
-    if (normEtut && normStaffName && (normEtut === normStaffName || normEtut.includes(normStaffName) || normStaffName.includes(normEtut))) {
+    if (normStaffName && (normEtut === normStaffName || normEtut.includes(normStaffName) || normStaffName.includes(normEtut))) {
+      return true;
+    }
+    if (normStaffName && (normDahili === normStaffName || normDahili.includes(normStaffName) || normStaffName.includes(normDahili))) {
       return true;
     }
     if (staffName && sEtut && (sEtut === staffName || sEtut.includes(staffName) || staffName.includes(sEtut))) {
+      return true;
+    }
+    if (staffName && sDahili && (sDahili === staffName || sDahili.includes(staffName) || staffName.includes(sDahili))) {
       return true;
     }
     if (sClass && staffRole && staffRole.includes(sClass)) {
@@ -3908,55 +4131,72 @@ class DataStore {
   getPenaltyClearedInfo(weekKey, studentIdOrObj) {
     if (!studentIdOrObj) return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
     const stId = (typeof studentIdOrObj === 'object' && studentIdOrObj) ? (studentIdOrObj.id || studentIdOrObj.studentNo) : studentIdOrObj;
-    const stNo = (typeof studentIdOrObj === 'object' && studentIdOrObj) ? (studentIdOrObj.studentNo || null) : null;
+    const stObj = (typeof studentIdOrObj === 'object' && studentIdOrObj) ? studentIdOrObj : (this.getStudentById ? this.getStudentById(stId) : null);
+    const stNo = stObj ? (stObj.studentNo || null) : null;
     const all = this.getAllClearedPenalties();
     if (!all || typeof all !== 'object') return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
 
     // 1. Verilen weekKey altında doğrudan kontrol
     if (weekKey && all[weekKey] && typeof all[weekKey] === 'object') {
       const entry = all[weekKey][stId] ?? (stNo ? all[weekKey][stNo] : null);
-      if (entry === true) {
-        return { cleared: true, waivedMinutes: 99999, isFullyCleared: true, isPartiallyCleared: false, note: 'Telafisini tamamladı' };
-      }
-      if (entry && typeof entry === 'object') {
-        const waived = Number(entry.waivedMinutes) || 0;
-        const cleared = entry.cleared === true;
-        if (cleared) {
-          return { cleared: true, waivedMinutes: waived || 99999, isFullyCleared: true, isPartiallyCleared: false, note: entry.note || '', clearedAt: entry.clearedAt };
-        }
-        if (waived > 0) {
-          return { cleared: false, waivedMinutes: waived, isFullyCleared: false, isPartiallyCleared: true, note: entry.note || '', clearedAt: entry.clearedAt };
-        }
-      }
-      if (entry === false) return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
-    }
-
-    // 2. Hafta anahtarı toleransı (Pazar vs Pazartesi başlangıcı veya son 8 gün içindeki affetmeler)
-    const targetDate = weekKey ? weekKey.replace('week_', '') : null;
-    const targetTime = targetDate ? new Date(targetDate).getTime() : Date.now();
-
-    for (const [wKey, weekEntries] of Object.entries(all)) {
-      if (!weekEntries || typeof weekEntries !== 'object') continue;
-      const entry = weekEntries[stId] ?? (stNo ? weekEntries[stNo] : null);
-      if (!entry) continue;
-
-      const wDate = wKey.replace('week_', '');
-      const wTime = new Date(wDate).getTime();
-      const isDateClose = !isNaN(wTime) && Math.abs(targetTime - wTime) <= 8 * 24 * 60 * 60 * 1000;
-      const isRecent = entry.clearedAt && !isNaN(new Date(entry.clearedAt).getTime()) && (Date.now() - new Date(entry.clearedAt).getTime()) <= 7 * 24 * 60 * 60 * 1000;
-
-      if (isDateClose || isRecent) {
+      if (entry !== undefined && entry !== null) {
         if (entry === true) {
           return { cleared: true, waivedMinutes: 99999, isFullyCleared: true, isPartiallyCleared: false, note: 'Telafisini tamamladı' };
         }
+        if (entry === false) {
+          return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
+        }
         if (typeof entry === 'object') {
+          // İptal edilmiş mi kontrolü (Tombstone koruması)
+          if (entry.isCancelled === true || (entry.cleared === false && (Number(entry.waivedMinutes) || 0) <= 0)) {
+            return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
+          }
           const waived = Number(entry.waivedMinutes) || 0;
-          const cleared = entry.cleared === true;
+          const cleared = (entry.cleared === true || entry.isFullyCleared === true);
           if (cleared) {
             return { cleared: true, waivedMinutes: waived || 99999, isFullyCleared: true, isPartiallyCleared: false, note: entry.note || '', clearedAt: entry.clearedAt };
           }
           if (waived > 0) {
             return { cleared: false, waivedMinutes: waived, isFullyCleared: false, isPartiallyCleared: true, note: entry.note || '', clearedAt: entry.clearedAt };
+          }
+        }
+        return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
+      }
+    }
+
+    // 2. Hafta anahtarı toleransı: Sadece bu haftaya çok yakın (±3 gün) olan anahtarlara bak
+    const targetDate = weekKey ? weekKey.replace('week_', '') : null;
+    const targetTime = targetDate ? new Date(targetDate).getTime() : NaN;
+
+    if (!isNaN(targetTime)) {
+      for (const [wKey, weekEntries] of Object.entries(all)) {
+        if (wKey === weekKey || !weekEntries || typeof weekEntries !== 'object') continue;
+        const entry = weekEntries[stId] ?? (stNo ? weekEntries[stNo] : null);
+        if (entry === undefined || entry === null) continue;
+
+        const wDate = wKey.replace('week_', '');
+        const wTime = new Date(wDate).getTime();
+        const isDateClose = !isNaN(wTime) && Math.abs(targetTime - wTime) <= 3 * 24 * 60 * 60 * 1000;
+
+        if (isDateClose) {
+          if (entry === true) {
+            return { cleared: true, waivedMinutes: 99999, isFullyCleared: true, isPartiallyCleared: false, note: 'Telafisini tamamladı' };
+          }
+          if (entry === false) {
+            return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
+          }
+          if (typeof entry === 'object') {
+            if (entry.isCancelled === true || (entry.cleared === false && (Number(entry.waivedMinutes) || 0) <= 0)) {
+              return { cleared: false, waivedMinutes: 0, isFullyCleared: false, isPartiallyCleared: false, note: '' };
+            }
+            const waived = Number(entry.waivedMinutes) || 0;
+            const cleared = (entry.cleared === true || entry.isFullyCleared === true);
+            if (cleared) {
+              return { cleared: true, waivedMinutes: waived || 99999, isFullyCleared: true, isPartiallyCleared: false, note: entry.note || '', clearedAt: entry.clearedAt };
+            }
+            if (waived > 0) {
+              return { cleared: false, waivedMinutes: waived, isFullyCleared: false, isPartiallyCleared: true, note: entry.note || '', clearedAt: entry.clearedAt };
+            }
           }
         }
       }
@@ -3970,55 +4210,181 @@ class DataStore {
     return info.isFullyCleared;
   }
 
-  setPartialPenaltyWaiver(weekKey, studentId, waivedMinutes, note = '') {
+  setFullPenaltyWaiver(weekKey, studentIdOrObj, note = 'Tam Af') {
     try {
+      if (!studentIdOrObj) return null;
+      const stId = (typeof studentIdOrObj === 'object') ? (studentIdOrObj.id || studentIdOrObj.studentNo) : studentIdOrObj;
+      const stObj = this.getStudentById ? this.getStudentById(stId) : null;
+      const stNo = stObj ? stObj.studentNo : null;
+
       const all = this.getAllClearedPenalties();
       if (!all[weekKey]) all[weekKey] = {};
-      const mins = Math.max(0, parseInt(waivedMinutes, 10) || 0);
 
-      // Öğrencinin ham ceza dakikasını al
-      const weekDates = this.getWeekRange(weekKey.replace('week_', '')).dates;
-      const rep = this.getLeaveReportForStudent(studentId, weekDates);
-      const rawPenalty = rep.rawPenaltyMinutes || rep.penaltyMinutes || 0;
-
-      const isFull = (mins >= rawPenalty && rawPenalty > 0);
-
-      all[weekKey][studentId] = {
-        cleared: isFull,
-        waivedMinutes: mins,
-        clearedAt: new Date().toISOString(),
-        note: note || (isFull ? 'Telafisinin tamamı affedildi' : `${mins} dk kısmi af uygulandı`)
+      const nowIso = new Date().toISOString();
+      const waiverRecord = {
+        cleared: true,
+        isFullyCleared: true,
+        isPartiallyCleared: false,
+        waivedMinutes: 99999,
+        clearedAt: nowIso,
+        updatedAt: nowIso,
+        note: note || 'Tam af uygulandı',
+        isCancelled: false
       };
+
+      all[weekKey][stId] = waiverRecord;
+      if (stNo && stNo !== stId) {
+        delete all[weekKey][stNo];
+      }
+
+      // Eşdeğer hafta anahtarlarını (±3 gün) senkronize et
+      const targetDate = weekKey.replace('week_', '');
+      const targetTime = new Date(targetDate).getTime();
+      if (!isNaN(targetTime)) {
+        Object.keys(all).forEach(wk => {
+          if (wk === weekKey) return;
+          const wTime = new Date(wk.replace('week_', '')).getTime();
+          if (!isNaN(wTime) && Math.abs(targetTime - wTime) <= 3 * 24 * 60 * 60 * 1000) {
+            all[wk][stId] = waiverRecord;
+            if (stNo && stNo !== stId) delete all[wk][stNo];
+          }
+        });
+      }
 
       localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(all));
       if (this.isCloudEnabled()) {
         this.syncToCloud('kurs_data/penaltiesCleared', all);
       }
       window.dispatchEvent(new CustomEvent('penalty-cleared-updated', { 
-        detail: { weekKey, studentId, cleared: isFull, waivedMinutes: mins } 
+        detail: { weekKey, studentId: stId, cleared: true, waivedMinutes: 99999 } 
       }));
-      return all[weekKey][studentId];
+      return waiverRecord;
+    } catch (e) {
+      console.error('setFullPenaltyWaiver error:', e);
+      return null;
+    }
+  }
+
+  setPartialPenaltyWaiver(weekKey, studentIdOrObj, waivedMinutes, note = '') {
+    try {
+      if (!studentIdOrObj) return null;
+      const stId = (typeof studentIdOrObj === 'object') ? (studentIdOrObj.id || studentIdOrObj.studentNo) : studentIdOrObj;
+      const stObj = this.getStudentById ? this.getStudentById(stId) : null;
+      const stNo = stObj ? stObj.studentNo : null;
+
+      const isNoteFull = typeof note === 'string' && (note.toLowerCase().includes('tam af') || note.toLowerCase().includes('tüm telafi'));
+      const isParamFull = waivedMinutes === 'ALL' || waivedMinutes === 'full';
+
+      // Öğrencinin ham ceza dakikasını al
+      const weekDates = this.getWeekRange(weekKey.replace('week_', '')).dates;
+      const rep = this.getLeaveReportForStudent(stId, weekDates);
+      const rawPenalty = rep.rawPenaltyMinutes || rep.penaltyMinutes || 0;
+
+      const mins = Math.max(0, parseInt(waivedMinutes, 10) || 0);
+      const isFull = isParamFull || isNoteFull || (rawPenalty > 0 && mins >= rawPenalty) || (rawPenalty === 0 && mins > 0);
+
+      if (isFull) {
+        return this.setFullPenaltyWaiver(weekKey, stId, note || 'Tam Af');
+      }
+
+      const all = this.getAllClearedPenalties();
+      if (!all[weekKey]) all[weekKey] = {};
+
+      const nowIso = new Date().toISOString();
+      const waiverRecord = {
+        cleared: false,
+        isFullyCleared: false,
+        isPartiallyCleared: true,
+        waivedMinutes: mins,
+        clearedAt: nowIso,
+        updatedAt: nowIso,
+        note: note || `${mins} dk kısmi af uygulandı`,
+        isCancelled: false
+      };
+
+      all[weekKey][stId] = waiverRecord;
+      if (stNo && stNo !== stId) {
+        delete all[weekKey][stNo];
+      }
+
+      // Eşdeğer hafta anahtarlarını da senkronize et (±3 gün)
+      const targetDate = weekKey.replace('week_', '');
+      const targetTime = new Date(targetDate).getTime();
+      if (!isNaN(targetTime)) {
+        Object.keys(all).forEach(wk => {
+          if (wk === weekKey) return;
+          const wTime = new Date(wk.replace('week_', '')).getTime();
+          if (!isNaN(wTime) && Math.abs(targetTime - wTime) <= 3 * 24 * 60 * 60 * 1000) {
+            all[wk][stId] = waiverRecord;
+            if (stNo && stNo !== stId) delete all[wk][stNo];
+          }
+        });
+      }
+
+      localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(all));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/penaltiesCleared', all);
+      }
+      window.dispatchEvent(new CustomEvent('penalty-cleared-updated', { 
+        detail: { weekKey, studentId: stId, cleared: false, waivedMinutes: mins } 
+      }));
+      return waiverRecord;
     } catch (e) {
       console.error('setPartialPenaltyWaiver error:', e);
       return null;
     }
   }
 
-  cancelPenaltyWaiver(weekKey, studentId) {
+  cancelPenaltyWaiver(weekKey, studentIdOrObj) {
     try {
+      if (!studentIdOrObj) return false;
+      const stId = (typeof studentIdOrObj === 'object') ? (studentIdOrObj.id || studentIdOrObj.studentNo) : studentIdOrObj;
+      const stObj = this.getStudentById ? this.getStudentById(stId) : null;
+      const stNo = stObj ? stObj.studentNo : null;
+
       const all = this.getAllClearedPenalties();
-      if (all[weekKey] && all[weekKey][studentId]) {
-        delete all[weekKey][studentId];
-        localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(all));
-        if (this.isCloudEnabled()) {
-          this.syncToCloud('kurs_data/penaltiesCleared', all);
-        }
-        window.dispatchEvent(new CustomEvent('penalty-cleared-updated', { 
-          detail: { weekKey, studentId, cleared: false, waivedMinutes: 0 } 
-        }));
-        return true;
+      const nowIso = new Date().toISOString();
+
+      // İptal kaydı (Tombstone): Bulut veya diğer cihazların eski affı geri getirmesini %100 engeller!
+      const cancelRecord = {
+        cleared: false,
+        isFullyCleared: false,
+        isPartiallyCleared: false,
+        waivedMinutes: 0,
+        isCancelled: true,
+        cancelledAt: nowIso,
+        updatedAt: nowIso,
+        note: 'Af iptal edildi (Asıl telafi geçerli)'
+      };
+
+      if (!all[weekKey]) all[weekKey] = {};
+      all[weekKey][stId] = cancelRecord;
+      if (stNo && stNo !== stId) {
+        all[weekKey][stNo] = cancelRecord;
       }
-      return false;
+
+      // Hafta penceresindeki (±6 gün) diğer olası hafta anahtarlarında da iptal kaydını uygula
+      const targetDate = weekKey.replace('week_', '');
+      const targetTime = new Date(targetDate).getTime();
+      if (!isNaN(targetTime)) {
+        Object.keys(all).forEach(wk => {
+          if (wk === weekKey) return;
+          const wTime = new Date(wk.replace('week_', '')).getTime();
+          if (!isNaN(wTime) && Math.abs(targetTime - wTime) <= 6 * 24 * 60 * 60 * 1000) {
+            all[wk][stId] = cancelRecord;
+            if (stNo && stNo !== stId) all[wk][stNo] = cancelRecord;
+          }
+        });
+      }
+
+      localStorage.setItem(STORAGE_KEYS.PENALTY_CLEARED, JSON.stringify(all));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/penaltiesCleared', all);
+      }
+      window.dispatchEvent(new CustomEvent('penalty-cleared-updated', { 
+        detail: { weekKey, studentId: stId, cleared: false, waivedMinutes: 0 } 
+      }));
+      return true;
     } catch (e) {
       console.error('cancelPenaltyWaiver error:', e);
       return false;
@@ -4031,20 +4397,17 @@ class DataStore {
     return all[weekKey] || {};
   }
 
-  togglePenaltyCleared(weekKey, studentId, note = '') {
+  togglePenaltyCleared(weekKey, studentIdOrObj, note = '') {
     try {
-      const info = this.getPenaltyClearedInfo(weekKey, studentId);
+      const info = this.getPenaltyClearedInfo(weekKey, studentIdOrObj);
       
-      // Eğer zaten tam veya kısmi af varsa, affı kaldır (sıfırla)
+      // Eğer zaten tam veya kısmi af varsa, affı iptal et
       if (info.isFullyCleared || info.isPartiallyCleared) {
-        this.cancelPenaltyWaiver(weekKey, studentId);
+        this.cancelPenaltyWaiver(weekKey, studentIdOrObj);
         return false;
       } else {
         // Yoksa doğrudan tam af uygula
-        const weekDates = this.getWeekRange(weekKey.replace('week_', '')).dates;
-        const rep = this.getLeaveReportForStudent(studentId, weekDates);
-        const rawMins = rep.rawPenaltyMinutes || rep.penaltyMinutes || 30;
-        this.setPartialPenaltyWaiver(weekKey, studentId, rawMins, note || 'Telafisini tamamladı (Tam Af)');
+        this.setFullPenaltyWaiver(weekKey, studentIdOrObj, note || 'Tam Af');
         return true;
       }
     } catch (e) {
@@ -4053,15 +4416,12 @@ class DataStore {
     }
   }
 
-  setPenaltyCleared(weekKey, studentId, isCleared = true, note = '') {
+  setPenaltyCleared(weekKey, studentIdOrObj, isCleared = true, note = '') {
     try {
       if (!isCleared) {
-        return this.cancelPenaltyWaiver(weekKey, studentId);
+        return this.cancelPenaltyWaiver(weekKey, studentIdOrObj);
       }
-      const weekDates = this.getWeekRange(weekKey.replace('week_', '')).dates;
-      const rep = this.getLeaveReportForStudent(studentId, weekDates);
-      const rawMins = rep.rawPenaltyMinutes || rep.penaltyMinutes || 30;
-      return !!this.setPartialPenaltyWaiver(weekKey, studentId, rawMins, note || 'Telafisini tamamladı');
+      return !!this.setFullPenaltyWaiver(weekKey, studentIdOrObj, note || 'Telafisini tamamladı (Tam Af)');
     } catch (e) {
       console.error('setPenaltyCleared error:', e);
       return false;
@@ -4259,12 +4619,14 @@ class DataStore {
   addBonusPoint(studentId, points, reason, hocaName = 'Eğitmen', date = new Date().toISOString().split('T')[0]) {
     try {
       const all = this.getAllBonusPoints();
+      const numPts = Number(points);
+      const safePts = isNaN(numPts) ? 10 : numPts;
       const rec = {
         id: 'bonus_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
         studentId,
         date,
-        points: Number(points) || 10,
-        reason: reason || 'Örnek Davranış & Gayret',
+        points: safePts,
+        reason: reason || (safePts < 0 ? 'Kusur & İntizamsızlık' : 'Örnek Davranış & Gayret'),
         hocaName: hocaName || 'Eğitmen',
         createdAt: new Date().toISOString()
       };
@@ -5020,23 +5382,28 @@ class DataStore {
 
       // Eğer ana anahtar boşsa, yedek anahtarları tara ve kurtar
       if (!records || typeof records !== 'object' || Object.keys(records).length === 0) {
-        const backupKeys = [
-          'yoklama_quran_tracker_backup_v1',
-          'yoklama_quran_tracker',
-          'quran_tracker',
-          'yoklama_quran_backup'
-        ];
-        for (const bKey of backupKeys) {
-          const bVal = localStorage.getItem(bKey);
-          if (bVal) {
-            try {
-              const bParsed = JSON.parse(bVal);
-              if (bParsed && typeof bParsed === 'object' && Object.keys(bParsed).length > 0) {
-                console.log(`[QuranRecovery] Yedek anahtardan (${bKey}) Kur'an verileri bulundu ve kurtarıldı!`);
-                records = bParsed;
-                break;
-              }
-            } catch (e) {}
+        const lastResetTime = localStorage.getItem('yoklama_quran_last_reset_time');
+        const resetTimestamp = lastResetTime ? new Date(lastResetTime).getTime() : 0;
+
+        if (!resetTimestamp) {
+          const backupKeys = [
+            'yoklama_quran_tracker_backup_v1',
+            'yoklama_quran_tracker',
+            'quran_tracker',
+            'yoklama_quran_backup'
+          ];
+          for (const bKey of backupKeys) {
+            const bVal = localStorage.getItem(bKey);
+            if (bVal) {
+              try {
+                const bParsed = JSON.parse(bVal);
+                if (bParsed && typeof bParsed === 'object' && Object.keys(bParsed).length > 0) {
+                  console.log(`[QuranRecovery] Yedek anahtardan (${bKey}) Kur'an verileri bulundu ve kurtarıldı!`);
+                  records = bParsed;
+                  break;
+                }
+              } catch (e) {}
+            }
           }
         }
       }
@@ -5065,21 +5432,6 @@ class DataStore {
           };
           changed = true;
         } else {
-          // EĞER talebenin sayfası 1 ama geçmişinde (history) daha yüksek sayfa varsa OTOMATİK KURTAR!
-          const curP = Number(records[s.id].currentPage) || 0;
-          if (curP <= 1 && Array.isArray(records[s.id].history) && records[s.id].history.length > 0) {
-            const historyPages = records[s.id].history.map(h => Number(h.page) || 0).filter(p => p > 1);
-            if (historyPages.length > 0) {
-              const maxHistPage = Math.max(...historyPages);
-              if (maxHistPage > 1) {
-                console.log(`[QuranRecovery] ${s.id} talebesi için geçmişten sayfa kurtarıldı: ${maxHistPage}`);
-                records[s.id].currentPage = maxHistPage;
-                records[s.id].updatedAt = new Date().toISOString();
-                changed = true;
-              }
-            }
-          }
-
           const cur = (records[s.id].diniGrup || '').trim();
           if (!cur || cur === 'Genel' || cur.startsWith('Seviye') || (targetGroup !== 'Genel' && cur !== targetGroup)) {
             records[s.id].diniGrup = targetGroup;
@@ -5171,6 +5523,56 @@ class DataStore {
     } catch (err) {
       console.warn('recoverQuranRecordsFromStorage error:', err);
       return { success: false, recoveredCount: 0, error: err.message };
+    }
+  }
+
+  // Tüm Talebelerin Kur'an Sayfalarını ve Hatimlerini Kalıcı Olarak Sıfırlama
+  resetAllQuranTracker(resetHistory = true) {
+    try {
+      const nowIso = new Date().toISOString();
+      const students = this.getStudents(false);
+      const resetRecords = {};
+
+      students.forEach(s => {
+        if (!s || !s.id) return;
+        const targetGroup = (s.dahiliHoca || '').trim() || 'Genel';
+        resetRecords[s.id] = {
+          studentId: s.id,
+          currentPage: 1,
+          hatimCount: 0,
+          diniGrup: targetGroup,
+          note: '',
+          updatedAt: nowIso,
+          isReset: true,
+          resetAt: nowIso,
+          history: resetHistory ? [] : []
+        };
+      });
+
+      localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(resetRecords));
+      localStorage.setItem('yoklama_quran_last_reset_time', nowIso);
+
+      // Eski diriltici yedek anahtarlarını da sıfırlanmış veriyle güncelle
+      const backupKeys = [
+        'yoklama_quran_tracker_backup_v1',
+        'yoklama_quran_tracker',
+        'quran_tracker',
+        'yoklama_quran_backup'
+      ];
+      backupKeys.forEach(k => {
+        try { localStorage.setItem(k, JSON.stringify(resetRecords)); } catch (e) {}
+      });
+
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/quranTracker', resetRecords);
+        this.syncToCloud('kurs_data/quran_last_reset_time', nowIso);
+      }
+
+      window.dispatchEvent(new CustomEvent('quran-tracker-updated', { detail: resetRecords }));
+      return { success: true, count: Object.keys(resetRecords).length, timestamp: nowIso };
+    } catch (err) {
+      console.error('resetAllQuranTracker error:', err);
+      return { success: false, error: err.message };
     }
   }
 
@@ -5274,7 +5676,7 @@ class DataStore {
         });
       }
 
-      // Geçmişi en fazla 30 kayıtla sınırla
+      // Geçmişi en fazla 30 kayıt tutacak şekilde tut
       if (history.length > 30) history.length = 30;
 
       const updatedRecord = {

@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v10.15 - İzin Dönüşü Zıplama Önleyici ve Stabilite)
-const CACHE_NAME = 'oay-takip-cache-v10.15';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v10.16 - Sol Menü Eksi Kusur Puanı Desteği)
+const CACHE_NAME = 'oay-takip-cache-v10.16';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [
