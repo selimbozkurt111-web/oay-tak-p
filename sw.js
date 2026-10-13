@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v10.18 - Panel Otoritesi & Kesintisiz Canlı Arama)
-const CACHE_NAME = 'oay-takip-cache-v10.18';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v10.29 - Sade ve Temiz Arayüz)
+const CACHE_NAME = 'oay-takip-cache-v10.29';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [
@@ -56,8 +56,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML navigasyonları ve JS dosyaları için DAİMA doğrudan ağa git
-  if (event.request.mode === 'navigate' || url.endsWith('.html') || url.includes('/js/')) {
+  // HTML navigasyonları, JS, JSON ve CSV dosyaları için DAİMA doğrudan ağa git
+  if (event.request.mode === 'navigate' || url.endsWith('.html') || url.includes('/js/') || url.endsWith('.json') || url.endsWith('.csv')) {
     event.respondWith(
       fetch(event.request, { cache: 'no-cache' })
         .then((networkResponse) => {
