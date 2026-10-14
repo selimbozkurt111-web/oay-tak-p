@@ -657,6 +657,12 @@ window.App = {
         ${session.role !== 'parent' ? `
           <div class="flex-shrink-0 ml-auto flex items-center gap-1.5">
             ${(session.role === 'superadmin' || session.canEditStudents) ? `
+              <button type="button" onclick="window.App.exportStudentsToCsv()" 
+                class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm border border-indigo-500 active:scale-95"
+                title="Sistemde düzelttiğiniz tüm talebe ve yatakhane/oda bilgilerini ogrenciler.csv olarak bilgisayarınıza indirir">
+                <span>📤</span>
+                <span>Listeyi İndir (CSV)</span>
+              </button>
               <button onclick="window.App.handleFetchManualDataFile()" 
                 class="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm border border-teal-500 active:scale-95"
                 title="ogrenciler.csv dosyasındaki güncel talebe bilgilerini ve numaralarını doğrudan sisteme çeker">
@@ -2440,6 +2446,60 @@ window.App = {
     reader.readAsText(file);
   },
 
+  // --- Sistemde Kayıtlı Olan Tüm Talebeleri ogrenciler.csv Olarak İndirme (UTF-8 BOM ile %100 Türkçe Uyumlu) ---
+  exportStudentsToCsv() {
+    try {
+      const students = (window.Store && typeof window.Store.getAllStudents === 'function')
+        ? window.Store.getAllStudents()
+        : [];
+      if (!students || students.length === 0) {
+        this.showToast('Sistemde indirilecek öğrenci kaydı bulunamadı.', 'warning');
+        return;
+      }
+
+      // Sıralı liste (5-A -> 8-B)
+      const sorted = (window.Store && typeof window.Store.sortStudentsByClassAndNo === 'function')
+        ? window.Store.sortStudentsByClassAndNo(students)
+        : students;
+
+      const header = 'Okul No;Adı;Soyadı;Sınıfı;Okulu;Seviye;Etüt Hocası;Dahili Hocası;Yatakhane;Veli Telefon;Veli Şifresi;Aile Kodu';
+      const rows = sorted.map(s => {
+        const eff = this.getEffectiveStudentData ? this.getEffectiveStudentData(s) : s;
+        const no = (eff.studentNo || '').toString().trim();
+        const fn = (eff.firstName || '').toString().trim();
+        const ln = (eff.lastName || '').toString().trim();
+        const cls = (eff.className || '').toString().trim();
+        const school = (eff.school || '-').toString().trim();
+        const seviye = (eff.seviye || 'Seviye 1').toString().trim();
+        const etut = (eff.etutHocasi || '').toString().trim();
+        const dahili = (eff.dahiliHoca || '').toString().trim();
+        const yatak = (eff.yatakhane || '').toString().trim();
+        const phone = (eff.parentPhone || eff.fatherPhone || '').toString().trim();
+        const pass = (eff.password || '123').toString().trim();
+        const fam = (eff.familyCode || (ln ? ln + '2026' : 'AILE2026')).toString().trim().toUpperCase();
+
+        return [no, fn, ln, cls, school, seviye, etut, dahili, yatak, phone, pass, fam].join(';');
+      });
+
+      // UTF-8 BOM (\uFEFF) ile birleştir ki Excel ve metin editörlerinde Türkçe harfler asla bozulmasın
+      const csvContent = '\uFEFF' + [header, ...rows].join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'ogrenciler.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      this.showToast(`✓ Sistemdeki ${sorted.length} talebenin güncel bilgileri ogrenciler.csv olarak indirildi!`, 'success');
+    } catch (err) {
+      console.error('CSV Export Error:', err);
+      this.showToast('CSV indirme hatası: ' + err.message, 'error');
+    }
+  },
+
   // --- Manuel Dosyadan (ogrenciler.json veya js/ogrenciler-data.js) Güncel Bilgileri Çekme (Sıfır soru, sıfır sürükle-bırak!) ---
   async handleFetchManualDataFile() {
     this.showToast('Dosyadan güncel talebe bilgileri okunuyor...', 'info');
@@ -2567,11 +2627,17 @@ window.App = {
 
           <div class="flex flex-wrap items-center gap-2">
             ${canEdit ? `
+              <button type="button" onclick="window.App.exportStudentsToCsv()" 
+                class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-indigo-500"
+                title="Sistemde düzelttiğiniz tüm talebe, numara ve yatakhane/oda bilgilerini doğrudan ogrenciler.csv olarak bilgisayarınıza indirir">
+                <span>📤</span>
+                <span>Sistemdeki Listeyi İndir (ogrenciler.csv)</span>
+              </button>
               <button type="button" onclick="window.App.handleFetchManualDataFile()" 
-                class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-teal-500"
+                class="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-teal-500"
                 title="ogrenciler.csv dosyasından güncel talebe bilgilerini ve numaralarını doğrudan sisteme çeker">
                 <span>📥</span>
-                <span>Güncel Bilgileri Çek</span>
+                <span>Dosyadan Çek</span>
               </button>
               <button type="button" onclick="window.App.openStudentModal()" 
                 class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95">
@@ -3097,12 +3163,12 @@ window.App = {
 
     const headers = [
       'Okul No', 'Adı', 'Soyadı', 'Sınıfı', 'Okulu', 'Seviye',
-      'Etüt Hocası', 'Dahili Hocası', 'Yatakhane', 'Veli Adı',
-      'Veli Telefon', 'Veli Giriş Şifresi', 'Ortak Aile Kodu', 'Kayıt Durumu'
+      'Etüt Hocası', 'Dahili Hocası', 'Yatakhane', 'Veli Telefon',
+      'Veli Şifresi', 'Aile Kodu'
     ];
 
     const escapeCsv = (val) => {
-      const s = (val || '').toString().replace(/"/g, '""');
+      const s = (val || '').toString().trim().replace(/"/g, '""');
       return `"${s}"`;
     };
 
@@ -3112,34 +3178,126 @@ window.App = {
     students.forEach(st => {
       const row = [
         st.studentNo || '',
-        st.firstName || '',
-        st.lastName || '',
+        (st.firstName || '').toUpperCase(),
+        (st.lastName || '').toUpperCase(),
         st.className || '',
-        st.school || '',
-        st.seviye || '',
+        st.school || '-',
+        st.seviye || 'Seviye 1',
         st.etutHocasi || '',
         st.dahiliHoca || '',
         st.yatakhane || '',
-        st.fatherName || '',
         st.parentPhone || st.fatherPhone || '',
         st.password || '123',
-        st.familyCode || '',
-        'Aktif'
+        st.familyCode || ''
       ];
       csvContent += row.map(escapeCsv).join(';') + '\r\n';
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    const dateStr = new Date().toISOString().split('T')[0];
     link.href = URL.createObjectURL(blob);
-    link.download = `OAY_Akademi_Ogrenci_Listesi_${dateStr}.csv`;
+    link.download = 'ogrenciler.csv';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
 
-    this.showToast('Öğrenci tablosu Excel (CSV) olarak bilgisayarınıza indirildi!', 'success');
+    this.showToast('ogrenciler.csv başarıyla indirildi!', 'success');
+    this.openExportCsvModal(csvContent);
+  },
+
+  openExportCsvModal(csvContent) {
+    let modal = document.getElementById('export-csv-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'export-csv-modal';
+      modal.className = 'fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in';
+      document.body.appendChild(modal);
+    }
+
+    const rawTextWithoutBom = csvContent.replace(/^\uFEFF/, '');
+
+    modal.innerHTML = `
+      <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="p-5 bg-gradient-to-r from-indigo-700 to-indigo-900 text-white flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">📤</span>
+            <div>
+              <h3 class="font-black text-base sm:text-lg">Talebe Listesi (ogrenciler.csv) Hazırlandı</h3>
+              <p class="text-xs text-indigo-200">Sistemde düzelttiğiniz tüm oda ve talebe bilgileri hazır</p>
+            </div>
+          </div>
+          <button type="button" onclick="window.App.closeExportCsvModal()" 
+            class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-bold text-sm transition">✕</button>
+        </div>
+
+        <div class="p-5 space-y-4 overflow-y-auto">
+          <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-xs text-emerald-900 font-medium">
+            <span class="text-emerald-600 text-base">✅</span>
+            <div>
+              <strong>ogrenciler.csv</strong> dosyanız tarayıcınızın <em>İndirilenler (Downloads)</em> klasörüne indirildi.
+              Türkçe karakterler ve sistemde güncellediğiniz yatakhane / oda numaraları eksiksiz işlenmiştir.
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-bold text-slate-700">Oluşturulan CSV Metni (Önizleme):</label>
+              <button type="button" onclick="window.App.copyCsvToClipboard()" 
+                id="btn-copy-csv-text"
+                class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1 border border-slate-300">
+                <span>📋</span>
+                <span>Panoya Kopyala</span>
+              </button>
+            </div>
+            <textarea id="export-csv-preview-area" readonly rows="8" 
+              class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500">${rawTextWithoutBom}</textarea>
+          </div>
+
+          <div class="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+            <a href="https://github.com/selimbozkurt111-web/oay-tak-p/upload/main" target="_blank" rel="noopener noreferrer"
+              class="px-4 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+              <span>🐱</span>
+              <span>GitHub Yükleme Sayfasına Git ➔</span>
+            </a>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="window.App.exportStudentsToCsv()"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                <span>📥</span>
+                <span>Tekrar İndir</span>
+              </button>
+              <button type="button" onclick="window.App.closeExportCsvModal()"
+                class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition">
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    modal.classList.remove('hidden');
+  },
+
+  closeExportCsvModal() {
+    const modal = document.getElementById('export-csv-modal');
+    if (modal) modal.remove();
+  },
+
+  copyCsvToClipboard() {
+    const area = document.getElementById('export-csv-preview-area');
+    if (!area) return;
+    area.select();
+    navigator.clipboard.writeText(area.value).then(() => {
+      this.showToast('CSV metni panoya kopyalandı!', 'success');
+      const btn = document.getElementById('btn-copy-csv-text');
+      if (btn) btn.innerHTML = '<span>✅</span> <span>Kopyalandı!</span>';
+      setTimeout(() => {
+        if (btn) btn.innerHTML = '<span>📋</span> <span>Panoya Kopyala</span>';
+      }, 2000);
+    }).catch(() => {
+      document.execCommand('copy');
+      this.showToast('CSV metni panoya kopyalandı!', 'success');
+    });
   },
 
   renderStudentExcelView() {
