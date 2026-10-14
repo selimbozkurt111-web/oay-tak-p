@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi • Canlı TV Panosu</title>
   <meta name="description" content="Ömer Avniyel Akademi Canlı TV Bilgi ve Duyuru Panosu">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v10.31 - TÜRKÇE VE İNGİLİZCE HARF UYUMU) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v10.32 - KESİNTİSİZ STABİL SÜRÜM) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20261014_v10.31_TR_EN_COMPAT';
+      var CURRENT_BUILD = '20261014_v10.32_STABLE_OPEN_FIX';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -30,7 +30,8 @@
           localStorage.setItem('oay_pano_build_version', CURRENT_BUILD);
         } catch (e) {}
         setTimeout(function() {
-          window.location.replace(window.location.pathname + '?build=' + CURRENT_BUILD + '&t=' + Date.now());
+          var cleanUrl = (window.location.href || '').split('?')[0].split('#')[0];
+          window.location.replace(cleanUrl + '?build=' + CURRENT_BUILD + '&t=' + Date.now());
         }, 200);
       };
 
@@ -47,9 +48,10 @@
             regs.forEach(function(r) { r.unregister(); });
           });
         }
-        // TV ve Kiosk cihazlarda yeni kodun derhal devreye girmesi için sayfayı tazeleyerek yönlendir
-        if (window.location.search.indexOf(CURRENT_BUILD) === -1) {
-          window.location.replace(window.location.pathname + '?build=' + CURRENT_BUILD + '&t=' + Date.now());
+        // TV ve Kiosk cihazlarda yeni kodun derhal devreye girmesi için (file:// hariç) tazeleyerek yönlendir
+        if (window.location.protocol !== 'file:' && window.location.search.indexOf(CURRENT_BUILD) === -1) {
+          var cleanUrl = (window.location.href || '').split('?')[0].split('#')[0];
+          window.location.replace(cleanUrl + '?build=' + CURRENT_BUILD + '&t=' + Date.now());
         }
       }
     })();
@@ -316,16 +318,16 @@
   <div class="fixed bottom-8 right-3 z-40 opacity-60 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-2.5 py-1 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[10px] font-black shadow-lg flex items-center gap-1 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v10.30)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v10.32)</span>
     </button>
   </div>
 
-  <!-- Hadis Veritabanı, Manuel Talebe Verisi, Store, Leaderboard ve Kur'an Hatim Modülleri (v10.31) -->
-  <script src="js/ogrenciler-data.js?v=10.31"></script>
-  <script src="js/hadisler.js?v=10.31"></script>
-  <script src="js/store.js?v=10.31"></script>
-  <script src="js/leaderboard.js?v=10.31"></script>
-  <script src="js/quran-tracker.js?v=10.31"></script>
+  <!-- Hadis Veritabanı, Manuel Talebe Verisi, Store, Leaderboard ve Kur'an Hatim Modülleri (v10.32) -->
+  <script src="js/ogrenciler-data.js?v=10.32"></script>
+  <script src="js/hadisler.js?v=10.32"></script>
+  <script src="js/store.js?v=10.32"></script>
+  <script src="js/leaderboard.js?v=10.32"></script>
+  <script src="js/quran-tracker.js?v=10.32"></script>
 
   <!-- Pano TV Yönetim Motoru (v7.0 - Kesintisiz Kalp Atışı & Donmayan Sayaç) -->
   <script>

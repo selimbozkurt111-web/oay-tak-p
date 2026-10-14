@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi</title>
   <meta name="description" content="Öğrenci Bilgi ve Takip Portalı">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v10.31 - TÜRKÇE VE İNGİLİZCE HARF UYUMU) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v10.32 - KESİNTİSİZ STABİL ÇALIŞMA) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20261014_v10.31_TR_EN_COMPAT';
+      var CURRENT_BUILD = '20261014_v10.32_STABLE_OPEN_FIX';
       var savedBuild = localStorage.getItem('oay_app_build_version');
 
       // Kullanıcının dilediğinde manuel de tetikleyebileceği evrensel sıfırlama fonksiyonu
@@ -36,11 +36,12 @@
           console.warn('Cache purge error:', e);
         }
         setTimeout(function() {
-          window.location.replace(window.location.pathname + '?build=' + CURRENT_BUILD + '&t=' + Date.now());
+          var cleanUrl = (window.location.href || '').split('?')[0].split('#')[0];
+          window.location.replace(cleanUrl + '?build=' + CURRENT_BUILD + '&t=' + Date.now());
         }, 150);
       };
 
-      // Eski önbellek varsa anında ve sessizce temizleyip en taze sürümü yükle!
+      // Eski önbellek varsa sessizce arka planda temizle (Sayfayı kesintiye uğratmaz)
       if (savedBuild !== CURRENT_BUILD) {
         console.log('[Auto-Purge] Sürüm güncellendi:', savedBuild, '->', CURRENT_BUILD);
         try { localStorage.setItem('oay_app_build_version', CURRENT_BUILD); } catch(e){}
@@ -56,9 +57,6 @@
             });
           }
         } catch(e) {}
-        setTimeout(function() {
-          window.location.replace(window.location.pathname + '?build=' + CURRENT_BUILD + '&t=' + Date.now());
-        }, 150);
       }
     })();
   </script>
@@ -351,31 +349,31 @@
       class="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-slate-900/95 hover:bg-slate-900 text-amber-300 hover:text-amber-200 border-2 border-amber-400 shadow-2xl text-xs font-black backdrop-blur transition-all active:scale-95 cursor-pointer"
       title="Eski önbelleği temizleyip en yeni sistemi zorla yükler">
       <span class="text-sm">🔄</span>
-      <span>Önbelleği Temizle (v10.31)</span>
+      <span>Önbelleği Temizle (v10.32)</span>
     </button>
   </div>
 
-  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v10.31 Sürüm İmzası) -->
-  <script src="js/ogrenciler-data.js?v=10.31"></script>
-  <script src="js/hadisler.js?v=10.31"></script>
-  <script src="js/store.js?v=10.31"></script>
-  <script src="js/attendance.js?v=10.31"></script>
-  <script src="js/leave-tracker.js?v=10.31"></script>
-  <script src="js/leave-return.js?v=10.31"></script>
-  <script src="js/quran-tracker.js?v=10.31"></script>
-  <script src="js/performance.js?v=10.31"></script>
-  <script src="js/omr-scanner.js?v=10.31"></script>
-  <script src="js/test-results.js?v=10.31"></script>
-  <script src="js/mock-exam.js?v=10.31"></script>
-  <script src="js/leaderboard.js?v=10.31"></script>
-  <script src="js/parent-portal.js?v=10.31"></script>
-  <script src="js/app.js?v=10.31"></script>
+  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v10.32 Sürüm İmzası) -->
+  <script src="js/ogrenciler-data.js?v=10.32"></script>
+  <script src="js/hadisler.js?v=10.32"></script>
+  <script src="js/store.js?v=10.32"></script>
+  <script src="js/attendance.js?v=10.32"></script>
+  <script src="js/leave-tracker.js?v=10.32"></script>
+  <script src="js/leave-return.js?v=10.32"></script>
+  <script src="js/quran-tracker.js?v=10.32"></script>
+  <script src="js/performance.js?v=10.32"></script>
+  <script src="js/omr-scanner.js?v=10.32"></script>
+  <script src="js/test-results.js?v=10.32"></script>
+  <script src="js/mock-exam.js?v=10.32"></script>
+  <script src="js/leaderboard.js?v=10.32"></script>
+  <script src="js/parent-portal.js?v=10.32"></script>
+  <script src="js/app.js?v=10.32"></script>
 
   <!-- Service Worker Kaydı (Kısayol ve PWA Hızlı Başlatma) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./sw.js?v=10.31').then(function(reg) {
+        navigator.serviceWorker.register('./sw.js?v=10.32').then(function(reg) {
           if (reg) {
             reg.update();
           }

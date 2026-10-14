@@ -21,24 +21,7 @@ window.App = {
   studentDeletedDrafts: new Set(),
 
   init() {
-    const CURRENT_CODE_BUILD = '20261013_v10.29_CLEAN_UI_GUARANTEED';
-    const savedBuild = localStorage.getItem('oay_app_build_version');
-    if (savedBuild !== CURRENT_CODE_BUILD) {
-      localStorage.setItem('oay_app_build_version', CURRENT_CODE_BUILD);
-      try {
-        if ('caches' in window) {
-          caches.keys().then(names => names.forEach(n => caches.delete(n)));
-        }
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
-        }
-      } catch (e) {}
-      setTimeout(() => {
-        window.location.replace(window.location.pathname + '?build=' + CURRENT_CODE_BUILD + '&t=' + Date.now());
-      }, 100);
-      return;
-    }
-
+    // Sürüm kontrolü ve önbellek temizliği doğrudan index.html tarafından merkezi olarak yönetilir.
     const saved = sessionStorage.getItem('yoklama_active_session') || localStorage.getItem('yoklama_active_session');
     if (saved) {
       try {
@@ -5138,7 +5121,7 @@ window.App = {
       }
     } catch (e) {}
     setTimeout(() => {
-      window.location.replace(window.location.pathname + '?build=20261013_v10.29_CLEAN_UI_GUARANTEED&t=' + Date.now());
+      window.location.reload();
     }, 150);
   }
 };
