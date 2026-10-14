@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi</title>
   <meta name="description" content="Öğrenci Bilgi ve Takip Portalı">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v10.35 - CANLI CSV AKTARIM VE EŞİTLEME) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v10.36 - TEKİL ÖĞRENCİ VE CSV EŞİTLEME) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20261014_v10.35_CSV_EXPORT_SYNC';
+      var CURRENT_BUILD = '20261014_v10.36_DEDUPLICATE_CLEAN';
       var savedBuild = localStorage.getItem('oay_app_build_version');
 
       // Kullanıcının dilediğinde manuel de tetikleyebileceği evrensel sıfırlama fonksiyonu
@@ -437,27 +437,27 @@
     };
   </script>
 
-  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v10.35 Sürüm İmzası) -->
-  <script src="js/ogrenciler-data.js?v=10.35"></script>
-  <script src="js/hadisler.js?v=10.35"></script>
-  <script src="js/store.js?v=10.35"></script>
-  <script src="js/attendance.js?v=10.35"></script>
-  <script src="js/leave-tracker.js?v=10.35"></script>
-  <script src="js/leave-return.js?v=10.35"></script>
-  <script src="js/quran-tracker.js?v=10.35"></script>
-  <script src="js/performance.js?v=10.35"></script>
-  <script src="js/omr-scanner.js?v=10.35"></script>
-  <script src="js/test-results.js?v=10.35"></script>
-  <script src="js/mock-exam.js?v=10.35"></script>
-  <script src="js/leaderboard.js?v=10.35"></script>
-  <script src="js/parent-portal.js?v=10.35"></script>
-  <script src="js/app.js?v=10.35"></script>
+  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v10.36 Sürüm İmzası) -->
+  <script src="js/ogrenciler-data.js?v=10.36"></script>
+  <script src="js/hadisler.js?v=10.36"></script>
+  <script src="js/store.js?v=10.36"></script>
+  <script src="js/attendance.js?v=10.36"></script>
+  <script src="js/leave-tracker.js?v=10.36"></script>
+  <script src="js/leave-return.js?v=10.36"></script>
+  <script src="js/quran-tracker.js?v=10.36"></script>
+  <script src="js/performance.js?v=10.36"></script>
+  <script src="js/omr-scanner.js?v=10.36"></script>
+  <script src="js/test-results.js?v=10.36"></script>
+  <script src="js/mock-exam.js?v=10.36"></script>
+  <script src="js/leaderboard.js?v=10.36"></script>
+  <script src="js/parent-portal.js?v=10.36"></script>
+  <script src="js/app.js?v=10.36"></script>
 
   <!-- Service Worker Kaydı (Kısayol ve PWA Hızlı Başlatma) -->
   <script>
     if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./sw.js?v=10.35').then(function(reg) {
+        navigator.serviceWorker.register('./sw.js?v=10.36').then(function(reg) {
           if (reg) {
             reg.update();
           }

@@ -180,6 +180,9 @@ class DataStore {
     if (!localStorage.getItem(STORAGE_KEYS.INITIALIZED)) {
       this.resetToDefaults();
     }
+    // Mükerrer veya yanlış kayıtları (ARDA YUSUF SAYGI çiftliğini) anında tekilleştir ve ASİL MİRAÇ SOYLU'yu kurtar
+    this.deduplicateStudents(null, true);
+
     // Eksik veya önceki agresif temizlikte silinmiş öğrencileri (515, 516 vb.) otomatik kurtar
     this.autoRecoverMissingBaselineStudents();
 
@@ -288,6 +291,254 @@ class DataStore {
     }
   }
 
+  // İlişkili kayıtları (Yoklama, Kur'an, Performans, Notlar) mükerrer öğrenci kimliğinden asıl öğrenciye aktarma
+  migrateRecordsBetweenStudents(idReplacements) {
+    if (!idReplacements || !(idReplacements instanceof Map) || idReplacements.size === 0) return;
+
+    try {
+      // 1. Yoklama kayıtları
+      const rawAtt = localStorage.getItem(STORAGE_KEYS.ATTENDANCE);
+      if (rawAtt) {
+        let attList = JSON.parse(rawAtt);
+        if (Array.isArray(attList)) {
+          let attChanged = false;
+          attList.forEach(a => {
+            if (a && a.studentId && idReplacements.has(a.studentId)) {
+              a.studentId = idReplacements.get(a.studentId);
+              attChanged = true;
+            }
+          });
+          if (attChanged) {
+            localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(attList));
+          }
+        }
+      }
+
+      // 2. Performans kayıtları
+      const rawPerf = localStorage.getItem(STORAGE_KEYS.PERFORMANCE);
+      if (rawPerf) {
+        let perfList = JSON.parse(rawPerf);
+        if (Array.isArray(perfList)) {
+          let perfChanged = false;
+          perfList.forEach(p => {
+            if (p && p.studentId && idReplacements.has(p.studentId)) {
+              p.studentId = idReplacements.get(p.studentId);
+              perfChanged = true;
+            }
+          });
+          if (perfChanged) {
+            localStorage.setItem(STORAGE_KEYS.PERFORMANCE, JSON.stringify(perfList));
+          }
+        }
+      }
+
+      // 3. Takviye Notları
+      const rawAcad = localStorage.getItem(STORAGE_KEYS.ACADEMIC_SCORES);
+      if (rawAcad) {
+        let acadList = JSON.parse(rawAcad);
+        if (Array.isArray(acadList)) {
+          let acadChanged = false;
+          acadList.forEach(ac => {
+            if (ac && ac.studentId && idReplacements.has(ac.studentId)) {
+              ac.studentId = idReplacements.get(ac.studentId);
+              acadChanged = true;
+            }
+          });
+          if (acadChanged) {
+            localStorage.setItem(STORAGE_KEYS.ACADEMIC_SCORES, JSON.stringify(acadList));
+          }
+        }
+      }
+
+      // 4. Kur'an Takip kayıtları
+      const rawQ = localStorage.getItem(STORAGE_KEYS.QURAN_TRACKER);
+      if (rawQ) {
+        let qRecords = JSON.parse(rawQ);
+        if (qRecords && typeof qRecords === 'object') {
+          let qChanged = false;
+          idReplacements.forEach((winnerId, loserId) => {
+            if (qRecords[loserId]) {
+              const loserRec = qRecords[loserId];
+              const winnerRec = qRecords[winnerId];
+              if (!winnerRec) {
+                qRecords[winnerId] = { ...loserRec, studentId: winnerId };
+              } else {
+                const lP = Number(loserRec.currentPage) || 0;
+                const wP = Number(winnerRec.currentPage) || 0;
+                const lH = Number(loserRec.hatimCount) || 0;
+                const wH = Number(winnerRec.hatimCount) || 0;
+                if ((lH * 604 + lP) > (wH * 604 + wP)) {
+                  winnerRec.currentPage = lP;
+                  winnerRec.hatimCount = lH;
+                }
+              }
+              delete qRecords[loserId];
+              qChanged = true;
+            }
+          });
+          if (qChanged) {
+            localStorage.setItem(STORAGE_KEYS.QURAN_TRACKER, JSON.stringify(qRecords));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[migrateRecordsBetweenStudents] Hata:', e);
+    }
+  }
+
+  // Talebe Tekilleştirme ve Yanlış Kayıt Onarma Motoru (ARDA YUSUF SAYGI çiftliğini ve eksik Asil Miraç Soylu'yu kesin çözer)
+  deduplicateStudents(incomingList = null, persist = true) {
+    try {
+      let list = incomingList;
+      if (!list) {
+        const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+        list = raw ? JSON.parse(raw) : [];
+      }
+      if (!Array.isArray(list) || list.length === 0) return list || [];
+
+      const deletedMap = this.getDeletedStudentIds();
+      let changed = false;
+
+      // İsim normalizasyonu (Büyük-küçük harf ve Türkçe harf farklarını sıfırlar)
+      const normName = (s) => {
+        if (!s) return '';
+        const fn = (s.firstName || '').toString().trim();
+        const ln = (s.lastName || '').toString().trim();
+        return this.normalizeTr(`${fn} ${ln}`).replace(/\s+/g, ' ').trim();
+      };
+
+      // 1. Özel Düzeltme: std_502 yanlışlıkla "ARDA YUSUF SAYGI" olarak kalmışsa:
+      // SEED_STUDENTS ve ogrenciler.csv dosyasında 502 numaralı talebe ASİL MİRAÇ SOYLU'dur; 501 ise ARDA YUSUF SAYGI'dır.
+      list = list.map(s => {
+        if (!s) return s;
+        if (s.id === 'std_502' && normName(s) === 'arda yusuf saygi') {
+          changed = true;
+          return {
+            id: 'std_502',
+            studentNo: '502',
+            firstName: 'ASİL MİRAÇ',
+            lastName: 'SOYLU',
+            className: '5-A',
+            school: 'KAZIM ÖZALP',
+            seviye: 'Seviye 1',
+            etutHocasi: 'YASİN EKİNCİ',
+            dahiliHoca: 'YASİN EKİNCİ',
+            yatakhane: 'Oda 214',
+            fatherName: '',
+            fatherPhone: '',
+            parentPhone: '',
+            motherName: '',
+            motherPhone: '',
+            familyCode: 'SOYLU2026',
+            password: '123',
+            isPassive: false,
+            status: 'active',
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return s;
+      });
+
+      // 2. Genel Mükerrer İsim Ayıklama (Duplicate Full Name Resolution)
+      const nameGroups = new Map();
+      list.forEach((s, idx) => {
+        if (!s || !s.id) return;
+        if (deletedMap[s.id] && deletedMap[s.id].isDeleted) return;
+        const n = normName(s);
+        if (!n) return;
+        if (!nameGroups.has(n)) nameGroups.set(n, []);
+        nameGroups.get(n).push({ student: s, index: idx });
+      });
+
+      const idsToRemove = new Set();
+      const idReplacements = new Map();
+
+      nameGroups.forEach((group, n) => {
+        if (group.length > 1) {
+          const seedMatch = SEED_STUDENTS.find(seed => normName(seed) === n);
+          let bestIdx = 0;
+          let bestScore = -1;
+
+          group.forEach((item, gIdx) => {
+            const st = item.student;
+            let score = 0;
+            if (seedMatch && st.id === seedMatch.id) score += 60;
+            if (seedMatch && st.studentNo && seedMatch.studentNo && st.studentNo.toString() === seedMatch.studentNo.toString()) score += 50;
+            if (st.fatherPhone || st.parentPhone) score += 10;
+            if (st.yatakhane && st.yatakhane !== '-') score += 5;
+            if (st.password && st.password !== '123') score += 5;
+
+            if (score > bestScore) {
+              bestScore = score;
+              bestIdx = gIdx;
+            }
+          });
+
+          const winner = group[bestIdx].student;
+          group.forEach((item, gIdx) => {
+            if (gIdx !== bestIdx) {
+              const loser = item.student;
+              idsToRemove.add(loser.id);
+              idReplacements.set(loser.id, winner.id);
+              changed = true;
+            }
+          });
+        }
+      });
+
+      // 3. Tekrarlanan ID'leri ve silinenleri listeden çıkar
+      let cleanList = list.filter(s => s && s.id && !idsToRemove.has(s.id) && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+
+      // 4. ASİL MİRAÇ SOYLU eksikse SEED_STUDENTS'tan güvenle listeye ekle
+      const hasAsilMirac = cleanList.some(s => s && normName(s) === 'asil mirac soylu');
+      if (!hasAsilMirac && !deletedMap['std_502']?.isDeleted) {
+        const seedAsil = SEED_STUDENTS.find(s => s.id === 'std_502');
+        if (seedAsil) {
+          cleanList.push({ ...seedAsil, updatedAt: new Date().toISOString() });
+          changed = true;
+        }
+      }
+
+      // 5. Elenen mükerrer ID'lere ait yoklama, Kur'an ve ceza kayıtlarını asıl ID'ye devret
+      if (idReplacements.size > 0) {
+        this.migrateRecordsBetweenStudents(idReplacements);
+      }
+
+      // 6. Özel öğrenci numaralarını temizle (elenen ID'leri sil)
+      const customNos = this.getCustomStudentNos();
+      let customChanged = false;
+      idsToRemove.forEach(remId => {
+        if (customNos[remId]) {
+          delete customNos[remId];
+          customChanged = true;
+        }
+      });
+      if (customChanged) {
+        this.saveCustomStudentNos(customNos);
+      }
+
+      // 7. Sırala ve kaydet
+      const sorted = this.sortStudentsByClassAndNo(cleanList);
+
+      if (persist && (changed || idsToRemove.size > 0)) {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(sorted));
+        if (this.isCloudEnabled()) {
+          this._lastStudentEditTime = Date.now();
+          this._lastStudentPushTime = Date.now();
+          this.syncToCloud('kurs_data/students', sorted);
+        }
+        try {
+          window.dispatchEvent(new CustomEvent('students-updated', { detail: sorted }));
+        } catch (e) {}
+      }
+
+      return sorted;
+    } catch (e) {
+      console.warn('[deduplicateStudents] Hata:', e);
+      return incomingList || [];
+    }
+  }
+
   // Eksik temel öğrencileri güvenle koruma motoru (Kullanıcının sildiği talebeleri ASLA geri getirmez)
   autoRecoverMissingBaselineStudents() {
     try {
@@ -297,6 +548,9 @@ class DataStore {
 
       const deletedMap = this.getDeletedStudentIds();
 
+      // Önce mevcut listede mükerrer veya yanlış isimli kayıtları düzelt
+      localList = this.deduplicateStudents(localList, true);
+
       // SEED_STUDENTS içinde olup kullanıcının silmediği ve yerel listede bulunmayan öğrencileri koru
       let studentAdded = false;
       const customNos = this.getCustomStudentNos();
@@ -304,7 +558,16 @@ class DataStore {
         // Eğer kullanıcı bu talebeyi sildiyse kesinlikle geri getirme!
         if (deletedMap[seed.id] && deletedMap[seed.id].isDeleted) return;
 
-        const exists = localList.some(s => s && (s.id === seed.id || (s.studentNo && seed.studentNo && s.studentNo.toString() === seed.studentNo.toString())));
+        const seedNormName = this.normalizeTr(`${seed.firstName} ${seed.lastName}`).replace(/\s+/g, ' ').trim();
+        const exists = localList.some(s => {
+          if (!s) return false;
+          if (s.id === seed.id) return true;
+          if (s.studentNo && seed.studentNo && s.studentNo.toString().trim() === seed.studentNo.toString().trim()) return true;
+          const sNormName = this.normalizeTr(`${s.firstName} ${s.lastName}`).replace(/\s+/g, ' ').trim();
+          if (sNormName && seedNormName && sNormName === seedNormName) return true;
+          return false;
+        });
+
         if (!exists) {
           const newSt = { ...seed, updatedAt: new Date().toISOString() };
           if (customNos[seed.id]) {
@@ -316,6 +579,7 @@ class DataStore {
       });
 
       if (studentAdded) {
+        localList = this.deduplicateStudents(localList, true);
         const sorted = this.sortStudentsByClassAndNo(localList);
         localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(sorted));
         try {
@@ -1034,14 +1298,26 @@ class DataStore {
 
       // Bulutta henüz olmayan yerel yeni eklenmiş öğrenciler varsa onları da koru (AMA SİLİNENLERİ ASLA EKLEME!)
       localStudents.forEach(localSt => {
-        if (localSt && localSt.id && (!deletedMap[localSt.id] || !deletedMap[localSt.id].isDeleted) && !mergedStudents.some(s => s.id === localSt.id)) {
+        if (!localSt || !localSt.id) return;
+        if (deletedMap[localSt.id] && deletedMap[localSt.id].isDeleted) return;
+
+        const localNorm = this.normalizeTr(`${localSt.firstName || ''} ${localSt.lastName || ''}`).replace(/\s+/g, ' ').trim();
+        const existsInMerged = mergedStudents.some(s => {
+          if (!s) return false;
+          if (s.id === localSt.id) return true;
+          const sNorm = this.normalizeTr(`${s.firstName || ''} ${s.lastName || ''}`).replace(/\s+/g, ' ').trim();
+          if (sNorm && localNorm && sNorm === localNorm) return true;
+          return false;
+        });
+
+        if (!existsInMerged) {
           mergedStudents.push(localSt);
         }
       });
 
       // Silinenler siciline göre son kez arındır ve atanmış özel numaraları güvenceye al
       const finalCustomNos = this.getCustomStudentNos();
-      const finalCleanList = mergedStudents.filter(s => {
+      let finalCleanList = mergedStudents.filter(s => {
         if (!s || !s.id) return false;
         if (deletedMap[s.id] && deletedMap[s.id].isDeleted) return false;
         if (finalCustomNos[s.id]) {
@@ -1049,6 +1325,10 @@ class DataStore {
         }
         return true;
       });
+
+      // Mükerrer öğrencileri tekilleştir ve ASİL MİRAÇ SOYLU'yu kurtar
+      finalCleanList = this.deduplicateStudents(finalCleanList, false);
+
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(finalCleanList));
       localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
       localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
@@ -2138,6 +2418,22 @@ class DataStore {
         }
       }
 
+      // Mükerrer öğrenci denetimi (İki Arda Yusuf Saygı vb. mükerrer kayıtları anında tekilleştirir)
+      const nameSet = new Set();
+      let hasDuplicates = false;
+      for (const st of list) {
+        if (!st) continue;
+        const normKey = this.normalizeTr(`${st.firstName || ''} ${st.lastName || ''}`).replace(/\s+/g, ' ').trim();
+        if (nameSet.has(normKey) || (st.id === 'std_502' && normKey === 'arda yusuf saygi')) {
+          hasDuplicates = true;
+          break;
+        }
+        nameSet.add(normKey);
+      }
+      if (hasDuplicates) {
+        list = this.deduplicateStudents(list, true);
+      }
+
       // Özel öğrenci numaralarını ve aktiflik durumunu uygula
       const customNos = this.getCustomStudentNos();
       list.forEach(s => {
@@ -2206,7 +2502,9 @@ class DataStore {
       }
     }
 
-    const sanitizedStudents = this.sortStudentsByClassAndNo(students.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted)));
+    const filteredStudents = students.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+    const deduped = this.deduplicateStudents(filteredStudents, false);
+    const sanitizedStudents = this.sortStudentsByClassAndNo(deduped);
     const nowIso = new Date().toISOString();
 
     const customNos = this.getCustomStudentNos();
@@ -2568,9 +2866,9 @@ class DataStore {
       }
     }
 
-    // 2. ogrenciler_temiz.csv veya ogrenciler.csv dosyasından taze çekmeyi dene (Gerçek Excel Dosyası)
+    // 2. ogrenciler.csv dosyasından taze çekmeyi dene (Gerçek Excel Dosyası)
     if (!candidateList) {
-      const csvFiles = ['./ogrenciler_temiz.csv', './ogrenciler.csv'];
+      const csvFiles = ['./ogrenciler.csv', './ogrenciler_temiz.csv'];
       for (const csvPath of csvFiles) {
         try {
           const resp = await fetch(`${csvPath}?_t=${Date.now()}`, { cache: 'no-store' });
@@ -2657,18 +2955,25 @@ class DataStore {
       const famCode = (st.familyCode ? this.toAsciiUpper(st.familyCode) : (ln ? this.toAsciiUpper(ln) + '2026' : 'AILE2026')).toString().trim().toUpperCase();
       const fullName = `${fn} ${ln}`.trim();
 
-      // Kimlik Eşleştirme (Önce ID, sonra İsim-Soyisim, sonra Okul No)
-      let matchedExisting = null;
-      if (st.id && existingById.has(st.id)) {
-        matchedExisting = existingById.get(st.id);
-      } else if (fullName && existingByName.has(fullName)) {
-        matchedExisting = existingByName.get(fullName);
-      } else if (sNo && existingByNo.has(sNo)) {
-        matchedExisting = existingByNo.get(sNo);
-      }
+      // Kimlik Eşleştirme (Önce SEED_STUDENTS eşleşmesi, sonra ID, sonra İsim-Soyisim, sonra Okul No)
+      const seedMatch = SEED_STUDENTS.find(s => {
+        const sFull = `${(s.firstName || '').trim().toUpperCase()} ${(s.lastName || '').trim().toUpperCase()}`;
+        return sFull === fullName;
+      });
 
+      let matchedExisting = null;
       let studentId;
-      if (matchedExisting && !usedIds.has(matchedExisting.id)) {
+      if (seedMatch && !usedIds.has(seedMatch.id)) {
+        studentId = seedMatch.id;
+        matchedExisting = existingById.get(seedMatch.id) || existingByName.get(fullName) || null;
+      } else if (st.id && existingById.has(st.id) && !usedIds.has(st.id)) {
+        studentId = st.id;
+        matchedExisting = existingById.get(st.id);
+      } else if (fullName && existingByName.has(fullName) && !usedIds.has(existingByName.get(fullName).id)) {
+        matchedExisting = existingByName.get(fullName);
+        studentId = matchedExisting.id;
+      } else if (sNo && existingByNo.has(sNo) && !usedIds.has(existingByNo.get(sNo).id)) {
+        matchedExisting = existingByNo.get(sNo);
         studentId = matchedExisting.id;
       } else {
         studentId = st.id || ('std_' + (sNo ? sNo : (Date.now() + '_' + idx)));

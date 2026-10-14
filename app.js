@@ -197,6 +197,18 @@ window.App = {
 
     // Yatak kontrolü zamanlayıcısını sayfa açılışında da bir kez denetle
     this.checkAndTriggerYatakReminder();
+
+    // Yeni sürümde ogrenciler.csv dosyasını arka planda otomatik çek ve eşitle (Sıfır soru, sıfır sürükle-bırak!)
+    const currentBuildVer = '20261014_v10.36_DEDUPLICATE_CLEAN';
+    if (localStorage.getItem('oay_auto_csv_synced_build') !== currentBuildVer) {
+      if (window.Store && typeof window.Store.syncFromManualDataFile === 'function') {
+        setTimeout(() => {
+          window.Store.syncFromManualDataFile().then(() => {
+            try { localStorage.setItem('oay_auto_csv_synced_build', currentBuildVer); } catch(e){}
+          }).catch(() => {});
+        }, 500);
+      }
+    }
   },
 
   // Tarayıcı ve PWA önbelleğini tek tıkla tamamen temizleyip en güncel kodları zorla yükleme
