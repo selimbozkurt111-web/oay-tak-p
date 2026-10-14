@@ -10,7 +10,19 @@
 
 window.LeaderboardModule = {
   period: 'haftalik', // 'haftalik' | 'aylik'
-  targetDate: new Date().toISOString().split('T')[0],
+  getTodayStr() {
+    return (window.Store && typeof window.Store.getTodayDate === 'function')
+      ? window.Store.getTodayDate()
+      : new Date().toLocaleDateString('en-CA');
+  },
+
+  get targetDate() {
+    return this._targetDate || this.getTodayStr();
+  },
+  set targetDate(val) {
+    this._targetDate = val;
+  },
+
   classFilter: 'ALL', // 'ALL' | '5. Sınıf' | '6. Sınıf' | '7. Sınıf' | '8. Sınıf'
   searchQuery: '',
   detailStudentId: null,
@@ -35,7 +47,7 @@ window.LeaderboardModule = {
   },
 
   setToday() {
-    this.targetDate = new Date().toISOString().split('T')[0];
+    this.targetDate = this.getTodayStr();
     this.renderView();
   },
 
@@ -67,7 +79,7 @@ window.LeaderboardModule = {
   },
 
   setSearchQuery(q) {
-    this.searchQuery = (q || '').toLowerCase().trim();
+    this.searchQuery = (q || '').trim();
     this.renderLeaderboardTable();
   },
 
@@ -513,10 +525,17 @@ window.LeaderboardModule = {
     let items = data.ranking;
 
     if (this.searchQuery) {
+      const q = this.searchQuery;
       items = items.filter(i => 
-        (i.student.firstName + ' ' + i.student.lastName).toLowerCase().includes(this.searchQuery) ||
-        (i.student.studentNo || '').includes(this.searchQuery) ||
-        (i.student.className || '').toLowerCase().includes(this.searchQuery)
+        window.Store && typeof window.Store.matchesSearch === 'function'
+          ? (window.Store.matchesSearch(i.student.firstName, q) ||
+             window.Store.matchesSearch(i.student.lastName, q) ||
+             window.Store.matchesSearch((i.student.firstName || '') + ' ' + (i.student.lastName || ''), q) ||
+             window.Store.matchesSearch(i.student.studentNo, q) ||
+             window.Store.matchesSearch(i.student.className, q))
+          : ((i.student.firstName + ' ' + i.student.lastName).toLowerCase().includes(q.toLowerCase()) ||
+             (i.student.studentNo || '').includes(q) ||
+             (i.student.className || '').toLowerCase().includes(q.toLowerCase()))
       );
     }
 
@@ -603,8 +622,8 @@ window.LeaderboardModule = {
                   </span>
                 </td>
                 <td class="p-3 text-center">
-                  <span class="px-2 py-1 rounded-lg ${item.bonus.points > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300 font-black' : 'bg-slate-100 text-slate-500'} font-bold text-[11px]">
-                    +${item.bonus.points}
+                  <span class="px-2 py-1 rounded-lg ${item.bonus.points > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300 font-black' : (item.bonus.points < 0 ? 'bg-rose-100 text-rose-900 border border-rose-300 font-black' : 'bg-slate-100 text-slate-500')} font-bold text-[11px]">
+                    ${item.bonus.points > 0 ? '+' : ''}${item.bonus.points}
                   </span>
                 </td>
                 <td class="p-3 text-center">
@@ -616,19 +635,25 @@ window.LeaderboardModule = {
                   <div class="flex items-center justify-end gap-1.5">
                     <button onclick="window.LeaderboardModule.openDetail('${item.student.id}')"
                       title="Puanlama Ayrıntılarını İncele"
-                      class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition flex items-center gap-1">
+                      class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition flex items-center gap-1 cursor-pointer">
                       <span>🔍</span>
                       <span class="hidden sm:inline">Detay</span>
                     </button>
+                    <button onclick="window.App && window.App.openDemeritModal ? window.App.openDemeritModal('${item.student.id}') : null"
+                      title="Öğrenciye Eksi Kusur Puanı Düş"
+                      class="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-[11px] transition flex items-center gap-1 cursor-pointer">
+                      <span>⚠️</span>
+                      <span class="hidden sm:inline">-Kusur</span>
+                    </button>
                     <button onclick="window.LeaderboardModule.openBonusModal('${item.student.id}')"
                       title="Öğrenciye Hoca Takdir / Bonus Puanı Ekle"
-                      class="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-[11px] transition flex items-center gap-1">
+                      class="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-[11px] transition flex items-center gap-1 cursor-pointer">
                       <span>🌟</span>
                       <span class="hidden sm:inline">+Puan</span>
                     </button>
                     <button onclick="window.LeaderboardModule.openCertificate('${item.student.id}', ${item.rank})"
                       title="Başarı Belgesi Yazdır"
-                      class="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-[11px] transition flex items-center gap-1">
+                      class="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-[11px] transition flex items-center gap-1 cursor-pointer">
                       <span>🖨️</span>
                     </button>
                   </div>
@@ -795,24 +820,27 @@ window.LeaderboardModule = {
               `}
             </div>
 
-            <!-- 6. Hoca Takdir Puanları -->
+            <!-- 6. Hoca Takdir ve Kusur Puanları -->
             ${item.bonus.items.length > 0 ? `
-              <div class="p-3.5 rounded-2xl border border-amber-200 bg-amber-50/40 space-y-1.5 sm:col-span-2">
-                <div class="flex items-center justify-between font-bold text-amber-950">
-                  <span class="flex items-center gap-1.5"><span>🌟</span> Hoca Takdir & Özel Başarı Puanları</span>
-                  <span class="font-black text-amber-800 text-sm">+${item.bonus.points} Puan</span>
+              <div class="p-3.5 rounded-2xl border ${item.bonus.points < 0 ? 'border-rose-200 bg-rose-50/40' : 'border-amber-200 bg-amber-50/40'} space-y-1.5 sm:col-span-2">
+                <div class="flex items-center justify-between font-bold ${item.bonus.points < 0 ? 'text-rose-950' : 'text-amber-950'}">
+                  <span class="flex items-center gap-1.5"><span>🌟</span> Hoca Takdir & Kusur Puanları</span>
+                  <span class="font-black ${item.bonus.points < 0 ? 'text-rose-700' : 'text-amber-800'} text-sm">${item.bonus.points > 0 ? '+' : ''}${item.bonus.points} Puan</span>
                 </div>
                 <div class="space-y-1.5 pt-1">
                   ${item.bonus.items.map(b => `
-                    <div class="p-2 bg-white rounded-xl border border-amber-100 flex items-center justify-between">
+                    <div class="p-2 bg-white rounded-xl border ${b.points < 0 ? 'border-rose-100' : 'border-amber-100'} flex items-center justify-between">
                       <div>
-                        <div class="font-bold text-slate-800">${b.reason}</div>
+                        <div class="font-bold text-slate-800 flex items-center gap-1.5">
+                          ${b.points < 0 ? '<span class="text-xs">⚠️</span>' : '<span class="text-xs">⭐</span>'}
+                          <span>${b.reason}</span>
+                        </div>
                         <div class="text-[10px] text-slate-400">${b.date} • Veren: ${b.hocaName}</div>
                       </div>
                       <div class="flex items-center gap-2">
-                        <span class="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-900 font-black">+${b.points} Puan</span>
+                        <span class="px-2 py-0.5 rounded-lg ${b.points < 0 ? 'bg-rose-100 text-rose-900 border border-rose-200' : 'bg-amber-100 text-amber-900'} font-black text-xs font-mono">${b.points > 0 ? '+' : ''}${b.points} Puan</span>
                         <button onclick="window.LeaderboardModule.deleteBonus('${b.id}')"
-                          title="Sil" class="text-rose-500 hover:text-rose-700 font-bold px-1 text-xs">✕</button>
+                          title="Sil" class="text-rose-500 hover:text-rose-700 font-bold px-1 text-xs cursor-pointer">✕</button>
                       </div>
                     </div>
                   `).join('')}
@@ -824,12 +852,16 @@ window.LeaderboardModule = {
 
           <!-- Kapat Butonu -->
           <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button onclick="window.App && window.App.openDemeritModal ? window.App.openDemeritModal('${st.id}') : null"
+              class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-xl transition flex items-center gap-1 cursor-pointer">
+              <span>⚠️</span> <span>Kusur Puanı Düş</span>
+            </button>
             <button onclick="window.LeaderboardModule.openBonusModal('${st.id}')"
-              class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition">
+              class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition cursor-pointer">
               🌟 Takdir Puanı Ekle
             </button>
             <button onclick="window.LeaderboardModule.closeDetail()" 
-              class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
+              class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer">
               Kapat
             </button>
           </div>

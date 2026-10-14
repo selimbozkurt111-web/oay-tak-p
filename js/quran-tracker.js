@@ -930,25 +930,24 @@ window.QuranTrackerModule = {
     this.updateModalCalculations();
   },
 
-  renderView(preserveScroll = true) {
-    const scrollY = preserveScroll ? window.scrollY : 0;
-    const container = document.getElementById('quran-tracker-container');
-    if (!container) return;
+  // Canlı Arama Sırasında Klavye Kapanmasını ve Sayfa Zıplamasını Önleyen Canlı Güncelleyici
+  handleSearchInput(query) {
+    this.searchQuery = (query || '').toLowerCase().trim();
+    this.orderedStudentIds = null;
+    const contentArea = document.getElementById('quran-tracker-content-area');
+    if (!contentArea) {
+      this.renderView(true);
+      return;
+    }
+    const { filtered, groupSummaries } = this.getFilteredQuranData();
+    contentArea.innerHTML = this.renderViewContent(filtered, groupSummaries);
+  },
 
-    const allStudents = window.Store.getStudents(false); // Aktif öğrenciler
+  getFilteredQuranData() {
+    const allStudents = window.Store.getStudents(false);
     const allRecords = window.Store.getAllQuranRecords();
     const groupSummaries = window.Store.getQuranGroupSummary();
-    const classes = window.Store.getClasses();
 
-    // Benzersiz Dini Ders Grupları (Dahili Hoca veya custom)
-    const groups = Array.from(new Set(allStudents.map(s => {
-      const rec = allRecords[s.id];
-      const curG = (rec && rec.diniGrup) ? rec.diniGrup.trim() : '';
-      const hoca = (s.dahiliHoca || '').trim();
-      return (curG && curG !== 'Genel' && !curG.startsWith('Seviye')) ? curG : (hoca || 'Genel');
-    }))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'tr'));
-
-    // Filtreleme (Taslak / Kaydedilmemiş değişiklikleri anında yansıtır)
     const pendingChanges = this.pendingChanges || {};
     let filtered = allStudents.map(s => {
       const rec = allRecords[s.id] || { currentPage: 1, hatimCount: 0, diniGrup: s.dahiliHoca || 'Genel' };
@@ -1008,22 +1007,33 @@ window.QuranTrackerModule = {
 
     // Arama
     if (this.searchQuery) {
-      const q = this.searchQuery.toLowerCase().trim();
+      const q = this.searchQuery.trim();
       filtered = filtered.filter(item => {
         const s = item.student;
+        if (!s) return false;
+        if (window.Store && typeof window.Store.matchesSearch === 'function') {
+          return (
+            window.Store.matchesSearch(s.firstName, q) ||
+            window.Store.matchesSearch(s.lastName, q) ||
+            window.Store.matchesSearch((s.firstName || '') + ' ' + (s.lastName || ''), q) ||
+            window.Store.matchesSearch(s.studentNo, q) ||
+            window.Store.matchesSearch(s.className, q) ||
+            window.Store.matchesSearch(s.yatakhane, q) ||
+            window.Store.matchesSearch(item.diniGrup, q)
+          );
+        }
+        const qLower = q.toLowerCase();
         return (
-          (s.firstName && s.firstName.toLowerCase().includes(q)) ||
-          (s.lastName && s.lastName.toLowerCase().includes(q)) ||
-          (s.studentNo && String(s.studentNo).includes(q)) ||
-          (s.className && s.className.toLowerCase().includes(q)) ||
-          (s.yatakhane && s.yatakhane.toLowerCase().includes(q)) ||
-          (item.diniGrup && item.diniGrup.toLowerCase().includes(q))
+          (s.firstName && s.firstName.toLowerCase().includes(qLower)) ||
+          (s.lastName && s.lastName.toLowerCase().includes(qLower)) ||
+          (s.studentNo && String(s.studentNo).includes(qLower)) ||
+          (s.className && s.className.toLowerCase().includes(qLower)) ||
+          (s.yatakhane && s.yatakhane.toLowerCase().includes(qLower)) ||
+          (item.diniGrup && item.diniGrup.toLowerCase().includes(qLower))
         );
       });
     }
 
-    // Sıralama Yönetimi (Kullanıcı Talebi: Yazma ve kaydetme bitmeden liste sırası ASLA değişmez)
-    // Sıralama daima kaydedilmiş verilere (savedStats) göre belirlenir ve yazma sürecinde sabit tutulur.
     const shouldRecalculateOrder = !this.orderedStudentIds || this._forceReorder;
     if (shouldRecalculateOrder) {
       filtered.sort((a, b) => {
@@ -1042,17 +1052,14 @@ window.QuranTrackerModule = {
           if (noA !== noB) return noA - noB;
           return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
         }
-        // Varsayılan: Liderlik Sırası (Kayıtlı sayfaya göre en çok okuyan en üstte)
         if (b.savedStats.totalLifetimePages !== a.savedStats.totalLifetimePages) {
           return b.savedStats.totalLifetimePages - a.savedStats.totalLifetimePages;
         }
         return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
       });
-      // Sabit liste sıralama hafızasını kaydet
       this.orderedStudentIds = filtered.map(item => item.student.id);
       this._forceReorder = false;
     } else {
-      // Yazma ve kaydetme sırasında sıralama %100 SABİTTİR. Hiçbir talebe yer değiştirmez!
       const orderMap = new Map();
       this.orderedStudentIds.forEach((id, idx) => orderMap.set(id, idx));
       filtered.sort((a, b) => {
@@ -1062,7 +1069,6 @@ window.QuranTrackerModule = {
       });
     }
 
-    // İstatistikler
     const totalStudentsInView = filtered.length;
     let totalLifetimePagesInView = 0;
     let totalCompletedHatimsInView = 0;
@@ -1079,6 +1085,45 @@ window.QuranTrackerModule = {
       : 0;
 
     const topStudent = filtered[0] || null;
+
+    return {
+      filtered,
+      groupSummaries,
+      totalStudentsInView,
+      totalLifetimePagesInView,
+      totalCompletedHatimsInView,
+      avgPercentInView,
+      topStudent
+    };
+  },
+
+  renderView(preserveScroll = true) {
+    const scrollY = preserveScroll ? window.scrollY : 0;
+    const container = document.getElementById('quran-tracker-container');
+    if (!container) return;
+
+    const allStudents = window.Store.getStudents(false); // Aktif öğrenciler
+    const allRecords = window.Store.getAllQuranRecords();
+    const classes = window.Store.getClasses();
+
+    // Benzersiz Dini Ders Grupları (Dahili Hoca veya custom)
+    const groups = Array.from(new Set(allStudents.map(s => {
+      const rec = allRecords[s.id];
+      const curG = (rec && rec.diniGrup) ? rec.diniGrup.trim() : '';
+      const hoca = (s.dahiliHoca || '').trim();
+      return (curG && curG !== 'Genel' && !curG.startsWith('Seviye')) ? curG : (hoca || 'Genel');
+    }))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'tr'));
+
+    const {
+      filtered,
+      groupSummaries,
+      totalStudentsInView,
+      totalLifetimePagesInView,
+      totalCompletedHatimsInView,
+      avgPercentInView,
+      topStudent
+    } = this.getFilteredQuranData();
+
     const pendingCount = this.getPendingCount();
     const hasPending = pendingCount > 0;
 
@@ -1313,9 +1358,9 @@ window.QuranTrackerModule = {
 
               <!-- Arama Kutusu -->
               <div class="w-full sm:w-64 relative">
-                <input type="text" placeholder="Talebe adı, hoca, no ara..." value="${this.searchQuery}"
+                <input type="text" id="quran-search-input" placeholder="Talebe adı, hoca, no ara..." value="${this.searchQuery}"
                   class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
-                  oninput="window.QuranTrackerModule.searchQuery = this.value.toLowerCase().trim(); window.QuranTrackerModule.orderedStudentIds = null; window.QuranTrackerModule.renderView();">
+                  oninput="window.QuranTrackerModule.handleSearchInput(this.value)">
                 <span class="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
               </div>
             </div>
@@ -1350,7 +1395,9 @@ window.QuranTrackerModule = {
         </div>
 
         <!-- 4. GÖRÜNÜM İÇERİĞİ -->
-        ${this.renderViewContent(filtered, groupSummaries)}
+        <div id="quran-tracker-content-area">
+          ${this.renderViewContent(filtered, groupSummaries)}
+        </div>
 
         <!-- 5. SABİT ALT KAYDETME BARI (Kaydırıldığında Ekranın Altında Kalır) -->
         <div id="quran-bottom-pending-bar-container">

@@ -21,24 +21,7 @@ window.App = {
   studentDeletedDrafts: new Set(),
 
   init() {
-    const CURRENT_CODE_BUILD = '20261013_v10.29_CLEAN_UI_GUARANTEED';
-    const savedBuild = localStorage.getItem('oay_app_build_version');
-    if (savedBuild !== CURRENT_CODE_BUILD) {
-      localStorage.setItem('oay_app_build_version', CURRENT_CODE_BUILD);
-      try {
-        if ('caches' in window) {
-          caches.keys().then(names => names.forEach(n => caches.delete(n)));
-        }
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
-        }
-      } catch (e) {}
-      setTimeout(() => {
-        window.location.replace(window.location.pathname + '?build=' + CURRENT_CODE_BUILD + '&t=' + Date.now());
-      }, 100);
-      return;
-    }
-
+    // Sürüm kontrolü ve önbellek temizliği doğrudan index.html tarafından merkezi olarak yönetilir.
     const saved = sessionStorage.getItem('yoklama_active_session') || localStorage.getItem('yoklama_active_session');
     if (saved) {
       try {
@@ -1479,7 +1462,7 @@ window.App = {
 
   filterDemeritStudents() {
     const classFilter = document.getElementById('demerit-class-filter')?.value || 'ALL';
-    const searchVal = (document.getElementById('demerit-search-input')?.value || '').toLowerCase().trim();
+    const searchVal = (document.getElementById('demerit-search-input')?.value || '').trim();
     const select = document.getElementById('demerit-student-select');
     if (!select) return;
 
@@ -1491,7 +1474,9 @@ window.App = {
       const optNo = opt.getAttribute('data-no') || '';
 
       const matchClass = (classFilter === 'ALL' || optClass === classFilter);
-      const matchSearch = (!searchVal || optName.includes(searchVal) || optNo.includes(searchVal));
+      const matchSearch = (!searchVal || (window.Store && typeof window.Store.matchesSearch === 'function'
+        ? (window.Store.matchesSearch(optName, searchVal) || window.Store.matchesSearch(optNo, searchVal))
+        : (optName.toLowerCase().includes(searchVal.toLowerCase()) || optNo.includes(searchVal))));
 
       if (matchClass && matchSearch) {
         opt.hidden = false;
@@ -2080,7 +2065,10 @@ window.App = {
     if (field === 'lastName') {
       const cleanLast = value.trim();
       if (!this.studentDrafts[studentId].familyCodeExplicit) {
-        const autoFam = (cleanLast ? cleanLast + '2026' : 'AILE2026').toUpperCase();
+        const asciiLast = (window.Store && typeof window.Store.toAsciiUpper === 'function')
+          ? window.Store.toAsciiUpper(cleanLast)
+          : cleanLast.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const autoFam = (asciiLast ? asciiLast + '2026' : 'AILE2026');
         this.studentDrafts[studentId].familyCode = autoFam;
         const famInput = document.querySelector(`[data-st-id="${studentId}"][data-st-field="familyCode"]`);
         if (famInput) famInput.value = autoFam;
@@ -2107,7 +2095,10 @@ window.App = {
 
     if (field === 'lastName' && !this.studentNewDrafts[tempIndex].familyCodeExplicit) {
       const cleanLast = value.trim();
-      const autoFam = (cleanLast ? cleanLast + '2026' : 'AILE2026').toUpperCase();
+      const asciiLast = (window.Store && typeof window.Store.toAsciiUpper === 'function')
+        ? window.Store.toAsciiUpper(cleanLast)
+        : cleanLast.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const autoFam = (asciiLast ? asciiLast + '2026' : 'AILE2026');
       this.studentNewDrafts[tempIndex].familyCode = autoFam;
       const famInput = document.querySelector(`[data-new-index="${tempIndex}"][data-st-field="familyCode"]`);
       if (famInput) famInput.value = autoFam;
@@ -2507,18 +2498,24 @@ window.App = {
       });
     }
     if (this.studentSearchQuery) {
-      const q = this.studentSearchQuery.toLowerCase();
+      const q = this.studentSearchQuery;
       filteredStudents = filteredStudents.filter(s => {
         const eff = this.getEffectiveStudentData(s);
+        const matches = (txt) => (window.Store && typeof window.Store.matchesSearch === 'function')
+          ? window.Store.matchesSearch(txt, q)
+          : (txt || '').toString().toLowerCase().includes(q.toLowerCase());
         return (
-          (eff.firstName && eff.firstName.toLowerCase().includes(q)) ||
-          (eff.lastName && eff.lastName.toLowerCase().includes(q)) ||
-          (eff.studentNo && eff.studentNo.toString().includes(q)) ||
-          (eff.familyCode && eff.familyCode.toLowerCase().includes(q)) ||
-          (eff.etutHocasi && eff.etutHocasi.toLowerCase().includes(q)) ||
-          (eff.dahiliHoca && eff.dahiliHoca.toLowerCase().includes(q)) ||
-          (eff.yatakhane && eff.yatakhane.toLowerCase().includes(q)) ||
-          (eff.password && eff.password.toLowerCase().includes(q))
+          matches(eff.firstName) ||
+          matches(eff.lastName) ||
+          matches(`${eff.firstName} ${eff.lastName}`) ||
+          matches(eff.studentNo) ||
+          matches(eff.familyCode) ||
+          matches(eff.etutHocasi) ||
+          matches(eff.dahiliHoca) ||
+          matches(eff.yatakhane) ||
+          matches(eff.password) ||
+          matches(eff.parentPhone) ||
+          matches(eff.fatherPhone)
         );
       });
     }
@@ -2532,11 +2529,11 @@ window.App = {
       newDraftsList = newDraftsList.filter(d => d.className === this.studentFilterClass);
     }
     if (this.studentSearchQuery) {
-      const q = this.studentSearchQuery.toLowerCase();
+      const q = this.studentSearchQuery;
       newDraftsList = newDraftsList.filter(d =>
-        (d.firstName && d.firstName.toLowerCase().includes(q)) ||
-        (d.lastName && d.lastName.toLowerCase().includes(q)) ||
-        (d.studentNo && d.studentNo.toString().includes(q))
+        (window.Store && typeof window.Store.matchesSearch === 'function')
+          ? (window.Store.matchesSearch(d.firstName, q) || window.Store.matchesSearch(d.lastName, q) || window.Store.matchesSearch(`${d.firstName} ${d.lastName}`, q) || window.Store.matchesSearch(d.studentNo, q))
+          : ((d.firstName && d.firstName.toLowerCase().includes(q.toLowerCase())) || (d.lastName && d.lastName.toLowerCase().includes(q.toLowerCase())) || (d.studentNo && d.studentNo.toString().includes(q.toLowerCase())))
       );
     }
 
@@ -5124,7 +5121,7 @@ window.App = {
       }
     } catch (e) {}
     setTimeout(() => {
-      window.location.replace(window.location.pathname + '?build=20261013_v10.29_CLEAN_UI_GUARANTEED&t=' + Date.now());
+      window.location.reload();
     }, 150);
   }
 };

@@ -112,7 +112,7 @@ window.AkademiModule = {
       { id: '8-B|TUNAHAN TAŞKIN', label: '8-B • Tunahan Taşkın', grade: '8', branch: '8-B', hoca: 'TUNAHAN TAŞKIN' }
     ];
 
-    // Talebelerden dinamik olarak oluşan tüm sınıf ve hoca eşleşmelerini de ekle (Sınırsız)
+    // Talebelerden dinamik olarak oluşan tüm sınıf ve hoca eşleşmelerini de ekle
     const knownKeys = new Set(list.map(e => e.id));
     if (window.Store && typeof window.Store.getStudents === 'function') {
       const allStudents = window.Store.getStudents(false);
@@ -376,7 +376,7 @@ window.AkademiModule = {
   },
 
   setSearchQuery(query) {
-    this.searchQuery = (query || '').toLowerCase().trim();
+    this.searchQuery = (query || '').trim();
     this.renderMatrixTableBody();
   },
 
@@ -488,11 +488,18 @@ window.AkademiModule = {
     // 3. Arama Filtresi
     if (this.searchQuery) {
       students = students.filter(s => 
-        s.firstName.toLowerCase().includes(this.searchQuery) ||
-        s.lastName.toLowerCase().includes(this.searchQuery) ||
-        (s.className && s.className.toLowerCase().includes(this.searchQuery)) ||
-        (s.studentNo && s.studentNo.toString().includes(this.searchQuery)) ||
-        (s.etutHocasi && s.etutHocasi.toLowerCase().includes(this.searchQuery))
+        window.Store && typeof window.Store.matchesSearch === 'function'
+          ? (window.Store.matchesSearch(s.firstName, this.searchQuery) ||
+             window.Store.matchesSearch(s.lastName, this.searchQuery) ||
+             window.Store.matchesSearch((s.firstName || '') + ' ' + (s.lastName || ''), this.searchQuery) ||
+             window.Store.matchesSearch(s.className, this.searchQuery) ||
+             window.Store.matchesSearch(s.studentNo, this.searchQuery) ||
+             window.Store.matchesSearch(s.etutHocasi, this.searchQuery))
+          : (s.firstName.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+             s.lastName.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+             (s.className && s.className.toLowerCase().includes(this.searchQuery.toLowerCase())) ||
+             (s.studentNo && s.studentNo.toString().includes(this.searchQuery)) ||
+             (s.etutHocasi && s.etutHocasi.toLowerCase().includes(this.searchQuery.toLowerCase())))
       );
     }
 

@@ -92,8 +92,50 @@ window.LeaveTrackerModule = {
   },
 
   setSearchQuery(q) {
-    this.searchQuery = (q || '').toLowerCase().trim();
-    this.renderView();
+    this.searchQuery = (q || '').trim();
+    const tbody = document.getElementById('leave-tracker-table-body');
+    if (!tbody) {
+      this.renderView();
+      return;
+    }
+    const weekInfo = this.getWeekInfo();
+    const weekKey = `week_${weekInfo.startDate}`;
+    const batch = window.Store.getLeaveBatchReport(weekInfo.dates, this.selectedClasses, this.baseExitTime, weekKey);
+    const gateStatus = window.Store.getGateCheckouts(weekKey);
+    let displayedReports = batch.studentReports;
+    if (this.selectedHoca && this.selectedHoca !== 'ALL') {
+      displayedReports = displayedReports.filter(r => (r.student.dahiliHoca || '').trim() === this.selectedHoca);
+    }
+    if (this.filterOnlyDelayed) {
+      displayedReports = displayedReports.filter(r => r.report.rawPenaltyMinutes > 0);
+    }
+    if (this.searchQuery) {
+      const q = this.searchQuery;
+      displayedReports = displayedReports.filter(r => {
+        const s = r.student;
+        if (!s) return false;
+        if (window.Store && typeof window.Store.matchesSearch === 'function') {
+          return (
+            window.Store.matchesSearch(s.firstName, q) ||
+            window.Store.matchesSearch(s.lastName, q) ||
+            window.Store.matchesSearch((s.firstName || '') + ' ' + (s.lastName || ''), q) ||
+            window.Store.matchesSearch(s.studentNo, q) ||
+            window.Store.matchesSearch(s.className, q)
+          );
+        }
+        const qLower = q.toLowerCase();
+        return (
+          (s.firstName && s.firstName.toLowerCase().includes(qLower)) ||
+          (s.lastName && s.lastName.toLowerCase().includes(qLower)) ||
+          (s.studentNo && String(s.studentNo).includes(qLower))
+        );
+      });
+    }
+    tbody.innerHTML = this.renderTableRowsHtml(displayedReports, gateStatus);
+    const badge = document.getElementById('leave-tracker-count-badge');
+    if (badge) {
+      badge.textContent = `(${displayedReports.length} Talebe Listeleniyor)`;
+    }
   },
 
   toggleGateCheckout(studentId) {
@@ -543,7 +585,7 @@ window.LeaveTrackerModule = {
             <div>
               <h3 class="font-black text-sm text-slate-900 flex items-center gap-2">
                 <span>📋 Talebe İzin Çıkış Çizelgesi</span>
-                <span class="text-xs font-normal text-slate-500">(${displayedReports.length} Talebe Listeleniyor)</span>
+                <span id="leave-tracker-count-badge" class="text-xs font-normal text-slate-500">(${displayedReports.length} Talebe Listeleniyor)</span>
               </h3>
               <p class="text-[11px] text-slate-400 mt-0.5">
                 Kusur Başı = <strong>+30 Dk</strong> • İzin Dönüşü = <strong>Dakika Başı 3x Dk</strong> • Takviye (&lt; 85) = <strong>+60 Dk</strong> • Standart Çıkış Saati: <strong>${this.baseExitTime}</strong>
@@ -580,265 +622,8 @@ window.LeaveTrackerModule = {
                   <th class="p-3 font-black text-center no-print">İŞLEM</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-100">
-                ${displayedReports.length === 0 ? `
-                  <tr>
-                    <td colspan="13" class="p-8 text-center text-slate-400">
-                      Seçilen kriterlere uygun öğrenci bulunamadı.
-                    </td>
-                  </tr>
-                ` : displayedReports.map((item, idx) => {
-                  const s = item.student;
-                  const rep = item.report;
-                  const isCheckedOut = !!gateStatus[s.id];
-                  const hasPenalty = rep.rawPenaltyMinutes > 0;
-                  const isCleared = rep.isFullyCleared;
-                  const isPartiallyCleared = rep.isPartiallyCleared;
-
-                  return `
-                    <tr class="hover:bg-slate-50/70 transition-colors ${isCheckedOut ? 'bg-slate-50/40 opacity-70' : ''} ${isCleared ? 'bg-emerald-50/20' : (isPartiallyCleared ? 'bg-indigo-50/20' : '')}">
-                      <!-- Sıra & No -->
-                      <td class="p-3 text-center font-bold text-slate-400">
-                        ${idx + 1}
-                      </td>
-
-                      <!-- Öğrenci Adı Soyadı & Dahili Hoca -->
-                      <td class="p-3">
-                        <div class="flex items-center gap-2.5">
-                          <div class="w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shadow-2xs ${
-                            hasPenalty 
-                              ? (isCleared ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300' : (isPartiallyCleared ? 'bg-indigo-100 text-indigo-800 ring-1 ring-indigo-300' : 'bg-rose-100 text-rose-800')) 
-                              : 'bg-emerald-100 text-emerald-800'
-                          }">
-                            ${s.studentNo}
-                          </div>
-                          <div>
-                            <div class="font-black text-slate-900 text-xs flex items-center gap-1.5">
-                              <span>${s.firstName} ${s.lastName}</span>
-                              ${isCleared ? '<span class="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[9px] font-black">✓ Tam Af</span>' : ''}
-                              ${isPartiallyCleared ? `<span class="px-1.5 py-0.2 bg-indigo-100 text-indigo-800 border border-indigo-300 rounded text-[9px] font-black">✂️ -${rep.waivedMinutes} dk Af</span>` : ''}
-                            </div>
-                            <div class="text-[10px] text-slate-500 font-medium">
-                              ${s.className} • ${s.dahiliHoca || '-'} • ${s.yatakhane || '-'}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      <!-- Namaz Kusurları (Yok, Takkesiz, Geç) -->
-                      <td class="p-3 text-center">
-                        ${rep.namazInfractionsCount > 0 ? `
-                          <span class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-black inline-block">
-                            ${rep.namazInfractionsCount} Kusur
-                          </span>
-                        ` : `
-                          <span class="text-slate-300 font-bold">-</span>
-                        `}
-                      </td>
-
-                      <!-- Yatak Kusurları (Orta, Kötü) -->
-                      <td class="p-3 text-center">
-                        ${rep.yatakInfractionsCount > 0 ? `
-                          <span class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-black inline-block">
-                            ${rep.yatakInfractionsCount} Kusur
-                          </span>
-                        ` : `
-                          <span class="text-slate-300 font-bold">-</span>
-                        `}
-                      </td>
-
-                      <!-- Okul Dönüş Kusurları (Geç, Gelmedi) -->
-                      <td class="p-3 text-center">
-                        ${rep.okulInfractionsCount > 0 ? `
-                          <span class="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 font-black inline-block">
-                            ${rep.okulInfractionsCount} Kusur
-                          </span>
-                        ` : `
-                          <span class="text-slate-300 font-bold">-</span>
-                        `}
-                      </td>
-
-                      <!-- İzin Dönüşü Gecikmeleri (3x Telafi) -->
-                      <td class="p-3 text-center">
-                        ${(rep.leaveReturnInfractionsCount || 0) > 0 ? `
-                          <span class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-900 border border-rose-300 font-black inline-block shadow-2xs">
-                            +${rep.leaveReturnPenaltyMinutes} dk (3x)
-                          </span>
-                        ` : `
-                          <span class="text-slate-300 font-bold">-</span>
-                        `}
-                      </td>
-
-                      <!-- Takviye Dersi (< 85) -->
-                      <td class="p-3 text-center">
-                        ${(rep.takviyeInfractionsCount || 0) > 0 ? `
-                          <span class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-900 border border-rose-300 font-black inline-block shadow-2xs">
-                            +${rep.takviyePenaltyMinutes} dk (${rep.takviyeInfractionsCount} Ders)
-                          </span>
-                        ` : `
-                          <span class="text-slate-300 font-bold">-</span>
-                        `}
-                      </td>
-
-                      <!-- Toplam Kusur Sayısı -->
-                      <td class="p-3 text-center">
-                        <div class="inline-flex flex-col items-center">
-                          <span class="px-2.5 py-1 rounded-xl font-black text-xs inline-block ${
-                            hasPenalty ? (isCleared ? 'bg-emerald-600 text-white shadow-2xs' : (isPartiallyCleared ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-rose-600 text-white shadow-2xs')) : (rep.totalInfractions > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold' : 'bg-slate-100 text-slate-500 font-bold')
-                          }">
-                            ${rep.totalInfractions} Adet
-                          </span>
-                          ${rep.totalInfractions > 0 ? `
-                            <span class="text-[9px] text-emerald-600 font-bold mt-0.5">
-                              ${Math.min(3, rep.totalInfractions)} Kusur Affı
-                            </span>
-                          ` : ''}
-                        </div>
-                      </td>
-
-                      <!-- Telafi Süresi -->
-                      <td class="p-3 text-center">
-                        ${isCleared ? `
-                          <div class="inline-flex flex-col items-center">
-                            <span class="line-through text-slate-400 text-[10px]">+${rep.rawPenaltyFormatted}</span>
-                            <span class="font-black text-xs text-emerald-700">0 Dk (Tam Af)</span>
-                          </div>
-                        ` : (isPartiallyCleared ? `
-                          <div class="inline-flex flex-col items-center">
-                            <span class="line-through text-slate-400 text-[10px]">+${rep.rawPenaltyFormatted}</span>
-                            <span class="font-black text-xs text-indigo-700">+${rep.penaltyFormatted}</span>
-                            <span class="text-[9px] text-indigo-600 font-bold">(-${rep.waivedMinutes} dk af)</span>
-                          </div>
-                        ` : (hasPenalty ? `
-                          <span class="font-black text-xs text-rose-700">+${rep.penaltyFormatted}</span>
-                        ` : `
-                          <span class="text-emerald-700 font-bold text-xs">Telafi Yok</span>
-                        `))}
-                      </td>
-
-                      <!-- İzin Çıkış Saati -->
-                      <td class="p-3 text-center">
-                        <div class="inline-block px-3 py-1.5 rounded-xl font-black text-xs shadow-2xs border ${
-                          isCleared 
-                            ? 'bg-emerald-50 text-emerald-900 border-emerald-300' 
-                            : (isPartiallyCleared
-                                ? 'bg-indigo-50 text-indigo-900 border-indigo-300 ring-1 ring-indigo-200'
-                                : (rep.hasActivePenalty
-                                    ? 'bg-rose-100 text-rose-900 border-rose-300 ring-1 ring-rose-200'
-                                    : 'bg-emerald-100 text-emerald-900 border-emerald-300'))
-                        }">
-                          <div class="text-sm leading-tight">${rep.calculatedExitTime}</div>
-                          <div class="text-[9px] font-bold opacity-80 mt-0.5">
-                            ${isCleared 
-                              ? '✓ Tam Af (Standart Çıkış)' 
-                              : (isPartiallyCleared 
-                                  ? `✂️ ${rep.waivedMinutes} dk Af (Kalan +${rep.penaltyMinutes} dk)` 
-                                  : (rep.hasActivePenalty 
-                                      ? `(+${rep.penaltyMinutes} dk ek süre)` 
-                                      : (rep.totalInfractions > 0 ? '✓ 3 Kusur Affı' : 'Tam Vaktinde')))}
-                          </div>
-                        </div>
-                      </td>
-
-                      <!-- Telafi Durumu & TV Panosu Onayı -->
-                      <td class="p-3 text-center no-print">
-                        ${hasPenalty ? `
-                          ${isCleared ? `
-                            <div class="inline-flex flex-col items-center gap-1">
-                              <span class="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-black text-[11px] shadow-xs flex items-center justify-center gap-1">
-                                <span>✓</span> <span>Tam Af</span>
-                              </span>
-                              <div class="flex items-center gap-1 mt-0.5">
-                                <button type="button" onclick="window.LeaveTrackerModule.openPartialWaiverModal('${s.id}')"
-                                  class="px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-bold transition cursor-pointer"
-                                  title="Affı düzenle">
-                                  ✏️ Düzenle
-                                </button>
-                                <button type="button" onclick="window.LeaveTrackerModule.cancelPenaltyWaiver('${s.id}')"
-                                  class="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 border border-slate-200 text-[10px] font-bold transition cursor-pointer"
-                                  title="Affı tamamen kaldır">
-                                  🔄 Geri Al
-                                </button>
-                              </div>
-                              <div class="text-[9px] text-emerald-700 font-bold">TV'den Düşürüldü</div>
-                            </div>
-                          ` : (isPartiallyCleared ? `
-                            <div class="inline-flex flex-col items-center gap-1">
-                              <span class="px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-900 border border-indigo-300 font-black text-[10px]">
-                                ✂️ -${rep.waivedMinutes} dk Af • Kalan: ${rep.penaltyMinutes} dk
-                              </span>
-                              <div class="flex items-center gap-1 mt-0.5">
-                                <button type="button" onclick="window.LeaveTrackerModule.openPartialWaiverModal('${s.id}')"
-                                  class="px-2 py-0.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold transition shadow-2xs cursor-pointer"
-                                  title="Affı düzenle">
-                                  ✂️ Düzenle
-                                </button>
-                                <button type="button" onclick="window.LeaveTrackerModule.applyFullWaiver('${s.id}', 'Tam Af')"
-                                  class="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition shadow-2xs cursor-pointer"
-                                  title="Kalan telafinin tamamını affet">
-                                  ✓ Tam Af
-                                </button>
-                                <button type="button" onclick="window.LeaveTrackerModule.cancelPenaltyWaiver('${s.id}')"
-                                  class="px-1.5 py-0.5 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 text-[10px] font-bold transition cursor-pointer"
-                                  title="Affı kaldır">
-                                  ✕
-                                </button>
-                              </div>
-                              <div class="text-[9px] text-rose-600 font-bold">TV'de Kalan ${rep.penaltyMinutes} dk Yayında</div>
-                            </div>
-                          ` : `
-                            <div class="inline-flex flex-col items-center gap-1">
-                              <div class="flex items-center gap-1">
-                                <button type="button" onclick="window.LeaveTrackerModule.applyFullWaiver('${s.id}', 'Tam Af')"
-                                  class="px-2 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] transition shadow-2xs flex items-center gap-1 cursor-pointer"
-                                  title="Talebenin tüm telafisini affet ve TV'den düşür">
-                                  <span>✓</span> <span>Tam Af</span>
-                                </button>
-                                <button type="button" onclick="window.LeaveTrackerModule.openPartialWaiverModal('${s.id}')"
-                                  class="px-2 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] transition shadow-2xs flex items-center gap-1 cursor-pointer"
-                                  title="Telafinin bir kısmını affet (30 dk, 60 dk vb.)">
-                                  <span>✂️</span> <span>Kısmi Af</span>
-                                </button>
-                              </div>
-                              <div class="text-[9px] text-rose-600 font-bold">TV'de Yayında</div>
-                            </div>
-                          `)}
-                        ` : `
-                          <span class="text-emerald-700 font-bold text-[11px]">${rep.totalInfractions > 0 ? '✓ Zamanında (Affedildi)' : '✓ Kusursuz'}</span>
-                        `}
-                      </td>
-
-                      <!-- Kapı Kontrol Butonu (Nöbetçi Hoca / Güvenlik İçin) -->
-                      <td class="p-3 text-center no-print">
-                        <button type="button" onclick="window.LeaveTrackerModule.toggleGateCheckout('${s.id}')"
-                          class="px-3 py-1.5 rounded-xl font-black text-[11px] transition shadow-2xs flex items-center justify-center gap-1.5 mx-auto ${
-                            isCheckedOut 
-                              ? 'bg-emerald-600 text-white ring-2 ring-emerald-300' 
-                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                          }">
-                          <span>${isCheckedOut ? '✓ Çıktı' : '⏳ Bekliyor'}</span>
-                        </button>
-                      </td>
-
-                      <!-- WhatsApp & Detay İşlemleri -->
-                      <td class="p-3 text-center no-print">
-                        <div class="flex items-center justify-center gap-1">
-                          <button type="button" onclick="window.LeaveTrackerModule.sendWhatsAppExitNotice('${s.id}')"
-                            class="p-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                            title="Veliye WhatsApp'tan çıkış saati bildirimi gönder">
-                            <span>📲</span>
-                            <span class="text-[10px] hidden sm:inline">WhatsApp</span>
-                          </button>
-                          <button type="button" onclick="window.LeaveTrackerModule.openDetailModal('${s.id}')"
-                            class="p-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 font-bold transition shadow-2xs cursor-pointer"
-                            title="Kusur dökümü detayını gör">
-                            👁️
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
+              <tbody id="leave-tracker-table-body" class="divide-y divide-slate-100">
+                ${this.renderTableRowsHtml(displayedReports, gateStatus)}
               </tbody>
             </table>
           </div>
@@ -851,6 +636,271 @@ window.LeaveTrackerModule = {
         ${this.renderPartialWaiverModal()}
       </div>
     `;
+  },
+
+  renderTableRowsHtml(displayedReports, gateStatus = {}) {
+    if (!displayedReports || displayedReports.length === 0) {
+      return `
+        <tr>
+          <td colspan="13" class="p-8 text-center text-slate-400">
+            Seçilen kriterlere uygun öğrenci bulunamadı.
+          </td>
+        </tr>
+      `;
+    }
+
+    return displayedReports.map((item, idx) => {
+      const s = item.student;
+      const rep = item.report;
+      const isCheckedOut = !!gateStatus[s.id];
+      const hasPenalty = rep.rawPenaltyMinutes > 0;
+      const isCleared = rep.isFullyCleared;
+      const isPartiallyCleared = rep.isPartiallyCleared;
+
+      return `
+        <tr class="hover:bg-slate-50/70 transition-colors ${isCheckedOut ? 'bg-slate-50/40 opacity-70' : ''} ${isCleared ? 'bg-emerald-50/20' : (isPartiallyCleared ? 'bg-indigo-50/20' : '')}">
+          <!-- Sıra & No -->
+          <td class="p-3 text-center font-bold text-slate-400">
+            ${idx + 1}
+          </td>
+
+          <!-- Öğrenci Adı Soyadı & Dahili Hoca -->
+          <td class="p-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shadow-2xs ${
+                hasPenalty 
+                  ? (isCleared ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300' : (isPartiallyCleared ? 'bg-indigo-100 text-indigo-800 ring-1 ring-indigo-300' : 'bg-rose-100 text-rose-800')) 
+                  : 'bg-emerald-100 text-emerald-800'
+              }">
+                ${s.studentNo}
+              </div>
+              <div>
+                <div class="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                  <span>${s.firstName} ${s.lastName}</span>
+                  ${isCleared ? '<span class="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[9px] font-black">✓ Tam Af</span>' : ''}
+                  ${isPartiallyCleared ? `<span class="px-1.5 py-0.2 bg-indigo-100 text-indigo-800 border border-indigo-300 rounded text-[9px] font-black">✂️ -${rep.waivedMinutes} dk Af</span>` : ''}
+                </div>
+                <div class="text-[10px] text-slate-500 font-medium">
+                  ${s.className} • ${s.dahiliHoca || '-'} • ${s.yatakhane || '-'}
+                </div>
+              </div>
+            </div>
+          </td>
+
+          <!-- Namaz Kusurları (Yok, Takkesiz, Geç) -->
+          <td class="p-3 text-center">
+            ${rep.namazInfractionsCount > 0 ? `
+              <span class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-black inline-block">
+                ${rep.namazInfractionsCount} Kusur
+              </span>
+            ` : `
+              <span class="text-slate-300 font-bold">-</span>
+            `}
+          </td>
+
+          <!-- Yatak Kusurları (Orta, Kötü) -->
+          <td class="p-3 text-center">
+            ${rep.yatakInfractionsCount > 0 ? `
+              <span class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-black inline-block">
+                ${rep.yatakInfractionsCount} Kusur
+              </span>
+            ` : `
+              <span class="text-slate-300 font-bold">-</span>
+            `}
+          </td>
+
+          <!-- Okul Dönüş Kusurları (Geç, Gelmedi) -->
+          <td class="p-3 text-center">
+            ${rep.okulInfractionsCount > 0 ? `
+              <span class="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 font-black inline-block">
+                ${rep.okulInfractionsCount} Kusur
+              </span>
+            ` : `
+              <span class="text-slate-300 font-bold">-</span>
+            `}
+          </td>
+
+          <!-- İzin Dönüşü Gecikmeleri (3x Telafi) -->
+          <td class="p-3 text-center">
+            ${(rep.leaveReturnInfractionsCount || 0) > 0 ? `
+              <span class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-900 border border-rose-300 font-black inline-block shadow-2xs">
+                +${rep.leaveReturnPenaltyMinutes} dk (3x)
+              </span>
+            ` : `
+              <span class="text-slate-300 font-bold">-</span>
+            `}
+          </td>
+
+          <!-- Takviye Dersi (< 85) -->
+          <td class="p-3 text-center">
+            ${(rep.takviyeInfractionsCount || 0) > 0 ? `
+              <span class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-900 border border-rose-300 font-black inline-block shadow-2xs">
+                +${rep.takviyePenaltyMinutes} dk (${rep.takviyeInfractionsCount} Ders)
+              </span>
+            ` : `
+              <span class="text-slate-300 font-bold">-</span>
+            `}
+          </td>
+
+          <!-- Toplam Kusur Sayısı -->
+          <td class="p-3 text-center">
+            <div class="inline-flex flex-col items-center">
+              <span class="px-2.5 py-1 rounded-xl font-black text-xs inline-block ${
+                hasPenalty ? (isCleared ? 'bg-emerald-600 text-white shadow-2xs' : (isPartiallyCleared ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-rose-600 text-white shadow-2xs')) : (rep.totalInfractions > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold' : 'bg-slate-100 text-slate-500 font-bold')
+              }">
+                ${rep.totalInfractions} Adet
+              </span>
+              ${rep.totalInfractions > 0 ? `
+                <span class="text-[9px] text-emerald-600 font-bold mt-0.5">
+                  ${Math.min(3, rep.totalInfractions)} Kusur Affı
+                </span>
+              ` : ''}
+            </div>
+          </td>
+
+          <!-- Telafi Süresi -->
+          <td class="p-3 text-center">
+            ${isCleared ? `
+              <div class="inline-flex flex-col items-center">
+                <span class="line-through text-slate-400 text-[10px]">+${rep.rawPenaltyFormatted}</span>
+                <span class="font-black text-xs text-emerald-700">0 Dk (Tam Af)</span>
+              </div>
+            ` : (isPartiallyCleared ? `
+              <div class="inline-flex flex-col items-center">
+                <span class="line-through text-slate-400 text-[10px]">+${rep.rawPenaltyFormatted}</span>
+                <span class="font-black text-xs text-indigo-700">+${rep.penaltyFormatted}</span>
+                <span class="text-[9px] text-indigo-600 font-bold">(-${rep.waivedMinutes} dk af)</span>
+              </div>
+            ` : (hasPenalty ? `
+              <span class="font-black text-xs text-rose-700">+${rep.penaltyFormatted}</span>
+            ` : `
+              <span class="text-emerald-700 font-bold text-xs">Telafi Yok</span>
+            `))}
+          </td>
+
+          <!-- İzin Çıkış Saati -->
+          <td class="p-3 text-center">
+            <div class="inline-block px-3 py-1.5 rounded-xl font-black text-xs shadow-2xs border ${
+              isCleared 
+                ? 'bg-emerald-50 text-emerald-900 border-emerald-300' 
+                : (isPartiallyCleared
+                    ? 'bg-indigo-50 text-indigo-900 border-indigo-300 ring-1 ring-indigo-200'
+                    : (rep.hasActivePenalty
+                        ? 'bg-rose-100 text-rose-900 border-rose-300 ring-1 ring-rose-200'
+                        : 'bg-emerald-100 text-emerald-900 border-emerald-300'))
+            }">
+              <div class="text-sm leading-tight">${rep.calculatedExitTime}</div>
+              <div class="text-[9px] font-bold opacity-80 mt-0.5">
+                ${isCleared 
+                  ? '✓ Tam Af (Standart Çıkış)' 
+                  : (isPartiallyCleared 
+                      ? `✂️ ${rep.waivedMinutes} dk Af (Kalan +${rep.penaltyMinutes} dk)` 
+                      : (rep.hasActivePenalty 
+                          ? `(+${rep.penaltyMinutes} dk ek süre)` 
+                          : (rep.totalInfractions > 0 ? '✓ 3 Kusur Affı' : 'Tam Vaktinde')))}
+              </div>
+            </div>
+          </td>
+
+          <!-- Telafi Durumu & TV Panosu Onayı -->
+          <td class="p-3 text-center no-print">
+            ${hasPenalty ? `
+              ${isCleared ? `
+                <div class="inline-flex flex-col items-center gap-1">
+                  <span class="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-black text-[11px] shadow-xs flex items-center justify-center gap-1">
+                    <span>✓</span> <span>Tam Af</span>
+                  </span>
+                  <div class="flex items-center gap-1 mt-0.5">
+                    <button type="button" onclick="window.LeaveTrackerModule.openPartialWaiverModal('${s.id}')"
+                      class="px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-bold transition cursor-pointer"
+                      title="Affı düzenle">
+                      ✏️ Düzenle
+                    </button>
+                    <button type="button" onclick="window.LeaveTrackerModule.cancelPenaltyWaiver('${s.id}')"
+                      class="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 border border-slate-200 text-[10px] font-bold transition cursor-pointer"
+                      title="Affı tamamen kaldır">
+                      🔄 Geri Al
+                    </button>
+                  </div>
+                  <div class="text-[9px] text-emerald-700 font-bold">TV'den Düşürüldü</div>
+                </div>
+              ` : (isPartiallyCleared ? `
+                <div class="inline-flex flex-col items-center gap-1">
+                  <span class="px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-900 border border-indigo-300 font-black text-[10px]">
+                    ✂️ -${rep.waivedMinutes} dk Af • Kalan: ${rep.penaltyMinutes} dk
+                  </span>
+                  <div class="flex items-center gap-1 mt-0.5">
+                    <button type="button" onclick="window.LeaveTrackerModule.openPartialWaiverModal('${s.id}')"
+                      class="px-2 py-0.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold transition shadow-2xs cursor-pointer"
+                      title="Affı düzenle">
+                      ✂️ Düzenle
+                    </button>
+                    <button type="button" onclick="window.LeaveTrackerModule.applyFullWaiver('${s.id}', 'Tam Af')"
+                      class="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition shadow-2xs cursor-pointer"
+                      title="Kalan telafinin tamamını affet">
+                      ✓ Tam Af
+                    </button>
+                    <button type="button" onclick="window.LeaveTrackerModule.cancelPenaltyWaiver('${s.id}')"
+                      class="px-1.5 py-0.5 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 text-[10px] font-bold transition cursor-pointer"
+                      title="Affı kaldır">
+                      ✕
+                    </button>
+                  </div>
+                  <div class="text-[9px] text-rose-600 font-bold">TV'de Kalan ${rep.penaltyMinutes} dk Yayında</div>
+                </div>
+              ` : `
+                <div class="inline-flex flex-col items-center gap-1">
+                  <div class="flex items-center gap-1">
+                    <button type="button" onclick="window.LeaveTrackerModule.applyFullWaiver('${s.id}', 'Tam Af')"
+                      class="px-2 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[10px] transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                      title="Talebenin tüm telafisini affet ve TV'den düşür">
+                      <span>✓</span> <span>Tam Af</span>
+                    </button>
+                    <button type="button" onclick="window.LeaveTrackerModule.openPartialWaiverModal('${s.id}')"
+                      class="px-2 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                      title="Telafinin bir kısmını affet (30 dk, 60 dk vb.)">
+                      <span>✂️</span> <span>Kısmi Af</span>
+                    </button>
+                  </div>
+                  <div class="text-[9px] text-rose-600 font-bold">TV'de Yayında</div>
+                </div>
+              `)}
+            ` : `
+              <span class="text-emerald-700 font-bold text-[11px]">${rep.totalInfractions > 0 ? '✓ Zamanında (Affedildi)' : '✓ Kusursuz'}</span>
+            `}
+          </td>
+
+          <!-- Kapı Kontrol Butonu (Nöbetçi Hoca / Güvenlik İçin) -->
+          <td class="p-3 text-center no-print">
+            <button type="button" onclick="window.LeaveTrackerModule.toggleGateCheckout('${s.id}')"
+              class="px-3 py-1.5 rounded-xl font-black text-[11px] transition shadow-2xs flex items-center justify-center gap-1.5 mx-auto ${
+                isCheckedOut 
+                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-300' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+              }">
+              <span>${isCheckedOut ? '✓ Çıktı' : '⏳ Bekliyor'}</span>
+            </button>
+          </td>
+
+          <!-- WhatsApp & Detay İşlemleri -->
+          <td class="p-3 text-center no-print">
+            <div class="flex items-center justify-center gap-1">
+              <button type="button" onclick="window.LeaveTrackerModule.sendWhatsAppExitNotice('${s.id}')"
+                class="p-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                title="Veliye WhatsApp'tan çıkış saati bildirimi gönder">
+                <span>📲</span>
+                <span class="text-[10px] hidden sm:inline">WhatsApp</span>
+              </button>
+              <button type="button" onclick="window.LeaveTrackerModule.openDetailModal('${s.id}')"
+                class="p-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 font-bold transition shadow-2xs cursor-pointer"
+                title="Kusur dökümü detayını gör">
+                👁️
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
   },
 
   renderStudentDetailModal() {

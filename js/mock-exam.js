@@ -2767,11 +2767,17 @@ window.MockExamModule = {
 
     // İsim / No Arama Filtresi
     if (this.searchQuery) {
-      const q = this.searchQuery.toLowerCase();
+      const q = this.searchQuery.trim();
       students = students.filter(s =>
-        (s.firstName && s.firstName.toLowerCase().includes(q)) ||
-        (s.lastName && s.lastName.toLowerCase().includes(q)) ||
-        (s.studentNo && s.studentNo.toString().includes(q))
+        window.Store && typeof window.Store.matchesSearch === 'function'
+          ? (window.Store.matchesSearch(s.firstName, q) ||
+             window.Store.matchesSearch(s.lastName, q) ||
+             window.Store.matchesSearch((s.firstName || '') + ' ' + (s.lastName || ''), q) ||
+             window.Store.matchesSearch(s.studentNo, q) ||
+             window.Store.matchesSearch(s.className, q))
+          : ((s.firstName && s.firstName.toLowerCase().includes(q.toLowerCase())) ||
+             (s.lastName && s.lastName.toLowerCase().includes(q.toLowerCase())) ||
+             (s.studentNo && s.studentNo.toString().includes(q)))
       );
     }
 
@@ -2992,8 +2998,8 @@ window.MockExamModule = {
           </div>
 
           <div class="flex items-center gap-2">
-            <input type="text" placeholder="İsim veya No ile ara..." value="${this.escapeHtml(this.searchQuery)}"
-              oninput="window.MockExamModule.searchQuery = this.value; window.MockExamModule.render();"
+            <input type="text" id="mock-exam-search-input" placeholder="İsim veya No ile ara..." value="${this.escapeHtml(this.searchQuery)}"
+              oninput="window.MockExamModule.handleSearchInput(this.value)"
               class="p-1.5 px-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs w-48 focus:bg-white focus:outline-none">
           </div>
         </div>
@@ -3018,7 +3024,7 @@ window.MockExamModule = {
 
           <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
             <div class="font-black text-slate-800 text-xs sm:text-sm">
-              🏆 LGS 500 Puan Sıralaması ve Ders Netleri (${studentResults.length} Talebe)
+              🏆 LGS 500 Puan Sıralaması ve Ders Netleri (<span id="mock-exam-count-badge">${studentResults.length} Talebe</span>)
             </div>
             <div class="text-[11px] text-slate-500 no-print">
               Not girmek için <strong>"✏️ Not Gir"</strong> veya kamerayla <strong>"📷 Optik Oku"</strong> butonunu kullanabilirsiniz.
@@ -3041,57 +3047,8 @@ window.MockExamModule = {
                   <th class="py-2 pr-3 text-right no-print">İşlem</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-100">
-                ${studentResults.map((item, idx) => {
-                  const st = item.student;
-                  const isEval = item.hasScore;
-                  let medal = '';
-                  if (isEval) {
-                    if (idx === 0) medal = '🥇';
-                    else if (idx === 1) medal = '🥈';
-                    else if (idx === 2) medal = '🥉';
-                    else medal = `#${idx + 1}`;
-                  } else {
-                    medal = '-';
-                  }
-
-                  return `
-                    <tr class="hover:bg-slate-50/80 transition-colors h-10">
-                      <td class="text-center font-mono font-black text-xs ${idx < 3 && isEval ? 'text-amber-600 font-black' : 'text-slate-400'}">
-                        ${medal}
-                      </td>
-                      <td class="py-2 px-2">
-                        <div class="font-black text-slate-900">${st.firstName} ${st.lastName}</div>
-                        <div class="text-[10px] text-slate-400 font-bold">${st.className || ''} • No: ${st.studentNo}</div>
-                      </td>
-                      <td class="text-center font-mono font-black text-xs text-purple-900 bg-purple-50/40">
-                        ${isEval ? item.totalScore.toFixed(2) : '<span class="text-slate-300">-</span>'}
-                      </td>
-                      <td class="text-center font-mono font-black text-xs text-blue-900 bg-blue-50/40">
-                        ${isEval ? item.totalNet.toFixed(2) : '<span class="text-slate-300">-</span>'}
-                      </td>
-                      ${subjects.map(s => {
-                        const sd = item.subScores[s.id];
-                        return `
-                          <td class="text-center font-mono text-[11px] px-1">
-                            ${sd ? `<span class="font-bold text-slate-800">${sd.net.toFixed(1)}</span>` : '<span class="text-slate-300">-</span>'}
-                          </td>
-                        `;
-                      }).join('')}
-                      <td class="py-2 pr-3 text-right no-print">
-                        <button type="button" onclick="window.MockExamModule.openStudentScoreInputModal('${exam.id}', '${st.id}')"
-                          class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] rounded-lg border border-indigo-200 transition cursor-pointer">
-                          ✏️ Not Gir
-                        </button>
-                        <button type="button" onclick="window.MockExamModule.shareStudentWhatsAppCarnet('${exam.id}', '${st.id}')"
-                          title="Veliye WhatsApp Deneme Karnesi Gönder"
-                          class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] rounded-lg border border-emerald-200 transition ml-1 cursor-pointer">
-                          📱
-                        </button>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
+              <tbody id="mock-exam-results-tbody" class="divide-y divide-slate-100">
+                ${this.renderResultsTableRowsHtml(studentResults, subjects, exam)}
               </tbody>
               <tfoot>
                 <tr class="bg-slate-100/90 text-slate-800 font-black border-t-2 border-slate-300 h-10 text-[11px]">
@@ -3131,6 +3088,150 @@ window.MockExamModule = {
 
       </div>
     `;
+  },
+
+  handleSearchInput(q) {
+    this.searchQuery = q || '';
+    const tbody = document.getElementById('mock-exam-results-tbody');
+    if (tbody) {
+      const exam = window.Store.getMockExamById(this.selectedExamId);
+      if (exam) {
+        let students = this.getParticipatingStudents(exam);
+        if (this.selectedClassFilter !== 'ALL') {
+          students = students.filter(s => (s.className || '').trim().toUpperCase() === this.selectedClassFilter.toUpperCase());
+        }
+        if (this.searchQuery) {
+          const q = this.searchQuery.trim();
+          students = students.filter(s =>
+            window.Store && typeof window.Store.matchesSearch === 'function'
+              ? (window.Store.matchesSearch(s.firstName, q) ||
+                 window.Store.matchesSearch(s.lastName, q) ||
+                 window.Store.matchesSearch((s.firstName || '') + ' ' + (s.lastName || ''), q) ||
+                 window.Store.matchesSearch(s.studentNo, q) ||
+                 window.Store.matchesSearch(s.className, q))
+              : ((s.firstName && s.firstName.toLowerCase().includes(q.toLowerCase())) ||
+                 (s.lastName && s.lastName.toLowerCase().includes(q.toLowerCase())) ||
+                 (s.studentNo && s.studentNo.toString().includes(q)))
+          );
+        }
+        const examScores = exam.scores || {};
+        const subjects = exam.subjects || [];
+        const studentResults = students.map(st => {
+          const sc = examScores[st.id] || { subjects: {}, totalScore: 0, totalNet: 0 };
+          const subScores = sc.subjects || {};
+          let totalNet = 0;
+          let totalWeightedNet = 0;
+          let maxWeightedNet = 0;
+          subjects.forEach(sub => {
+            const subData = subScores[sub.id] || { correct: 0, wrong: 0, empty: sub.questionCount, net: 0 };
+            const coeff = parseFloat(sub.coefficient) || 1;
+            const qCount = parseInt(sub.questionCount, 10) || 0;
+            totalNet += (subData.net || 0);
+            totalWeightedNet += ((subData.net || 0) * coeff);
+            maxWeightedNet += (qCount * coeff);
+          });
+          let calculatedScore = sc.totalScore || 0;
+          if (!calculatedScore) {
+            if (exam.formulaType === 'LGS_500' && maxWeightedNet > 0) {
+              calculatedScore = 100 + (Math.max(0, totalWeightedNet) / maxWeightedNet) * 400;
+            } else {
+              calculatedScore = totalWeightedNet;
+            }
+            calculatedScore = Math.max(0, Math.min(500, Math.round(calculatedScore * 100) / 100));
+          }
+          return {
+            student: st,
+            subScores,
+            totalNet: Math.round(totalNet * 100) / 100,
+            totalScore: calculatedScore,
+            hasScore: Object.keys(subScores).length > 0 && Object.values(subScores).some(s => (s.correct > 0 || s.wrong > 0))
+          };
+        });
+
+        if (this.sortBy === 'name') {
+          studentResults.sort((a, b) => (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr'));
+        } else {
+          studentResults.sort((a, b) => {
+            if (a.hasScore && !b.hasScore) return -1;
+            if (!a.hasScore && b.hasScore) return 1;
+            if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+            if (b.totalNet !== a.totalNet) return b.totalNet - a.totalNet;
+            return (a.student.firstName || '').localeCompare(b.student.firstName || '', 'tr');
+          });
+        }
+
+        tbody.innerHTML = this.renderResultsTableRowsHtml(studentResults, subjects, exam);
+        const countBadge = document.getElementById('mock-exam-count-badge');
+        if (countBadge) {
+          countBadge.textContent = `${studentResults.length} Talebe`;
+        }
+        return;
+      }
+    }
+    this.render();
+  },
+
+  renderResultsTableRowsHtml(studentResults, subjects, exam) {
+    if (!studentResults || studentResults.length === 0) {
+      return `
+        <tr>
+          <td colspan="${5 + (subjects ? subjects.length : 0)}" class="py-8 text-center text-slate-400 font-bold text-xs">
+            Filtreye uygun öğrenci bulunamadı.
+          </td>
+        </tr>
+      `;
+    }
+
+    return studentResults.map((item, idx) => {
+      const st = item.student;
+      const isEval = item.hasScore;
+      let medal = '';
+      if (isEval) {
+        if (idx === 0) medal = '🥇';
+        else if (idx === 1) medal = '🥈';
+        else if (idx === 2) medal = '🥉';
+        else medal = `#${idx + 1}`;
+      } else {
+        medal = '-';
+      }
+
+      return `
+        <tr class="hover:bg-slate-50/80 transition-colors h-10">
+          <td class="text-center font-mono font-black text-xs ${idx < 3 && isEval ? 'text-amber-600 font-black' : 'text-slate-400'}">
+            ${medal}
+          </td>
+          <td class="py-2 px-2">
+            <div class="font-black text-slate-900">${st.firstName} ${st.lastName}</div>
+            <div class="text-[10px] text-slate-400 font-bold">${st.className || ''} • No: ${st.studentNo}</div>
+          </td>
+          <td class="text-center font-mono font-black text-xs text-purple-900 bg-purple-50/40">
+            ${isEval ? item.totalScore.toFixed(2) : '<span class="text-slate-300">-</span>'}
+          </td>
+          <td class="text-center font-mono font-black text-xs text-blue-900 bg-blue-50/40">
+            ${isEval ? item.totalNet.toFixed(2) : '<span class="text-slate-300">-</span>'}
+          </td>
+          ${subjects.map(s => {
+            const sd = item.subScores[s.id];
+            return `
+              <td class="text-center font-mono text-[11px] px-1">
+                ${sd ? `<span class="font-bold text-slate-800">${sd.net.toFixed(1)}</span>` : '<span class="text-slate-300">-</span>'}
+              </td>
+            `;
+          }).join('')}
+          <td class="py-2 pr-3 text-right no-print">
+            <button type="button" onclick="window.MockExamModule.openStudentScoreInputModal('${exam.id}', '${st.id}')"
+              class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] rounded-lg border border-indigo-200 transition cursor-pointer">
+              ✏️ Not Gir
+            </button>
+            <button type="button" onclick="window.MockExamModule.shareStudentWhatsAppCarnet('${exam.id}', '${st.id}')"
+              title="Veliye WhatsApp Deneme Karnesi Gönder"
+              class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] rounded-lg border border-emerald-200 transition ml-1 cursor-pointer">
+              📱
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
   },
 
   downloadResultsImage(examId) {

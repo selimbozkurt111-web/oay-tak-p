@@ -168,13 +168,20 @@ window.TestResultsModule = {
 
     // 3. Arama Filtresi
     if (this.searchQuery) {
-      const q = this.searchQuery.toLowerCase().trim();
+      const q = this.searchQuery.trim();
       students = students.filter(s =>
-        s.firstName.toLowerCase().includes(q) ||
-        s.lastName.toLowerCase().includes(q) ||
-        (s.studentNo && s.studentNo.toString().includes(q)) ||
-        (s.className && s.className.toLowerCase().includes(q)) ||
-        (s.etutHocasi && s.etutHocasi.toLowerCase().includes(q))
+        window.Store && typeof window.Store.matchesSearch === 'function'
+          ? (window.Store.matchesSearch(s.firstName, q) ||
+             window.Store.matchesSearch(s.lastName, q) ||
+             window.Store.matchesSearch((s.firstName || '') + ' ' + (s.lastName || ''), q) ||
+             window.Store.matchesSearch(s.studentNo, q) ||
+             window.Store.matchesSearch(s.className, q) ||
+             window.Store.matchesSearch(s.etutHocasi, q))
+          : (s.firstName.toLowerCase().includes(q.toLowerCase()) ||
+             s.lastName.toLowerCase().includes(q.toLowerCase()) ||
+             (s.studentNo && s.studentNo.toString().includes(q)) ||
+             (s.className && s.className.toLowerCase().includes(q.toLowerCase())) ||
+             (s.etutHocasi && s.etutHocasi.toLowerCase().includes(q.toLowerCase())))
       );
     }
 
@@ -435,6 +442,120 @@ window.TestResultsModule = {
     this.render();
   },
 
+  handleSearchInput(q) {
+    this.searchQuery = q || '';
+    const tbody = document.getElementById('test-results-tbody');
+    if (tbody) {
+      const students = this.getCurrentlyDisplayedStudents();
+      tbody.innerHTML = this.renderTableRowsHtml(students);
+      this.updateSummaryCounters();
+      return;
+    }
+    this.render();
+  },
+
+  renderTableRowsHtml(students) {
+    if (!students || students.length === 0) {
+      return `
+        <tr>
+          <td colspan="7" class="py-8 text-center text-slate-400 font-bold text-xs">
+            Filtreye uygun öğrenci bulunamadı.
+          </td>
+        </tr>
+      `;
+    }
+
+    return students.map((st, idx) => {
+      const sc = this.scores[st.id] || this.calculateRow(st.id);
+      const badgeCls = this.getScoreBadgeClass(sc.score);
+      const isEvaluated = (sc.correct > 0 || sc.wrong > 0);
+
+      // Sıralama Madalyası / Sıra Numarası (Sadece nota göre sıralıyken)
+      let rankBadge = '';
+      if (this.sortBy === 'score_desc') {
+        if (isEvaluated) {
+          if (idx === 0) rankBadge = '<span class="text-xs">🥇</span>';
+          else if (idx === 1) rankBadge = '<span class="text-xs">🥈</span>';
+          else if (idx === 2) rankBadge = '<span class="text-xs">🥉</span>';
+          else rankBadge = `<span class="text-slate-500 font-mono text-[9px] font-bold">#${idx + 1}</span>`;
+        } else {
+          rankBadge = '<span class="text-slate-300 font-mono text-[9px]">-</span>';
+        }
+      }
+
+      return `
+        <tr class="hover:bg-slate-50/80 transition-colors h-8 sm:h-9">
+          <!-- 1. Derece, Talebe Adı & Sınıfı -->
+          <td class="py-1 pl-2 pr-1 truncate">
+            <div class="flex items-center gap-1 truncate">
+              ${rankBadge ? `<div class="w-4 text-center flex-shrink-0 leading-none">${rankBadge}</div>` : ''}
+              <div class="truncate">
+                <div class="font-bold text-slate-900 text-[11px] sm:text-xs truncate">
+                  ${st.firstName} ${st.lastName}
+                </div>
+                <div class="text-[9px] text-slate-400 font-medium truncate leading-none mt-0.5">
+                  ${st.className || ''} ${st.studentNo ? '• No: ' + st.studentNo : ''}
+                </div>
+              </div>
+            </div>
+          </td>
+
+          <!-- 2. Doğru (D) Girişi -->
+          <td class="py-0.5 px-0.5 text-center bg-emerald-50/20">
+            <input type="number" id="input-c-${st.id}" min="0" max="${this.testMeta.totalQuestions}" 
+              data-row-idx="${idx}"
+              data-field="correct"
+              data-student-id="${st.id}"
+              value="${sc.correct}"
+              oninput="window.TestResultsModule.handleInputChange('${st.id}', 'correct', this.value)"
+              onblur="window.TestResultsModule.handleInputBlur('${st.id}')"
+              onkeydown="window.TestResultsModule.handleKeyDown(event, '${st.id}', 'correct', ${idx})"
+              class="w-8 sm:w-10 h-7 text-center font-black text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 p-0">
+          </td>
+
+          <!-- 3. Yanlış (Y) Girişi -->
+          <td class="py-0.5 px-0.5 text-center bg-rose-50/20">
+            <input type="number" id="input-w-${st.id}" min="0" max="${this.testMeta.totalQuestions}" 
+              data-row-idx="${idx}"
+              data-field="wrong"
+              data-student-id="${st.id}"
+              value="${sc.wrong}"
+              oninput="window.TestResultsModule.handleInputChange('${st.id}', 'wrong', this.value)"
+              onblur="window.TestResultsModule.handleInputBlur('${st.id}')"
+              onkeydown="window.TestResultsModule.handleKeyDown(event, '${st.id}', 'wrong', ${idx})"
+              class="w-8 sm:w-10 h-7 text-center font-black text-rose-800 bg-rose-50 border border-rose-300 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-rose-500 p-0">
+          </td>
+
+          <!-- 4. Otomatik Boş (B) -->
+          <td class="py-0.5 px-0.5 text-center font-mono text-[11px] text-slate-400 font-bold">
+            <span id="empty-badge-${st.id}">${sc.empty}</span>
+          </td>
+
+          <!-- 5. Otomatik Net -->
+          <td class="py-0.5 px-0.5 text-center font-mono font-black text-blue-700 text-[11px] sm:text-xs bg-blue-50/20">
+            <span id="net-badge-${st.id}">${sc.net.toFixed(1)}</span>
+          </td>
+
+          <!-- 6. 100 Notu -->
+          <td class="py-0.5 px-0.5 text-center">
+            <span id="score-badge-${st.id}" class="inline-block px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-xs border shadow-2xs ${badgeCls}">
+              ${sc.score}
+            </span>
+          </td>
+
+          <!-- 7. Veli WhatsApp Paylaşım -->
+          <td class="py-0.5 px-0.5 text-center no-print">
+            <button type="button" onclick="window.TestResultsModule.shareStudentViaWhatsApp('${st.id}')"
+              title="Veliye WhatsApp Karnesi Gönder"
+              class="w-6 h-6 rounded-md bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white inline-flex items-center justify-center text-xs border border-emerald-200 transition shadow-2xs">
+              📱
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
   render() {
     const container = document.getElementById('test-results-container');
     if (!container) return;
@@ -635,8 +756,8 @@ window.TestResultsModule = {
           </div>
 
           <div class="flex items-center gap-1.5 ml-auto">
-            <input type="text" placeholder="Talebe ara..." value="${this.escapeHtml(this.searchQuery)}"
-              oninput="window.TestResultsModule.searchQuery = this.value; window.TestResultsModule.render();"
+            <input type="text" id="test-results-search-input" placeholder="Talebe ara..." value="${this.escapeHtml(this.searchQuery)}"
+              oninput="window.TestResultsModule.handleSearchInput(this.value)"
               class="w-24 sm:w-32 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500">
             
             <button type="button" onclick="window.TestResultsModule.saveCurrentTest();"
@@ -687,102 +808,8 @@ window.TestResultsModule = {
                   <th class="w-8 sm:w-10 py-1 px-0.5 text-center text-emerald-700 no-print">📱</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-100 text-xs">
-                ${students.length === 0 ? `
-                  <tr>
-                    <td colspan="7" class="py-8 text-center text-slate-400 font-bold text-xs">
-                      Filtreye uygun öğrenci bulunamadı.
-                    </td>
-                  </tr>
-                ` : students.map((st, idx) => {
-                  const sc = this.scores[st.id] || this.calculateRow(st.id);
-                  const badgeCls = this.getScoreBadgeClass(sc.score);
-                  const isEvaluated = (sc.correct > 0 || sc.wrong > 0);
-
-                  // Sıralama Madalyası / Sıra Numarası (Sadece nota göre sıralıyken)
-                  let rankBadge = '';
-                  if (this.sortBy === 'score_desc') {
-                    if (isEvaluated) {
-                      if (idx === 0) rankBadge = '<span class="text-xs">🥇</span>';
-                      else if (idx === 1) rankBadge = '<span class="text-xs">🥈</span>';
-                      else if (idx === 2) rankBadge = '<span class="text-xs">🥉</span>';
-                      else rankBadge = `<span class="text-slate-500 font-mono text-[9px] font-bold">#${idx + 1}</span>`;
-                    } else {
-                      rankBadge = '<span class="text-slate-300 font-mono text-[9px]">-</span>';
-                    }
-                  }
-
-                  return `
-                    <tr class="hover:bg-slate-50/80 transition-colors h-8 sm:h-9">
-                      <!-- 1. Derece, Talebe Adı & Sınıfı -->
-                      <td class="py-1 pl-2 pr-1 truncate">
-                        <div class="flex items-center gap-1 truncate">
-                          ${rankBadge ? `<div class="w-4 text-center flex-shrink-0 leading-none">${rankBadge}</div>` : ''}
-                          <div class="truncate">
-                            <div class="font-bold text-slate-900 text-[11px] sm:text-xs truncate">
-                              ${st.firstName} ${st.lastName}
-                            </div>
-                            <div class="text-[9px] text-slate-400 font-medium truncate leading-none mt-0.5">
-                              ${st.className || ''} ${st.studentNo ? '• No: ' + st.studentNo : ''}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      <!-- 2. Doğru (D) Girişi -->
-                      <td class="py-0.5 px-0.5 text-center bg-emerald-50/20">
-                        <input type="number" id="input-c-${st.id}" min="0" max="${this.testMeta.totalQuestions}" 
-                          data-row-idx="${idx}"
-                          data-field="correct"
-                          data-student-id="${st.id}"
-                          value="${sc.correct}"
-                          oninput="window.TestResultsModule.handleInputChange('${st.id}', 'correct', this.value)"
-                          onblur="window.TestResultsModule.handleInputBlur('${st.id}')"
-                          onkeydown="window.TestResultsModule.handleKeyDown(event, '${st.id}', 'correct', ${idx})"
-                          class="w-8 sm:w-10 h-7 text-center font-black text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 p-0">
-                      </td>
-
-                      <!-- 3. Yanlış (Y) Girişi -->
-                      <td class="py-0.5 px-0.5 text-center bg-rose-50/20">
-                        <input type="number" id="input-w-${st.id}" min="0" max="${this.testMeta.totalQuestions}" 
-                          data-row-idx="${idx}"
-                          data-field="wrong"
-                          data-student-id="${st.id}"
-                          value="${sc.wrong}"
-                          oninput="window.TestResultsModule.handleInputChange('${st.id}', 'wrong', this.value)"
-                          onblur="window.TestResultsModule.handleInputBlur('${st.id}')"
-                          onkeydown="window.TestResultsModule.handleKeyDown(event, '${st.id}', 'wrong', ${idx})"
-                          class="w-8 sm:w-10 h-7 text-center font-black text-rose-800 bg-rose-50 border border-rose-300 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-rose-500 p-0">
-                      </td>
-
-                      <!-- 4. Otomatik Boş (B) -->
-                      <td class="py-0.5 px-0.5 text-center font-mono text-[11px] text-slate-400 font-bold">
-                        <span id="empty-badge-${st.id}">${sc.empty}</span>
-                      </td>
-
-                      <!-- 5. Otomatik Net -->
-                      <td class="py-0.5 px-0.5 text-center font-mono font-black text-blue-700 text-[11px] sm:text-xs bg-blue-50/20">
-                        <span id="net-badge-${st.id}">${sc.net.toFixed(1)}</span>
-                      </td>
-
-                      <!-- 6. 100 Notu -->
-                      <td class="py-0.5 px-0.5 text-center">
-                        <span id="score-badge-${st.id}" class="inline-block px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-xs border shadow-2xs ${badgeCls}">
-                          ${sc.score}
-                        </span>
-                      </td>
-
-                      <!-- 7. Veli WhatsApp Paylaşım -->
-                      <td class="py-0.5 px-0.5 text-center no-print">
-                        <button type="button" onclick="window.TestResultsModule.shareStudentViaWhatsApp('${st.id}')"
-                          title="Veliye WhatsApp Karnesi Gönder"
-                          class="w-6 h-6 rounded-md bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white inline-flex items-center justify-center text-xs border border-emerald-200 transition shadow-2xs">
-                          📱
-                        </button>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
+              <tbody id="test-results-tbody" class="divide-y divide-slate-100 text-xs">
+                ${this.renderTableRowsHtml(students)}
               </tbody>
 
               <!-- 5. EN ALT TABLO ÖZET SATIRI (DOĞRU, YANLIŞ, BOŞ, NET VE PUAN ORTALAMALARI) -->
@@ -1142,17 +1169,28 @@ window.TestResultsModule = {
     const overallAvgScore = evalExamCount > 0 ? Math.round(totalScoreSum / evalExamCount) : 0;
 
     // Filtreleme Mantığı
-    const q = (this.historySearchQuery || '').trim().toLowerCase();
+    const q = (this.historySearchQuery || '').trim();
     let filtered = allItems;
 
     if (q) {
       filtered = filtered.filter(({ test: t, info }) => {
-        const matchTitle = (t.title || '').toLowerCase().includes(q);
-        const matchTopic = (t.topic || '').toLowerCase().includes(q);
-        const matchUnit = (t.unit || '').toLowerCase().includes(q);
-        const matchSubject = (t.subject || '').toLowerCase().includes(q);
-        const matchClass = info.classes.some(c => c.toLowerCase().includes(q));
-        const matchHoca = info.hocalar.some(h => h.toLowerCase().includes(q));
+        if (window.Store && typeof window.Store.matchesSearch === 'function') {
+          return (
+            window.Store.matchesSearch(t.title, q) ||
+            window.Store.matchesSearch(t.topic, q) ||
+            window.Store.matchesSearch(t.unit, q) ||
+            window.Store.matchesSearch(t.subject, q) ||
+            info.classes.some(c => window.Store.matchesSearch(c, q)) ||
+            info.hocalar.some(h => window.Store.matchesSearch(h, q))
+          );
+        }
+        const qLow = q.toLowerCase();
+        const matchTitle = (t.title || '').toLowerCase().includes(qLow);
+        const matchTopic = (t.topic || '').toLowerCase().includes(qLow);
+        const matchUnit = (t.unit || '').toLowerCase().includes(qLow);
+        const matchSubject = (t.subject || '').toLowerCase().includes(qLow);
+        const matchClass = info.classes.some(c => c.toLowerCase().includes(qLow));
+        const matchHoca = info.hocalar.some(h => h.toLowerCase().includes(qLow));
         return matchTitle || matchTopic || matchUnit || matchSubject || matchClass || matchHoca;
       });
     }

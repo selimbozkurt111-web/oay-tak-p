@@ -9,7 +9,17 @@
 window.ParentPortal = {
   activeStudentId: null,
   prayerReportPeriod: 'haftalik', // 'haftalik' | 'aylik'
-  prayerReportDate: new Date().toISOString().split('T')[0],
+  getTodayStr() {
+    return (window.Store && typeof window.Store.getTodayDate === 'function')
+      ? window.Store.getTodayDate()
+      : new Date().toLocaleDateString('en-CA');
+  },
+  get prayerReportDate() {
+    return this._prayerReportDate || this.getTodayStr();
+  },
+  set prayerReportDate(val) {
+    this._prayerReportDate = val;
+  },
 
   init() {
     const session = window.App.currentSession;
