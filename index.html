@@ -343,19 +343,13 @@
   <!-- Eksi Kusur Puanı Girişi Modalı Konteyneri -->
   <div id="demerit-modal-container"></div>
 
-  <!-- Doğrudan HTML'e Gömülü Liste İndirme & Acil Önbellek Sıfırlama Butonları -->
-  <div id="quick-cache-clear-bar" class="no-print fixed bottom-3 right-3 z-50 flex flex-wrap items-center gap-2">
-    <button type="button" onclick="window.directDownloadStudentsCsv()" 
-      class="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white border-2 border-indigo-400 shadow-2xl text-xs font-black backdrop-blur transition-all active:scale-95 cursor-pointer"
-      title="Sistemde düzelttiğiniz tüm talebe ve oda numaralarını içeren ogrenciler.csv dosyasını anında indirir">
-      <span class="text-base">📤</span>
-      <span>Sistemdeki Listeyi İndir (CSV)</span>
-    </button>
+  <!-- Acil Önbellek Sıfırlama Butonu (Sadece İhtiyaç Halinde) -->
+  <div id="quick-cache-clear-bar" class="no-print fixed bottom-3 right-3 z-50">
     <button type="button" onclick="window.forcePurgeAppCache()" 
-      class="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-slate-900/95 hover:bg-slate-900 text-amber-300 hover:text-amber-200 border-2 border-amber-400 shadow-2xl text-xs font-black backdrop-blur transition-all active:scale-95 cursor-pointer"
+      class="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-slate-900/90 hover:bg-slate-900 text-amber-300 hover:text-amber-200 border border-amber-400/60 shadow-xl text-[11px] font-black backdrop-blur transition-all active:scale-95 cursor-pointer opacity-70 hover:opacity-100"
       title="Eski önbelleği temizleyip en yeni sistemi zorla yükler">
-      <span class="text-sm">🔄</span>
-      <span>Önbelleği Temizle (v10.35)</span>
+      <span class="text-xs">🔄</span>
+      <span>Önbelleği Temizle (v10.38)</span>
     </button>
   </div>
 
@@ -437,27 +431,27 @@
     };
   </script>
 
-  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v10.36 Sürüm İmzası) -->
-  <script src="js/ogrenciler-data.js?v=10.36"></script>
-  <script src="js/hadisler.js?v=10.36"></script>
-  <script src="js/store.js?v=10.36"></script>
-  <script src="js/attendance.js?v=10.36"></script>
-  <script src="js/leave-tracker.js?v=10.36"></script>
-  <script src="js/leave-return.js?v=10.36"></script>
-  <script src="js/quran-tracker.js?v=10.36"></script>
-  <script src="js/performance.js?v=10.36"></script>
-  <script src="js/omr-scanner.js?v=10.36"></script>
-  <script src="js/test-results.js?v=10.36"></script>
-  <script src="js/mock-exam.js?v=10.36"></script>
-  <script src="js/leaderboard.js?v=10.36"></script>
-  <script src="js/parent-portal.js?v=10.36"></script>
-  <script src="js/app.js?v=10.36"></script>
+  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v10.38 Sürüm İmzası) -->
+  <script src="js/ogrenciler-data.js?v=10.38"></script>
+  <script src="js/hadisler.js?v=10.38"></script>
+  <script src="js/store.js?v=10.38"></script>
+  <script src="js/attendance.js?v=10.38"></script>
+  <script src="js/leave-tracker.js?v=10.38"></script>
+  <script src="js/leave-return.js?v=10.38"></script>
+  <script src="js/quran-tracker.js?v=10.38"></script>
+  <script src="js/performance.js?v=10.38"></script>
+  <script src="js/omr-scanner.js?v=10.38"></script>
+  <script src="js/test-results.js?v=10.38"></script>
+  <script src="js/mock-exam.js?v=10.38"></script>
+  <script src="js/leaderboard.js?v=10.38"></script>
+  <script src="js/parent-portal.js?v=10.38"></script>
+  <script src="js/app.js?v=10.38"></script>
 
   <!-- Service Worker Kaydı (Kısayol ve PWA Hızlı Başlatma) -->
   <script>
     if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./sw.js?v=10.36').then(function(reg) {
+        navigator.serviceWorker.register('./sw.js?v=10.38').then(function(reg) {
           if (reg) {
             reg.update();
           }

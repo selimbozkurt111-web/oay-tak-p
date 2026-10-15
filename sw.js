@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v10.36 - Tekil Öğrenci ve CSV Eşitleme)
-const CACHE_NAME = 'oay-takip-cache-v10.36';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v10.38 - Sade ve Tekil Menü Düzeni)
+const CACHE_NAME = 'oay-takip-cache-v10.38';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [
