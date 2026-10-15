@@ -1,0 +1,54 @@
+{
+  "version": "5.0",
+  "exportedAt": "2026-09-19T17:20:00.000Z",
+  "settings": {
+    "institutionName": "Yeni Kurs & Öğrenci Takip Sistemi",
+    "institutionLogo": "",
+    "adminEmail": "yonetici@kurs.com",
+    "academicYear": "2026-2027",
+    "firebaseUrl": "",
+    "yatakReminderEnabled": true,
+    "yatakReminderStartTime": "08:30",
+    "yatakReminderIntervalMins": 30
+  },
+  "staff": [
+    {
+      "id": "stf_1",
+      "fullName": "KURUM MÜDÜRÜ",
+      "role": "Dahili Hocası / Yönetici",
+      "phone": "",
+      "password": "123"
+    },
+    {
+      "id": "stf_2",
+      "fullName": "ÖRNEK EĞİTMEN 1",
+      "role": "5. Sınıf Etüt Hocası",
+      "phone": "",
+      "password": "123"
+    }
+  ],
+  "students": [
+    {
+      "id": "std_101",
+      "studentNo": "101",
+      "firstName": "ÖRNEK",
+      "lastName": "ÖĞRENCİ",
+      "className": "5. Sınıf",
+      "school": "ÖRNEK OKUL",
+      "seviye": "Seviye 1",
+      "etutHocasi": "ÖRNEK EĞİTMEN 1",
+      "dahiliHoca": "KURUM MÜDÜRÜ",
+      "yatakhane": "Oda 101",
+      "fatherName": "Örnek Veli",
+      "parentPhone": "0555 000 00 00",
+      "familyCode": "OGRENCI2026",
+      "password": "123"
+    }
+  ],
+  "attendance": [],
+  "performance": [],
+  "academicScores": [],
+  "gateCheckouts": {},
+  "leaveReturns": {},
+  "bonusPoints": []
+}
