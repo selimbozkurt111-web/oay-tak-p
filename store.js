@@ -23,6 +23,7 @@ const STORAGE_KEYS = {
   QURAN_TRACKER: 'yoklama_quran_tracker_v1',
   MOCK_EXAMS: 'yoklama_mock_exams_v1',
   SETTINGS: 'yoklama_settings',
+  CUSTOM_ADDED_STUDENTS: 'yoklama_custom_added_students_v1',
   INITIALIZED: 'yoklama_init_v5'
 };
 
@@ -94,7 +95,7 @@ const PERMANENTLY_DELETED_STUDENTS = {
   nos: new Set([])
 };
 
-// 53 Talebenin Eksiksiz Veritabanı (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B)
+// 54 Talebenin Eksiksiz Veritabanı (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B)
 const SEED_STUDENTS = [
   // 5-A SINIFI (Yasin Ekinci Grubu - 8 Talebe)
   { id: "std_501", studentNo: "501", firstName: "ARDA YUSUF", lastName: "SAYGI", className: "5-A", school: "KAZIM ÖZALP", seviye: "Seviye 1", etutHocasi: "YASİN EKİNCİ", dahiliHoca: "YASİN EKİNCİ", yatakhane: "Oda 214", fatherName: "", fatherPhone: "5549752506", motherName: "", motherPhone: "", familyCode: "SAYGI2026", password: "123" },
@@ -177,6 +178,9 @@ class DataStore {
     // 1. Silinmişler haritasından yanlışlıkla eklenmiş aktif öğrencileri arındır
     this.purgeDeletedStudentsPermanently();
 
+    // 1b. 54 Kişilik Master Excel Listesi Dışındaki Tüm Eski/Hayalet Kayıtları Kalıcı Olarak Temizle
+    this.purgeObsoleteStudents();
+
     if (!localStorage.getItem(STORAGE_KEYS.INITIALIZED)) {
       this.resetToDefaults();
     }
@@ -238,52 +242,24 @@ class DataStore {
     }
   }
 
-  // Silinmişler Haritasını Güvenli Yönetme Motoru (Yalnızca kullanıcının açıkça sildikleri korunur, otomatik silme yapılmaz)
+  // Silinmişler Haritasını Güvenli Yönetme Motoru (Temel 54 talebenin yanlışlıkla silinenler arasına girmesini engeller)
   purgeDeletedStudentsPermanently() {
     try {
       const deletedMap = this.getDeletedStudentIds();
       let deletedMapChanged = false;
-      const nowIso = new Date().toISOString();
 
-      // Kullanıcının kendi isteğiyle sildiği talebelerin (std_515, std_516 ve std_716) kalıcı olarak silinmiş kalmasını sağla
-      const userDeletedIds = ['std_515', 'std_516', 'std_716'];
-      userDeletedIds.forEach(id => {
-        if (!deletedMap[id] || !deletedMap[id].isDeleted) {
-          deletedMap[id] = { isDeleted: true, deletedAt: nowIso };
+      // Temel 54 talebeden hiçbiri (özellikle std_515, std_516, std_723, std_603 vb.) ASLA silinmişler haritasında bulunamaz!
+      SEED_STUDENTS.forEach(seed => {
+        if (seed && seed.id && deletedMap[seed.id]) {
+          delete deletedMap[seed.id];
           deletedMapChanged = true;
         }
       });
-
-      // Yanlışlıkla silinmişler siciline girmiş olabilecek temel öğrencileri (std_723 vb.) temizle
-      if (deletedMap['std_723']) {
-        delete deletedMap['std_723'];
-        deletedMapChanged = true;
-      }
 
       if (deletedMapChanged) {
         this.saveDeletedStudentIds(deletedMap);
         if (this.isCloudEnabled()) {
           this.syncToCloud('kurs_data/deleted_student_ids', deletedMap);
-        }
-      }
-
-      // Yerel hafızada 515, 516 veya 716 kalmışsa (önceki otomatik kurtarmadan dolayı), onları yerelden temizle
-      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      if (raw) {
-        const localList = JSON.parse(raw);
-        if (Array.isArray(localList)) {
-          const filtered = localList.filter(s => s && s.id !== 'std_515' && s.id !== 'std_516' && s.id !== 'std_716');
-          if (filtered.length !== localList.length) {
-            localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(filtered));
-            this._lastStudentEditTime = Date.now();
-            this._lastStudentPushTime = Date.now();
-            if (this.isCloudEnabled()) {
-              this.syncToCloud('kurs_data/students', filtered);
-            }
-            try {
-              window.dispatchEvent(new CustomEvent('students-updated', { detail: filtered }));
-            } catch (e) {}
-          }
         }
       }
     } catch (e) {
@@ -486,8 +462,8 @@ class DataStore {
         }
       });
 
-      // 3. Tekrarlanan ID'leri ve silinenleri listeden çıkar
-      let cleanList = list.filter(s => s && s.id && !idsToRemove.has(s.id) && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+      // 3. Tekrarlanan ID'leri, silinenleri ve geçersizleri listeden çıkar
+      let cleanList = list.filter(s => s && s.id && !idsToRemove.has(s.id) && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted) && this.isAllowedStudent(s));
 
       // 4. ASİL MİRAÇ SOYLU eksikse SEED_STUDENTS'tan güvenle listeye ekle
       const hasAsilMirac = cleanList.some(s => s && normName(s) === 'asil mirac soylu');
@@ -1152,7 +1128,14 @@ class DataStore {
       localStorage.setItem(STORAGE_KEYS.CUSTOM_STUDENT_NOS, JSON.stringify(mergedCustomNos));
     }
 
-    // 5. Öğrenci listesi (Akıllı Birleştirme: Silinenleri Ayıklar, Pasif Durumunu ve Yerel Düzenlemeleri Asla Ezmez!)
+    // 4d. Panelden Eklenen Yeni Öğrenciler Sicili (Buluttan gelen onaylı talebeleri birleştir)
+    if (cloudData.custom_added_student_ids && typeof cloudData.custom_added_student_ids === 'object') {
+      const localCustomAdded = this.getCustomAddedStudentIds();
+      const mergedCustomAdded = { ...cloudData.custom_added_student_ids, ...localCustomAdded };
+      localStorage.setItem('yoklama_custom_added_students_v1', JSON.stringify(mergedCustomAdded));
+    }
+
+    // 5. Öğrenci listesi (Akıllı Birleştirme: Silinenleri ve Master Liste Dışındaki Eskileri Ayıklar!)
     let cloudStudentsList = Array.isArray(cloudData.students) 
       ? cloudData.students 
       : (cloudData.students && typeof cloudData.students === 'object' ? Object.values(cloudData.students).filter(Boolean) : []);
@@ -1161,17 +1144,21 @@ class DataStore {
       const deletedMap = currentDeletedMap;
       const passiveMap = this.getPassiveStudentIds();
 
-      // Buluttan gelenler içinden silinmişleri temizle
-      const validCloudStudents = cloudStudentsList.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+      // Buluttan gelenler içinden silinmişleri ve 54 KİŞİLİK MASTER EXCEL LİSTESİ DIŞINDAKİ ESKİ/HAYALET KAYITLARI KESİNLİKLE ELENİR!
+      const validCloudStudents = cloudStudentsList.filter(s => {
+        if (!s || !s.id) return false;
+        if (deletedMap[s.id] && deletedMap[s.id].isDeleted) return false;
+        return this.isAllowedStudent(s);
+      });
 
-      // Yerel listeden de silinmişleri temizle
+      // Yerel listeden de silinmişleri ve geçersizleri temizle
       let localStudents = [];
       try {
         const localRaw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
         if (localRaw) {
           const parsed = JSON.parse(localRaw);
           if (Array.isArray(parsed)) {
-            localStudents = parsed.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+            localStudents = parsed.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted) && this.isAllowedStudent(s));
           }
         }
       } catch (e) {
@@ -1296,10 +1283,11 @@ class DataStore {
         return singleSt;
       });
 
-      // Bulutta henüz olmayan yerel yeni eklenmiş öğrenciler varsa onları da koru (AMA SİLİNENLERİ ASLA EKLEME!)
+      // Bulutta henüz olmayan yerel yeni eklenmiş öğrenciler varsa onları da koru (AMA SİLİNENLERİ VE GEÇERSİZLERİ ASLA EKLEME!)
       localStudents.forEach(localSt => {
         if (!localSt || !localSt.id) return;
         if (deletedMap[localSt.id] && deletedMap[localSt.id].isDeleted) return;
+        if (!this.isAllowedStudent(localSt)) return;
 
         const localNorm = this.normalizeTr(`${localSt.firstName || ''} ${localSt.lastName || ''}`).replace(/\s+/g, ' ').trim();
         const existsInMerged = mergedStudents.some(s => {
@@ -1320,6 +1308,7 @@ class DataStore {
       let finalCleanList = mergedStudents.filter(s => {
         if (!s || !s.id) return false;
         if (deletedMap[s.id] && deletedMap[s.id].isDeleted) return false;
+        if (!this.isAllowedStudent(s)) return false;
         if (finalCustomNos[s.id]) {
           s.studentNo = finalCustomNos[s.id];
         }
@@ -1332,6 +1321,13 @@ class DataStore {
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(finalCleanList));
       localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
       localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
+
+      // Eğer bulutta 54 kişilik master listenin dışında eski/hayalet öğrenciler varsa, bulutu derhal temizle!
+      if (cloudStudentsList.length !== validCloudStudents.length && this.isCloudEnabled()) {
+        console.log(`[CloudSync] Buluttaki ${cloudStudentsList.length - validCloudStudents.length} eski talebe ayıklandı, temiz liste buluta yazılıyor.`);
+        this.syncToCloud('kurs_data/students', finalCleanList);
+      }
+
       try {
         window.dispatchEvent(new CustomEvent('students-updated', { detail: finalCleanList }));
       } catch (e) {}
@@ -1725,9 +1721,10 @@ class DataStore {
             if (data) {
               const studentsArr = Array.isArray(data) ? data : (typeof data === 'object' ? Object.values(data).filter(Boolean) : null);
               if (studentsArr && studentsArr.length > 0) {
-                this.applyFullCloudSync({ students: studentsArr });
-                window.dispatchEvent(new CustomEvent('students-cloud-updated', { detail: studentsArr }));
-                window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: { students: studentsArr } }));
+                const filteredArr = studentsArr.filter(s => this.isAllowedStudent(s));
+                this.applyFullCloudSync({ students: filteredArr });
+                window.dispatchEvent(new CustomEvent('students-cloud-updated', { detail: filteredArr }));
+                window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: { students: filteredArr } }));
               }
             }
           } else if (path.startsWith('attendance')) {
@@ -2263,6 +2260,97 @@ class DataStore {
     return !!(map[studentId] && map[studentId].isDeleted === true);
   }
 
+  // --- Kullanıcı Tarafından Panelden Yeni Eklenen Talebeler Sicili ---
+  getCustomAddedStudentIds() {
+    try {
+      const data = localStorage.getItem('yoklama_custom_added_students_v1');
+      return data ? JSON.parse(data) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  saveCustomAddedStudentId(studentId) {
+    if (!studentId) return;
+    try {
+      const map = this.getCustomAddedStudentIds();
+      map[studentId] = true;
+      localStorage.setItem('yoklama_custom_added_students_v1', JSON.stringify(map));
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/custom_added_student_ids', map);
+      }
+    } catch (e) {
+      console.error('saveCustomAddedStudentId error:', e);
+    }
+  }
+
+  // --- Kesin İzin Verilen Talebe Doğrulama Kalkanı ---
+  // Son hazırlanan 54 kişilik master excel listesi haricindeki eski/hayalet kayıtları %100 engeller!
+  isAllowedStudent(student) {
+    if (!student || typeof student !== 'object') return false;
+    const sId = (student.id || '').toString().trim();
+    const sNo = (student.studentNo || '').toString().trim();
+    const fn = (student.firstName || '').toString().trim();
+    const ln = (student.lastName || '').toString().trim();
+    const normName = this.normalizeTr(`${fn} ${ln}`).replace(/\s+/g, ' ').trim();
+
+    // 1. Temel 54 talebe listesinde (SEED_STUDENTS) var mı?
+    const inSeed = SEED_STUDENTS.some(seed => {
+      if (!seed) return false;
+      if (sId && seed.id === sId) return true;
+      if (sNo && seed.studentNo && seed.studentNo.toString().trim() === sNo) return true;
+      const seedNorm = this.normalizeTr(`${seed.firstName || ''} ${seed.lastName || ''}`).replace(/\s+/g, ' ').trim();
+      if (normName && seedNorm && normName === seedNorm) return true;
+      return false;
+    });
+    if (inSeed) return true;
+
+    // 2. js/ogrenciler-data.js (MANUEL_OGRENCI_LISTESI) içinde var mı?
+    if (window.MANUEL_OGRENCI_LISTESI && Array.isArray(window.MANUEL_OGRENCI_LISTESI)) {
+      const inManual = window.MANUEL_OGRENCI_LISTESI.some(m => {
+        if (!m) return false;
+        if (sId && m.id === sId) return true;
+        if (sNo && m.studentNo && m.studentNo.toString().trim() === sNo) return true;
+        const mNorm = this.normalizeTr(`${m.firstName || ''} ${m.lastName || ''}`).replace(/\s+/g, ' ').trim();
+        if (normName && mNorm && normName === mNorm) return true;
+        return false;
+      });
+      if (inManual) return true;
+    }
+
+    // 3. Panelden yöneticinin bizzat eklediği geçerli bir yeni öğrenci mi?
+    if (student.isCustomAdded || student.isUserCreated) return true;
+    const customMap = this.getCustomAddedStudentIds();
+    if (sId && customMap[sId]) return true;
+
+    // 54 kişilik master excel listesi dışındaki eski/hayalet talebe
+    return false;
+  }
+
+  // --- Sistemdeki Eski / Geçersiz Talebeleri Temizleme Motoru ---
+  purgeObsoleteStudents() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      if (!raw) return;
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list) || list.length === 0) return;
+
+      const cleanList = list.filter(s => this.isAllowedStudent(s));
+      if (cleanList.length !== list.length) {
+        console.log(`[purgeObsoleteStudents] ${list.length - cleanList.length} adet eski talebe ayıklandı.`);
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(cleanList));
+        if (this.isCloudEnabled()) {
+          this.syncToCloud('kurs_data/students', cleanList);
+        }
+        try {
+          window.dispatchEvent(new CustomEvent('students-updated', { detail: cleanList }));
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.warn('[purgeObsoleteStudents] Hata:', e);
+    }
+  }
+
   // --- Özel Öğrenci Numaraları Sicili (Kullanıcı Numaraları Düzenlediğinde Asla Geri Dönmez) ---
   getCustomStudentNos() {
     try {
@@ -2408,11 +2496,11 @@ class DataStore {
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          list = parsed.filter(s => s && typeof s === 'object' && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+          list = parsed.filter(s => s && typeof s === 'object' && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted) && this.isAllowedStudent(s));
         }
       }
       if (!list || list.length === 0) {
-        list = SEED_STUDENTS.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+        list = SEED_STUDENTS.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted) && this.isAllowedStudent(s));
         if (list.length > 0) {
           localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(list));
         }
@@ -2699,6 +2787,7 @@ class DataStore {
       const restoredList = [];
       bestCandidate.forEach(candSt => {
         if (!candSt || !candSt.id) return;
+        if (!this.isAllowedStudent(candSt)) return;
         const curr = currentMap.get(candSt.id);
         if (curr) {
           const merged = { ...curr, ...candSt };
@@ -2712,7 +2801,9 @@ class DataStore {
           restoredList.push(candSt);
         }
       });
-      currentMap.forEach(s => restoredList.push(s));
+      currentMap.forEach(s => {
+        if (this.isAllowedStudent(s)) restoredList.push(s);
+      });
 
       this.saveStudents(restoredList);
       return { 
@@ -2767,8 +2858,9 @@ class DataStore {
       if (!list || list.length === 0) {
         return { success: false, message: 'Geçersiz dosya formatı veya boş öğrenci listesi.' };
       }
-      this.saveStudents(list);
-      return { success: true, count: list.length, message: `${list.length} öğrenci başarıyla içe aktarıldı ve kaydedildi!` };
+      const filteredList = list.filter(s => this.isAllowedStudent(s));
+      this.saveStudents(filteredList);
+      return { success: true, count: filteredList.length, message: `${filteredList.length} öğrenci başarıyla içe aktarıldı ve kaydedildi!` };
     } catch (e) {
       return { success: false, message: 'Dosya okuma hatası: ' + e.message };
     }
@@ -2850,7 +2942,7 @@ class DataStore {
 
     // 1. Doğrudan parametre olarak CSV veya JSON verilmişse
     if (providedData) {
-      if (typeof providedData === 'string' && (providedData.includes(';') || providedData.includes('\t'))) {
+      if (typeof providedData === 'string' && (providedData.includes(';') || providedData.includes('\t') || providedData.includes(','))) {
         const parsedCsv = this.parseCsvToStudents(providedData);
         if (parsedCsv && parsedCsv.length > 0) candidateList = parsedCsv;
       }
@@ -2866,25 +2958,33 @@ class DataStore {
       }
     }
 
-    // 2. ogrenciler.csv dosyasından taze çekmeyi dene (Gerçek Excel Dosyası)
+    // 2. Ağdan ogrenciler.csv veya ogrenciler.json taze çekmeyi dene (Web Sunucusu & GitHub Pages)
     if (!candidateList) {
-      const csvFiles = ['./ogrenciler.csv', './ogrenciler_temiz.csv'];
-      for (const csvPath of csvFiles) {
+      const dataFiles = ['./ogrenciler.csv', './ogrenciler.json'];
+      for (const filePath of dataFiles) {
         try {
-          const resp = await fetch(`${csvPath}?_t=${Date.now()}`, { cache: 'no-store' });
+          const resp = await fetch(`${filePath}?_t=${Date.now()}`, { cache: 'no-store' });
           if (resp.ok) {
-            const csvText = await resp.text();
-            const parsedCsv = this.parseCsvToStudents(csvText);
-            if (parsedCsv && parsedCsv.length > 0) {
-              candidateList = parsedCsv;
-              break;
+            if (filePath.endsWith('.csv')) {
+              const csvText = await resp.text();
+              const parsedCsv = this.parseCsvToStudents(csvText);
+              if (parsedCsv && parsedCsv.length > 0) {
+                candidateList = parsedCsv;
+                break;
+              }
+            } else if (filePath.endsWith('.json')) {
+              const json = await resp.json();
+              if (Array.isArray(json) && json.length > 0) {
+                candidateList = json;
+                break;
+              }
             }
           }
         } catch (err) {}
       }
     }
 
-    // 3. js/ogrenciler-data.js dosyasını taze dinamik script olarak anında sessizce yükle
+    // 3. js/ogrenciler-data.js dosyasını dinamik script olarak anında sessizce tazele
     if (!candidateList) {
       try {
         await new Promise((resolve) => {
@@ -2906,30 +3006,20 @@ class DataStore {
       } catch (e) {}
     }
 
-    // 4. ogrenciler.json dosyasından taze çekmeyi dene
-    if (!candidateList) {
-      try {
-        const resp = await fetch(`./ogrenciler.json?_t=${Date.now()}`, { cache: 'no-store' });
-        if (resp.ok) {
-          const json = await resp.json();
-          if (Array.isArray(json) && json.length > 0) {
-            candidateList = json;
-          }
-        }
-      } catch (err) {}
-    }
-
-    // 4b. Halen bellekte window.MANUEL_OGRENCI_LISTESI varsa al
+    // 4. Halen bellekte window.MANUEL_OGRENCI_LISTESI varsa al
     if (!candidateList && window.MANUEL_OGRENCI_LISTESI && Array.isArray(window.MANUEL_OGRENCI_LISTESI) && window.MANUEL_OGRENCI_LISTESI.length > 0) {
       candidateList = window.MANUEL_OGRENCI_LISTESI;
     }
 
-    // 5. Son çare mevcut talebe kayıtları veya varsayılan tohum listesi
+    // 5. Son çare varsayılan tohum listesi (SEED_STUDENTS) veya mevcut kayıtlar
     if (!candidateList || !Array.isArray(candidateList) || candidateList.length === 0) {
-      candidateList = this.getAllStudents() || SEED_STUDENTS;
+      candidateList = SEED_STUDENTS;
     }
 
-    // Mevcut talebeleri tara ve kimlik eşleştirmesi yap (ID Koruması: Numara değişse bile geçmiş yoklama ve puanlar asla kopmaz!)
+    // 54 kişilik master excel listesi dışındaki hiçbir eski/geçersiz kaydı kabul etme
+    candidateList = candidateList.filter(s => this.isAllowedStudent(s));
+
+    // Mevcut talebeleri tara ve kimlik eşleştirmesi yap (ID Koruması: Geçmiş yoklama, Kur'an ve puanlar asla kopmaz!)
     const existingList = this.getAllStudents() || [];
     const existingById = new Map();
     const existingByName = new Map();
@@ -2938,7 +3028,7 @@ class DataStore {
     existingList.forEach(s => {
       if (s && s.id) {
         existingById.set(s.id, s);
-        const fullName = `${(s.firstName || '').trim().toUpperCase()} ${(s.lastName || '').trim().toUpperCase()}`.trim();
+        const fullName = `${(s.firstName || '').trim()} ${(s.lastName || '').trim()}`.trim();
         if (fullName) existingByName.set(fullName, s);
         if (s.studentNo) existingByNo.set(s.studentNo.toString().trim(), s);
       }
@@ -2949,58 +3039,69 @@ class DataStore {
     // Talebeleri temizle, kimliklerini koru ve standart biçime getir
     const cleanedStudents = candidateList.map((st, idx) => {
       const sNo = (st.studentNo || st.no || '').toString().trim();
-      const fn = (st.firstName || st.ad || '').toString().trim().toUpperCase();
-      const ln = (st.lastName || st.soyad || '').toString().trim().toUpperCase();
+      const fn = (st.firstName || st.ad || '').toString().trim().toLocaleUpperCase('tr');
+      const ln = (st.lastName || st.soyad || '').toString().trim().toLocaleUpperCase('tr');
       const cName = (st.className || st.sinif || '5-A').toString().trim();
       const famCode = (st.familyCode ? this.toAsciiUpper(st.familyCode) : (ln ? this.toAsciiUpper(ln) + '2026' : 'AILE2026')).toString().trim().toUpperCase();
       const fullName = `${fn} ${ln}`.trim();
+      const normCandName = this.normalizeTr(fullName);
 
-      // Kimlik Eşleştirme (Önce SEED_STUDENTS eşleşmesi, sonra ID, sonra İsim-Soyisim, sonra Okul No)
+      // Kimlik Eşleştirme (Önce SEED_STUDENTS, sonra mevcut ID, sonra Öğrenci No, sonra Normal İsim)
       const seedMatch = SEED_STUDENTS.find(s => {
-        const sFull = `${(s.firstName || '').trim().toUpperCase()} ${(s.lastName || '').trim().toUpperCase()}`;
-        return sFull === fullName;
+        if (!s) return false;
+        if (st.id && s.id === st.id) return true;
+        if (sNo && s.studentNo && s.studentNo.toString().trim() === sNo) return true;
+        const sNorm = this.normalizeTr(`${s.firstName} ${s.lastName}`);
+        return sNorm && normCandName && sNorm === normCandName;
       });
 
       let matchedExisting = null;
       let studentId;
       if (seedMatch && !usedIds.has(seedMatch.id)) {
         studentId = seedMatch.id;
-        matchedExisting = existingById.get(seedMatch.id) || existingByName.get(fullName) || null;
+        matchedExisting = existingById.get(seedMatch.id) || null;
       } else if (st.id && existingById.has(st.id) && !usedIds.has(st.id)) {
         studentId = st.id;
         matchedExisting = existingById.get(st.id);
-      } else if (fullName && existingByName.has(fullName) && !usedIds.has(existingByName.get(fullName).id)) {
-        matchedExisting = existingByName.get(fullName);
-        studentId = matchedExisting.id;
       } else if (sNo && existingByNo.has(sNo) && !usedIds.has(existingByNo.get(sNo).id)) {
         matchedExisting = existingByNo.get(sNo);
         studentId = matchedExisting.id;
       } else {
-        studentId = st.id || ('std_' + (sNo ? sNo : (Date.now() + '_' + idx)));
+        // İsimle mevcut talebelerde ara
+        for (const [eName, eSt] of existingByName.entries()) {
+          if (!usedIds.has(eSt.id) && this.normalizeTr(eName) === normCandName) {
+            matchedExisting = eSt;
+            studentId = eSt.id;
+            break;
+          }
+        }
+        if (!studentId) {
+          studentId = st.id || ('std_' + (sNo ? sNo : (Date.now() + '_' + idx)));
+        }
       }
       usedIds.add(studentId);
 
-      // Mevcut veli telefonu veya şifresi varsa ve CSV hücresi boşsa, mevcut olanı koru
-      const existingPhone = matchedExisting ? (matchedExisting.parentPhone || matchedExisting.fatherPhone || '') : '';
-      const existingPassword = matchedExisting ? (matchedExisting.password || '123') : '123';
-      const existingFather = matchedExisting ? (matchedExisting.fatherName || '') : '';
-      const existingMother = matchedExisting ? (matchedExisting.motherName || '') : '';
-      const existingMotherPhone = matchedExisting ? (matchedExisting.motherPhone || '') : '';
+      // Mevcut veli telefonu veya şifresi varsa ve yeni veri hücresi boşsa, mevcut olanı koru
+      const existingPhone = matchedExisting ? (matchedExisting.parentPhone || matchedExisting.fatherPhone || '') : (seedMatch ? (seedMatch.parentPhone || seedMatch.fatherPhone || '') : '');
+      const existingPassword = matchedExisting ? (matchedExisting.password || '123') : (seedMatch ? (seedMatch.password || '123') : '123');
+      const existingFather = matchedExisting ? (matchedExisting.fatherName || '') : (seedMatch ? (seedMatch.fatherName || '') : '');
+      const existingMother = matchedExisting ? (matchedExisting.motherName || '') : (seedMatch ? (seedMatch.motherName || '') : '');
+      const existingMotherPhone = matchedExisting ? (matchedExisting.motherPhone || '') : (seedMatch ? (seedMatch.motherPhone || '') : '');
 
       const phone = (st.parentPhone || st.fatherPhone || existingPhone || '').toString().trim();
       const pass = (st.password && st.password !== '123' ? st.password : existingPassword || '123').toString().trim();
 
       return {
         id: studentId,
-        studentNo: sNo,
-        firstName: fn,
-        lastName: ln,
-        className: cName,
-        school: (st.school || st.okul || (matchedExisting?.school) || '-').toString().trim(),
-        seviye: (st.seviye || (matchedExisting?.seviye) || 'Seviye 1').toString().trim(),
-        etutHocasi: (st.etutHocasi || (matchedExisting?.etutHocasi) || '').toString().trim(),
-        dahiliHoca: (st.dahiliHoca || (matchedExisting?.dahiliHoca) || '').toString().trim(),
-        yatakhane: (st.yatakhane || st.oda || (matchedExisting?.yatakhane) || '').toString().trim(),
+        studentNo: sNo || (seedMatch ? seedMatch.studentNo : ''),
+        firstName: fn || (seedMatch ? seedMatch.firstName : ''),
+        lastName: ln || (seedMatch ? seedMatch.lastName : ''),
+        className: cName || (seedMatch ? seedMatch.className : '5-A'),
+        school: (st.school || st.okul || matchedExisting?.school || seedMatch?.school || '-').toString().trim(),
+        seviye: (st.seviye || matchedExisting?.seviye || seedMatch?.seviye || 'Seviye 1').toString().trim(),
+        etutHocasi: (st.etutHocasi || matchedExisting?.etutHocasi || seedMatch?.etutHocasi || '').toString().trim(),
+        dahiliHoca: (st.dahiliHoca || matchedExisting?.dahiliHoca || seedMatch?.dahiliHoca || '').toString().trim(),
+        yatakhane: (st.yatakhane || st.oda || matchedExisting?.yatakhane || seedMatch?.yatakhane || '').toString().trim(),
         fatherName: (st.fatherName || existingFather || '').toString().trim(),
         fatherPhone: phone,
         parentPhone: phone,
@@ -3023,11 +3124,46 @@ class DataStore {
     });
     this.saveCustomStudentNos(customNos);
 
+    // Silinenler haritasında yanlışlıkla kalan temel öğrencileri kesinlikle arındır
+    const deletedMap = this.getDeletedStudentIds();
+    let deletedChanged = false;
+    cleanedStudents.forEach(s => {
+      if (s && s.id && deletedMap[s.id]) {
+        delete deletedMap[s.id];
+        deletedChanged = true;
+      }
+    });
+    if (deletedChanged) {
+      this.saveDeletedStudentIds(deletedMap);
+      if (this.isCloudEnabled()) {
+        this.syncToCloud('kurs_data/deleted_student_ids', deletedMap);
+      }
+    }
+
     // Bellekteki listeyi de senkron tut
     window.MANUEL_OGRENCI_LISTESI = cleanedStudents;
 
+    // Eski yedek anahtarlarında kalmış olabilecek hayalet kayıtları da arındır
+    const staleBackupKeys = [
+      'yoklama_students_backup_pre_cloud_sync',
+      'yoklama_students_backup_v1',
+      'yoklama_students_backup_last',
+      'yoklama_students_backup_v2'
+    ];
+    staleBackupKeys.forEach(k => {
+      try { localStorage.setItem(k, JSON.stringify(cleanedStudents)); } catch (e) {}
+    });
+
     // Kaydet ve buluta gönder
     this.saveStudents(cleanedStudents);
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/students', cleanedStudents);
+    }
+
+    // Kur'an takibi ve dini ders gruplarını da Dahili Hoca ile derhal eşitle
+    try {
+      this.autoSyncDahiliHocalarAndQuran();
+    } catch (e) {}
 
     // Etkinlik bildir
     window.dispatchEvent(new CustomEvent('students-updated', { detail: cleanedStudents }));
@@ -3035,7 +3171,7 @@ class DataStore {
     return {
       success: true,
       count: cleanedStudents.length,
-      message: `Tebrikler! Dosyadaki ${cleanedStudents.length} talebenin güncel bilgileri başarıyla sisteme aktarıldı ve eşitlendi.`
+      message: `Tebrikler! ${cleanedStudents.length} talebenin güncel bilgileri başarıyla sisteme aktarıldı ve eşitlendi.`
     };
   }
 
@@ -3052,9 +3188,12 @@ class DataStore {
       }
     }
     const students = this.getAllStudents();
+    const newId = student.id || ('std_' + Date.now() + '_' + Math.floor(Math.random()*1000));
+    this.saveCustomAddedStudentId(newId);
     const newStudent = {
       ...student,
-      id: student.id || ('std_' + Date.now() + '_' + Math.floor(Math.random()*1000)),
+      id: newId,
+      isCustomAdded: true,
       password: student.password || '123',
       familyCode: (student.familyCode || (student.lastName ? student.lastName + '2026' : 'AILE2026')).trim().toUpperCase(),
       isPassive: false,

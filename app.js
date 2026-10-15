@@ -199,7 +199,7 @@ window.App = {
     this.checkAndTriggerYatakReminder();
 
     // Yeni sürümde ogrenciler.csv dosyasını arka planda otomatik çek ve eşitle (Sıfır soru, sıfır sürükle-bırak!)
-    const currentBuildVer = '20261014_v10.36_DEDUPLICATE_CLEAN';
+    const currentBuildVer = '20261015_v10.39_MASTER_EXCEL_STRICT';
     if (localStorage.getItem('oay_auto_csv_synced_build') !== currentBuildVer) {
       if (window.Store && typeof window.Store.syncFromManualDataFile === 'function') {
         setTimeout(() => {
@@ -665,32 +665,8 @@ window.App = {
           </div>
         ` : ''}
 
-        <!-- 5. YÖNETİCİ HIZLI ERİŞİM BUTONLARI -->
-        ${session.role !== 'parent' ? `
-          <div class="flex-shrink-0 ml-auto flex items-center gap-1.5">
-            ${(session.role === 'superadmin' || session.canEditStudents) ? `
-              <button type="button" onclick="window.App.exportStudentsToCsv()" 
-                class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm border border-indigo-500 active:scale-95"
-                title="Sistemde düzelttiğiniz tüm talebe ve yatakhane/oda bilgilerini ogrenciler.csv olarak bilgisayarınıza indirir">
-                <span>📤</span>
-                <span>Listeyi İndir (CSV)</span>
-              </button>
-              <button onclick="window.App.handleFetchManualDataFile()" 
-                class="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm border border-teal-500 active:scale-95"
-                title="ogrenciler.csv dosyasındaki güncel talebe bilgilerini ve numaralarını doğrudan sisteme çeker">
-                <span>📥</span>
-                <span>Güncel Bilgileri Çek</span>
-              </button>
-              <button onclick="window.App.setTab('ogrenciler')" 
-                class="px-3 py-1.5 rounded-xl ${this.activeTab === 'ogrenciler' ? 'bg-emerald-900 ring-2 ring-emerald-400 text-white font-black' : 'bg-emerald-600 hover:bg-emerald-700 text-white font-black'} text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm">
-                <span>👥 Talebe Yönetimi</span>
-              </button>
-            ` : ''}
-          </div>
-        ` : ''}
-
-        <!-- 6. HER ZAMAN GÖRÜNÜR: SİSTEMİ & ÖNBELLEĞİ YENİLE BUTONU -->
-        <div class="flex-shrink-0 ml-1.5">
+        <!-- SAĞ: SİSTEMİ & ÖNBELLEĞİ YENİLE BUTONU -->
+        <div class="flex-shrink-0 ml-auto">
           <button type="button" onclick="window.App.hardRefreshApp()" 
             class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 text-xs font-black transition flex items-center gap-1.5 cursor-pointer shadow-sm border border-amber-500 active:scale-95"
             title="Sistemi ve önbelleği sıfırlayıp en güncel sürümü yükler">
@@ -2512,29 +2488,66 @@ window.App = {
     }
   },
 
-  // --- Manuel Dosyadan (ogrenciler.json veya js/ogrenciler-data.js) Güncel Bilgileri Çekme (Sıfır soru, sıfır sürükle-bırak!) ---
+  // --- Manuel Dosyadan (ogrenciler.csv, ogrenciler.json veya js/ogrenciler-data.js) Güncel Bilgileri Çekme ---
   async handleFetchManualDataFile() {
     this.showToast('Dosyadan güncel talebe bilgileri okunuyor...', 'info');
     try {
+      this.studentDrafts = {};
+      this.studentNewDrafts = [];
+      if (this.studentDeletedDrafts && typeof this.studentDeletedDrafts.clear === 'function') {
+        this.studentDeletedDrafts.clear();
+      }
+
       const res = await window.Store.syncFromManualDataFile();
       if (res && res.success) {
         this.showToast(`✓ ${res.message}`, 'success');
       } else {
         this.showToast('Talebe bilgileri başarıyla güncellendi.', 'success');
       }
-      if (typeof this.renderStudentsView === 'function') {
-        this.renderStudentsView();
-      }
+      this.renderHeader();
+      this.renderMainContent();
       if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
         window.StudentExcelModule.render();
       }
-      this.renderHeader();
     } catch (err) {
-      this.showToast('Dosya okundu ve güncellendi.', 'success');
-      if (typeof this.renderStudentsView === 'function') this.renderStudentsView();
-      if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') window.StudentExcelModule.render();
+      this.showToast('Talebe bilgileri güncellendi.', 'success');
       this.renderHeader();
+      this.renderMainContent();
+      if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
+        window.StudentExcelModule.render();
+      }
     }
+  },
+
+  // --- Cihazdan Manuel CSV veya JSON Dosyası Yükleme ---
+  handleManualDataFileUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const content = e.target.result;
+      this.showToast('Seçtiğiniz dosya sisteme aktarılıyor...', 'info');
+      try {
+        this.studentDrafts = {};
+        this.studentNewDrafts = [];
+        if (this.studentDeletedDrafts && typeof this.studentDeletedDrafts.clear === 'function') {
+          this.studentDeletedDrafts.clear();
+        }
+        const res = await window.Store.syncFromManualDataFile(content);
+        this.showToast(res.message || 'Talebe bilgileri dosyadan aktarıldı!', 'success');
+        this.renderHeader();
+        this.renderMainContent();
+      } catch (err) {
+        this.showToast('Dosya aktarılırken hata: ' + err.message, 'error');
+      }
+      event.target.value = '';
+    };
+    reader.onerror = () => {
+      this.showToast('Dosya okunamadı.', 'error');
+      event.target.value = '';
+    };
+    reader.readAsText(file, 'UTF-8');
   },
 
   // --- Öğrenci & Şifre Yönetimi Görünümü (Sıralamalı & Excel Modlu) ---
@@ -2641,16 +2654,22 @@ window.App = {
             ${canEdit ? `
               <button type="button" onclick="window.App.exportStudentsToCsv()" 
                 class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-indigo-500"
-                title="Sistemde düzelttiğiniz tüm talebe, numara ve yatakhane/oda bilgilerini doğrudan ogrenciler.csv olarak bilgisayarınıza indirir">
+                title="Sistemdeki talebe listesini ogrenciler.csv olarak bilgisayarınıza indirir">
                 <span>📤</span>
-                <span>Sistemdeki Listeyi İndir (ogrenciler.csv)</span>
+                <span>Listeyi İndir (CSV)</span>
               </button>
               <button type="button" onclick="window.App.handleFetchManualDataFile()" 
                 class="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-teal-500"
                 title="ogrenciler.csv dosyasından güncel talebe bilgilerini ve numaralarını doğrudan sisteme çeker">
                 <span>📥</span>
-                <span>Dosyadan Çek</span>
+                <span>Güncel Bilgileri Çek</span>
               </button>
+              <label class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-slate-700"
+                title="Bilgisayarınızdan veya telefonunuzdan bir .csv veya .json dosyası seçerek doğrudan sisteme aktarın">
+                <span>📂</span>
+                <span>Cihazdan Yükle</span>
+                <input type="file" accept=".csv,.json" class="hidden" onchange="window.App.handleManualDataFileUpload(event)">
+              </label>
               <button type="button" onclick="window.App.openStudentModal()" 
                 class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95">
                 <span>➕</span>
