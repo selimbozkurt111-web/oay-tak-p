@@ -12,7 +12,7 @@
   <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v10.40 - AKILLI DOSYA VE BULUT EŞİTLEME) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20261016_v10.40_SMART_CSV_SYNC';
+      var CURRENT_BUILD = '20261016_v10.44_53_TALEBE_KILIDI';
       var savedBuild = localStorage.getItem('oay_pano_build_version');
 
       window.forcePurgePanoCache = function() {
@@ -318,16 +318,16 @@
   <div class="fixed bottom-8 right-3 z-40 opacity-60 hover:opacity-100 transition-opacity">
     <button type="button" onclick="window.forcePurgePanoCache()" 
       class="px-2.5 py-1 rounded-xl bg-slate-900/90 text-amber-400 hover:text-amber-300 border border-amber-500/50 text-[10px] font-black shadow-lg flex items-center gap-1 cursor-pointer">
-      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v10.40)</span>
+      <span>🔄</span> <span>Panoyu & Önbelleği Yenile (v10.44)</span>
     </button>
   </div>
 
-  <!-- Hadis Veritabanı, Manuel Talebe Verisi, Store, Leaderboard ve Kur'an Hatim Modülleri (v10.40) -->
-  <script src="js/ogrenciler-data.js?v=10.40"></script>
-  <script src="js/hadisler.js?v=10.40"></script>
-  <script src="js/store.js?v=10.40"></script>
-  <script src="js/leaderboard.js?v=10.40"></script>
-  <script src="js/quran-tracker.js?v=10.40"></script>
+  <!-- Hadis Veritabanı, Manuel Talebe Verisi, Store, Leaderboard ve Kur'an Hatim Modülleri (v10.44) -->
+  <script src="js/ogrenciler-data.js?v=10.44"></script>
+  <script src="js/hadisler.js?v=10.44"></script>
+  <script src="js/store.js?v=10.44"></script>
+  <script src="js/leaderboard.js?v=10.44"></script>
+  <script src="js/quran-tracker.js?v=10.44"></script>
 
   <!-- Pano TV Yönetim Motoru (v7.0 - Kesintisiz Kalp Atışı & Donmayan Sayaç) -->
   <script>
@@ -1308,6 +1308,14 @@
           ? window.Store.getDailyDuties(todayStr)
           : { yemekciler: [], muezzin: '', note: '' };
 
+        const tomorrowDate = new Date();
+        tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+        const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
+        const tomorrowDuties = (window.Store && typeof window.Store.getDailyDuties === 'function')
+          ? window.Store.getDailyDuties(tomorrowStr, false)
+          : null;
+        const hasTomorrow = tomorrowDuties && ((Array.isArray(tomorrowDuties.yemekciler) && tomorrowDuties.yemekciler.length > 0) || Boolean(tomorrowDuties.muezzin));
+
         const dateOptions = { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' };
         const dateFormatted = new Date().toLocaleDateString('tr-TR', dateOptions);
 
@@ -1443,6 +1451,16 @@
               </div>
 
             </div>
+
+            ${hasTomorrow ? `
+              <div class="p-1.5 px-3 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between text-[11px] text-slate-300 shadow-sm">
+                <div class="flex items-center gap-1.5 overflow-hidden">
+                  <span class="text-amber-400 font-black">🗓️ Yarının Nöbetçileri:</span>
+                  <span class="truncate">🍽️ Yemekçiler: <strong class="text-white">${tomorrowDuties.yemekciler.join(', ') || 'Belirlenmedi'}</strong> • 📢 Müezzin: <strong class="text-amber-300">${tomorrowDuties.muezzin || 'Belirlenmedi'}</strong></span>
+                </div>
+                <span class="text-[9px] text-emerald-400 font-bold shrink-0 ml-2">✓ Planlandı</span>
+              </div>
+            ` : ''}
 
             ${note ? `
               <div class="p-2 px-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2.5 shadow-sm">
