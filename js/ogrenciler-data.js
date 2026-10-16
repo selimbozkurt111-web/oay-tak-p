@@ -1,5 +1,5 @@
 // js/ogrenciler-data.js
-// Ömer Avniyel Akademi - Resmi ve Güncel 53 Talebe Master Listesi (v10.44)
+// Ömer Avniyel Akademi - Resmi ve Güncel 53 Talebe Master Listesi (v10.45)
 // 5-A (8), 5-B (8), 6-A (4), 7-A (4), 7-B (10), 8-A (10), 8-B (9) = Tam 53 Talebe
 
 window.MANUEL_OGRENCI_LISTESI = [
