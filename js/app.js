@@ -54,6 +54,7 @@ window.App = {
 
     this.renderHeader();
     this.renderMainContent();
+    this.setupDragAndDropImport();
 
     // Bulut senkronizasyonu tamamlandığında ekranı sessizce ve kesintisiz tazele
     window.addEventListener('cloud-sync-done', () => {
@@ -199,7 +200,7 @@ window.App = {
     this.checkAndTriggerYatakReminder();
 
     // Yeni sürümde ogrenciler.csv dosyasını arka planda otomatik çek ve eşitle (Sıfır soru, sıfır sürükle-bırak!)
-    const currentBuildVer = '20261014_v10.36_DEDUPLICATE_CLEAN';
+    const currentBuildVer = '20261015_v10.39_MASTER_EXCEL_STRICT';
     if (localStorage.getItem('oay_auto_csv_synced_build') !== currentBuildVer) {
       if (window.Store && typeof window.Store.syncFromManualDataFile === 'function') {
         setTimeout(() => {
@@ -1805,7 +1806,7 @@ window.App = {
                 class="w-full py-2.5 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-black border-2 border-amber-300 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
                 title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
                 <span class="text-sm">🔄</span>
-                <span>Sistemi & Önbelleği Sıfırla (v10.29)</span>
+                <span>Sistemi & Önbelleği Sıfırla (v10.40)</span>
               </button>
             </div>
           </div>
@@ -2489,14 +2490,135 @@ window.App = {
   },
 
   // --- Manuel Dosyadan (ogrenciler.csv, ogrenciler.json veya js/ogrenciler-data.js) Güncel Bilgileri Çekme ---
-  async handleFetchManualDataFile() {
-    this.showToast('Dosyadan güncel talebe bilgileri okunuyor...', 'info');
+  handleFetchManualDataFile() {
+    this.openSyncSourceModal();
+  },
+
+  openSyncSourceModal() {
+    let modal = document.getElementById('sync-source-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'sync-source-modal';
+      document.body.appendChild(modal);
+    }
+    const isLocalFile = window.location.protocol === 'file:';
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-fade-in no-print';
+    modal.innerHTML = `
+      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full p-6 relative overflow-hidden">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+          <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center text-xl font-bold shadow-inner">
+              📥
+            </div>
+            <div>
+              <h3 class="text-base font-black text-slate-900">Güncel Bilgileri Çek & Yükle</h3>
+              <p class="text-xs text-slate-500 font-bold">Talebe listenizi nereden güncellemek istersiniz?</p>
+            </div>
+          </div>
+          <button type="button" onclick="document.getElementById('sync-source-modal').remove()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer">×</button>
+        </div>
+
+        <div class="space-y-3">
+          <!-- Seçenek 1: ⚡ Resmi 53 Talebeyi Buluta Kilitle & Anında Dağıt (Dosya Seçme / Yükleme GEREKTİRMEZ!) -->
+          <button type="button" onclick="document.getElementById('sync-source-modal').remove(); window.App.pushMaster53ToCloudDirectly();"
+            class="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white text-left transition flex items-center justify-between group cursor-pointer active:scale-98 shadow-md">
+            <div class="flex items-start gap-3">
+              <span class="text-2xl mt-0.5">🚀</span>
+              <div>
+                <div class="text-sm font-black flex items-center gap-2">
+                  <span>Resmi 53 Talebeyi Buluta Kilitle & Dağıt</span>
+                  <span class="text-[10px] bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-black uppercase">Sıfır Dosya</span>
+                </div>
+                <div class="text-xs text-emerald-100 mt-1 leading-snug">
+                  Dosya seçmenize veya GitHub'a yükleme yapmanıza gerek yoktur. Doğrulanmış 53 talebe doğrudan Firebase bulutuna yazılır ve tüm telefon/TV cihazlarına anında yayılır.
+                </div>
+              </div>
+            </div>
+            <span class="text-white text-lg font-bold group-hover:translate-x-1 transition-transform">➔</span>
+          </button>
+
+          <!-- Seçenek 2: Bilgisayarımdan Dosya Seç (Cihazdaki Excel/CSV) -->
+          <button type="button" onclick="document.getElementById('sync-source-modal').remove(); document.getElementById('manual-file-input-direct')?.click();"
+            class="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 border-2 border-emerald-400 text-left transition flex items-center justify-between group cursor-pointer active:scale-98 shadow-xs">
+            <div class="flex items-start gap-3">
+              <span class="text-2xl mt-0.5">📂</span>
+              <div>
+                <div class="text-sm font-black text-emerald-950 flex items-center gap-2">
+                  <span>Bilgisayarımdan / Telefonumdan Seç</span>
+                  <span class="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold">Önerilen</span>
+                </div>
+                <div class="text-xs text-emerald-800 mt-1 leading-snug">
+                  Bilgisayarınızda veya Excel'de düzenlediğiniz <strong>ogrenciler.csv</strong> dosyasını cihazınızdan seçip anında sisteme ve buluta aktarır.
+                </div>
+              </div>
+            </div>
+            <span class="text-emerald-700 text-lg font-bold group-hover:translate-x-1 transition-transform">➔</span>
+          </button>
+
+          <!-- Sürükle Bırak Alanı -->
+          <div id="modal-drag-drop-zone"
+            onclick="document.getElementById('manual-file-input-direct')?.click();"
+            ondragover="event.preventDefault(); this.classList.add('border-emerald-500', 'bg-emerald-100/60');"
+            ondragleave="this.classList.remove('border-emerald-500', 'bg-emerald-100/60');"
+            ondrop="event.preventDefault(); this.classList.remove('border-emerald-500', 'bg-emerald-100/60'); document.getElementById('sync-source-modal')?.remove(); window.App.handleFileDrop(event);"
+            class="border-2 border-dashed border-emerald-300 rounded-2xl p-3 text-center bg-emerald-50/40 hover:bg-emerald-50/80 transition cursor-pointer flex items-center justify-center gap-3">
+            <span class="text-2xl">🖱️</span>
+            <div class="text-left">
+              <div class="text-xs font-black text-emerald-950">Veya ogrenciler.csv dosyasını buraya sürükleyip bırakın</div>
+              <div class="text-[10px] text-emerald-700">Tıklayarak veya dosyayı sürükleyerek anında yükleyebilirsiniz</div>
+            </div>
+          </div>
+
+          <!-- Seçenek 2: Sunucudaki / GitHub'daki Dosyadan Çek -->
+          <button type="button" onclick="document.getElementById('sync-source-modal').remove(); window.App.executeServerDataSync();"
+            class="w-full p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-300 text-left transition flex items-center justify-between group cursor-pointer active:scale-98">
+            <div class="flex items-start gap-3">
+              <span class="text-2xl mt-0.5">🌐</span>
+              <div>
+                <div class="text-sm font-black text-slate-900">
+                  Sunucudaki (GitHub) ogrenciler.csv'den Çek
+                </div>
+                <div class="text-xs text-slate-600 mt-1 leading-snug">
+                  Web sunucusundaki veya GitHub Pages üzerindeki hazır <strong>ogrenciler.csv</strong> dosyasını doğrudan indirip sisteme eşitler.
+                </div>
+              </div>
+            </div>
+            <span class="text-slate-400 text-lg font-bold group-hover:translate-x-1 transition-transform">➔</span>
+          </button>
+        </div>
+
+        ${isLocalFile ? `
+          <div class="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex items-center gap-2">
+            <span>💡</span>
+            <span>Sayfayı yerel dosya olarak açtığınız için lütfen yukarıdaki <strong>"Bilgisayarımdan Seç"</strong> butonunu veya sürükle-bırak alanını kullanınız.</span>
+          </div>
+        ` : ''}
+
+        <input type="file" id="manual-file-input-direct" accept=".csv,.json" class="hidden" onchange="window.App.handleManualDataFileUpload(event)">
+
+        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+          <button type="button" onclick="window.App.exportStudentsToCsv()" class="text-xs text-indigo-700 font-bold hover:underline flex items-center gap-1 cursor-pointer">
+            <span>📤</span> <span>Mevcut Listeyi İndir (CSV)</span>
+          </button>
+          <button type="button" onclick="document.getElementById('sync-source-modal').remove()" 
+            class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer">
+            Vazgeç
+          </button>
+        </div>
+      </div>
+    `;
+  },
+
+  async executeServerDataSync() {
+    this.showToast('Sunucudan ogrenciler.csv okunuyor...', 'info');
     try {
       this.studentDrafts = {};
       this.studentNewDrafts = [];
       if (this.studentDeletedDrafts && typeof this.studentDeletedDrafts.clear === 'function') {
         this.studentDeletedDrafts.clear();
       }
+      this.studentSearchQuery = '';
+      this.studentFilterClass = 'ALL';
 
       const res = await window.Store.syncFromManualDataFile();
       if (res && res.success) {
@@ -2510,13 +2632,43 @@ window.App = {
         window.StudentExcelModule.render();
       }
     } catch (err) {
-      this.showToast('Talebe bilgileri güncellendi.', 'success');
+      this.showToast('Sunucudan veri çekme hatası: ' + err.message, 'error');
+      this.renderHeader();
+      this.renderMainContent();
+    }
+  },
+
+  // --- Resmi 53 Talebeyi Doğrudan Firebase Bulutuna Kilitleme ve Dağıtma Motoru ---
+  async pushMaster53ToCloudDirectly() {
+    this.showToast('Resmi 53 talebe yerel hafızaya alınıyor ve Firebase bulutuna aktarılıyor...', 'info');
+    try {
+      this.studentDrafts = {};
+      this.studentNewDrafts = [];
+      if (this.studentDeletedDrafts && typeof this.studentDeletedDrafts.clear === 'function') {
+        this.studentDeletedDrafts.clear();
+      }
+
+      if (window.Store && typeof window.Store.autoEnsureMaster53Roster === 'function') {
+        const res = window.Store.autoEnsureMaster53Roster(true);
+        if (res && res.success) {
+          this.showToast(`🎉 Tebrikler! ${res.count} talebe başarıyla yerel hafızaya ve buluta kilitlendi!`, 'success');
+        } else {
+          this.showToast('Talebe bilgileri güncellendi.', 'success');
+        }
+      }
+
       this.renderHeader();
       this.renderMainContent();
       if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
         window.StudentExcelModule.render();
       }
+    } catch (err) {
+      this.showToast(`Buluta aktarma hatası: ${err.message}`, 'error');
     }
+  },
+
+  async pushMaster54ToCloudDirectly() {
+    return this.pushMaster53ToCloudDirectly();
   },
 
   // --- Cihazdan Manuel CSV veya JSON Dosyası Yükleme ---
@@ -2534,10 +2686,15 @@ window.App = {
         if (this.studentDeletedDrafts && typeof this.studentDeletedDrafts.clear === 'function') {
           this.studentDeletedDrafts.clear();
         }
+        this.studentSearchQuery = '';
+        this.studentFilterClass = 'ALL';
         const res = await window.Store.syncFromManualDataFile(content);
         this.showToast(res.message || 'Talebe bilgileri dosyadan aktarıldı!', 'success');
         this.renderHeader();
         this.renderMainContent();
+        if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
+          window.StudentExcelModule.render();
+        }
       } catch (err) {
         this.showToast('Dosya aktarılırken hata: ' + err.message, 'error');
       }
@@ -2548,6 +2705,61 @@ window.App = {
       event.target.value = '';
     };
     reader.readAsText(file, 'UTF-8');
+  },
+
+  // --- Sürükle Bırak Dosya Yakalama Motoru ---
+  handleFileDrop(event) {
+    const files = event.dataTransfer && event.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.name.endsWith('.csv') || file.name.endsWith('.json') || file.type.includes('text')) {
+        const fakeEvent = { target: { files: [file], value: '' } };
+        this.handleManualDataFileUpload(fakeEvent);
+      } else {
+        this.showToast('Lütfen .csv veya .json uzantılı talebe dosyasını bırakınız.', 'warning');
+      }
+    }
+  },
+
+  setupDragAndDropImport() {
+    window.addEventListener('dragover', (e) => {
+      if (this.activeTab === 'ogrenciler' && this.canManageStudents()) {
+        e.preventDefault();
+        e.stopPropagation();
+        let overlay = document.getElementById('drag-drop-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'drag-drop-overlay';
+          overlay.className = 'fixed inset-0 z-50 bg-emerald-950/80 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-white text-center animate-fade-in pointer-events-none';
+          overlay.innerHTML = `
+            <div class="p-8 rounded-3xl bg-white/10 border-3 border-dashed border-emerald-400 max-w-lg w-full flex flex-col items-center gap-4">
+              <span class="text-6xl animate-bounce">📥</span>
+              <h2 class="text-2xl font-black">Dosyayı Buraya Bırakın</h2>
+              <p class="text-sm text-emerald-200">Düzenlediğiniz <strong>ogrenciler.csv</strong> veya Excel dosyasını bırakarak talebeleri anında güncelleyin.</p>
+            </div>
+          `;
+          document.body.appendChild(overlay);
+        }
+      }
+    });
+
+    window.addEventListener('dragleave', (e) => {
+      if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+        const overlay = document.getElementById('drag-drop-overlay');
+        if (overlay) overlay.remove();
+      }
+    });
+
+    window.addEventListener('drop', (e) => {
+      const overlay = document.getElementById('drag-drop-overlay');
+      if (overlay) overlay.remove();
+
+      if (this.activeTab === 'ogrenciler' && this.canManageStudents()) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.handleFileDrop(e);
+      }
+    });
   },
 
   // --- Öğrenci & Şifre Yönetimi Görünümü (Sıralamalı & Excel Modlu) ---
@@ -2646,34 +2858,41 @@ window.App = {
               ${!canEdit ? '<span class="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold">(Salt Okunur)</span>' : ''}
             </h3>
             <p class="text-xs text-slate-500 mt-0.5">
-              ${canEdit ? 'Talebe kayıtlarını, sınıfları, hocaları ve veli şifrelerini yönetin. ogrenciler.csv dosyasını düzenleyip "Güncel Bilgileri Çek" butonu ile sisteme aktarabilirsiniz.' : 'Eğitmenler listeyi inceleyebilir; düzenleme yetkisi Ana Yöneticidedir.'}
+              ${canEdit ? 'Talebe kayıtlarını, sınıfları, hocaları, odaları ve şifreleri doğrudan tablodan veya tek tek düzenleyebilirsiniz.' : 'Eğitmenler listeyi inceleyebilir; düzenleme yetkisi Ana Yöneticidedir.'}
             </p>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
             ${canEdit ? `
-              <button type="button" onclick="window.App.exportStudentsToCsv()" 
-                class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-indigo-500"
-                title="Sistemdeki talebe listesini ogrenciler.csv olarak bilgisayarınıza indirir">
-                <span>📤</span>
-                <span>Listeyi İndir (CSV)</span>
-              </button>
-              <button type="button" onclick="window.App.handleFetchManualDataFile()" 
-                class="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-teal-500"
-                title="ogrenciler.csv dosyasından güncel talebe bilgilerini ve numaralarını doğrudan sisteme çeker">
-                <span>📥</span>
-                <span>Güncel Bilgileri Çek</span>
-              </button>
-              <label class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-slate-700"
-                title="Bilgisayarınızdan veya telefonunuzdan bir .csv veya .json dosyası seçerek doğrudan sisteme aktarın">
-                <span>📂</span>
-                <span>Cihazdan Yükle</span>
-                <input type="file" accept=".csv,.json" class="hidden" onchange="window.App.handleManualDataFileUpload(event)">
-              </label>
+              ${isEditMode ? `
+                <button type="button" onclick="window.App.toggleStudentTableEditMode(false)" 
+                  class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-slate-600">
+                  <span>✕</span>
+                  <span>Düzenleme Modunu Kapat</span>
+                </button>
+              ` : `
+                <button type="button" onclick="window.App.toggleStudentTableEditMode(true)" 
+                  class="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-amber-400">
+                  <span>✏️</span>
+                  <span>Tabloda Düzenle (Hızlı Düzenleme Modu)</span>
+                </button>
+              `}
               <button type="button" onclick="window.App.openStudentModal()" 
-                class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95">
+                class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95">
                 <span>➕</span>
                 <span>Yeni Öğrenci</span>
+              </button>
+              <button type="button" onclick="window.App.pushMaster53ToCloudDirectly()" 
+                class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-emerald-500"
+                title="Doğrulanmış 53 talebeyi yerel hafızaya ve doğrudan Firebase bulutuna kilitler">
+                <span class="text-sm">⚡</span>
+                <span>53 Talebeyi Buluta Kilitle & Dağıt</span>
+              </button>
+              <button type="button" onclick="window.App.exportStudentsToCsv()" 
+                class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1 cursor-pointer active:scale-95 border border-slate-300"
+                title="Sistemdeki talebe listesini Excel / CSV olarak bilgisayarınıza indirir">
+                <span>📤</span>
+                <span>İndir (Excel)</span>
               </button>
             ` : ''}
           </div>
@@ -2729,64 +2948,112 @@ window.App = {
         <div class="overflow-x-auto w-full custom-scrollbar">
           <table class="w-full text-left border-collapse text-xs table-auto min-w-[820px]">
             <thead>
-              <tr class="bg-slate-100/90 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase select-none">
-                <th class="py-2.5 px-2 text-center w-12 shrink-0">
-                  <button type="button" onclick="window.App.toggleStudentSort('studentNo')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full text-center hover:text-slate-900">
-                    <span>No</span>
-                    ${this.getSortIndicator('studentNo')}
-                  </button>
-                </th>
-                <th class="py-2.5 px-3 min-w-[140px]">
-                  <button type="button" onclick="window.App.toggleStudentSort('name')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
-                    <span>Giriş Yapılacak İsim</span>
-                    ${this.getSortIndicator('name')}
-                  </button>
-                </th>
-                <th class="py-2.5 px-1.5 w-14 text-center">
-                  <button type="button" onclick="window.App.toggleStudentSort('className')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
-                    <span>Sınıf</span>
-                    ${this.getSortIndicator('className')}
-                  </button>
-                </th>
-                <th class="py-2.5 px-2.5 w-44">
-                  <div class="flex items-center gap-1 text-[10px]">
-                    <span>Hoca:</span>
-                    <button type="button" onclick="window.App.toggleStudentSort('etutHocasi')" class="hover:text-slate-900 underline decoration-slate-300" title="Etüt Hocasına göre sırala">Etüt ${this.getSortIndicator('etutHocasi')}</button>
-                    <span class="text-slate-300">/</span>
-                    <button type="button" onclick="window.App.toggleStudentSort('dahiliHoca')" class="hover:text-slate-900 underline decoration-slate-300" title="Dahili Hocasına göre sırala">Dahili ${this.getSortIndicator('dahiliHoca')}</button>
-                  </div>
-                </th>
-                <th class="py-2.5 px-2 w-20 text-center">
-                  <button type="button" onclick="window.App.toggleStudentSort('yatakhane')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
-                    <span>Oda</span>
-                    ${this.getSortIndicator('yatakhane')}
-                  </button>
-                </th>
-                <th class="py-2.5 px-2 w-20 text-center">
-                  <button type="button" onclick="window.App.toggleStudentSort('password')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
-                    <span>Şifre</span>
-                    ${this.getSortIndicator('password')}
-                  </button>
-                </th>
-                <th class="py-2.5 px-2 w-24 text-center">
-                  <button type="button" onclick="window.App.toggleStudentSort('familyCode')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
-                    <span>Aile Kodu</span>
-                    ${this.getSortIndicator('familyCode')}
-                  </button>
-                </th>
-                <th class="py-2.5 px-2 w-28 text-center">
-                  <button type="button" onclick="window.App.toggleStudentSort('phone')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
-                    <span>Veli Tel</span>
-                    ${this.getSortIndicator('phone')}
-                  </button>
-                </th>
-                ${canEdit ? `<th class="py-2.5 px-2 text-right w-20">İşlem</th>` : ''}
-              </tr>
+              ${isEditMode ? `
+                <tr class="bg-amber-100/90 border-b border-amber-300 text-[11px] font-black text-amber-950 uppercase select-none">
+                  <th class="py-2.5 px-2 text-center w-14 shrink-0">No</th>
+                  <th class="py-2.5 px-2 min-w-[130px]">Adı</th>
+                  <th class="py-2.5 px-2 min-w-[130px]">Soyadı</th>
+                  <th class="py-2.5 px-1.5 w-20 text-center">Sınıf</th>
+                  <th class="py-2.5 px-2 min-w-[130px]">Etüt Hocası</th>
+                  <th class="py-2.5 px-2 min-w-[130px]">Dahili Hoca</th>
+                  <th class="py-2.5 px-2 w-24 text-center">Oda</th>
+                  <th class="py-2.5 px-2 w-20 text-center">Şifre</th>
+                  <th class="py-2.5 px-2 w-24 text-center">Aile Kodu</th>
+                  <th class="py-2.5 px-2 w-28 text-center">Veli Tel</th>
+                  <th class="py-2.5 px-1 text-center w-14">Sil</th>
+                </tr>
+              ` : `
+                <tr class="bg-slate-100/90 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase select-none">
+                  <th class="py-2.5 px-2 text-center w-12 shrink-0">
+                    <button type="button" onclick="window.App.toggleStudentSort('studentNo')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full text-center hover:text-slate-900">
+                      <span>No</span>
+                      ${this.getSortIndicator('studentNo')}
+                    </button>
+                  </th>
+                  <th class="py-2.5 px-3 min-w-[140px]">
+                    <button type="button" onclick="window.App.toggleStudentSort('name')" class="font-bold flex items-center gap-1 cursor-pointer hover:text-slate-900">
+                      <span>Giriş Yapılacak İsim</span>
+                      ${this.getSortIndicator('name')}
+                    </button>
+                  </th>
+                  <th class="py-2.5 px-1.5 w-14 text-center">
+                    <button type="button" onclick="window.App.toggleStudentSort('className')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
+                      <span>Sınıf</span>
+                      ${this.getSortIndicator('className')}
+                    </button>
+                  </th>
+                  <th class="py-2.5 px-2.5 w-44">
+                    <div class="flex items-center gap-1 text-[10px]">
+                      <span>Hoca:</span>
+                      <button type="button" onclick="window.App.toggleStudentSort('etutHocasi')" class="hover:text-slate-900 underline decoration-slate-300" title="Etüt Hocasına göre sırala">Etüt ${this.getSortIndicator('etutHocasi')}</button>
+                      <span class="text-slate-300">/</span>
+                      <button type="button" onclick="window.App.toggleStudentSort('dahiliHoca')" class="hover:text-slate-900 underline decoration-slate-300" title="Dahili Hocasına göre sırala">Dahili ${this.getSortIndicator('dahiliHoca')}</button>
+                    </div>
+                  </th>
+                  <th class="py-2.5 px-2 w-20 text-center">
+                    <button type="button" onclick="window.App.toggleStudentSort('yatakhane')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
+                      <span>Oda</span>
+                      ${this.getSortIndicator('yatakhane')}
+                    </button>
+                  </th>
+                  <th class="py-2.5 px-2 w-20 text-center">
+                    <button type="button" onclick="window.App.toggleStudentSort('password')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
+                      <span>Şifre</span>
+                      ${this.getSortIndicator('password')}
+                    </button>
+                  </th>
+                  <th class="py-2.5 px-2 w-24 text-center">
+                    <button type="button" onclick="window.App.toggleStudentSort('familyCode')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
+                      <span>Aile Kodu</span>
+                      ${this.getSortIndicator('familyCode')}
+                    </button>
+                  </th>
+                  <th class="py-2.5 px-2 w-28 text-center">
+                    <button type="button" onclick="window.App.toggleStudentSort('phone')" class="font-bold flex items-center justify-center gap-0.5 cursor-pointer w-full hover:text-slate-900">
+                      <span>Veli Tel</span>
+                      ${this.getSortIndicator('phone')}
+                    </button>
+                  </th>
+                  ${canEdit ? `<th class="py-2.5 px-2 text-right w-20">İşlem</th>` : ''}
+                </tr>
+              `}
             </thead>
             <tbody id="students-table-body" class="divide-y divide-slate-100 text-xs">
-              ${this.renderStudentsTableRowsHtml(filteredStudents, newDraftsList, false, canEdit)}
+              ${this.renderStudentsTableRowsHtml(filteredStudents, newDraftsList, isEditMode, canEdit)}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Düzenleme Modu ve Taslak Kaydetme Çubuğu (Excel Modu) -->
+      <div id="student-draft-action-bar" class="${(isEditMode || changeCount > 0) ? '' : 'hidden'} sticky bottom-4 z-30 mt-4 p-4 bg-slate-900/95 text-white rounded-2xl shadow-2xl border-2 border-amber-400 backdrop-blur-md flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl animate-pulse">✏️</span>
+          <div>
+            <div class="font-black text-sm text-white flex items-center gap-2">
+              <span>Tabloda Düzenleme Modu Açık</span>
+              <span id="student-draft-count-badge" class="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] uppercase">
+                ${changeCount > 0 ? `${changeCount} Değişiklik Bekliyor` : 'Hücrelere tıklayıp düzenleyin'}
+              </span>
+            </div>
+            <p class="text-xs text-slate-300">
+              Hücrelere doğrudan tıklayarak düzenleyin. Enter tuşuna basarak bir alt satıra geçebilirsiniz.
+            </p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" onclick="window.App.addNewStudentRowDraft()" 
+            class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1.5 cursor-pointer active:scale-95">
+            <span>➕</span> <span>Yeni Satır Ekle</span>
+          </button>
+          <button type="button" id="student-draft-save-btn" onclick="window.App.saveAllStudentDrafts()" 
+            class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black shadow-lg transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${changeCount === 0 ? 'opacity-50 pointer-events-none' : ''}">
+            <span>💾</span> <span>Değişiklikleri Kaydet & Buluta Gönder (${changeCount})</span>
+          </button>
+          <button type="button" onclick="window.App.toggleStudentTableEditMode(false)" 
+            class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 border border-slate-700">
+            <span>✕</span> <span>Düzenlemeyi Kapat</span>
+          </button>
         </div>
       </div>
     `;
@@ -4134,10 +4401,13 @@ window.App = {
     const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
       (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
 
+    const realToday = new Date().toISOString().split('T')[0];
     if (!this.selectedDutyDate) {
-      this.selectedDutyDate = new Date().toISOString().split('T')[0];
+      this.selectedDutyDate = realToday;
     }
     const targetDate = this.selectedDutyDate;
+    const isTargetToday = (targetDate === realToday);
+
     const storeDuties = (window.Store && typeof window.Store.getDailyDuties === 'function')
       ? window.Store.getDailyDuties(targetDate, false)
       : { yemekciler: [], muezzin: '', note: '' };
@@ -4156,6 +4426,10 @@ window.App = {
       ? window.Store.getStudents(false)
       : [];
 
+    const upcomingDays = (window.Store && typeof window.Store.getUpcomingDailyDuties === 'function')
+      ? window.Store.getUpcomingDailyDuties(7)
+      : [];
+
     const dateOptions = { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' };
     const dateFormatted = new Date(targetDate + 'T00:00:00').toLocaleDateString('tr-TR', dateOptions);
 
@@ -4164,9 +4438,9 @@ window.App = {
     const currentNote = this.draftDutyNote || '';
 
     container.innerHTML = `
-      <div class="max-w-4xl mx-auto space-y-6 animate-fade-in">
+      <div class="max-w-5xl mx-auto space-y-6 animate-fade-in">
         
-        <!-- Üst Başlık ve Tarih Seçici -->
+        <!-- 1. Üst Başlık ve Tarih Seçici -->
         <div class="bg-gradient-to-r from-slate-900 via-amber-950/40 to-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-amber-500/30 flex flex-wrap items-center justify-between gap-4">
           <div class="flex items-center gap-3.5">
             <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-3xl shadow-lg shrink-0">
@@ -4175,16 +4449,16 @@ window.App = {
             <div>
               <div class="flex items-center gap-2">
                 <h3 class="font-black text-white text-lg sm:text-xl">
-                  ${isAdmin ? 'Günün Görevlileri Yönetimi' : 'Günün Görevlileri'}
+                  ${isAdmin ? 'Günün Görevlileri & Haftalık Nöbet Planlama' : 'Günün Görevlileri & Nöbet Çizelgesi'}
                 </h3>
                 <span class="px-2 py-0.5 rounded-lg ${isAdmin ? 'bg-amber-500 text-slate-950' : 'bg-blue-500 text-white'} font-black text-[10px] uppercase tracking-wider flex items-center gap-1">
-                  <span>${isAdmin ? '👑 YÖNETİCİ ATAMA PANELİ' : '👁️ GÖREVLİ LİSTESİ'}</span>
+                  <span>${isAdmin ? '👑 YÖNETİCİ PLANLAMA PANELİ' : '👁️ GÖREVLİ LİSTESİ'}</span>
                 </span>
               </div>
               <p class="text-xs text-amber-200/80 mt-0.5">
                 ${isAdmin 
-                  ? `${dateFormatted} • Yemekhane nöbetçileri ve vakit müezzinini atayınız; TV panosu ve hocalar anında canlı görsün.`
-                  : `${dateFormatted} • Kurum Yöneticisi tarafından belirlenen günün nöbetçileri`}
+                  ? `Seçili Gün: <strong>${dateFormatted}</strong> ${isTargetToday ? '• (Bugün)' : '• (İleri Tarih)'} — Nöbetçileri gün gün atayınız; günü geldiğinde TV panosuna otomatik yansır.`
+                  : `Seçili Gün: <strong>${dateFormatted}</strong> ${isTargetToday ? '• (Bugün)' : ''} — Kurum Yöneticisi tarafından belirlenen görevli talebelerimiz.`}
               </p>
             </div>
           </div>
@@ -4193,8 +4467,8 @@ window.App = {
             <input type="date" value="${targetDate}" 
               onchange="window.App.changeDutyDate(this.value)"
               class="px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono font-bold text-amber-300 focus:border-amber-400 focus:outline-none cursor-pointer">
-            <button type="button" onclick="window.App.changeDutyDate(new Date().toISOString().split('T')[0])"
-              class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow transition cursor-pointer">
+            <button type="button" onclick="window.App.changeDutyDate('${realToday}')"
+              class="px-3 py-2 ${isTargetToday ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-amber-300 hover:bg-slate-700'} text-xs font-black rounded-xl shadow transition cursor-pointer">
               Bugün
             </button>
             <a href="pano.html" target="_blank"
@@ -4205,15 +4479,100 @@ window.App = {
           </div>
         </div>
 
-        <!-- Diğer Hocalar İçin Bilgilendirme Rozeti -->
-        ${!isAdmin ? `
+        <!-- 2. ⭐ 7 GÜNLÜK HIZLI GÜN SEÇİCİ ŞERİDİ -->
+        <div class="bg-slate-900 rounded-3xl p-4 sm:p-5 border border-amber-500/30 shadow-xl space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span class="font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+              <span>📅</span> <span>HIZLI GÜN SEÇİMİ (ÖNÜMÜZDEKİ 7 GÜN)</span>
+            </span>
+            <span class="text-slate-400 text-[11px]">
+              Tıklayarak o günün görevlilerini belirleyin; günü gelince TV panosuna kendiliğinden yansır.
+            </span>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+            ${upcomingDays.map(day => {
+              const isSelected = day.date === targetDate;
+              return `
+                <button type="button" onclick="window.App.changeDutyDate('${day.date}')"
+                  class="p-2.5 sm:p-3 rounded-2xl border transition-all text-left cursor-pointer flex flex-col justify-between group ${
+                    isSelected 
+                      ? 'bg-gradient-to-b from-amber-500/25 to-amber-950/40 border-amber-400 shadow-lg text-white ring-2 ring-amber-400/60 scale-[1.02]' 
+                      : 'bg-slate-950/70 border-slate-800 hover:border-amber-500/40 text-slate-300 hover:bg-slate-800/60'
+                  }">
+                  <div>
+                    <div class="flex items-center justify-between gap-1 mb-1">
+                      <span class="font-black text-xs ${isSelected ? 'text-amber-300' : 'text-slate-200 group-hover:text-amber-200'}">
+                        ${day.dayLabel}
+                      </span>
+                      ${day.isToday ? `<span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-bold border border-emerald-500/30">Bugün</span>` : ''}
+                    </div>
+                    <div class="text-[11px] font-mono ${isSelected ? 'text-amber-100' : 'text-slate-400'}">
+                      ${day.dateDisplay}
+                    </div>
+                  </div>
+
+                  <div class="pt-2 mt-2 border-t ${isSelected ? 'border-amber-500/30' : 'border-slate-800/80'}">
+                    ${day.hasAssignment ? `
+                      <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                        <span>✓</span> <span>${day.yemekciCount} Yemekçi${day.hasMuezzin ? ' • Müezzin' : ''}</span>
+                      </div>
+                    ` : `
+                      <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-800 text-slate-400 text-[10px] group-hover:text-amber-300 group-hover:border group-hover:border-amber-500/30">
+                        <span>+</span> <span>Görev Belirle</span>
+                      </div>
+                    `}
+                  </div>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- 3. Yönetici Bilgilendirme ve Hızlı Kopyalama Kartı -->
+        ${isAdmin ? `
+          <div class="p-4 bg-gradient-to-r from-amber-50 via-amber-100/50 to-amber-50 border border-amber-200 rounded-3xl flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950 shadow-2xs">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl shrink-0">💡</span>
+              <div class="leading-relaxed">
+                <strong>İleri Tarihli Çoklu Gün Planlama:</strong> Yukarıdaki gün butonlarından dilediğiniz günü (örn: Yarın, Pazartesi veya sonraki günleri) seçip nöbetçileri şimdiden kaydedebilirsiniz. O gün geldiğinde TV panosu ve sistem o günün nöbetçilerini otomatik olarak ekrana getirecektir.
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="window.App.copyDutiesFromPreviousDay()"
+                class="px-3.5 py-2 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl font-black text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+                <span>📋</span>
+                <span>Bir Önceki Günden Kopyala</span>
+              </button>
+            </div>
+          </div>
+        ` : `
           <div class="p-3.5 bg-blue-50/90 border border-blue-200 rounded-2xl flex items-center gap-3 text-xs text-blue-900 shadow-2xs">
             <span class="text-xl shrink-0">ℹ️</span>
             <div class="leading-relaxed">
-              <strong>Bilgilendirme:</strong> Günün görevlileri (yemekhane nöbetçileri ve vakit müezzini) yalnızca <strong>Kurum Yöneticisi</strong> tarafından atanmaktadır. Bu ekranda belirlenen görevlileri canlı olarak görüntülemektesiniz.
+              <strong>Bilgilendirme:</strong> Günün görevlileri (yemekhane nöbetçileri ve vakit müezzini) <strong>Kurum Yöneticisi</strong> tarafından belirlenmektedir. Bu ekranda haftalık nöbet planını canlı olarak takip edebilirsiniz.
             </div>
           </div>
-        ` : ''}
+        `}
+
+        <!-- 4. Seçili Gün Başlık Şeridi -->
+        <div class="flex flex-wrap items-center justify-between gap-2 px-2 pt-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">📅</span>
+            <span class="font-black text-slate-800 text-sm sm:text-base">
+              ${dateFormatted} Nöbet Dağılımı
+            </span>
+            <span class="px-2.5 py-0.5 rounded-lg ${isTargetToday ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-900 border border-amber-300'} font-black text-[11px]">
+              ${isTargetToday ? '🟢 Bugünün Nöbeti' : '🗓️ İleri Tarihli Plan'}
+            </span>
+          </div>
+          ${isAdmin && (currentYemekciler.length > 0 || currentMuezzin || currentNote) ? `
+            <button type="button" onclick="window.App.deleteDutyForDate('${targetDate}')"
+              class="text-xs text-rose-600 hover:text-rose-800 hover:underline font-bold cursor-pointer">
+              🗑️ Bu Günün Nöbetini Temizle
+            </button>
+          ` : ''}
+        </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           
@@ -4275,7 +4634,7 @@ window.App = {
                 ${currentYemekciler.length === 0 ? `
                   <div class="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400 space-y-1">
                     <div class="text-2xl mb-1">🍽️</div>
-                    <div class="font-bold text-slate-700">Henüz yemekhane nöbetçisi atanmadı.</div>
+                    <div class="font-bold text-slate-700">Bu gün için yemekhane nöbetçisi atanmadı.</div>
                     <div class="text-[11px] text-slate-400">
                       ${isAdmin ? 'Yukarıdan talebe seçip "+ Ekle" butonuna basınız.' : 'Kurum Yöneticisi tarafından görev atandığında burada listelenecektir.'}
                     </div>
@@ -4402,11 +4761,11 @@ window.App = {
 
         </div>
 
-        <!-- 📌 GÜNÜN ÖZEL DUYURUSU / NOTU -->
+        <!-- 5. 📌 GÜNÜN ÖZEL DUYURUSU / NOTU -->
         ${isAdmin ? `
           <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-3">
             <label class="block text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
-              <span>📌</span> <span>GÜNÜN DUYURUSU VEYA ÖZEL NOTU (İSTEĞE BAĞLI)</span>
+              <span>📌</span> <span>${dateFormatted} DUYURUSU VEYA ÖZEL NOTU (İSTEĞE BAĞLI)</span>
             </label>
             <input type="text" id="duty-note-input"
               value="${currentNote}"
@@ -4428,22 +4787,23 @@ window.App = {
           </div>
         ` : `
           <div class="bg-white rounded-3xl border border-slate-200 p-4 text-center text-xs text-slate-400">
-            <span>📌 Bugün için iletilen özel bir görevli duyurusu bulunmamaktadır.</span>
+            <span>📌 Bu gün için iletilen özel bir görevli duyurusu bulunmamaktadır.</span>
           </div>
         `)}
 
-        <!-- ALT BUTON / BİLGİLENDİRME BARI -->
+        <!-- 6. ALT KAYDET BUTONU -->
         ${isAdmin ? `
           <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-900 text-white p-5 rounded-3xl shadow-xl">
             <div class="text-xs">
-              <span class="font-black text-amber-400">Canlı Senkronizasyon:</span>
-              <span class="text-slate-300 ml-1">Kaydettiğiniz anda TV Panosu ve tüm hocaların ekranı anında güncellenir.</span>
+              <span class="font-black text-amber-400">Hedef Tarih:</span>
+              <span class="text-white font-bold ml-1">${dateFormatted}</span>
+              <span class="text-slate-300 block text-[11px] mt-0.5">Kaydettiğiniz anda veritabanına işlenir; günü gelince TV panosunda otomatik döner.</span>
             </div>
 
             <button type="button" onclick="window.App.saveDailyDutiesSubmit()"
               class="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer text-sm">
               <span>💾</span>
-              <span>Görevlileri Kaydet ve TV Panosuna Gönder</span>
+              <span>${dateFormatted} Görevlilerini Kaydet</span>
             </button>
           </div>
         ` : `
@@ -4462,6 +4822,120 @@ window.App = {
           </div>
         `}
 
+        <!-- 7. ⭐ ÖNÜMÜZDEKİ 7 GÜNÜN HAFTALIK NÖBET ÇİZELGESİ (TOPLU TABLO) -->
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2.5">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 text-xl flex items-center justify-center shadow-inner">
+                📋
+              </div>
+              <div>
+                <h4 class="font-black text-slate-900 text-base">Haftalık Nöbet Çizelgesi (Önümüzdeki 7 Gün)</h4>
+                <p class="text-xs text-slate-500">Planlanan tüm görevlileri toplu inceleyin; günü geldiğinde TV panosu kendiliğinden devreye alır.</p>
+              </div>
+            </div>
+            <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold">
+              <span>🔄</span> <span>Otomatik Günlük Döngü</span>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="bg-slate-50 text-slate-600 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
+                  <th class="py-3 px-3.5 rounded-l-xl">Tarih & Gün</th>
+                  <th class="py-3 px-3.5">Yemekhane Nöbetçileri</th>
+                  <th class="py-3 px-3.5">Vakit Müezzini</th>
+                  <th class="py-3 px-3.5">Özel Not / Duyuru</th>
+                  <th class="py-3 px-3.5 text-right rounded-r-xl">İşlem</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 font-medium">
+                ${upcomingDays.map(day => {
+                  const isCurSelected = day.date === targetDate;
+                  const ymList = Array.isArray(day.duties.yemekciler) ? day.duties.yemekciler : [];
+                  const mz = day.duties.muezzin || '';
+                  const nt = day.duties.note || '';
+
+                  return `
+                    <tr class="transition hover:bg-slate-50/80 ${isCurSelected ? 'bg-amber-50/70 font-semibold' : ''}">
+                      <!-- 1. Tarih -->
+                      <td class="py-3.5 px-3.5 whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                          <span class="w-2.5 h-2.5 rounded-full shrink-0 ${day.isToday ? 'bg-emerald-500' : (day.hasAssignment ? 'bg-amber-500' : 'bg-slate-300')}"></span>
+                          <div>
+                            <div class="font-black text-slate-900 text-xs flex items-center gap-1">
+                              <span>${day.dayLabel}</span>
+                              ${day.isToday ? `<span class="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-bold">Bugün</span>` : ''}
+                            </div>
+                            <div class="text-[11px] font-mono text-slate-500">
+                              ${day.dateDisplay}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <!-- 2. Yemekçiler -->
+                      <td class="py-3.5 px-3.5">
+                        ${ymList.length > 0 ? `
+                          <div class="flex flex-wrap gap-1.5 max-w-md">
+                            ${ymList.map(name => `
+                              <span class="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-950 border border-amber-200 text-[11px] font-bold inline-flex items-center gap-1">
+                                <span>🍽️</span> <span>${name}</span>
+                              </span>
+                            `).join('')}
+                          </div>
+                        ` : `
+                          <span class="text-slate-400 italic text-[11px]">— Henüz atanmadı</span>
+                        `}
+                      </td>
+
+                      <!-- 3. Müezzin -->
+                      <td class="py-3.5 px-3.5 whitespace-nowrap">
+                        ${mz ? `
+                          <span class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-950 border border-indigo-200 text-[11px] font-bold inline-flex items-center gap-1.5 shadow-2xs">
+                            <span>🕌</span> <span>${mz}</span>
+                          </span>
+                        ` : `
+                          <span class="text-slate-400 italic text-[11px]">— Atanmadı</span>
+                        `}
+                      </td>
+
+                      <!-- 4. Duyuru / Not -->
+                      <td class="py-3.5 px-3.5 max-w-xs">
+                        ${nt ? `
+                          <span class="text-slate-700 text-[11px] leading-tight line-clamp-2">
+                            📌 ${nt}
+                          </span>
+                        ` : `
+                          <span class="text-slate-300">—</span>
+                        `}
+                      </td>
+
+                      <!-- 5. İşlemler -->
+                      <td class="py-3.5 px-3.5 text-right whitespace-nowrap">
+                        <div class="flex items-center justify-end gap-1.5">
+                          <button type="button" onclick="window.App.changeDutyDate('${day.date}'); window.scrollTo({ top: 380, behavior: 'smooth' });"
+                            class="px-3 py-1.5 rounded-xl ${isCurSelected ? 'bg-amber-500 text-slate-950 font-black' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold'} text-xs transition cursor-pointer">
+                            ${isCurSelected ? '✏️ Seçili' : 'Düzenle'}
+                          </button>
+                          ${isAdmin && day.hasAssignment ? `
+                            <button type="button" onclick="window.App.deleteDutyForDate('${day.date}')"
+                              class="w-7 h-7 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold transition flex items-center justify-center cursor-pointer"
+                              title="Bu günün nöbetini temizle">
+                              ✕
+                            </button>
+                          ` : ''}
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
     `;
   },
@@ -4473,6 +4947,53 @@ window.App = {
     this.draftDutyMuezzin = null;
     this.draftDutyNote = null;
     this.renderDailyDutiesView();
+  },
+
+  copyDutiesFromPreviousDay() {
+    const curDate = this.selectedDutyDate || new Date().toISOString().split('T')[0];
+    const prevDateObj = new Date(curDate + 'T00:00:00');
+    prevDateObj.setDate(prevDateObj.getDate() - 1);
+    const prevIso = prevDateObj.toISOString().split('T')[0];
+
+    const prevDuties = (window.Store && typeof window.Store.getDailyDuties === 'function')
+      ? window.Store.getDailyDuties(prevIso, false)
+      : { yemekciler: [], muezzin: '', note: '' };
+
+    if ((!prevDuties.yemekciler || prevDuties.yemekciler.length === 0) && !prevDuties.muezzin) {
+      this.showToast(`Bir önceki günde (${prevIso}) kayıtlı görevli bulunamadı.`, 'warning');
+      return;
+    }
+
+    this.draftDutyYemekciler = Array.isArray(prevDuties.yemekciler) ? [...prevDuties.yemekciler] : [];
+    this.draftDutyMuezzin = prevDuties.muezzin || '';
+    this.draftDutyNote = prevDuties.note || '';
+    this.showToast(`✓ ${prevIso} gününün görevlileri aktarıldı. "Kaydet" butonuna basarak onaylayabilirsiniz.`, 'info');
+    this.renderDailyDutiesView();
+  },
+
+  deleteDutyForDate(targetDate) {
+    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
+      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
+    if (!isAdmin) {
+      this.showToast('Günün görevlilerini silme yetkisi yalnızca Kurum Yöneticisine aittir.', 'warning');
+      return;
+    }
+
+    const dateToDel = targetDate || this.selectedDutyDate || new Date().toISOString().split('T')[0];
+    if (!confirm(`${dateToDel} tarihli nöbetçi kayıtlarını temizlemek istediğinize emin misiniz?`)) {
+      return;
+    }
+
+    if (window.Store && typeof window.Store.deleteDailyDuties === 'function') {
+      window.Store.deleteDailyDuties(dateToDel);
+      if (this.selectedDutyDate === dateToDel) {
+        this.draftDutyYemekciler = [];
+        this.draftDutyMuezzin = '';
+        this.draftDutyNote = '';
+      }
+      this.showToast(`✓ ${dateToDel} tarihli nöbet kaydı temizlendi.`, 'info');
+      this.renderDailyDutiesView();
+    }
   },
 
   addYemekciFromSelect() {
