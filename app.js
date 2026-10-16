@@ -54,6 +54,7 @@ window.App = {
 
     this.renderHeader();
     this.renderMainContent();
+    this.setupDragAndDropImport();
 
     // Bulut senkronizasyonu tamamlandığında ekranı sessizce ve kesintisiz tazele
     window.addEventListener('cloud-sync-done', () => {
@@ -1805,7 +1806,7 @@ window.App = {
                 class="w-full py-2.5 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-black border-2 border-amber-300 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
                 title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
                 <span class="text-sm">🔄</span>
-                <span>Sistemi & Önbelleği Sıfırla (v10.29)</span>
+                <span>Sistemi & Önbelleği Sıfırla (v10.40)</span>
               </button>
             </div>
           </div>
@@ -2489,14 +2490,117 @@ window.App = {
   },
 
   // --- Manuel Dosyadan (ogrenciler.csv, ogrenciler.json veya js/ogrenciler-data.js) Güncel Bilgileri Çekme ---
-  async handleFetchManualDataFile() {
-    this.showToast('Dosyadan güncel talebe bilgileri okunuyor...', 'info');
+  handleFetchManualDataFile() {
+    this.openSyncSourceModal();
+  },
+
+  openSyncSourceModal() {
+    let modal = document.getElementById('sync-source-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'sync-source-modal';
+      document.body.appendChild(modal);
+    }
+    const isLocalFile = window.location.protocol === 'file:';
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-fade-in no-print';
+    modal.innerHTML = `
+      <div class="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full p-6 relative overflow-hidden">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+          <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center text-xl font-bold shadow-inner">
+              📥
+            </div>
+            <div>
+              <h3 class="text-base font-black text-slate-900">Güncel Bilgileri Çek & Yükle</h3>
+              <p class="text-xs text-slate-500 font-bold">Talebe listenizi nereden güncellemek istersiniz?</p>
+            </div>
+          </div>
+          <button type="button" onclick="document.getElementById('sync-source-modal').remove()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold cursor-pointer">×</button>
+        </div>
+
+        <div class="space-y-3">
+          <!-- Seçenek 1: Bilgisayarımdan Dosya Seç (Cihazdaki Excel/CSV) -->
+          <button type="button" onclick="document.getElementById('sync-source-modal').remove(); document.getElementById('manual-file-input-direct')?.click();"
+            class="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 border-2 border-emerald-400 text-left transition flex items-center justify-between group cursor-pointer active:scale-98 shadow-xs">
+            <div class="flex items-start gap-3">
+              <span class="text-2xl mt-0.5">📂</span>
+              <div>
+                <div class="text-sm font-black text-emerald-950 flex items-center gap-2">
+                  <span>Bilgisayarımdan / Telefonumdan Seç</span>
+                  <span class="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold">Önerilen</span>
+                </div>
+                <div class="text-xs text-emerald-800 mt-1 leading-snug">
+                  Bilgisayarınızda veya Excel'de düzenlediğiniz <strong>ogrenciler.csv</strong> dosyasını cihazınızdan seçip anında sisteme ve buluta aktarır.
+                </div>
+              </div>
+            </div>
+            <span class="text-emerald-700 text-lg font-bold group-hover:translate-x-1 transition-transform">➔</span>
+          </button>
+
+          <!-- Sürükle Bırak Alanı -->
+          <div id="modal-drag-drop-zone"
+            onclick="document.getElementById('manual-file-input-direct')?.click();"
+            ondragover="event.preventDefault(); this.classList.add('border-emerald-500', 'bg-emerald-100/60');"
+            ondragleave="this.classList.remove('border-emerald-500', 'bg-emerald-100/60');"
+            ondrop="event.preventDefault(); this.classList.remove('border-emerald-500', 'bg-emerald-100/60'); document.getElementById('sync-source-modal')?.remove(); window.App.handleFileDrop(event);"
+            class="border-2 border-dashed border-emerald-300 rounded-2xl p-3 text-center bg-emerald-50/40 hover:bg-emerald-50/80 transition cursor-pointer flex items-center justify-center gap-3">
+            <span class="text-2xl">🖱️</span>
+            <div class="text-left">
+              <div class="text-xs font-black text-emerald-950">Veya ogrenciler.csv dosyasını buraya sürükleyip bırakın</div>
+              <div class="text-[10px] text-emerald-700">Tıklayarak veya dosyayı sürükleyerek anında yükleyebilirsiniz</div>
+            </div>
+          </div>
+
+          <!-- Seçenek 2: Sunucudaki / GitHub'daki Dosyadan Çek -->
+          <button type="button" onclick="document.getElementById('sync-source-modal').remove(); window.App.executeServerDataSync();"
+            class="w-full p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-300 text-left transition flex items-center justify-between group cursor-pointer active:scale-98">
+            <div class="flex items-start gap-3">
+              <span class="text-2xl mt-0.5">🌐</span>
+              <div>
+                <div class="text-sm font-black text-slate-900">
+                  Sunucudaki (GitHub) ogrenciler.csv'den Çek
+                </div>
+                <div class="text-xs text-slate-600 mt-1 leading-snug">
+                  Web sunucusundaki veya GitHub Pages üzerindeki hazır <strong>ogrenciler.csv</strong> dosyasını doğrudan indirip sisteme eşitler.
+                </div>
+              </div>
+            </div>
+            <span class="text-slate-400 text-lg font-bold group-hover:translate-x-1 transition-transform">➔</span>
+          </button>
+        </div>
+
+        ${isLocalFile ? `
+          <div class="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex items-center gap-2">
+            <span>💡</span>
+            <span>Sayfayı yerel dosya olarak açtığınız için lütfen yukarıdaki <strong>"Bilgisayarımdan Seç"</strong> butonunu veya sürükle-bırak alanını kullanınız.</span>
+          </div>
+        ` : ''}
+
+        <input type="file" id="manual-file-input-direct" accept=".csv,.json" class="hidden" onchange="window.App.handleManualDataFileUpload(event)">
+
+        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+          <button type="button" onclick="window.App.exportStudentsToCsv()" class="text-xs text-indigo-700 font-bold hover:underline flex items-center gap-1 cursor-pointer">
+            <span>📤</span> <span>Mevcut Listeyi İndir (CSV)</span>
+          </button>
+          <button type="button" onclick="document.getElementById('sync-source-modal').remove()" 
+            class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer">
+            Vazgeç
+          </button>
+        </div>
+      </div>
+    `;
+  },
+
+  async executeServerDataSync() {
+    this.showToast('Sunucudan ogrenciler.csv okunuyor...', 'info');
     try {
       this.studentDrafts = {};
       this.studentNewDrafts = [];
       if (this.studentDeletedDrafts && typeof this.studentDeletedDrafts.clear === 'function') {
         this.studentDeletedDrafts.clear();
       }
+      this.studentSearchQuery = '';
+      this.studentFilterClass = 'ALL';
 
       const res = await window.Store.syncFromManualDataFile();
       if (res && res.success) {
@@ -2510,12 +2614,9 @@ window.App = {
         window.StudentExcelModule.render();
       }
     } catch (err) {
-      this.showToast('Talebe bilgileri güncellendi.', 'success');
+      this.showToast('Sunucudan veri çekme hatası: ' + err.message, 'error');
       this.renderHeader();
       this.renderMainContent();
-      if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
-        window.StudentExcelModule.render();
-      }
     }
   },
 
@@ -2534,10 +2635,15 @@ window.App = {
         if (this.studentDeletedDrafts && typeof this.studentDeletedDrafts.clear === 'function') {
           this.studentDeletedDrafts.clear();
         }
+        this.studentSearchQuery = '';
+        this.studentFilterClass = 'ALL';
         const res = await window.Store.syncFromManualDataFile(content);
         this.showToast(res.message || 'Talebe bilgileri dosyadan aktarıldı!', 'success');
         this.renderHeader();
         this.renderMainContent();
+        if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
+          window.StudentExcelModule.render();
+        }
       } catch (err) {
         this.showToast('Dosya aktarılırken hata: ' + err.message, 'error');
       }
@@ -2548,6 +2654,61 @@ window.App = {
       event.target.value = '';
     };
     reader.readAsText(file, 'UTF-8');
+  },
+
+  // --- Sürükle Bırak Dosya Yakalama Motoru ---
+  handleFileDrop(event) {
+    const files = event.dataTransfer && event.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.name.endsWith('.csv') || file.name.endsWith('.json') || file.type.includes('text')) {
+        const fakeEvent = { target: { files: [file], value: '' } };
+        this.handleManualDataFileUpload(fakeEvent);
+      } else {
+        this.showToast('Lütfen .csv veya .json uzantılı talebe dosyasını bırakınız.', 'warning');
+      }
+    }
+  },
+
+  setupDragAndDropImport() {
+    window.addEventListener('dragover', (e) => {
+      if (this.activeTab === 'ogrenciler' && this.canManageStudents()) {
+        e.preventDefault();
+        e.stopPropagation();
+        let overlay = document.getElementById('drag-drop-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'drag-drop-overlay';
+          overlay.className = 'fixed inset-0 z-50 bg-emerald-950/80 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-white text-center animate-fade-in pointer-events-none';
+          overlay.innerHTML = `
+            <div class="p-8 rounded-3xl bg-white/10 border-3 border-dashed border-emerald-400 max-w-lg w-full flex flex-col items-center gap-4">
+              <span class="text-6xl animate-bounce">📥</span>
+              <h2 class="text-2xl font-black">Dosyayı Buraya Bırakın</h2>
+              <p class="text-sm text-emerald-200">Düzenlediğiniz <strong>ogrenciler.csv</strong> veya Excel dosyasını bırakarak talebeleri anında güncelleyin.</p>
+            </div>
+          `;
+          document.body.appendChild(overlay);
+        }
+      }
+    });
+
+    window.addEventListener('dragleave', (e) => {
+      if (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+        const overlay = document.getElementById('drag-drop-overlay');
+        if (overlay) overlay.remove();
+      }
+    });
+
+    window.addEventListener('drop', (e) => {
+      const overlay = document.getElementById('drag-drop-overlay');
+      if (overlay) overlay.remove();
+
+      if (this.activeTab === 'ogrenciler' && this.canManageStudents()) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.handleFileDrop(e);
+      }
+    });
   },
 
   // --- Öğrenci & Şifre Yönetimi Görünümü (Sıralamalı & Excel Modlu) ---

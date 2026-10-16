@@ -9,10 +9,10 @@
   <title>Ömer Avniyel Akademi</title>
   <meta name="description" content="Öğrenci Bilgi ve Takip Portalı">
 
-  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v10.39 - KESİN MASTER EXCEL KİLİDİ) -->
+  <!-- OTOMATİK ÖNBELLEK SIFIRLAYICI & ZORLA YENİ SÜRÜM MOTORU (v10.40 - AKILLI DOSYA VE BULUT EŞİTLEME) -->
   <script>
     (function() {
-      var CURRENT_BUILD = '20261015_v10.39_MASTER_EXCEL_STRICT';
+      var CURRENT_BUILD = '20261016_v10.40_SMART_CSV_SYNC';
       var savedBuild = localStorage.getItem('oay_app_build_version');
 
       // Kullanıcının dilediğinde manuel de tetikleyebileceği evrensel sıfırlama fonksiyonu
@@ -349,7 +349,7 @@
       class="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-slate-900/90 hover:bg-slate-900 text-amber-300 hover:text-amber-200 border border-amber-400/60 shadow-xl text-[11px] font-black backdrop-blur transition-all active:scale-95 cursor-pointer opacity-70 hover:opacity-100"
       title="Eski önbelleği temizleyip en yeni sistemi zorla yükler">
       <span class="text-xs">🔄</span>
-      <span>Önbelleği Temizle (v10.38)</span>
+      <span>Önbelleği Temizle (v10.40)</span>
     </button>
   </div>
 
@@ -431,27 +431,27 @@
     };
   </script>
 
-  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v10.39 Sürüm İmzası) -->
-  <script src="js/ogrenciler-data.js?v=10.39"></script>
-  <script src="js/hadisler.js?v=10.39"></script>
-  <script src="js/store.js?v=10.39"></script>
-  <script src="js/attendance.js?v=10.39"></script>
-  <script src="js/leave-tracker.js?v=10.39"></script>
-  <script src="js/leave-return.js?v=10.39"></script>
-  <script src="js/quran-tracker.js?v=10.39"></script>
-  <script src="js/performance.js?v=10.39"></script>
-  <script src="js/omr-scanner.js?v=10.39"></script>
-  <script src="js/test-results.js?v=10.39"></script>
-  <script src="js/mock-exam.js?v=10.39"></script>
-  <script src="js/leaderboard.js?v=10.39"></script>
-  <script src="js/parent-portal.js?v=10.39"></script>
-  <script src="js/app.js?v=10.39"></script>
+  <!-- JavaScript Modülleri (Önbellek Bayatlamasını Önleyici v10.40 Sürüm İmzası) -->
+  <script src="js/ogrenciler-data.js?v=10.40"></script>
+  <script src="js/hadisler.js?v=10.40"></script>
+  <script src="js/store.js?v=10.40"></script>
+  <script src="js/attendance.js?v=10.40"></script>
+  <script src="js/leave-tracker.js?v=10.40"></script>
+  <script src="js/leave-return.js?v=10.40"></script>
+  <script src="js/quran-tracker.js?v=10.40"></script>
+  <script src="js/performance.js?v=10.40"></script>
+  <script src="js/omr-scanner.js?v=10.40"></script>
+  <script src="js/test-results.js?v=10.40"></script>
+  <script src="js/mock-exam.js?v=10.40"></script>
+  <script src="js/leaderboard.js?v=10.40"></script>
+  <script src="js/parent-portal.js?v=10.40"></script>
+  <script src="js/app.js?v=10.40"></script>
 
   <!-- Service Worker Kaydı (Kısayol ve PWA Hızlı Başlatma) -->
   <script>
     if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./sw.js?v=10.39').then(function(reg) {
+        navigator.serviceWorker.register('./sw.js?v=10.40').then(function(reg) {
           if (reg) {
             reg.update();
           }

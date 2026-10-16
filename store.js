@@ -2870,50 +2870,95 @@ class DataStore {
     if (!csvText || typeof csvText !== 'string') return [];
     // BOM karakterini ve gereksiz boşlukları temizle
     const cleanText = csvText.replace(/^\uFEFF/, '').trim();
-    const lines = cleanText.split(/\r?\n/).filter(Boolean);
+    const lines = cleanText.split(/\r?\n/).filter(line => line.trim().length > 0);
     if (lines.length === 0) return [];
 
-    const delimiter = lines[0].includes(';') ? ';' : (lines[0].includes('\t') ? '\t' : ',');
+    // Delimiter tespiti: İlk satırdaki noktalı virgül, sekme ve virgül sayısını karşılaştır
+    const firstLine = lines[0];
+    const countSemi = (firstLine.match(/;/g) || []).length;
+    const countTab = (firstLine.match(/\t/g) || []).length;
+    const countComma = (firstLine.match(/,/g) || []).length;
+    let delimiter = ';';
+    if (countSemi >= countComma && countSemi >= countTab) delimiter = ';';
+    else if (countTab > countSemi && countTab >= countComma) delimiter = '\t';
+    else if (countComma > countSemi && countComma >= countTab) delimiter = ',';
+
+    const headerCols = lines[0].split(delimiter).map(c => this.normalizeTr(c.trim().replace(/^["']|["']$/g, '')));
+    const isFirstLineHeader = headerCols.some(c => 
+      c.includes('no') || c.includes('ad') || c.includes('soyad') || c.includes('sinif') || c.includes('okul')
+    );
+
+    let colMap = {
+      no: 0,
+      fn: 1,
+      ln: 2,
+      cls: 3,
+      school: 4,
+      seviye: 5,
+      etut: 6,
+      dahili: 7,
+      yatakhane: 8,
+      phone: 9,
+      pass: 10,
+      family: 11
+    };
+
+    let startIdx = 0;
+    if (isFirstLineHeader) {
+      startIdx = 1;
+      headerCols.forEach((col, idx) => {
+        if (col.includes('okul no') || col === 'no' || col.includes('ogrenci no')) { colMap.no = idx; }
+        else if (col.includes('soyad')) { colMap.ln = idx; }
+        else if (col === 'ad' || col === 'adi' || col.includes('ogrenci adi') || col.includes('giris yapilacak isim')) { colMap.fn = idx; }
+        else if (col.includes('ad soyad') || col.includes('adi soyadi')) { colMap.fullName = idx; }
+        else if (col.includes('sinif') || col.includes('sube')) { colMap.cls = idx; }
+        else if (col.includes('okul')) { colMap.school = idx; }
+        else if (col.includes('seviye')) { colMap.seviye = idx; }
+        else if (col.includes('etut')) { colMap.etut = idx; }
+        else if (col.includes('dahili') || col.includes('dini')) { colMap.dahili = idx; }
+        else if (col.includes('yatak') || col.includes('oda')) { colMap.yatakhane = idx; }
+        else if (col.includes('telefon') || col.includes('tel') || col.includes('cep')) { colMap.phone = idx; }
+        else if (col.includes('sifre') || col.includes('parola')) { colMap.pass = idx; }
+        else if (col.includes('aile')) { colMap.family = idx; }
+      });
+    }
+
     const students = [];
-
-    // İlk satır başlık mı tespit et
-    const firstLineLower = lines[0].toLowerCase();
-    const isFirstLineHeader = firstLineLower.includes('no') || firstLineLower.includes('ad') || firstLineLower.includes('soyad') || firstLineLower.includes('sinif') || firstLineLower.includes('okul');
-    const startIdx = isFirstLineHeader ? 1 : 0;
-
     for (let i = startIdx; i < lines.length; i++) {
-      const parts = lines[i].split(delimiter).map(p => p.trim().replace(/^["']|["']$/g, ''));
-      if (parts.length >= 2 && (parts[0] || parts[1])) {
-        let no = parts[0] || '';
+      const rawParts = lines[i].split(delimiter).map(p => p.trim().replace(/^["']|["']$/g, '').replace(/""/g, '"'));
+      if (rawParts.length >= 2 && rawParts.some(p => p.length > 0)) {
+        let no = (rawParts[colMap.no] !== undefined ? rawParts[colMap.no] : (rawParts[0] || '')).toString().trim();
         let fn = '';
         let ln = '';
-        let className = '5-A';
-        let school = '-';
-        let seviye = 'Seviye 1';
-        let etutHocasi = '';
-        let dahiliHoca = '';
-        let yatakhane = '';
-        let phone = '';
-        let password = '123';
-        let familyCode = '';
 
-        if (parts.length >= 3) {
-          fn = (parts[1] || '').toUpperCase();
-          ln = (parts[2] || '').toUpperCase();
-          className = parts[3] || '5-A';
-          school = parts[4] || '-';
-          seviye = parts[5] || 'Seviye 1';
-          etutHocasi = parts[6] || '';
-          dahiliHoca = parts[7] || '';
-          yatakhane = parts[8] || '';
-          phone = parts[9] || '';
-          password = parts[10] || '123';
-          familyCode = parts[11] ? this.toAsciiUpper(parts[11]) : (ln ? this.toAsciiUpper(ln) + '2026' : 'AILE2026');
+        if (colMap.fullName !== undefined && rawParts[colMap.fullName]) {
+          const nameParts = rawParts[colMap.fullName].trim().split(/\s+/);
+          ln = (nameParts.pop() || '').toLocaleUpperCase('tr');
+          fn = (nameParts.join(' ') || '').toLocaleUpperCase('tr');
         } else {
-          const nameParts = (parts[1] || '').split(' ');
-          ln = (nameParts.pop() || '').toUpperCase();
-          fn = (nameParts.join(' ') || parts[1]).toUpperCase();
-          familyCode = ln ? this.toAsciiUpper(ln) + '2026' : 'AILE2026';
+          fn = (rawParts[colMap.fn] !== undefined ? rawParts[colMap.fn] : (rawParts[1] || '')).toString().trim().toLocaleUpperCase('tr');
+          ln = (rawParts[colMap.ln] !== undefined ? rawParts[colMap.ln] : (rawParts[2] || '')).toString().trim().toLocaleUpperCase('tr');
+        }
+
+        if (!ln && fn.includes(' ')) {
+          const parts = fn.split(/\s+/);
+          ln = parts.pop();
+          fn = parts.join(' ');
+        }
+
+        if (!fn && !ln && !no) continue;
+
+        let className = (rawParts[colMap.cls] !== undefined ? rawParts[colMap.cls] : (rawParts[3] || '5-A')).toString().trim() || '5-A';
+        let school = (rawParts[colMap.school] !== undefined ? rawParts[colMap.school] : (rawParts[4] || '-')).toString().trim() || '-';
+        let seviye = (rawParts[colMap.seviye] !== undefined ? rawParts[colMap.seviye] : (rawParts[5] || 'Seviye 1')).toString().trim() || 'Seviye 1';
+        let etutHocasi = (rawParts[colMap.etut] !== undefined ? rawParts[colMap.etut] : (rawParts[6] || '')).toString().trim();
+        let dahiliHoca = (rawParts[colMap.dahili] !== undefined ? rawParts[colMap.dahili] : (rawParts[7] || '')).toString().trim();
+        let yatakhane = (rawParts[colMap.yatakhane] !== undefined ? rawParts[colMap.yatakhane] : (rawParts[8] || '')).toString().trim();
+        let phone = (rawParts[colMap.phone] !== undefined ? rawParts[colMap.phone] : (rawParts[9] || '')).toString().trim();
+        let password = (rawParts[colMap.pass] !== undefined ? rawParts[colMap.pass] : (rawParts[10] || '123')).toString().trim() || '123';
+        let familyCode = (rawParts[colMap.family] !== undefined ? rawParts[colMap.family] : (rawParts[11] || '')).toString().trim();
+        if (!familyCode && ln) {
+          familyCode = this.toAsciiUpper(ln) + '2026';
         }
 
         students.push({
@@ -2928,8 +2973,8 @@ class DataStore {
           yatakhane,
           parentPhone: phone,
           fatherPhone: phone,
-          password: password || '123',
-          familyCode: familyCode || (ln ? this.toAsciiUpper(ln) + '2026' : 'AILE2026')
+          password: password,
+          familyCode: familyCode || 'AILE2026'
         });
       }
     }
@@ -2939,9 +2984,11 @@ class DataStore {
   // --- Yerel Dosyadan (ogrenciler.csv, ogrenciler.json veya js/ogrenciler-data.js) Manuel Talebe Bilgilerini Çekme ve Eşitleme Motoru ---
   async syncFromManualDataFile(providedData = null) {
     let candidateList = null;
+    let syncSource = 'sunucu';
 
-    // 1. Doğrudan parametre olarak CSV veya JSON verilmişse
+    // 1. Doğrudan parametre olarak CSV veya JSON verilmişse (Cihazdan Yükleme)
     if (providedData) {
+      syncSource = 'cihaz';
       if (typeof providedData === 'string' && (providedData.includes(';') || providedData.includes('\t') || providedData.includes(','))) {
         const parsedCsv = this.parseCsvToStudents(providedData);
         if (parsedCsv && parsedCsv.length > 0) candidateList = parsedCsv;
@@ -2970,12 +3017,14 @@ class DataStore {
               const parsedCsv = this.parseCsvToStudents(csvText);
               if (parsedCsv && parsedCsv.length > 0) {
                 candidateList = parsedCsv;
+                syncSource = 'ogrenciler.csv';
                 break;
               }
             } else if (filePath.endsWith('.json')) {
               const json = await resp.json();
               if (Array.isArray(json) && json.length > 0) {
                 candidateList = json;
+                syncSource = 'ogrenciler.json';
                 break;
               }
             }
@@ -3002,6 +3051,7 @@ class DataStore {
 
         if (window.MANUEL_OGRENCI_LISTESI && Array.isArray(window.MANUEL_OGRENCI_LISTESI) && window.MANUEL_OGRENCI_LISTESI.length > 0) {
           candidateList = window.MANUEL_OGRENCI_LISTESI;
+          syncSource = 'ogrenciler-data.js';
         }
       } catch (e) {}
     }
@@ -3009,15 +3059,17 @@ class DataStore {
     // 4. Halen bellekte window.MANUEL_OGRENCI_LISTESI varsa al
     if (!candidateList && window.MANUEL_OGRENCI_LISTESI && Array.isArray(window.MANUEL_OGRENCI_LISTESI) && window.MANUEL_OGRENCI_LISTESI.length > 0) {
       candidateList = window.MANUEL_OGRENCI_LISTESI;
+      syncSource = 'bellek';
     }
 
     // 5. Son çare varsayılan tohum listesi (SEED_STUDENTS) veya mevcut kayıtlar
     if (!candidateList || !Array.isArray(candidateList) || candidateList.length === 0) {
       candidateList = SEED_STUDENTS;
+      syncSource = 'varsayilan';
     }
 
-    // 54 kişilik master excel listesi dışındaki hiçbir eski/geçersiz kaydı kabul etme
-    candidateList = candidateList.filter(s => this.isAllowedStudent(s));
+    // Geçerli satırları filtrele (en azından ad/soyad veya no olmalı)
+    candidateList = candidateList.filter(s => s && typeof s === 'object' && ((s.firstName && s.firstName.toString().trim()) || (s.ad && s.ad.toString().trim()) || (s.studentNo && s.studentNo.toString().trim())));
 
     // Mevcut talebeleri tara ve kimlik eşleştirmesi yap (ID Koruması: Geçmiş yoklama, Kur'an ve puanlar asla kopmaz!)
     const existingList = this.getAllStudents() || [];
@@ -3046,13 +3098,14 @@ class DataStore {
       const fullName = `${fn} ${ln}`.trim();
       const normCandName = this.normalizeTr(fullName);
 
-      // Kimlik Eşleştirme (Önce SEED_STUDENTS, sonra mevcut ID, sonra Öğrenci No, sonra Normal İsim)
+      // Kimlik Eşleştirme (Önce SEED_STUDENTS'te tam ID veya tam İSİM, sonra mevcut ID/İSİM, en son Numara)
       const seedMatch = SEED_STUDENTS.find(s => {
         if (!s) return false;
         if (st.id && s.id === st.id) return true;
-        if (sNo && s.studentNo && s.studentNo.toString().trim() === sNo) return true;
         const sNorm = this.normalizeTr(`${s.firstName} ${s.lastName}`);
-        return sNorm && normCandName && sNorm === normCandName;
+        if (sNorm && normCandName && sNorm === normCandName) return true;
+        if (sNo && s.studentNo && s.studentNo.toString().trim() === sNo) return true;
+        return false;
       });
 
       let matchedExisting = null;
@@ -3063,9 +3116,6 @@ class DataStore {
       } else if (st.id && existingById.has(st.id) && !usedIds.has(st.id)) {
         studentId = st.id;
         matchedExisting = existingById.get(st.id);
-      } else if (sNo && existingByNo.has(sNo) && !usedIds.has(existingByNo.get(sNo).id)) {
-        matchedExisting = existingByNo.get(sNo);
-        studentId = matchedExisting.id;
       } else {
         // İsimle mevcut talebelerde ara
         for (const [eName, eSt] of existingByName.entries()) {
@@ -3075,11 +3125,17 @@ class DataStore {
             break;
           }
         }
+        // İsimle bulunamazsa son çare öğrenci numarası ile ara
+        if (!studentId && sNo && existingByNo.has(sNo) && !usedIds.has(existingByNo.get(sNo).id)) {
+          matchedExisting = existingByNo.get(sNo);
+          studentId = matchedExisting.id;
+        }
         if (!studentId) {
           studentId = st.id || ('std_' + (sNo ? sNo : (Date.now() + '_' + idx)));
         }
       }
       usedIds.add(studentId);
+      this.saveCustomAddedStudentId(studentId);
 
       // Mevcut veli telefonu veya şifresi varsa ve yeni veri hücresi boşsa, mevcut olanı koru
       const existingPhone = matchedExisting ? (matchedExisting.parentPhone || matchedExisting.fatherPhone || '') : (seedMatch ? (seedMatch.parentPhone || seedMatch.fatherPhone || '') : '');
@@ -3168,10 +3224,12 @@ class DataStore {
     // Etkinlik bildir
     window.dispatchEvent(new CustomEvent('students-updated', { detail: cleanedStudents }));
 
+    const sourceLabel = syncSource === 'cihaz' ? 'Seçtiğiniz cihaz dosyasından' : (syncSource === 'ogrenciler.csv' ? 'Sistemdeki ogrenciler.csv dosyasından' : 'Güncel listeden');
     return {
       success: true,
       count: cleanedStudents.length,
-      message: `Tebrikler! ${cleanedStudents.length} talebenin güncel bilgileri başarıyla sisteme aktarıldı ve eşitlendi.`
+      source: syncSource,
+      message: `Tebrikler! ${sourceLabel} ${cleanedStudents.length} talebenin güncel bilgileri başarıyla sisteme aktarıldı ve eşitlendi.`
     };
   }
 

@@ -1,5 +1,5 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v10.39 - Kesin Master Excel Kilidi)
-const CACHE_NAME = 'oay-takip-cache-v10.39';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v10.40 - Akıllı Dosya ve Bulut Eşitleme)
+const CACHE_NAME = 'oay-takip-cache-v10.40';
 
 // Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
 const STATIC_ASSETS = [
