@@ -5744,9 +5744,36 @@ class DataStore {
     };
   }
 
+  isCurrentUserAdmin() {
+    try {
+      const saved = sessionStorage.getItem('yoklama_active_session') || localStorage.getItem('yoklama_active_session');
+      if (saved) {
+        const session = JSON.parse(saved);
+        if (session && (session.role === 'superadmin' || session.staffId === 'admin_root' || session.canEditSettings)) {
+          return true;
+        }
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  isAuthorizedForDuties() {
+    try {
+      const saved = sessionStorage.getItem('yoklama_active_session') || localStorage.getItem('yoklama_active_session');
+      if (saved) {
+        const session = JSON.parse(saved);
+        if (session && session.role === 'parent') {
+          return false;
+        }
+        return true;
+      }
+    } catch (e) {}
+    return true;
+  }
+
   saveDailyDuties(duties) {
-    if (!this.isCurrentUserAdmin()) {
-      return { success: false, message: 'Günün görevlilerini yalnızca Kurum Yöneticisi atayabilir ve kaydedebilir.' };
+    if (!this.isAuthorizedForDuties()) {
+      return { success: false, message: 'Günün görevlilerini veli hesabı ile düzenleyemezsiniz.' };
     }
     const realToday = new Date().toISOString().split('T')[0];
     const targetDate = (duties && duties.date) || realToday;
@@ -5789,8 +5816,8 @@ class DataStore {
   }
 
   deleteDailyDuties(targetDate) {
-    if (!this.isCurrentUserAdmin()) {
-      return { success: false, message: 'Günün görevlilerini yalnızca Kurum Yöneticisi silebilir.' };
+    if (!this.isAuthorizedForDuties()) {
+      return { success: false, message: 'Günün görevlilerini veli hesabı ile silemezsiniz.' };
     }
     const realToday = new Date().toISOString().split('T')[0];
     const date = targetDate || realToday;

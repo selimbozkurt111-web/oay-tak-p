@@ -69,7 +69,7 @@ window.App = {
           return; // Klavyenin kapanmasını ve ekranın başa zıplamasını %100 engeller
         }
 
-        // 2. Takviye Notları, Test Neticeleri, Canlı Excel, Kur'an Takip, Öğrenci Toplu Düzenleme ve Ayarlar kendi durumunu yönetir;
+        // 2. Takviye Notları, Test Neticeleri, Canlı Excel, Kur'an Takip, Öğrenci Toplu Düzenleme, Görevler ve Ayarlar kendi durumunu yönetir;
         // Arka plan senkronizasyonu bu ekranların DOM'unu ve odağını ASLA ezmemelidir!
         if (
           this.activeTab === 'performans' || 
@@ -82,6 +82,7 @@ window.App = {
           this.activeTab === 'ogrenciler_excel' || 
           this.activeTab === 'kuran_takip' || 
           this.activeTab === 'hatim' || 
+          (this.activeTab === 'gorevler' && (isInputFocused || (typeof this.hasUnsavedDutyChanges === 'function' && this.hasUnsavedDutyChanges()))) ||
           (this.activeTab === 'ogrenciler' && (this.studentTableEditMode || (typeof this.hasUnsavedStudentChanges === 'function' && this.hasUnsavedStudentChanges()))) ||
           this.activeTab === 'ayarlar'
         ) {
@@ -108,9 +109,16 @@ window.App = {
         } else if (this.activeTab === 'leaderboard' && window.LeaderboardModule) {
           window.LeaderboardModule.renderView();
         } else if (this.activeTab === 'gorevler') {
-          this.draftDutyYemekciler = null;
-          this.draftDutyMuezzin = null;
-          this.draftDutyNote = null;
+          if (isInputFocused || (typeof this.hasUnsavedDutyChanges === 'function' && this.hasUnsavedDutyChanges())) {
+            return;
+          }
+          const targetDate = this.selectedDutyDate || new Date().toISOString().split('T')[0];
+          const freshDuties = (window.Store && typeof window.Store.getDailyDuties === 'function')
+            ? window.Store.getDailyDuties(targetDate, false)
+            : { yemekciler: [], muezzin: '', note: '' };
+          this.draftDutyYemekciler = Array.isArray(freshDuties.yemekciler) ? [...freshDuties.yemekciler] : [];
+          this.draftDutyMuezzin = freshDuties.muezzin || '';
+          this.draftDutyNote = freshDuties.note || '';
           this.renderDailyDutiesView();
         } else if (this.activeTab === 'ogrenciler') {
           this.renderStudentsView();
@@ -122,12 +130,23 @@ window.App = {
       }
     });
 
-    // Görevliler başka cihazda güncellendiğinde anında yenile
+    // Görevliler başka cihazda güncellendiğinde anında yenile (kullanıcı yazmıyorsa ve taslak yoksa)
     window.addEventListener('daily-duties-updated', () => {
       if (this.currentSession && this.activeTab === 'gorevler') {
-        this.draftDutyYemekciler = null;
-        this.draftDutyMuezzin = null;
-        this.draftDutyNote = null;
+        const isInputFocused = document.activeElement && 
+          (document.activeElement.tagName === 'INPUT' || 
+           document.activeElement.tagName === 'TEXTAREA' || 
+           document.activeElement.tagName === 'SELECT');
+        if (isInputFocused || (typeof this.hasUnsavedDutyChanges === 'function' && this.hasUnsavedDutyChanges())) {
+          return;
+        }
+        const targetDate = this.selectedDutyDate || new Date().toISOString().split('T')[0];
+        const freshDuties = (window.Store && typeof window.Store.getDailyDuties === 'function')
+          ? window.Store.getDailyDuties(targetDate, false)
+          : { yemekciler: [], muezzin: '', note: '' };
+        this.draftDutyYemekciler = Array.isArray(freshDuties.yemekciler) ? [...freshDuties.yemekciler] : [];
+        this.draftDutyMuezzin = freshDuties.muezzin || '';
+        this.draftDutyNote = freshDuties.note || '';
         this.renderDailyDutiesView();
       }
     });
@@ -4393,13 +4412,52 @@ window.App = {
   draftDutyYemekciler: null,
   draftDutyMuezzin: null,
   draftDutyNote: null,
+  _dutyNoteSaveTimer: null,
+
+  isAuthorizedForDuties() {
+    if (!this.currentSession) return true;
+    if (this.currentSession.role === 'parent') return false;
+    return true;
+  },
+
+  hasUnsavedDutyChanges() {
+    if (this.activeTab !== 'gorevler') return false;
+    const targetDate = this.selectedDutyDate || new Date().toISOString().split('T')[0];
+    const saved = (window.Store && typeof window.Store.getDailyDuties === 'function')
+      ? window.Store.getDailyDuties(targetDate, false)
+      : { yemekciler: [], muezzin: '', note: '' };
+
+    const savedYm = Array.isArray(saved.yemekciler) ? saved.yemekciler : [];
+    const curYm = Array.isArray(this.draftDutyYemekciler) ? this.draftDutyYemekciler : [];
+    if (savedYm.length !== curYm.length) return true;
+    for (let i = 0; i < savedYm.length; i++) {
+      if (savedYm[i] !== curYm[i]) return true;
+    }
+    if ((this.draftDutyMuezzin || '').trim() !== (saved.muezzin || '').trim()) return true;
+    if ((this.draftDutyNote || '').trim() !== (saved.note || '').trim()) return true;
+    return false;
+  },
+
+  autoSaveDailyDuties() {
+    if (!this.isAuthorizedForDuties()) return;
+    const targetDate = this.selectedDutyDate || new Date().toISOString().split('T')[0];
+    const payload = {
+      date: targetDate,
+      yemekciler: Array.isArray(this.draftDutyYemekciler) ? [...this.draftDutyYemekciler] : [],
+      muezzin: (this.draftDutyMuezzin || '').trim(),
+      note: (this.draftDutyNote || '').trim()
+    };
+    if (window.Store && typeof window.Store.saveDailyDuties === 'function') {
+      window.Store.saveDailyDuties(payload);
+    }
+  },
 
   renderDailyDutiesView() {
     const container = document.getElementById('duties-container');
     if (!container) return;
 
-    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
-      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
+    const isAuthorized = this.isAuthorizedForDuties();
+    const isSuperAdmin = this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root');
 
     const realToday = new Date().toISOString().split('T')[0];
     if (!this.selectedDutyDate) {
@@ -4449,16 +4507,16 @@ window.App = {
             <div>
               <div class="flex items-center gap-2">
                 <h3 class="font-black text-white text-lg sm:text-xl">
-                  ${isAdmin ? 'Günün Görevlileri & Haftalık Nöbet Planlama' : 'Günün Görevlileri & Nöbet Çizelgesi'}
+                  ${isAuthorized ? 'Günün Görevlileri & Haftalık Nöbet Planlama' : 'Günün Görevlileri & Nöbet Çizelgesi'}
                 </h3>
-                <span class="px-2 py-0.5 rounded-lg ${isAdmin ? 'bg-amber-500 text-slate-950' : 'bg-blue-500 text-white'} font-black text-[10px] uppercase tracking-wider flex items-center gap-1">
-                  <span>${isAdmin ? '👑 YÖNETİCİ PLANLAMA PANELİ' : '👁️ GÖREVLİ LİSTESİ'}</span>
+                <span class="px-2 py-0.5 rounded-lg ${isAuthorized ? 'bg-amber-500 text-slate-950' : 'bg-blue-500 text-white'} font-black text-[10px] uppercase tracking-wider flex items-center gap-1">
+                  <span>${isSuperAdmin ? '👑 YÖNETİCİ PLANLAMA PANELİ' : (isAuthorized ? '📋 GÖREVLİ PLANLAMA PANELİ' : '👁️ GÖREVLİ LİSTESİ')}</span>
                 </span>
               </div>
               <p class="text-xs text-amber-200/80 mt-0.5">
-                ${isAdmin 
-                  ? `Seçili Gün: <strong>${dateFormatted}</strong> ${isTargetToday ? '• (Bugün)' : '• (İleri Tarih)'} — Nöbetçileri gün gün atayınız; günü geldiğinde TV panosuna otomatik yansır.`
-                  : `Seçili Gün: <strong>${dateFormatted}</strong> ${isTargetToday ? '• (Bugün)' : ''} — Kurum Yöneticisi tarafından belirlenen görevli talebelerimiz.`}
+                ${isAuthorized 
+                  ? `Seçili Gün: <strong>${dateFormatted}</strong> ${isTargetToday ? '• (Bugün)' : '• (İleri Tarih)'} — Nöbetçileri gün gün belirleyiniz; anında veritabanına ve TV panosuna yansır.`
+                  : `Seçili Gün: <strong>${dateFormatted}</strong> ${isTargetToday ? '• (Bugün)' : ''} — Kurumumuz tarafından belirlenen görevli talebelerimiz.`}
               </p>
             </div>
           </div>
@@ -4486,7 +4544,7 @@ window.App = {
               <span>📅</span> <span>HIZLI GÜN SEÇİMİ (ÖNÜMÜZDEKİ 7 GÜN)</span>
             </span>
             <span class="text-slate-400 text-[11px]">
-              Tıklayarak o günün görevlilerini belirleyin; günü gelince TV panosuna kendiliğinden yansır.
+              Tıklayarak o günün görevlilerini belirleyin; anında kaydedilir ve günü gelince TV panosuna kendiliğinden yansır.
             </span>
           </div>
 
@@ -4529,13 +4587,13 @@ window.App = {
           </div>
         </div>
 
-        <!-- 3. Yönetici Bilgilendirme ve Hızlı Kopyalama Kartı -->
-        ${isAdmin ? `
+        <!-- 3. Bilgilendirme ve Hızlı Kopyalama Kartı -->
+        ${isAuthorized ? `
           <div class="p-4 bg-gradient-to-r from-amber-50 via-amber-100/50 to-amber-50 border border-amber-200 rounded-3xl flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950 shadow-2xs">
             <div class="flex items-center gap-3">
               <span class="text-2xl shrink-0">💡</span>
               <div class="leading-relaxed">
-                <strong>İleri Tarihli Çoklu Gün Planlama:</strong> Yukarıdaki gün butonlarından dilediğiniz günü (örn: Yarın, Pazartesi veya sonraki günleri) seçip nöbetçileri şimdiden kaydedebilirsiniz. O gün geldiğinde TV panosu ve sistem o günün nöbetçilerini otomatik olarak ekrana getirecektir.
+                <strong>İleri Tarihli Çoklu Gün Planlama:</strong> Yukarıdaki gün butonlarından dilediğiniz günü seçip nöbetçileri şimdiden kaydedebilirsiniz. Eklediğiniz her nöbetçi otomatik olarak kaydedilir; günü geldiğinde TV panosunda kendiliğinden devreye girer.
               </div>
             </div>
             <div class="flex items-center gap-2">
@@ -4550,7 +4608,7 @@ window.App = {
           <div class="p-3.5 bg-blue-50/90 border border-blue-200 rounded-2xl flex items-center gap-3 text-xs text-blue-900 shadow-2xs">
             <span class="text-xl shrink-0">ℹ️</span>
             <div class="leading-relaxed">
-              <strong>Bilgilendirme:</strong> Günün görevlileri (yemekhane nöbetçileri ve vakit müezzini) <strong>Kurum Yöneticisi</strong> tarafından belirlenmektedir. Bu ekranda haftalık nöbet planını canlı olarak takip edebilirsiniz.
+              <strong>Bilgilendirme:</strong> Günün görevlileri (yemekhane nöbetçileri ve vakit müezzini) kurum yetkilileri tarafından belirlenmektedir. Bu ekranda haftalık nöbet planını canlı olarak takip edebilirsiniz.
             </div>
           </div>
         `}
@@ -4566,7 +4624,7 @@ window.App = {
               ${isTargetToday ? '🟢 Bugünün Nöbeti' : '🗓️ İleri Tarihli Plan'}
             </span>
           </div>
-          ${isAdmin && (currentYemekciler.length > 0 || currentMuezzin || currentNote) ? `
+          ${isAuthorized && (currentYemekciler.length > 0 || currentMuezzin || currentNote) ? `
             <button type="button" onclick="window.App.deleteDutyForDate('${targetDate}')"
               class="text-xs text-rose-600 hover:text-rose-800 hover:underline font-bold cursor-pointer">
               🗑️ Bu Günün Nöbetini Temizle
@@ -4586,13 +4644,13 @@ window.App = {
                   </div>
                   <div>
                     <h4 class="font-bold text-slate-900 text-base">Günün Yemekçileri</h4>
-                    <p class="text-xs text-slate-500">Mutfak ve sofra görevlileri (${currentYemekciler.length} ${isAdmin ? 'seçildi' : 'görevli'})</p>
+                    <p class="text-xs text-slate-500">Mutfak ve sofra görevlileri (${currentYemekciler.length} ${isAuthorized ? 'seçildi' : 'görevli'})</p>
                   </div>
                 </div>
               </div>
 
-              ${isAdmin ? `
-                <!-- YALNIZCA YÖNETİCİ: Hızlı Talebe Ekleme Formu -->
+              ${isAuthorized ? `
+                <!-- Hızlı Talebe Ekleme Formu -->
                 <div class="space-y-3 mb-4">
                   <label class="block text-[11px] font-bold text-slate-600 uppercase">
                     TALEBE SEÇİP EKLEYİNİZ
@@ -4636,7 +4694,7 @@ window.App = {
                     <div class="text-2xl mb-1">🍽️</div>
                     <div class="font-bold text-slate-700">Bu gün için yemekhane nöbetçisi atanmadı.</div>
                     <div class="text-[11px] text-slate-400">
-                      ${isAdmin ? 'Yukarıdan talebe seçip "+ Ekle" butonuna basınız.' : 'Kurum Yöneticisi tarafından görev atandığında burada listelenecektir.'}
+                      ${isAuthorized ? 'Yukarıdan talebe seçip "+ Ekle" butonuna basınız.' : 'Kurum yetkilileri tarafından görev atandığında burada listelenecektir.'}
                     </div>
                   </div>
                 ` : `
@@ -4649,7 +4707,7 @@ window.App = {
                           </span>
                           <span class="font-bold text-xs text-amber-950">${name}</span>
                         </div>
-                        ${isAdmin ? `
+                        ${isAuthorized ? `
                           <button type="button" onclick="window.App.removeYemekciAtIndex(${idx})"
                             class="w-6 h-6 rounded-lg bg-white hover:bg-rose-50 text-rose-500 hover:text-rose-700 border border-rose-200 text-xs font-bold transition flex items-center justify-center cursor-pointer"
                             title="Listeden Çıkar">
@@ -4668,8 +4726,8 @@ window.App = {
             </div>
 
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-              <span>TV Panosunda "Günün Yemekçileri" slaytında görünür</span>
-              ${(isAdmin && currentYemekciler.length > 0) ? `
+              <span>TV Panosunda "Günün Yemekçileri" slaytında otomatik döner</span>
+              ${(isAuthorized && currentYemekciler.length > 0) ? `
                 <button type="button" onclick="window.App.clearAllYemekciler()" class="text-rose-500 hover:underline cursor-pointer">
                   Tümünü Temizle
                 </button>
@@ -4692,14 +4750,14 @@ window.App = {
                 </div>
               </div>
 
-              ${isAdmin ? `
-                <!-- YALNIZCA YÖNETİCİ: Müezzin Seçici -->
+              ${isAuthorized ? `
+                <!-- Müezzin Seçici -->
                 <div class="space-y-3 mb-6">
                   <label class="block text-[11px] font-bold text-slate-600 uppercase">
                     MÜEZZİN TALEBEYİ SEÇİNİZ
                   </label>
                   <select id="duty-muezzin-select" 
-                    onchange="window.App.draftDutyMuezzin = this.value; window.App.renderDailyDutiesView();"
+                    onchange="window.App.changeDutyMuezzin(this.value)"
                     class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-500">
                     <option value="">-- Müezzin Talebeyi Seçiniz --</option>
                     ${students.map(s => {
@@ -4715,11 +4773,15 @@ window.App = {
 
                   <!-- Manuel Müezzin Girişi Alternatifi -->
                   <div class="flex items-center gap-2 pt-1">
-                    <input type="text" id="duty-muezzin-custom-text" placeholder="Veya manuel isim yazınız..."
+                    <input type="text" id="duty-muezzin-custom-text" placeholder="Veya manuel müezzin ismi yazınız..."
                       value="${currentMuezzin && !students.some(s => currentMuezzin.startsWith(`${s.firstName} ${s.lastName}`)) ? currentMuezzin : ''}"
-                      onchange="window.App.draftDutyMuezzin = this.value.trim(); window.App.renderDailyDutiesView();"
-                      onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.App.draftDutyMuezzin = this.value.trim(); window.App.renderDailyDutiesView(); }"
+                      oninput="window.App.handleMuezzinCustomInput(this.value)"
+                      onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.App.changeDutyMuezzin(this.value); }"
                       class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white">
+                    <button type="button" onclick="window.App.changeDutyMuezzin(document.getElementById('duty-muezzin-custom-text').value)"
+                      class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition cursor-pointer">
+                      Ata
+                    </button>
                   </div>
                 </div>
               ` : ''}
@@ -4735,9 +4797,9 @@ window.App = {
                   <div class="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
                     <span>🟢</span> <span>5 Vakit Ezan & Cemaat Görevi Atandı</span>
                   </div>
-                  ${isAdmin ? `
+                  ${isAuthorized ? `
                     <div class="mt-3">
-                      <button type="button" onclick="window.App.draftDutyMuezzin = ''; window.App.renderDailyDutiesView();"
+                      <button type="button" onclick="window.App.changeDutyMuezzin('')"
                         class="text-xs text-rose-600 hover:underline font-bold cursor-pointer">
                         Görevi Kaldır
                       </button>
@@ -4748,7 +4810,7 @@ window.App = {
                     Henüz atanmadı
                   </div>
                   <div class="text-[10px] text-slate-400 mt-0.5">
-                    ${isAdmin ? 'Yukarıdan müezzin seçimi yapınız' : 'Yönetici tarafından atandığında burada görüntülenecektir'}
+                    ${isAuthorized ? 'Yukarıdan müezzin seçimi yapınız' : 'Yetkili tarafından atandığında burada görüntülenecektir'}
                   </div>
                 `}
               </div>
@@ -4762,18 +4824,18 @@ window.App = {
         </div>
 
         <!-- 5. 📌 GÜNÜN ÖZEL DUYURUSU / NOTU -->
-        ${isAdmin ? `
+        ${isAuthorized ? `
           <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-3">
             <label class="block text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
               <span>📌</span> <span>${dateFormatted} DUYURUSU VEYA ÖZEL NOTU (İSTEĞE BAĞLI)</span>
             </label>
             <input type="text" id="duty-note-input"
               value="${currentNote}"
-              oninput="window.App.draftDutyNote = this.value;"
+              oninput="window.App.handleDutyNoteInput(this.value);"
               placeholder="Örn: Bugün öğle yemeği 12:45'te başlayacaktır. Akşam ikramı yemekhanededir."
               class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-amber-500">
             <p class="text-[11px] text-slate-400">
-              Bu not TV Panosunda Görevliler slaytının altında özel kutucuk olarak yayınlanır.
+              Bu not TV Panosunda Görevliler slaytının altında özel kutucuk olarak yayınlanır. Yazdığınız anda otomatik kaydedilir.
             </p>
           </div>
         ` : (currentNote ? `
@@ -4791,13 +4853,13 @@ window.App = {
           </div>
         `)}
 
-        <!-- 6. ALT KAYDET BUTONU -->
-        ${isAdmin ? `
+        <!-- 6. ALT KAYDET VE TV SENKRONİZASYON BUTONU -->
+        ${isAuthorized ? `
           <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-900 text-white p-5 rounded-3xl shadow-xl">
             <div class="text-xs">
               <span class="font-black text-amber-400">Hedef Tarih:</span>
               <span class="text-white font-bold ml-1">${dateFormatted}</span>
-              <span class="text-slate-300 block text-[11px] mt-0.5">Kaydettiğiniz anda veritabanına işlenir; günü gelince TV panosunda otomatik döner.</span>
+              <span class="text-slate-300 block text-[11px] mt-0.5">Tüm değişiklikler anında kaydedilir; "Kaydet" butonu ile de onaylayıp TV panosuna anında gönderebilirsiniz.</span>
             </div>
 
             <button type="button" onclick="window.App.saveDailyDutiesSubmit()"
@@ -4919,7 +4981,7 @@ window.App = {
                             class="px-3 py-1.5 rounded-xl ${isCurSelected ? 'bg-amber-500 text-slate-950 font-black' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold'} text-xs transition cursor-pointer">
                             ${isCurSelected ? '✏️ Seçili' : 'Düzenle'}
                           </button>
-                          ${isAdmin && day.hasAssignment ? `
+                          ${isAuthorized && day.hasAssignment ? `
                             <button type="button" onclick="window.App.deleteDutyForDate('${day.date}')"
                               class="w-7 h-7 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold transition flex items-center justify-center cursor-pointer"
                               title="Bu günün nöbetini temizle">
@@ -4949,7 +5011,33 @@ window.App = {
     this.renderDailyDutiesView();
   },
 
+  changeDutyMuezzin(val) {
+    if (!this.isAuthorizedForDuties()) {
+      this.showToast('Günün görevlilerini atama yetkisi veli hesabında bulunmamaktadır.', 'warning');
+      return;
+    }
+    this.draftDutyMuezzin = (val || '').trim();
+    this.autoSaveDailyDuties();
+    this.renderDailyDutiesView();
+  },
+
+  handleMuezzinCustomInput(val) {
+    this.draftDutyMuezzin = (val || '').trim();
+  },
+
+  handleDutyNoteInput(val) {
+    this.draftDutyNote = val;
+    if (this._dutyNoteSaveTimer) clearTimeout(this._dutyNoteSaveTimer);
+    this._dutyNoteSaveTimer = setTimeout(() => {
+      this.autoSaveDailyDuties();
+    }, 800);
+  },
+
   copyDutiesFromPreviousDay() {
+    if (!this.isAuthorizedForDuties()) {
+      this.showToast('Günün görevlilerini kopyalama yetkisi veli hesabında bulunmamaktadır.', 'warning');
+      return;
+    }
     const curDate = this.selectedDutyDate || new Date().toISOString().split('T')[0];
     const prevDateObj = new Date(curDate + 'T00:00:00');
     prevDateObj.setDate(prevDateObj.getDate() - 1);
@@ -4967,15 +5055,14 @@ window.App = {
     this.draftDutyYemekciler = Array.isArray(prevDuties.yemekciler) ? [...prevDuties.yemekciler] : [];
     this.draftDutyMuezzin = prevDuties.muezzin || '';
     this.draftDutyNote = prevDuties.note || '';
-    this.showToast(`✓ ${prevIso} gününün görevlileri aktarıldı. "Kaydet" butonuna basarak onaylayabilirsiniz.`, 'info');
+    this.autoSaveDailyDuties();
+    this.showToast(`✓ ${prevIso} gününün görevlileri aktarıldı ve kaydedildi.`, 'success');
     this.renderDailyDutiesView();
   },
 
   deleteDutyForDate(targetDate) {
-    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
-      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
-    if (!isAdmin) {
-      this.showToast('Günün görevlilerini silme yetkisi yalnızca Kurum Yöneticisine aittir.', 'warning');
+    if (!this.isAuthorizedForDuties()) {
+      this.showToast('Günün görevlilerini silme yetkisi veli hesabında bulunmamaktadır.', 'warning');
       return;
     }
 
@@ -4997,10 +5084,8 @@ window.App = {
   },
 
   addYemekciFromSelect() {
-    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
-      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
-    if (!isAdmin) {
-      this.showToast('Günün görevlilerini atama ve değiştirme yetkisi yalnızca Kurum Yöneticisine aittir.', 'warning');
+    if (!this.isAuthorizedForDuties()) {
+      this.showToast('Günün görevlilerini atama ve değiştirme yetkisi veli hesabında bulunmamaktadır.', 'warning');
       return;
     }
 
@@ -5019,14 +5104,13 @@ window.App = {
     }
     this.draftDutyYemekciler.push(val);
     sel.value = '';
+    this.autoSaveDailyDuties();
     this.renderDailyDutiesView();
   },
 
   addYemekciFromCustomText() {
-    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
-      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
-    if (!isAdmin) {
-      this.showToast('Günün görevlilerini atama ve değiştirme yetkisi yalnızca Kurum Yöneticisine aittir.', 'warning');
+    if (!this.isAuthorizedForDuties()) {
+      this.showToast('Günün görevlilerini atama ve değiştirme yetkisi veli hesabında bulunmamaktadır.', 'warning');
       return;
     }
 
@@ -5042,45 +5126,43 @@ window.App = {
     }
     this.draftDutyYemekciler.push(val);
     input.value = '';
+    this.autoSaveDailyDuties();
     this.renderDailyDutiesView();
   },
 
   removeYemekciAtIndex(idx) {
-    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
-      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
-    if (!isAdmin) {
-      this.showToast('Günün görevlilerini atama ve değiştirme yetkisi yalnızca Kurum Yöneticisine aittir.', 'warning');
+    if (!this.isAuthorizedForDuties()) {
+      this.showToast('Günün görevlilerini atama ve değiştirme yetkisi veli hesabında bulunmamaktadır.', 'warning');
       return;
     }
 
     if (Array.isArray(this.draftDutyYemekciler)) {
       this.draftDutyYemekciler.splice(idx, 1);
+      this.autoSaveDailyDuties();
       this.renderDailyDutiesView();
     }
   },
 
   clearAllYemekciler() {
-    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
-      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
-    if (!isAdmin) {
-      this.showToast('Günün görevlilerini atama ve değiştirme yetkisi yalnızca Kurum Yöneticisine aittir.', 'warning');
+    if (!this.isAuthorizedForDuties()) {
+      this.showToast('Günün görevlilerini atama ve değiştirme yetkisi veli hesabında bulunmamaktadır.', 'warning');
       return;
     }
 
     this.draftDutyYemekciler = [];
+    this.autoSaveDailyDuties();
     this.renderDailyDutiesView();
   },
 
   saveDailyDutiesSubmit() {
-    const isAdmin = (window.Store && typeof window.Store.isCurrentUserAdmin === 'function' && window.Store.isCurrentUserAdmin()) ||
-      (this.currentSession && (this.currentSession.role === 'superadmin' || this.currentSession.staffId === 'admin_root'));
-    if (!isAdmin) {
-      this.showToast('Günün görevlilerini atama ve kaydetme yetkisi yalnızca Kurum Yöneticisine aittir.', 'warning');
+    if (!this.isAuthorizedForDuties()) {
+      this.showToast('Günün görevlilerini atama ve kaydetme yetkisi veli hesabında bulunmamaktadır.', 'warning');
       return;
     }
 
     const noteInput = document.getElementById('duty-note-input');
     const note = noteInput ? noteInput.value.trim() : (this.draftDutyNote || '');
+    this.draftDutyNote = note;
     const date = this.selectedDutyDate || new Date().toISOString().split('T')[0];
 
     const payload = {
@@ -5098,7 +5180,7 @@ window.App = {
       if (res && res.success) {
         this.showToast(`✓ ${date} tarihli görevliler başarıyla kaydedildi ve TV panosuna iletildi!`, 'success');
       } else {
-        this.showToast(res.message || 'Görevliler kaydedildi.', 'success');
+        this.showToast((res && res.message) ? res.message : 'Görevliler kaydedildi.', 'success');
       }
     }
     this.renderDailyDutiesView();
