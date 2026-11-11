@@ -1,8 +1,10 @@
-// sw.js - Ömer Avniyel Akademi PWA Service Worker (v10.46 - Görevler Koruma ve Oto-Kayıt)
-const CACHE_NAME = 'oay-takip-cache-v10.46';
+// sw.js - Ömer Avniyel Akademi PWA Service Worker (v10.47 - Kararlı Canlı Bağlantı ve Çökme Koruması)
+const CACHE_NAME = 'oay-takip-cache-v10.47';
 
-// Statik temel dosyalar (HTML ve JS dosyaları KESİNLİKLE buraya eklenmez, daima taze çekilir!)
+// Statik temel dosyalar
 const STATIC_ASSETS = [
+  './',
+  './index.html',
   './manifest.json',
   './icon.svg',
   './css/custom.css'
@@ -40,7 +42,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Network-First stratejisi (Canlı veri öncelikli, HTML ve JS asla bayat önbellekten açılmaz)
+// Canlı veri öncelikli, asla ERR_FAILED verdirtmeyen güvenli ağ motoru
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
@@ -56,17 +58,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML navigasyonları, JS, JSON ve CSV dosyaları için DAİMA doğrudan ağa git
-  if (event.request.mode === 'navigate' || url.endsWith('.html') || url.includes('/js/') || url.endsWith('.json') || url.endsWith('.csv')) {
+  // Sayfa açılışları (HTML navigasyonları)
+  if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request, { cache: 'no-cache' })
-        .then((networkResponse) => {
-          return networkResponse;
-        })
-        .catch(() => {
-          // Yalnızca internet tamamen kesilmişse önbelleğe bak
-          return caches.match(event.request);
-        })
+      fetch(event.request).catch(() => {
+        return caches.match(event.request)
+          .then((cached) => cached || caches.match('./index.html') || caches.match('index.html'))
+          .then((res) => {
+            if (res) return res;
+            return new Response(
+              '<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"><title>Ömer Avniyel Akademi</title></head><body style="font-family:sans-serif;text-align:center;padding:50px;background:#0f172a;color:#fff;"><h2>Bağlantı Kuruluyor...</h2><p>Lütfen sayfayı yenileyiniz.</p><button onclick="location.reload()" style="padding:10px 20px;border-radius:10px;background:#f59e0b;color:#000;font-weight:bold;cursor:pointer;border:none;">Sayfayı Yenile</button></body></html>',
+              { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+            );
+          });
+      })
+    );
+    return;
+  }
+
+  // JS, JSON ve CSV dosyaları: Önce doğrudan ağa sor, yoksa önbellekten al
+  if (url.endsWith('.html') || url.includes('/js/') || url.endsWith('.json') || url.endsWith('.csv')) {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match(event.request);
+      })
     );
     return;
   }
