@@ -163,10 +163,10 @@ class DataStore {
   }
 
   init() {
-    // 1. Silinmişler haritasından yanlışlıkla eklenmiş aktif öğrencileri arındır
+    // 1. Silinmişler haritasında olan talebeleri yerel listeden temizle
     this.purgeDeletedStudentsPermanently();
 
-    // 1b. Eski onay/özel eklenen öğrenci hafızasını temizle (54. hayalet talebeyi kökten yok eder)
+    // 1b. Pasiflik temizliği
     try {
       localStorage.removeItem('yoklama_custom_added_students_v1');
       localStorage.setItem('yoklama_custom_added_students_v1', JSON.stringify({}));
@@ -174,21 +174,15 @@ class DataStore {
       localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
     } catch (e) {}
 
-    // 1c. Resmi 53 Talebe Master Listesini Kesin Olarak Güvenceye Al & Bulutu Kilitle
-    this.autoEnsureMaster53Roster(true);
-
     if (!localStorage.getItem(STORAGE_KEYS.INITIALIZED)) {
       this.resetToDefaults();
+    } else {
+      // Mevcut talebeleri tekilleştir (silinenleri asla geri getirmeden)
+      this.deduplicateStudents(null, false);
     }
-    // Mükerrer veya yanlış kayıtları kesin 53 talebeye indirge
-    this.deduplicateStudents(null, true);
-
-    // Eksik öğrencileri otomatik kurtar
-    this.autoRecoverMissingBaselineStudents();
 
     // Mevcut öğrencilerin şubelerini (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) otomatik güncelle
     this.autoMigrateStudentClasses();
-    // 8-A ve 8-B sınıf onarma kullanıcının talebiyle tamamen kaldırıldı
     // 8-A ve 8-B hoca atamalarını ve personel rollerini eşitle
     this.autoSyncStaffAndClassTeachers();
     // Dini ders grupları ve Dahili Hoca senkronizasyonunu otomatik sağla
@@ -199,8 +193,7 @@ class DataStore {
     this.autoSyncBilalChuluk();
     // 7. Sınıf hoca ve şube atamaları panel kontrolünde korunur
     this.autoSync7thGradeClassTeachers();
-    // Yerel kalkan hafızası kalıcı olarak korunur
-    // Pasiflik temizliği: Pasif sicilini yerel hafızada temizle (Buluta gereksiz yükleme yapmaz)
+    // Pasiflik temizliği: Pasif sicilini yerel hafızada temizle
     try {
       localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
       localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
@@ -238,24 +231,20 @@ class DataStore {
     }
   }
 
-  // Silinmişler Haritasını Güvenli Yönetme Motoru (Temel 53 talebenin yanlışlıkla silinenler arasına girmesini engeller)
+  // Silinmiş Talebeleri Güvenle Temizleme Motoru (Silinen talebelerin listeden kalıcı olarak arındırılmasını sağlar)
   purgeDeletedStudentsPermanently() {
     try {
       const deletedMap = this.getDeletedStudentIds();
-      let deletedMapChanged = false;
+      if (!deletedMap || Object.keys(deletedMap).length === 0) return;
 
-      // Temel 53 talebeden hiçbiri ASLA silinmişler haritasında bulunamaz!
-      MASTER_53_BASELINE.forEach(seed => {
-        if (seed && seed.id && deletedMap[seed.id]) {
-          delete deletedMap[seed.id];
-          deletedMapChanged = true;
-        }
-      });
-
-      if (deletedMapChanged) {
-        this.saveDeletedStudentIds(deletedMap);
-        if (this.isCloudEnabled()) {
-          this.syncToCloud('kurs_data/deleted_student_ids', deletedMap);
+      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      if (raw) {
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          const purged = list.filter(s => s && s.id && !this.isStudentDeleted(s.id));
+          if (purged.length !== list.length) {
+            localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(purged));
+          }
         }
       }
     } catch (e) {
@@ -358,10 +347,10 @@ class DataStore {
     }
   }
 
-  // Evrensel 53 Talebe Arındırma ve Kilitleme Motoru (Asla 54 veya eksik olamaz; tam 53 resmi talebe)
+  // Talebe Düzenleme ve Arındırma Motoru (Silinen talebeleri asla geri getirmez)
   sanitizeToMaster53(incomingList = null, persist = false) {
     try {
-      const masterList = MASTER_53_BASELINE;
+      const masterList = MASTER_53_BASELINE.filter(m => m && m.id && !this.isStudentDeleted(m.id));
 
       let pool = [];
       if (Array.isArray(incomingList) && incomingList.length > 0) {
@@ -382,6 +371,7 @@ class DataStore {
 
       pool.forEach(st => {
         if (!st || typeof st !== 'object') return;
+        if (st.id && this.isStudentDeleted(st.id)) return;
         if (st.id) poolById.set(st.id, st);
         const sNo = (st.studentNo || st.no || '').toString().trim();
         if (sNo) poolByNo.set(sNo, st);
@@ -394,8 +384,7 @@ class DataStore {
       const nowIso = new Date().toISOString();
       const customNos = {};
 
-      // SADECE VE SADECE RESMİ 53 MASTER TALEBEYİ OLUŞTUR (54. hayalet talebe asla sızamaz)
-      const sanitized53 = masterList.map(masterSt => {
+      const sanitized = masterList.map(masterSt => {
         const normMasterName = this.normalizeTr(`${masterSt.firstName} ${masterSt.lastName}`).replace(/\s+/g, ' ').trim();
         const matched = poolById.get(masterSt.id) ||
                         poolByNo.get(masterSt.studentNo.toString().trim()) ||
@@ -433,7 +422,25 @@ class DataStore {
         };
       });
 
-      const sorted = this.sortStudentsByClassAndNo(sanitized53);
+      // Havuzdaki diğer eklenmiş talebeleri de koru
+      pool.forEach(st => {
+        if (!st || !st.id || this.isStudentDeleted(st.id)) return;
+        const fn = (st.firstName || st.ad || '').toString().trim();
+        const ln = (st.lastName || st.soyad || '').toString().trim();
+        const normName = this.normalizeTr(`${fn} ${ln}`).replace(/\s+/g, ' ').trim();
+        const alreadyIn = sanitized.some(s => s.id === st.id || (normName && this.normalizeTr(`${s.firstName} ${s.lastName}`).replace(/\s+/g, ' ').trim() === normName));
+        if (!alreadyIn) {
+          sanitized.push({
+            ...st,
+            isPassive: false,
+            status: 'active',
+            updatedAt: nowIso
+          });
+          if (st.studentNo) customNos[st.id] = st.studentNo.toString().trim();
+        }
+      });
+
+      const sorted = this.sortStudentsByClassAndNo(sanitized);
 
       if (persist) {
         localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(sorted));
@@ -452,59 +459,118 @@ class DataStore {
       return sorted;
     } catch (e) {
       console.warn('[sanitizeToMaster53] Hata:', e);
-      return MASTER_53_BASELINE;
+      return MASTER_53_BASELINE.filter(m => !this.isStudentDeleted(m.id));
     }
   }
 
-  // Talebe Tekilleştirme ve Yanlış Kayıt Onarma Motoru
-  deduplicateStudents(incomingList = null, persist = true) {
-    return this.sanitizeToMaster53(incomingList, persist);
+  // Talebe Tekilleştirme ve Mükerrer Kayıt Ayıklama Motoru
+  deduplicateStudents(incomingList = null, persist = false) {
+    try {
+      let list = [];
+      if (Array.isArray(incomingList) && incomingList.length > 0) {
+        list = [...incomingList];
+      } else {
+        const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+        if (raw) {
+          try { list = JSON.parse(raw) || []; } catch (e) { list = []; }
+        }
+      }
+      if (!Array.isArray(list) || list.length === 0) {
+        return [];
+      }
+
+      const seenIds = new Set();
+      const seenNames = new Map();
+      const result = [];
+
+      list.forEach(st => {
+        if (!st || typeof st !== 'object') return;
+        const id = (st.id || '').toString().trim();
+        if (!id || this.isStudentDeleted(id)) return;
+        if (seenIds.has(id)) return;
+
+        const fn = (st.firstName || st.ad || '').toString().trim();
+        const ln = (st.lastName || st.soyad || '').toString().trim();
+        const normName = this.normalizeTr(`${fn} ${ln}`).replace(/\s+/g, ' ').trim();
+
+        if (normName && seenNames.has(normName)) {
+          const existing = seenNames.get(normName);
+          if (!existing.parentPhone && (st.parentPhone || st.fatherPhone)) {
+            existing.parentPhone = (st.parentPhone || st.fatherPhone).trim();
+            existing.fatherPhone = existing.parentPhone;
+          }
+          if ((!existing.yatakhane || existing.yatakhane === '-') && st.yatakhane) {
+            existing.yatakhane = st.yatakhane;
+          }
+          return;
+        }
+
+        seenIds.add(id);
+        if (normName) seenNames.set(normName, st);
+        result.push(st);
+      });
+
+      const sorted = this.sortStudentsByClassAndNo(result);
+      if (persist) {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(sorted));
+        if (this.isCloudEnabled()) {
+          this._lastStudentEditTime = Date.now();
+          this._lastStudentPushTime = Date.now();
+          this.syncToCloud('kurs_data/students', sorted);
+        }
+        try {
+          window.dispatchEvent(new CustomEvent('students-updated', { detail: sorted }));
+        } catch (e) {}
+      }
+      return sorted;
+    } catch (e) {
+      console.warn('[deduplicateStudents] Hata:', e);
+      return Array.isArray(incomingList) ? incomingList : [];
+    }
   }
 
   // Eksik temel öğrencileri güvenle koruma motoru
   autoRecoverMissingBaselineStudents() {
-    return this.sanitizeToMaster53(null, true);
+    return this.deduplicateStudents(null, false);
   }
 
   // Eski "5. Sınıf" vb. kayıtları şubelere (5-A, 5-B, 6-A, 6-B, 7-A, 7-B, 8-A, 8-B) yükseltme
   autoMigrateStudentClasses() {
-    // Şube ve sınıf atamaları resmi listede ve panel kontrolünde korunur
     return { success: true };
   }
 
-  // Resmi 53 Talebe Master Listesini Kesin Güvenceye Alma ve Buluta Kilitleme Motoru
-  autoEnsureMaster53Roster(force = true) {
+  // Talebe Listesini Güvenceye Alma ve Buluta Eşitleme Motoru
+  autoEnsureMaster53Roster(force = false) {
     try {
-      const final53 = this.sanitizeToMaster53(null, true);
+      const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+      let list = [];
+      if (raw) {
+        try { list = JSON.parse(raw); } catch(e){}
+      }
+      if (!Array.isArray(list) || list.length === 0) {
+        list = MASTER_53_BASELINE.filter(m => !this.isStudentDeleted(m.id));
+      }
+      const finalClean = this.deduplicateStudents(list, true);
       const customNos = {};
-      final53.forEach(s => {
-        customNos[s.id] = s.studentNo;
-        this.markStudentLocallyEdited(s.id, ['studentNo', 'className', 'etutHocasi', 'dahiliHoca', 'yatakhane']);
+      finalClean.forEach(s => {
+        if (s && s.id && s.studentNo) customNos[s.id] = s.studentNo;
       });
-
       this.saveCustomStudentNos(customNos);
-      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(final53));
-      localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
-      localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
-      localStorage.removeItem('yoklama_custom_added_students_v1');
-      localStorage.setItem('yoklama_custom_added_students_v1', JSON.stringify({}));
 
       if (this.isCloudEnabled()) {
         this._lastStudentEditTime = Date.now();
         this._lastStudentPushTime = Date.now();
-        this.syncToCloud('kurs_data/students', final53);
+        this.syncToCloud('kurs_data/students', finalClean);
         this.syncToCloud('kurs_data/custom_student_nos', customNos);
-        this.syncToCloud('kurs_data/custom_added_student_ids', {});
-        this.syncToCloud('kurs_data/passive_student_ids', {});
       }
 
-      console.log(`[autoEnsureMaster53Roster] ${final53.length} resmi talebe başarıyla yerel ve bulut hafızaya kilitlendi.`);
+      console.log(`[autoEnsureMaster53Roster] ${finalClean.length} talebe başarıyla yerel ve bulut hafızaya eşitlendi.`);
 
       try {
-        window.dispatchEvent(new CustomEvent('students-updated', { detail: final53 }));
+        window.dispatchEvent(new CustomEvent('students-updated', { detail: finalClean }));
       } catch (e) {}
 
-      return { success: true, count: final53.length };
+      return { success: true, count: finalClean.length };
     } catch (e) {
       console.warn('[autoEnsureMaster53Roster] Hata:', e);
       return { success: false, error: e };
@@ -1015,35 +1081,21 @@ class DataStore {
     localStorage.removeItem('yoklama_custom_added_students_v1');
     localStorage.setItem('yoklama_custom_added_students_v1', JSON.stringify({}));
 
-    // 5. Öğrenci listesi (Akıllı Birleştirme: Silinenleri ve Master Liste Dışındaki Eskileri Ayıklar!)
+    // 5. Öğrenci listesi (Akıllı Birleştirme: Silinenleri ayıklar ve yerel düzenlemeleri korur)
     let cloudStudentsList = Array.isArray(cloudData.students) 
       ? cloudData.students 
       : (cloudData.students && typeof cloudData.students === 'object' ? Object.values(cloudData.students).filter(Boolean) : []);
 
     if (Array.isArray(cloudStudentsList) && cloudStudentsList.length > 0) {
-      const deletedMap = currentDeletedMap;
-      const passiveMap = this.getPassiveStudentIds();
-
-      // Buluttaki verileri yerel özel telefon ve şifrelerle birleştirip TAM 53 KİŞİLİK resmi listeye oturtur
-      const finalCleanList = this.sanitizeToMaster53(cloudStudentsList, true);
+      // Silinmiş olanları ayıkla
+      const validCloudStudents = cloudStudentsList.filter(s => s && s.id && !this.isStudentDeleted(s.id));
+      const finalCleanList = this.deduplicateStudents(validCloudStudents, false);
 
       localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(finalCleanList));
       localStorage.removeItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS);
       localStorage.setItem(STORAGE_KEYS.PASSIVE_STUDENT_IDS, JSON.stringify({}));
       localStorage.removeItem('yoklama_custom_added_students_v1');
       localStorage.setItem('yoklama_custom_added_students_v1', JSON.stringify({}));
-
-      // Eğer bulutta 53 kişilik master listenin dışında eski/hayalet öğrenciler varsa (örn: 54 kişi ise),
-      // bulutu derhal temiz 53 talebe listesi ile güncelle!
-      if (cloudStudentsList.length !== 53 && this.isCloudEnabled()) {
-        console.log(`[CloudSync] Buluttaki ${cloudStudentsList.length} kayıt tam 53 talebeye indirgendi, bulut düzeltiliyor.`);
-        this.syncToCloud('kurs_data/students', finalCleanList);
-        const customNos = {};
-        finalCleanList.forEach(s => { customNos[s.id] = s.studentNo; });
-        this.syncToCloud('kurs_data/custom_student_nos', customNos);
-        this.syncToCloud('kurs_data/custom_added_student_ids', {});
-        this.syncToCloud('kurs_data/passive_student_ids', {});
-      }
 
       try {
         window.dispatchEvent(new CustomEvent('students-updated', { detail: finalCleanList }));
@@ -1428,6 +1480,25 @@ class DataStore {
                 } catch (e) {}
               }
             }
+          } else if (path.startsWith('deleted_student_ids') || path.startsWith('deletedStudentIds')) {
+            if (data && typeof data === 'object') {
+              const currentDeleted = this.getDeletedStudentIds();
+              const merged = { ...currentDeleted, ...data };
+              this.saveDeletedStudentIds(merged);
+              const rawSt = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+              if (rawSt) {
+                try {
+                  const list = JSON.parse(rawSt);
+                  if (Array.isArray(list)) {
+                    const purged = list.filter(s => s && s.id && !this.isStudentDeleted(s.id));
+                    if (purged.length !== list.length) {
+                      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(purged));
+                      window.dispatchEvent(new CustomEvent('students-updated', { detail: purged }));
+                    }
+                  }
+                } catch(e) {}
+              }
+            }
           } else if (path.startsWith('students')) {
             // Eğer son 20 saniye içinde bu tarayıcı öğrenci kaydetti veya düzenlediyse, bu gelen SSE kendi yansımamızdır; es geç
             const timeSinceEdit = this._lastStudentEditTime ? (Date.now() - this._lastStudentEditTime) : 999999;
@@ -1438,10 +1509,12 @@ class DataStore {
             if (data) {
               const studentsArr = Array.isArray(data) ? data : (typeof data === 'object' ? Object.values(data).filter(Boolean) : null);
               if (studentsArr && studentsArr.length > 0) {
-                const filteredArr = studentsArr.filter(s => this.isAllowedStudent(s));
-                this.applyFullCloudSync({ students: filteredArr });
-                window.dispatchEvent(new CustomEvent('students-cloud-updated', { detail: filteredArr }));
-                window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: { students: filteredArr } }));
+                const filteredArr = studentsArr.filter(s => s && s.id && !this.isStudentDeleted(s.id));
+                const cleanArr = this.deduplicateStudents(filteredArr, false);
+                localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(cleanArr));
+                window.dispatchEvent(new CustomEvent('students-updated', { detail: cleanArr }));
+                window.dispatchEvent(new CustomEvent('students-cloud-updated', { detail: cleanArr }));
+                window.dispatchEvent(new CustomEvent('cloud-sync-done', { detail: { students: cleanArr } }));
               }
             }
           } else if (path.startsWith('attendance')) {
@@ -2001,8 +2074,7 @@ class DataStore {
     }
   }
 
-  // --- Kesin İzin Verilen Talebe Doğrulama Kalkanı ---
-  // Yalnızca resmi 53 kişilik listedeki talebeleri doğrular, eski hayalet kayıtları eler
+  // --- Talebe Doğrulama Kalkanı ---
   isAllowedStudent(student) {
     if (!student || typeof student !== 'object') return false;
     const sId = (student.id || '').toString().trim();
@@ -2010,24 +2082,9 @@ class DataStore {
 
     const sNo = (student.studentNo || student.no || '').toString().trim();
     const fn = (student.firstName || student.ad || '').toString().trim();
-    const ln = (student.lastName || student.soyad || '').toString().trim();
 
     if (!sId && !sNo && !fn) return false;
-
-    const masterList = MASTER_53_BASELINE;
-    const normName = this.normalizeTr(`${fn} ${ln}`).replace(/\s+/g, ' ').trim();
-
-    // 1. Resmi 53 talebeden biri mi? (ID, Numara veya Tam İsim eşleşmesi)
-    const isMaster = masterList.some(m => {
-      if (!m) return false;
-      if (sId && m.id === sId) return true;
-      if (sNo && m.studentNo && m.studentNo.toString().trim() === sNo) return true;
-      const mNorm = this.normalizeTr(`${m.firstName} ${m.lastName}`).replace(/\s+/g, ' ').trim();
-      if (mNorm && normName && mNorm === normName) return true;
-      return false;
-    });
-
-    return isMaster;
+    return true;
   }
 
   // --- Sistemdeki Eski / Geçersiz Talebeleri Temizleme Motoru ---
@@ -2194,20 +2251,23 @@ class DataStore {
   getAllStudents() {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-      let list = [];
+      let list = null;
       if (data) {
         try {
           const parsed = JSON.parse(data);
-          if (Array.isArray(parsed) && parsed.length === 53) {
-            const allValid = parsed.every(s => s && s.id && this.isAllowedStudent(s));
-            if (allValid) list = parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Silinenleri ayıkla ve tekilleştir
+            const filtered = parsed.filter(s => s && s.id && !this.isStudentDeleted(s.id));
+            list = this.deduplicateStudents(filtered, false);
           }
         } catch (e) {}
       }
 
-      // Eğer liste tam 53 kişi değilse veya bozulmuşsa derhal 53 resmi talebeye arındır ve kalıcı kaydet!
-      if (!list || list.length !== 53) {
-        list = this.sanitizeToMaster53(list, true);
+      // Yalnızca yerel depolama tamamen boşsa varsayılan listeyi yükle
+      if (!list || list.length === 0) {
+        const baseline = MASTER_53_BASELINE.filter(s => s && s.id && !this.isStudentDeleted(s.id));
+        list = this.sortStudentsByClassAndNo(baseline);
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(list));
       }
 
       // Özel öğrenci numaralarını ve aktiflik durumunu uygula
@@ -2225,7 +2285,7 @@ class DataStore {
 
       return this.sortStudentsByClassAndNo(list);
     } catch {
-      return this.sortStudentsByClassAndNo(MASTER_53_BASELINE);
+      return this.sortStudentsByClassAndNo(MASTER_53_BASELINE.filter(s => !this.isStudentDeleted(s.id)));
     }
   }
 
@@ -2255,24 +2315,9 @@ class DataStore {
 
   saveStudents(students) {
     if (!Array.isArray(students)) return;
-    const deletedMap = this.getDeletedStudentIds();
-    let deletedChanged = false;
 
-    // Kaydedilen öğrenciler aktif iradedir; silinmişler haritasında yanlışlıkla varsa kaldır
-    students.forEach(s => {
-      if (s && s.id && deletedMap[s.id]) {
-        delete deletedMap[s.id];
-        deletedChanged = true;
-      }
-    });
-    if (deletedChanged) {
-      this.saveDeletedStudentIds(deletedMap);
-      if (this.isCloudEnabled()) {
-        this.syncToCloud('kurs_data/deleted_student_ids', deletedMap);
-      }
-    }
-
-    const filteredStudents = students.filter(s => s && s.id && (!deletedMap[s.id] || !deletedMap[s.id].isDeleted));
+    // Silinmişler haritasındaki talebeler asla kaydedilen listeye dahil edilmez
+    const filteredStudents = students.filter(s => s && s.id && !this.isStudentDeleted(s.id));
     const deduped = this.deduplicateStudents(filteredStudents, false);
     const sanitizedStudents = this.sortStudentsByClassAndNo(deduped);
     const nowIso = new Date().toISOString();
@@ -2455,17 +2500,27 @@ class DataStore {
   // --- Tekil Öğrenciyi Kalıcı Olarak Silme ---
   deleteStudent(studentId) {
     if (!studentId) return false;
-    // 1. Silinenler haritasına ekle (Tombstone - hortlamayı önler)
+    // 1. Silinenler haritasına ekle (Kalıcı silinme koruması)
     const deletedMap = this.getDeletedStudentIds();
     deletedMap[studentId] = {
       isDeleted: true,
       deletedAt: new Date().toISOString()
     };
     this.saveDeletedStudentIds(deletedMap);
+    if (this.isCloudEnabled()) {
+      this.syncToCloud('kurs_data/deleted_student_ids', deletedMap);
+    }
 
     // 2. Öğrenci listesinden çıkar
-    const all = this.getAllStudents();
-    const filtered = all.filter(s => s.id !== studentId);
+    const raw = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+    let all = [];
+    if (raw) {
+      try { all = JSON.parse(raw); } catch(e){}
+    }
+    if (!Array.isArray(all) || all.length === 0) {
+      all = this.getAllStudents();
+    }
+    const filtered = all.filter(s => s && s.id && s.id !== studentId && !this.isStudentDeleted(s.id));
     this.saveStudents(filtered);
     return true;
   }

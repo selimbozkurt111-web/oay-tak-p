@@ -1825,7 +1825,7 @@ window.App = {
                 class="w-full py-2.5 px-4 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-black border-2 border-amber-300 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
                 title="Yeni özellikleri göremiyorsanız önbelleği temizleyip sayfayı yeniler">
                 <span class="text-sm">🔄</span>
-                <span>Sistemi & Önbelleği Sıfırla (v10.45)</span>
+                <span>Sistemi & Önbelleği Sıfırla (v10.48)</span>
               </button>
             </div>
           </div>
@@ -2271,12 +2271,15 @@ window.App = {
     let allStudents = window.Store.getAllStudents ? window.Store.getAllStudents() : window.Store.getStudents(true);
     let updatedList = [...allStudents];
 
-    // Silinenleri çıkar
+    // Silinenleri çıkar ve Store'dan kalıcı sil
     if (this.studentDeletedDrafts && this.studentDeletedDrafts.size > 0) {
       this.studentDeletedDrafts.forEach(delId => {
         window.Store.deleteStudent(delId);
+        if (this.studentDrafts && this.studentDrafts[delId]) {
+          delete this.studentDrafts[delId];
+        }
       });
-      updatedList = window.Store.getAllStudents ? window.Store.getAllStudents() : window.Store.getStudents(true);
+      updatedList = updatedList.filter(s => s && s.id && !this.studentDeletedDrafts.has(s.id));
     }
 
     const nowIso = new Date().toISOString();
@@ -2538,18 +2541,18 @@ window.App = {
         </div>
 
         <div class="space-y-3">
-          <!-- Seçenek 1: ⚡ Resmi 53 Talebeyi Buluta Kilitle & Anında Dağıt (Dosya Seçme / Yükleme GEREKTİRMEZ!) -->
+          <!-- Seçenek 1: ⚡ Talebe Listesini Buluta Eşitle & Anında Dağıt (Dosya Seçme / Yükleme GEREKTİRMEZ!) -->
           <button type="button" onclick="document.getElementById('sync-source-modal').remove(); window.App.pushMaster53ToCloudDirectly();"
             class="w-full p-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white text-left transition flex items-center justify-between group cursor-pointer active:scale-98 shadow-md">
             <div class="flex items-start gap-3">
               <span class="text-2xl mt-0.5">🚀</span>
               <div>
                 <div class="text-sm font-black flex items-center gap-2">
-                  <span>Resmi 53 Talebeyi Buluta Kilitle & Dağıt</span>
+                  <span>Talebe Listesini Buluta Eşitle & Dağıt</span>
                   <span class="text-[10px] bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-black uppercase">Sıfır Dosya</span>
                 </div>
                 <div class="text-xs text-emerald-100 mt-1 leading-snug">
-                  Dosya seçmenize veya GitHub'a yükleme yapmanıza gerek yoktur. Doğrulanmış 53 talebe doğrudan Firebase bulutuna yazılır ve tüm telefon/TV cihazlarına anında yayılır.
+                  Dosya seçmenize veya GitHub'a yükleme yapmanıza gerek yoktur. Güncel talebe listesi doğrudan Firebase bulutuna yazılır ve tüm telefon/TV cihazlarına anında yayılır.
                 </div>
               </div>
             </div>
@@ -2657,9 +2660,9 @@ window.App = {
     }
   },
 
-  // --- Resmi 53 Talebeyi Doğrudan Firebase Bulutuna Kilitleme ve Dağıtma Motoru ---
+  // --- Talebe Listesini Doğrudan Firebase Bulutuna Eşitleme ve Dağıtma Motoru ---
   async pushMaster53ToCloudDirectly() {
-    this.showToast('Resmi 53 talebe yerel hafızaya alınıyor ve Firebase bulutuna aktarılıyor...', 'info');
+    this.showToast('Talebe listesi yerel hafızaya alınıyor ve Firebase bulutuna aktarılıyor...', 'info');
     try {
       this.studentDrafts = {};
       this.studentNewDrafts = [];
@@ -2670,7 +2673,7 @@ window.App = {
       if (window.Store && typeof window.Store.autoEnsureMaster53Roster === 'function') {
         const res = window.Store.autoEnsureMaster53Roster(true);
         if (res && res.success) {
-          this.showToast(`🎉 Tebrikler! ${res.count} talebe başarıyla yerel hafızaya ve buluta kilitlendi!`, 'success');
+          this.showToast(`🎉 Tebrikler! ${res.count} talebe başarıyla yerel hafızaya ve buluta eşitlendi!`, 'success');
         } else {
           this.showToast('Talebe bilgileri güncellendi.', 'success');
         }
@@ -2903,9 +2906,9 @@ window.App = {
               </button>
               <button type="button" onclick="window.App.pushMaster53ToCloudDirectly()" 
                 class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer active:scale-95 border border-emerald-500"
-                title="Doğrulanmış 53 talebeyi yerel hafızaya ve doğrudan Firebase bulutuna kilitler">
+                title="Doğrulanmış talebe listesini yerel hafızaya ve doğrudan Firebase bulutuna eşitler">
                 <span class="text-sm">⚡</span>
-                <span>53 Talebeyi Buluta Kilitle & Dağıt</span>
+                <span>Talebeleri Buluta Eşitle & Dağıt</span>
               </button>
               <button type="button" onclick="window.App.exportStudentsToCsv()" 
                 class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1 cursor-pointer active:scale-95 border border-slate-300"
@@ -5782,6 +5785,12 @@ window.App = {
     if (!s) return;
     if (confirm(`"${s.firstName} ${s.lastName}" adlı öğrenciyi sistemden TAMAMEN SİLMEK istediğinizden emin misiniz?\n\n⚠️ Bu işlem geri alınamaz!`)) {
       window.Store.deleteStudent(id);
+      if (this.studentDrafts && this.studentDrafts[id]) {
+        delete this.studentDrafts[id];
+      }
+      if (this.studentDeletedDrafts && this.studentDeletedDrafts.has(id)) {
+        this.studentDeletedDrafts.delete(id);
+      }
       this.showToast('Öğrenci kaydı kalıcı olarak silindi ve bulutla eşitlendi.', 'info');
       this.renderStudentsView();
       if (window.StudentExcelModule && typeof window.StudentExcelModule.render === 'function') {
